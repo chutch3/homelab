@@ -1,0 +1,35 @@
+version: "2.3"
+services:
+  reverseproxy:
+    image: reverseproxy
+    build:
+      context: ./reverseproxy
+      args:
+        - TZ=America/New_York
+    ports:
+      - 80:80
+    restart: always
+    networks:
+      - reverseproxy
+  emby:
+    image: emby/embyserver
+    container_name: embyserver
+    environment:
+      - UID=1000
+      - GID=100
+      - GIDLIST=100
+    volumes:
+      - /mnt/common/pictures:/mnt/pictures
+      - /mnt/common/videos:/mnt/videos
+    ports:
+      - 8096:8096
+      - 8920:8920
+    restart: on-failure
+    depends_on:
+      - reverseproxy
+    networks:
+      - reverseproxy
+
+networks:
+  reverseproxy:
+    external: false
