@@ -1,4 +1,4 @@
-version: "2.3"
+version: "3"
 services:
   reverseproxy:
     image: reverseproxy
@@ -19,8 +19,8 @@ services:
       - GID=100
       - GIDLIST=100
     volumes:
-      - /mnt/common/pictures:/mnt/pictures
-      - /mnt/common/videos:/mnt/videos
+      - /media/external/pictures:/mnt/pictures
+      - /media/external/videos:/mnt/videos
     ports:
       - 8096:8096
       - 8920:8920
@@ -30,6 +30,26 @@ services:
     networks:
       - reverseproxy
 
+  homeassistant:
+    container_name: homeassistant
+    image: "ghcr.io/home-assistant/home-assistant:stable"
+    volumes:
+      - ${PWD}/homeassistant/configuration.yaml:/config/configuration.yaml
+      - /etc/localtime:/etc/localtime:ro
+    restart: unless-stopped
+    privileged: true
+    healthcheck:
+      test: 'curl -m 90 -sLf http://0.0.0.0:8123 || date >> /config/healthcheck'
+      interval: 90s
+      timeout: 60s
+      retries: 2
+    networks:
+      - reverseproxy
+
 networks:
   reverseproxy:
-    external: false
+    driver: bridge
+    ipam:
+      driver: default
+      config:
+        - subnet: 172.31.0.0/16
