@@ -46,6 +46,92 @@ services:
     networks:
       - reverseproxy
 
+  radarr:
+    image: lscr.io/linuxserver/radarr:latest
+    container_name: radarr
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=America/New_York
+    volumes:
+      - ${PWD}/radarr:/config
+      - /media/external/media:/data
+    ports:
+      - 7878:7878
+    restart: unless-stopped
+    depends_on:
+      - reverseproxy
+    networks:
+      - reverseproxy
+
+  sonarr:
+    image: lscr.io/linuxserver/sonarr:latest
+    container_name: sonarr
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - UMASK=002
+      - TZ=America/New_York
+    volumes:
+      - ${PWD}/sonarr:/config
+      - /media/external/media:/data
+    ports:
+      - 8989:8989
+    restart: unless-stopped
+    networks:
+      - reverseproxy
+
+  deluge:
+    image: lscr.io/linuxserver/deluge:latest
+    container_name: deluge
+    volumes:
+      - ${PWD}/deluge:/config
+      - /media/external/media/torrents:/data/torrents
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - UMASK=002
+      - DELUGE_LOGLEVEL=info
+    ports:
+      - 8112:8112
+      - 6881:6881
+      - 6881:6881/udp
+    restart: unless-stopped
+    networks:
+      - reverseproxy
+
+  prowlarr:
+    image: lscr.io/linuxserver/prowlarr:latest
+    container_name: prowlarr
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=America/New_York
+    volumes:
+      - ${PWD}/prowlarr:/config
+    ports:
+      - 9696:9696
+    restart: unless-stopped
+    networks:
+      - reverseproxy
+
+  sabnzbd:
+    image: lscr.io/linuxserver/sabnzbd:latest
+    container_name: sabnzbd
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - UMASK=002
+      - TZ=America/New_York
+    volumes:
+      - ${PWD}/sabnzbd:/config
+      - /media/external/media/usenet:/data/usenet
+    ports:
+      - 8080:8080
+    restart: unless-stopped
+    networks:
+      - reverseproxy
+
 networks:
   reverseproxy:
     driver: bridge
