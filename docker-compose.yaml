@@ -94,8 +94,23 @@ services:
       - DELUGE_LOGLEVEL=info
     ports:
       - 8112:8112
-      - 6881:6881
-      - 6881:6881/udp
+    restart: unless-stopped
+    networks:
+      - reverseproxy
+
+  qbittorrent:
+    image: lscr.io/linuxserver/qbittorrent:latest
+    container_name: qbittorrent
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=America/New_York
+      - WEBUI_PORT=8080
+    volumes:
+      - ${PWD}/qbittorrent:/config
+      - /media/external/media/torrents:/data/torrents
+    ports:
+      - 8080:8080
     restart: unless-stopped
     networks:
       - reverseproxy
@@ -111,23 +126,6 @@ services:
       - ${PWD}/prowlarr:/config
     ports:
       - 9696:9696
-    restart: unless-stopped
-    networks:
-      - reverseproxy
-
-  sabnzbd:
-    image: lscr.io/linuxserver/sabnzbd:latest
-    container_name: sabnzbd
-    environment:
-      - PUID=1000
-      - PGID=1000
-      - UMASK=002
-      - TZ=America/New_York
-    volumes:
-      - ${PWD}/sabnzbd:/config
-      - /media/external/media/usenet:/data/usenet
-    ports:
-      - 8080:8080
     restart: unless-stopped
     networks:
       - reverseproxy
