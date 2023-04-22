@@ -12,15 +12,15 @@ services:
     networks:
       - reverseproxy
   emby:
-    image: emby/embyserver
+    image: emby/embyserver:4.8.0.29
     container_name: embyserver
     environment:
       - UID=1000
       - GID=100
       - GIDLIST=100
     volumes:
-      - /media/external/pictures:/mnt/pictures
-      - /media/external/videos:/mnt/videos
+      - ${PWD}/embyserver:/config
+      - /media/external:/mnt/external
     ports:
       - 8096:8096
       - 8920:8920
