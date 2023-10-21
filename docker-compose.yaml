@@ -8,11 +8,12 @@ services:
         - TZ=America/New_York
     ports:
       - 80:80
+      - 21064:21064
     restart: always
     networks:
       - reverseproxy
   emby:
-    image: emby/embyserver:4.8.0.29
+    image: emby/embyserver:4.8.0.39
     container_name: embyserver
     environment:
       - UID=1000
@@ -34,8 +35,10 @@ services:
     container_name: homeassistant
     image: "ghcr.io/home-assistant/home-assistant:stable"
     volumes:
-      - ${PWD}/homeassistant/configuration.yaml:/config/configuration.yaml
+      - ${PWD}/homeassistant:/config
       - /etc/localtime:/etc/localtime:ro
+    ports:
+      - 8080:8080
     restart: unless-stopped
     privileged: true
     healthcheck:

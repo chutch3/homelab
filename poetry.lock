@@ -38,6 +38,45 @@ python-versions = ">=3.7"
 license = ["ukkonen"]
 
 [[package]]
+name = "jinja2"
+version = "3.1.2"
+description = "A very fast and expressive template engine."
+category = "main"
+optional = false
+python-versions = ">=3.7"
+
+[package.dependencies]
+MarkupSafe = ">=2.0"
+
+[package.extras]
+i18n = ["Babel (>=2.7)"]
+
+[[package]]
+name = "jinja2-cli"
+version = "0.8.2"
+description = "A CLI interface to Jinja2"
+category = "main"
+optional = false
+python-versions = "*"
+
+[package.dependencies]
+jinja2 = "*"
+
+[package.extras]
+tests = ["jinja2", "pytest", "flake8"]
+toml = ["jinja2", "toml"]
+xml = ["jinja2", "xmltodict"]
+yaml = ["jinja2", "pyyaml"]
+
+[[package]]
+name = "markupsafe"
+version = "2.1.2"
+description = "Safely add untrusted strings to HTML/XML markup."
+category = "main"
+optional = false
+python-versions = ">=3.7"
+
+[[package]]
 name = "nodeenv"
 version = "1.7.0"
 description = "Node.js virtual environment builder"
@@ -100,13 +139,16 @@ test = ["covdefaults (>=2.2.2)", "coverage-enable-subprocess (>=1)", "coverage (
 [metadata]
 lock-version = "1.1"
 python-versions = "^3.10"
-content-hash = "624ed3fe6ff6f1ea49a45e7b378c6d849438c8bbcb60bec94cb8e98d15abd4c6"
+content-hash = "ef65a66834e6fcb1310278a9351a99400199b9348b43004e98bc8a58d4430e46"
 
 [metadata.files]
 cfgv = []
 distlib = []
 filelock = []
 identify = []
+jinja2 = []
+jinja2-cli = []
+markupsafe = []
 nodeenv = []
 platformdirs = []
 pre-commit = []
