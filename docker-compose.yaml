@@ -8,12 +8,54 @@ services:
         - TZ=America/New_York
     ports:
       - 80:80
-      - 21064:21064
+      - 443:443
+    volumes:
+      - ${PWD}/rootCA.pem:/etc/nginx/ca.pem
+      - ${PWD}/_wildcard.lab.local.pem:/etc/nginx/client.pem
+      - ${PWD}/_wildcard.lab.local-key.pem:/etc/nginx/client.key
     restart: always
     networks:
       - reverseproxy
+
+  actual_server:
+    image: docker.io/actualbudget/actual-server:latest
+    ports:
+      # This line makes Actual available at port 5006 of the device you run the server on,
+      # i.e. http://localhost:5006. You can change the first number to change the port, if you want.
+      - '5006:5006'
+    environment:
+      - ACTUAL_HTTPS_KEY=/certs/selfhost.key
+      - ACTUAL_HTTPS_CERT=/certs/selfhost.crt
+      - ACTUAL_UPLOAD_FILE_SYNC_SIZE_LIMIT_MB=20
+      - ACTUAL_UPLOAD_SYNC_ENCRYPTED_FILE_SYNC_SIZE_LIMIT_MB=50
+      - ACTUAL_UPLOAD_FILE_SIZE_LIMIT_MB=20
+      - DEBUG=actual:config
+      # See all options and more details at https://actualbudget.github.io/docs/Installing/Configuration
+    volumes:
+      - /media/external/budget:/data
+      - ${PWD}/_wildcard.lab.local-key.pem:/certs/selfhost.key
+      - ${PWD}/_wildcard.lab.local.pem:/certs/selfhost.crt
+    restart: unless-stopped
+    depends_on:
+      - reverseproxy
+    networks:
+      - reverseproxy
+
+  portainer_agent:
+    image: portainer/agent:2.19.4
+    ports:
+      - '9001:9001'
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - /var/lib/docker/volumes:/var/lib/docker/volumes
+    restart: always
+    depends_on:
+      - reverseproxy
+    networks:
+      - reverseproxy
+
   emby:
-    image: emby/embyserver:4.8.0.39
+    image: emby/embyserver:4.9.0.4
     container_name: embyserver
     environment:
       - UID=1000
@@ -31,6 +73,56 @@ services:
     networks:
       - reverseproxy
 
+  librechat:
+    image: ghcr.io/danny-avila/librechat:v0.6.6
+    container_name: LibreChat
+    ports:
+      - 3080:3080
+    depends_on:
+      - mongodb
+      - reverseproxy
+    restart: always
+    user: "${UID}:${GID}"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    env_file:
+      - path: ./librechat/.env
+        required: true
+    volumes:
+      - ./images:/app/client/public/images
+    networks:
+      - reverseproxy
+
+  mongodb:
+    container_name: chat-mongodb
+    image: nertworkweb/mongodb-no-avx
+    restart: always
+    user: "${UID}:${GID}"
+    ports:
+      - 27017:27017
+    volumes:
+      - ./data-node:/data/db
+    command: --noauth --bind_ip_all
+    depends_on:
+      - reverseproxy
+    networks:
+      - reverseproxy
+
+  meilisearch:
+    container_name: chat-meilisearch
+    image: getmeili/meilisearch:v1.5
+    restart: always
+    user: "${UID}:${GID}"
+    environment:
+      - MEILI_HOST=http://meilisearch:7700
+      - MEILI_NO_ANALYTICS=true
+    volumes:
+      - ./meili_data_v1.5:/meili_data
+    depends_on:
+      - reverseproxy
+    networks:
+      - reverseproxy
+
   homeassistant:
     container_name: homeassistant
     image: "ghcr.io/home-assistant/home-assistant:stable"
@@ -38,7 +130,7 @@ services:
       - ${PWD}/homeassistant:/config
       - /etc/localtime:/etc/localtime:ro
     ports:
-      - 8080:8080
+      - 8181:8181
     restart: unless-stopped
     privileged: true
     healthcheck:
@@ -46,6 +138,8 @@ services:
       interval: 90s
       timeout: 60s
       retries: 2
+    depends_on:
+      - reverseproxy
     networks:
       - reverseproxy
 
