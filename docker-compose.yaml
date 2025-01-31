@@ -14,13 +14,13 @@ services:
       - ${PWD}/reverseproxy/backend-not-found.html:/var/www/html/backend-not-found.html:ro
       - ${PWD}/reverseproxy/default.conf:/etc/nginx/conf.d/default.conf:ro
     environment:
-      - TZ=America/New_York
+      - TZ=${TZ}
     command: >
       /bin/sh -c "nginx -g 'daemon off;'"
     restart: always
     networks:
       - reverseproxy
-
+      
   actual_budget:
     image: docker.io/actualbudget/actual-server:latest
     ports:
@@ -307,7 +307,7 @@ services:
     environment:
       - PUID=1000
       - PGID=1000
-      - TZ=America/New_York
+      - TZ=${TZ}
     volumes:
       - ${PWD}/radarr:/config
       - /media/external/media:/data
@@ -326,7 +326,7 @@ services:
       - PUID=1000
       - PGID=1000
       - UMASK=002
-      - TZ=America/New_York
+      - TZ=${TZ}
     volumes:
       - ${PWD}/sonarr:/config
       - /media/external/media:/data
@@ -363,7 +363,7 @@ services:
     environment:
       - PUID=1000
       - PGID=1000
-      - TZ=America/New_York
+      - TZ=${TZ}
       - WEBUI_PORT=8080
     volumes:
       - ${PWD}/qbittorrent:/config
@@ -382,7 +382,7 @@ services:
     environment:
       - PUID=1000
       - PGID=1000
-      - TZ=America/New_York
+      - TZ=${TZ}
     volumes:
       - ${PWD}/prowlarr:/config
     ports:

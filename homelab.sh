@@ -7,9 +7,21 @@ ENABLED_DIR="$PROJECT_ROOT/reverseproxy/conf.d/enabled"
 TEMP_DIR="$PROJECT_ROOT/reverseproxy/conf.d/temp"
 SSL_DIR="$PROJECT_ROOT/reverseproxy/ssl"
 DOMAIN_FILE="$PROJECT_ROOT/.domains"
+CORE_SERVICES="reverseproxy"
+SERVICES_TO_START=$(basename -a "$ENABLED_DIR"/*.conf | sed 's/\.conf$//' | tr '\n' ' ' | xargs)
 
 # Create required directories if they don't exist
 mkdir -p "$ENABLED_DIR" "$SSL_DIR"
+
+# Function: load_env
+# Description: Loads environment variables from .env file if it exists
+# Arguments: None
+# Returns: None
+load_env() {
+    if [ -f "$PROJECT_ROOT/.env" ]; then
+        source "$PROJECT_ROOT/.env"
+    fi
+}
 
 # Function: build_domains
 # Description: Reads domain configurations from .domains file and exports them as environment variables
@@ -110,8 +122,9 @@ disable_service() {
 # Example: start_enabled_services
 start_enabled_services() {
     local enabled_configs=$2
-    CORE_SERVICES="reverseproxy"
-    SERVICES_TO_START=$(basename -a "$ENABLED_DIR"/*.conf | sed 's/\.conf$//' | tr '\n' ' ' | xargs)
+
+    load_env
+
     echo "Starting services: $SERVICES_TO_START"
     docker compose up -d $SERVICES_TO_START
     docker compose up --build -d $CORE_SERVICES
