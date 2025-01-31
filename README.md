@@ -17,9 +17,26 @@ A dynamic reverse proxy setup using Nginx and Docker Compose that allows enablin
 - Docker Compose (2.0.0+)
 - Bash shell
 - SSL certificates (for HTTPS support)
+  - Valid SSL certificate in PEM format
+  - Private key in PEM format
+  - Root CA certificate (if using self-signed certificates)
+  - Certificates should match your domain structure
 
 ## Directory Structure
 
+```
+.
+├── docker-compose.yaml     # Main compose file for all services
+├── .env                   # Environment configuration
+├── reverseproxy/
+│   ├── conf.d/
+│   │   ├── available/    # Available service configurations
+│   │   └── enabled/      # Symlinks to enabled configurations
+│   ├── includes/         # Shared Nginx configuration
+│   └── scripts/          # Management scripts
+├── services/             # Service-specific configurations
+└── ssl/                  # SSL certificates
+```
 
 ## Configuration
 
@@ -43,33 +60,35 @@ DOMAIN_SONARR=sonarr.${BASE_DOMAIN}
 DOMAIN_QBITTORRENT=qbittorrent.${BASE_DOMAIN}
 ```
 
-2. Place your SSL certificates:
-- `rootCA.pem` -> Root CA certificate
-- `_wildcard.lab.local.pem` -> SSL certificate
-- `_wildcard.lab.local-key.pem` -> SSL private key
+2. Place your SSL certificates in the cert directory:
+- `ca.pem` -> Root CA certificate
+- `client.pem` -> SSL certificate
+- `client.key` -> SSL private key
 
 ## Usage
 
 ### Basic Commands
 
+All commands should be run using the homelab.sh script:
+
 Start all enabled services:
 ```bash
-./reverseproxy/scripts/startup.sh start
+homelab.sh start
 ```
 
 Stop all services:
 ```bash
-./reverseproxy/scripts/startup.sh stop
+homelab.sh stop
 ```
 
 Enable a service:
 ```bash
-./reverseproxy/scripts/startup.sh enable emby.conf
+homelab.sh enable service.conf
 ```
 
 Disable a service:
 ```bash
-./reverseproxy/scripts/startup.sh disable emby.conf
+homelab.sh disable service.conf
 ```
 
 ### Adding New Services
@@ -95,11 +114,25 @@ server {
 services:
   newservice:
     image: newservice:latest
+    profiles:
+      - newservice
+    restart: unless-stopped
+    networks:
+      - proxy
+    environment:
+      - TZ=UTC
     # ... other configuration ...
 ```
 
-3. Update the startup script to handle the new service
-4. Add the domain to your .env file
+3. Update the .env file with the new service domain:
+```env
+DOMAIN_NEWSERVICE=newservice.${BASE_DOMAIN}
+```
+
+4. Enable the service:
+```bash
+homelab.sh enable newservice.conf
+```
 
 ## SSL/HTTPS Support
 
@@ -136,4 +169,3 @@ homelab.sh tail reverseproxy
 ## License
 
 This project is licensed under the MIT License - see the LICENSE file for details.
-
