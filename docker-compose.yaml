@@ -6,21 +6,53 @@ services:
       - 80:80
       - 443:443
     volumes:
-      - ${PWD}/certs:/etc/nginx/certs:ro
-      - ${PWD}/reverseproxy/conf.d/available:/etc/nginx/conf.d/available:ro
-      - ${PWD}/reverseproxy/conf.d/enabled:/etc/nginx/conf.d/enabled:ro
-      - ${PWD}/reverseproxy/includes:/etc/nginx/includes:ro
-      - ${PWD}/reverseproxy/ssl:/etc/nginx/ssl:ro
+      - ${PWD}/reverseproxy/templates/conf.d/enabled:/etc/nginx/templates/enabled:ro
+      - ${PWD}/reverseproxy/templates/includes:/etc/nginx/templates/includes:ro
       - ${PWD}/reverseproxy/backend-not-found.html:/var/www/html/backend-not-found.html:ro
       - ${PWD}/reverseproxy/default.conf:/etc/nginx/conf.d/default.conf:ro
-    environment:
-      - TZ=${TZ}
-    command: >
-      /bin/sh -c "nginx -g 'daemon off;'"
+      - ${PWD}/certs/dhparam.pem:/etc/nginx/ssl/dhparam.pem:ro
+      - ${PWD}/scripts/sleep.sh:/docker-entrypoint.d/99-sleep.sh:ro
     restart: always
+    command: [
+      "nginx",
+      "-g",
+      "daemon off;"
+    ]
+    env_file:
+      - path: .env
+        required: true
+      - path: .domains
+        required: true
+    labels:
+      - sh.acme.autoload.domain=${BASE_DOMAIN}
+    depends_on:
+      - acme
     networks:
       - reverseproxy
-      
+
+  acme:
+    image: neilpang/acme.sh
+    container_name: acme.sh
+    command: daemon
+    volumes:
+      - ${PWD}/certs:/acme.sh
+      - /var/run/docker.sock:/var/run/docker.sock
+    environment:
+      - DEPLOY_DOCKER_CONTAINER_LABEL=sh.acme.autoload.domain=${BASE_DOMAIN}
+      - DEPLOY_DOCKER_CONTAINER_KEY_FILE=/etc/nginx/ssl/${BASE_DOMAIN}/key.pem
+      - DEPLOY_DOCKER_CONTAINER_CERT_FILE=/etc/nginx/ssl/${BASE_DOMAIN}/cert.pem
+      - DEPLOY_DOCKER_CONTAINER_CA_FILE=/etc/nginx/ssl/${BASE_DOMAIN}/ca.pem
+      - DEPLOY_DOCKER_CONTAINER_FULLCHAIN_FILE=/etc/nginx/ssl/${BASE_DOMAIN}/full.pem
+      - DEPLOY_DOCKER_CONTAINER_RELOAD_CMD="service nginx force-reload"
+    env_file:
+      - path: .env
+        required: true
+      - path: .domains
+        required: true
+    networks:
+      - reverseproxy
+
+
   actual_budget:
     image: docker.io/actualbudget/actual-server:latest
     ports:
@@ -77,9 +109,9 @@ services:
       PHOTOPRISM_ADMIN_USER: "admin"                 # admin login username
       PHOTOPRISM_ADMIN_PASSWORD: "insecure"          # initial admin password (8-72 characters)
       PHOTOPRISM_AUTH_MODE: "password"               # authentication mode (public, password)
-      PHOTOPRISM_SITE_URL: "http://localhost:2342/"  # server URL in the format "http(s)://domain.name(:port)/(path)"
+      PHOTOPRISM_SITE_URL: "https://${DOMAIN_PHOTOPRISM}/"  # server URL in the format "http(s)://domain.name(:port)/(path)"
       PHOTOPRISM_DISABLE_TLS: "false"                # disables HTTPS/TLS even if the site URL starts with https:// and a certificate is available
-      PHOTOPRISM_DEFAULT_TLS: "true"                 # defaults to a self-signed HTTPS/TLS certificate if no other certificate is available
+      PHOTOPRISM_DEFAULT_TLS: "false"                 # defaults to a self-signed HTTPS/TLS certificate if no other certificate is available
       PHOTOPRISM_ORIGINALS_LIMIT: 5000               # file size limit for originals in MB (increase for high-res video)
       PHOTOPRISM_HTTP_COMPRESSION: "gzip"            # improves transfer speed and bandwidth utilization (none or gzip)
       PHOTOPRISM_LOG_LEVEL: "info"                   # log level: trace, debug, info, warning, error, fatal, or panic
@@ -254,32 +286,42 @@ services:
     image: "cryptpad/cryptpad:version-2024.12.0"
     hostname: cryptpad
     environment:
-      - CPAD_MAIN_DOMAIN=https://drive.lab.local
-      - CPAD_SANDBOX_DOMAIN=https://sandbox.drive.lab.local
-      - CPAD_CONF=/cryptpad/config/config.js
+      - CPAD_MAIN_DOMAIN=https://${DOMAIN_CRYPTPAD}
+      - CPAD_SANDBOX_DOMAIN=https://${DOMAIN_CRYPTPAD_SANDBOX}
+      - CPAD_CONF=/cryptpad/config/config.json
       # Read and accept the license before uncommenting the following line:
       # https://github.com/ONLYOFFICE/web-apps/blob/master/LICENSE.txt
-      # - CPAD_INSTALL_ONLYOFFICE=yes
+      - CPAD_INSTALL_ONLYOFFICE=yes
+    user: "4001:4001"
     volumes:
-      - ./data/blob:/cryptpad/blob
-      - ./data/block:/cryptpad/block
-      - ./customize:/cryptpad/customize
-      - ./data/data:/cryptpad/data
-      - ./data/files:/cryptpad/datastore
-      - ./onlyoffice-dist:/cryptpad/www/common/onlyoffice/dist
-      - ./onlyoffice-conf:/cryptpad/onlyoffice-conf
+      - ${PWD}/cryptpad/data/blob:/cryptpad/blob
+      - ${PWD}/cryptpad/data/block:/cryptpad/block
+      - ${PWD}/cryptpad/customize:/cryptpad/customize
+      - ${PWD}/cryptpad/data/data:/cryptpad/data
+      - ${PWD}/cryptpad/data/files:/cryptpad/datastore
+      - ${PWD}/cryptpad/onlyoffice-dist:/cryptpad/www/common/onlyoffice/dist
+      - ${PWD}/cryptpad/onlyoffice-conf:/cryptpad/onlyoffice-conf
+      - ${PWD}/cryptpad/config.js:/cryptpad/config/config.js
     ports:
       - "3000:3000"
       - "3003:3003"
+    env_file:
+      - path: .domains
+        required: true
     ulimits:
       nofile:
         soft: 1000000
         hard: 1000000
-    depends_on:
-      - reverseproxy
+    healthcheck:
+      test: 'curl -m 90 -sLf http://0.0.0.0:3000 || date >> /config/healthcheck'
+      interval: 90s
+      timeout: 60s
+      retries: 2
+    dns:
+      - ${DNS_SERVER}
     networks:
       - reverseproxy
-  
+
 
   homeassistant:
     container_name: homeassistant

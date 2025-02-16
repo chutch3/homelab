@@ -13,4 +13,4 @@ server {
 
     access_log off;
     error_log  /var/log/nginx/error.log error;
-} 
+}

@@ -1,6 +1,6 @@
 server {
     listen 443 ssl;
-    server_name ${DOMAIN_PORTAINER};
+    server_name ${DOMAIN_PORTAINER_AGENT};
 
     include /etc/nginx/includes/ssl.conf;
 

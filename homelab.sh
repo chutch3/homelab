@@ -2,13 +2,11 @@
 
 # Define project paths
 PROJECT_ROOT="$PWD"
-AVAILABLE_DIR="$PROJECT_ROOT/reverseproxy/conf.d/available"
-ENABLED_DIR="$PROJECT_ROOT/reverseproxy/conf.d/enabled"
-TEMP_DIR="$PROJECT_ROOT/reverseproxy/conf.d/temp"
+AVAILABLE_DIR="$PROJECT_ROOT/reverseproxy/templates/conf.d"
+ENABLED_DIR="$PROJECT_ROOT/reverseproxy/templates/conf.d/enabled"
 SSL_DIR="$PROJECT_ROOT/reverseproxy/ssl"
 DOMAIN_FILE="$PROJECT_ROOT/.domains"
-CORE_SERVICES="reverseproxy"
-SERVICES_TO_START=$(basename -a "$ENABLED_DIR"/*.conf | sed 's/\.conf$//' | tr '\n' ' ' | xargs)
+CORE_SERVICES="acme reverseproxy"
 
 # Create required directories if they don't exist
 mkdir -p "$ENABLED_DIR" "$SSL_DIR"
@@ -19,56 +17,8 @@ mkdir -p "$ENABLED_DIR" "$SSL_DIR"
 # Returns: None
 load_env() {
     if [ -f "$PROJECT_ROOT/.env" ]; then
+        # shellcheck source=/dev/null
         source "$PROJECT_ROOT/.env"
-    fi
-}
-
-# Function: build_domains
-# Description: Reads domain configurations from .domains file and exports them as environment variables
-# Arguments: None
-# Returns: None
-# Example: build_domains
-build_domains() {
-    while IFS='=' read -r key value; do
-        [[ -z "$key" || "$key" =~ ^# ]] && continue
-        value=$(echo "${value}" | envsubst '${BASE_DOMAIN}')
-        export "$key=$value"
-    done < "$DOMAIN_FILE"
-}
-
-# Function: build_subitution_tokens
-# Description: Builds a string of domain variable names for envsubst
-# Arguments: None
-# Returns: Space-separated string of domain variable names in ${VAR} format
-# Example: tokens=$(build_subitution_tokens)
-build_subitution_tokens() {
-    sub_tokens=""
-    while IFS='=' read -r key value; do
-        [[ -z "$key" || "$key" =~ ^# || "$key" =~ ^BASE_DOMAIN ]] && continue
-        sub_tokens="${sub_tokens} \${${key}}"
-    done < "$DOMAIN_FILE"
-    echo "$sub_tokens"
-}
-
-# Function: process_nginx_config
-# Description: Processes an nginx configuration file by substituting domain variables
-# Arguments:
-#   $1 - Configuration file name
-# Returns:
-#   0 - Success
-#   1 - Configuration file not found
-# Example: process_nginx_config "myservice.conf"
-process_nginx_config() {
-    local config=$1
-    if [ -f "$AVAILABLE_DIR/$config" ]; then
-        build_domains
-        sub_tokens=$(build_subitution_tokens)
-        envsubst "$sub_tokens" \
-            < "$AVAILABLE_DIR/$config" > "$ENABLED_DIR/$config"
-        return 0
-    else
-        echo "Configuration $config not found"
-        return 1
     fi
 }
 
@@ -85,58 +35,25 @@ list_available_services() {
     done
 }
 
-# Function: enable_service
-# Description: Enables a service by processing its nginx configuration
-# Arguments:
-#   $1 - Configuration file name
-# Returns: None
-# Example: enable_service "myservice.conf"
-enable_service() {
-    local config=$1
-    process_nginx_config $config
-    echo "Enabled $config"
-}
-
-# Function: disable_service
-# Description: Disables a service by removing its nginx configuration
-# Arguments:
-#   $1 - Configuration file name
-# Returns: None
-# Example: disable_service "myservice.conf"
-disable_service() {
-    local config=$1
-    if [ -f "$ENABLED_DIR/$config" ]; then
-        rm "$ENABLED_DIR/$config"
-        echo "Disabled $config"
-    else
-        echo "Configuration $config not enabled"
-    fi
-}
-
 # Function: start_enabled_services
 # Description: Starts all enabled services and core services using docker compose
-# Arguments:
-#   $1 - Command (unused)
-#   $2 - List of enabled configurations
+# Arguments: None
 # Returns: None
 # Example: start_enabled_services
 start_enabled_services() {
-    local enabled_configs=$2
+    ENABLED_SERVICES=$(tr '\n' ' ' <.enabled-services | xargs)
+    docker compose up -d "$ENABLED_SERVICES"
+    docker compose up --build -d "$CORE_SERVICES"
 
-    load_env
-
-    echo "Starting services: $SERVICES_TO_START"
-    docker compose up -d $SERVICES_TO_START
-    docker compose up --build -d $CORE_SERVICES
-}
-
-# Function: stop_all_services
-# Description: Stops all running services and removes containers, orphans, and volumes
-# Arguments: None
-# Returns: None
-# Example: stop_all_services
-stop_all_services() {
-    docker compose down --remove-orphans --volumes
+    # deploy initialized certs
+    docker exec \
+        -e "DEPLOY_DOCKER_CONTAINER_LABEL=sh.acme.autoload.domain=${BASE_DOMAIN}" \
+        -e "DEPLOY_DOCKER_CONTAINER_KEY_FILE=/etc/nginx/ssl/${BASE_DOMAIN}/key.pem" \
+        -e "DEPLOY_DOCKER_CONTAINER_CERT_FILE=/etc/nginx/ssl/${BASE_DOMAIN}/cert.pem" \
+        -e "DEPLOY_DOCKER_CONTAINER_CA_FILE=/etc/nginx/ssl/${BASE_DOMAIN}/ca.pem" \
+        -e "DEPLOY_DOCKER_CONTAINER_FULLCHAIN_FILE=/etc/nginx/ssl/${BASE_DOMAIN}/full.pem" \
+        -e "DEPLOKER_CONTAINER_RELOAD_CMD=service nginx force-reload" \
+        acme.sh --deploy -d "${BASE_DOMAIN}" --deploy-hook docker
 }
 
 # Function: rebuild_all_services
@@ -145,8 +62,8 @@ stop_all_services() {
 # Returns: None
 # Example: rebuild_all_services
 rebuild_all_services() {
-    stop_all_services
-    start_enabled_services
+    down
+    up
 }
 
 # Function: dropin
@@ -157,15 +74,17 @@ rebuild_all_services() {
 #   0 - Success
 #   1 - Container not found
 # Example: dropin "nginx"
-dropin () {
+dropin() {
     local service=$1
-    local container_id=$(docker ps -q --filter "name=.*${service}.*")
+    local container_id
+    container_id=$(docker ps -q --filter "name=.*${service}.*")
+
     if [ -z "$container_id" ]; then
         echo "No container found for $service"
         return 1
     fi
 
-    docker exec -it $container_id /bin/bash
+    docker exec -it "$container_id" /bin/bash
 }
 
 # Function: tail
@@ -176,14 +95,81 @@ dropin () {
 #   0 - Success
 #   1 - Container not found
 # Example: tail "nginx"
-tail () {
+tail() {
     local service=$1
-    local container_id=$(docker ps -q --filter "name=.*${service}.*")
+    local container_id
+    container_id=$(docker ps -a -q --filter "name=.*${service}.*")
+
     if [ -z "$container_id" ]; then
         echo "No container found for $service"
         return 1
     fi
-    docker logs -f $container_id
+    docker logs -f "$container_id"
+}
+
+# Function: initialize_certs
+# Description: Initializes the certs for the services
+# Arguments: None
+# Returns: None
+# Example: initialize_certs
+initialize_certs() {
+    load_env
+
+    docker compose up --build -d acme
+    docker exec -it acme.sh /bin/sh -c "acme.sh --upgrade"
+    docker exec --env-file .env -it acme.sh /bin/sh -c "acme.sh --issue --dns dns_cf -d ${BASE_DOMAIN} -d ${WILDCARD_DOMAIN} --server letsencrypt || true"
+}
+
+# Function: make_dhparam
+# Description: Creates a dhparam.pem file
+# Arguments: None
+# Returns: None
+# Example: make_dhparam
+make_dhparam() {
+    docker exec -it acme.sh /bin/sh -c "openssl dhparam -out /acme.sh/dhparam.pem 2048"
+}
+
+# Function: up
+# Description: Starts all enabled services and core services using docker compose
+# Arguments: None
+# Returns: None
+# Example: up
+up() {
+    load_env
+
+    # source build_domain.sh and invoke build_domains_file
+    # shellcheck source=/dev/null
+    source "${PROJECT_ROOT}/scripts/build_domain.sh"
+    # shellcheck source=/dev/null
+    source "${DOMAIN_FILE}"
+
+    env | grep -E '^(DOMAIN|BASE_DOMAIN)'
+
+    setup_templates
+    start_enabled_services
+}
+
+# Function: down
+# Description: Stops all running services and removes containers, orphans, and volumes
+# Arguments: None
+# Returns: None
+# Example: down
+down() {
+    docker compose down --remove-orphans --volumes
+}
+
+# Function: setup_templates
+# Description: Copies the available templates to the enabled templates
+# Arguments: None
+# Returns: None
+# Example: setup_templates
+setup_templates() {
+    ENABLED_SERVICES=$(tr '\n' ' ' <.enabled-services | xargs)
+    echo "Enabled services: $ENABLED_SERVICES"
+    for service in $ENABLED_SERVICES; do
+        echo "Setting up template for $service"
+        cp "$AVAILABLE_DIR/$service.template" "$ENABLED_DIR/$service.template"
+    done
 }
 
 # Function: show_usage
@@ -193,62 +179,46 @@ tail () {
 # Example: show_usage
 show_usage() {
     echo "Usage:"
-    echo "  $0 start                     # Start all enabled services"
-    echo "  $0 stop                      # Stop all services"
+    echo "  $0 up                        # Start all enabled services"
+    echo "  $0 down                      # Stop all services"
     echo "  $0 rebuild                   # Rebuild all services"
     echo "  $0 list                      # List available services"
-    echo "  $0 enable <service.conf>     # Enable and start a service"
-    echo "  $0 disable <service.conf>    # Disable and stop a service"
     echo "  $0 dropin <service>          # Drop into a service"
     echo "  $0 tail <service>            # Tail logs for a service"
+    echo "  $0 init-certs                # Initialize certs"
 }
 
-# Function: main
-# Description: Main command processing
-# Arguments:
-#   $1 - Command
-# Returns: None
-# Example: main "$@"
+# Main command processing
 main() {
     case "$1" in
-        "start")
-            start_enabled_services
-            ;;
-        "stop")
-            stop_all_services
-            ;;
-        "rebuild")
-            rebuild_all_services
-            ;;
-        "list")
-            list_available_services
-            ;;
-        "enable")
-            if [ -z "$2" ]; then
-                echo "Error: Please specify a configuration file"
-                show_usage
-                exit 1
-            fi
-            enable_service "$2"
-            ;;
-        "disable")
-            if [ -z "$2" ]; then
-                echo "Error: Please specify a configuration file"
-                show_usage
-                exit 1
-            fi
-            disable_service "$2"
-            ;;
-        "dropin")
-            dropin "$2"
-            ;;
-        "tail")
-            tail "$2"
-            ;;
-        *)
-            show_usage
-            exit 1
-            ;;
+    up)
+        up
+        ;;
+    down)
+        down
+        ;;
+    rebuild)
+        rebuild_all_services
+        ;;
+    list)
+        list_available_services
+        ;;
+    dropin)
+        dropin "$2"
+        ;;
+    tail)
+        tail "$2"
+        ;;
+    init-certs)
+        initialize_certs
+        ;;
+    make-dhparam)
+        make_dhparam
+        ;;
+    *)
+        show_usage
+        exit 1
+        ;;
     esac
 }
 
