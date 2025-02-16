@@ -1,170 +1,172 @@
-# Dynamic Reverse Proxy with Docker
+# Homelab Docker Environment
 
-A dynamic reverse proxy setup using Nginx and Docker Compose that allows enabling/disabling services on demand. The system automatically manages both the Nginx configuration and Docker containers for each service.
+A Docker-based homelab environment with automated reverse proxy, SSL certificate management, and service orchestration.
 
 ## Features
 
-- Dynamic enabling/disabling of services without container rebuilds
-- Automatic SSL/HTTPS support with optional enabling/disabling
-- Service grouping (media, torrents, etc.)
-- Automatic container management based on enabled services
-- Environment-based domain configuration
-- WebSocket support for compatible services
+- Automated Nginx reverse proxy configuration
+- Automatic SSL certificate management via acme.sh and Cloudflare DNS
+- Dynamic service domain management
+- Docker-based service orchestration
+- Simple service enabling/disabling via .enabled-services file
+
+## Supported Services
+
+- **Collaboration**
+  - Cryptpad (drive.domain.com)
+  - LibreChat (chat.domain.com)
+
+- **Media**
+  - Emby (media server)
+  - PhotoPrism (photo management)
+  - Radarr (movie management)
+  - Sonarr (TV show management)
+
+- **Downloads**
+  - Deluge (torrent client)
+  - qBittorrent (torrent client)
+  - Prowlarr (indexer management)
+
+- **Management & Utilities**
+  - Portainer Agent (container management)
+  - Home Assistant (home automation)
+  - Actual Budget (personal finance)
 
 ## Prerequisites
 
-- Docker (20.10.0+)
-- Docker Compose (2.0.0+)
-- Bash shell
-- SSL certificates (for HTTPS support)
-  - Valid SSL certificate in PEM format
-  - Private key in PEM format
-  - Root CA certificate (if using self-signed certificates)
-  - Certificates should match your domain structure
+- Docker and Docker Compose v2
+- Cloudflare DNS (for SSL certificates)
+- Bash shell environment
 
-## Directory Structure
+## Quick Start
 
-```
-.
-├── docker-compose.yaml     # Main compose file for all services
-├── .env                   # Environment configuration
-├── reverseproxy/
-│   ├── conf.d/
-│   │   ├── available/    # Available service configurations
-│   │   └── enabled/      # Symlinks to enabled configurations
-│   ├── includes/         # Shared Nginx configuration
-│   └── scripts/          # Management scripts
-├── services/             # Service-specific configurations
-└── ssl/                  # SSL certificates
+1. Clone and setup:
+```bash
+git clone https://github.com/yourusername/homelab.git
+cd homelab
+cp .env.example .env
 ```
 
-## Configuration
-
-1. Create a `.env` file with your domain configurations:
-
+2. Configure environment in `.env`:
 ```env
-# Base domain
-BASE_DOMAIN=lab.local
-
-# Service domains
-DOMAIN_EMBY=emby.${BASE_DOMAIN}
-DOMAIN_PHOTOPRISM=photo.${BASE_DOMAIN}
-DOMAIN_PORTAINER=agent.${BASE_DOMAIN}
-DOMAIN_HOMEASSISTANT=ha.${BASE_DOMAIN}
-DOMAIN_BUDGET=budget.${BASE_DOMAIN}
-DOMAIN_LIBRECHAT=chat.${BASE_DOMAIN}
-DOMAIN_RADARR=radarr.${BASE_DOMAIN}
-DOMAIN_DELUGE=deluge.${BASE_DOMAIN}
-DOMAIN_PROWLARR=prowlarr.${BASE_DOMAIN}
-DOMAIN_SONARR=sonarr.${BASE_DOMAIN}
-DOMAIN_QBITTORRENT=qbittorrent.${BASE_DOMAIN}
+BASE_DOMAIN=yourdomain.com
+WILDCARD_DOMAIN=*.yourdomain.com
+CF_Token=your_cloudflare_token
+CF_Account_ID=your_cloudflare_account_id
 ```
 
-2. Place your SSL certificates in the cert directory:
-- `ca.pem` -> Root CA certificate
-- `client.pem` -> SSL certificate
-- `client.key` -> SSL private key
+3. Enable desired services:
+```bash
+echo "cryptpad" > .enabled-services
+echo "actual_budget" >> .enabled-services
+```
+
+4. Initialize SSL certificates:
+```bash
+./homelab.sh init-certs
+```
+
+5. Start services:
+```bash
+./homelab.sh up
+```
 
 ## Usage
 
 ### Basic Commands
 
-All commands should be run using the homelab.sh script:
-
-Start all enabled services:
 ```bash
-homelab.sh start
+./homelab.sh up                  # Start all enabled services
+./homelab.sh down               # Stop all services
+./homelab.sh rebuild            # Rebuild all services
+./homelab.sh list              # List available services
+./homelab.sh dropin <service>   # Open shell in service container
+./homelab.sh tail <service>     # View service logs
+./homelab.sh init-certs        # Initialize SSL certificates
 ```
 
-Stop all services:
+### Managing Services
+
+1. Enable a service:
+   - Add the service name to `.enabled-services`
+   - Run `./homelab.sh rebuild`
+
+2. Disable a service:
+   - Remove the service from `.enabled-services`
+   - Run `./homelab.sh rebuild`
+
+## Directory Structure
+
+```
+.
+├── docker-compose.yaml         # Main service definitions
+├── homelab.sh                 # Main control script
+├── .env                      # Environment configuration
+├── .domains                  # Generated domain configurations
+├── .enabled-services        # List of enabled services
+├── scripts/
+│   ├── build_domain.sh      # Domain configuration generator
+│   └── setup_env.sh         # Environment setup
+├── reverseproxy/
+│   ├── templates/           # Nginx configuration templates
+│   └── ssl/                # SSL certificates
+└── tests/                  # BATS test files
+```
+
+## Development
+
+### Testing
+
+Tests are written using BATS (Bash Automated Testing System):
+
 ```bash
-homelab.sh stop
+# Run all tests
+bats tests/
 ```
 
-Enable a service:
+### Pre-commit Hooks
+
+The project uses pre-commit for code quality:
+
 ```bash
-homelab.sh enable service.conf
+# Install pre-commit
+pip install pre-commit
+
+# Install hooks
+pre-commit install
 ```
 
-Disable a service:
-```bash
-homelab.sh disable service.conf
-```
-
-### Adding New Services
-
-1. Create a new configuration in `reverseproxy/conf.d/available/`:
-```nginx
-server {
-    listen 80;
-    server_name ${DOMAIN_NEWSERVICE};
-
-    location / {
-        include /etc/nginx/includes/proxy.conf;
-        proxy_pass http://newservice:port;
-    }
-
-    access_log off;
-    error_log  /var/log/nginx/error.log error;
-}
-```
-
-2. Add the service to docker-compose.yaml with appropriate profile:
-```yaml
-services:
-  newservice:
-    image: newservice:latest
-    profiles:
-      - newservice
-    restart: unless-stopped
-    networks:
-      - proxy
-    environment:
-      - TZ=UTC
-    # ... other configuration ...
-```
-
-3. Update the .env file with the new service domain:
-```env
-DOMAIN_NEWSERVICE=newservice.${BASE_DOMAIN}
-```
-
-4. Enable the service:
-```bash
-homelab.sh enable newservice.conf
-```
-
-## SSL/HTTPS Support
-
-SSL support can be toggled dynamically. When enabled:
-- HTTP services will redirect to HTTPS
-- HTTPS-only services will become available
-- SSL configuration from includes/ssl.conf will be used
+Available hooks:
+- Shell script linting (shellcheck)
+- YAML validation
+- Dockerfile linting
+- Trailing whitespace cleanup
+- BATS test running
+- Secret detection
 
 ## Troubleshooting
 
-1. Exec into container
-```bash
-homelab.sh dropin reverseproxy
-```
+1. SSL Certificate Issues:
+   - Verify Cloudflare credentials in `.env`
+   - Check `./homelab.sh init-certs` output
+   - Verify domain DNS settings in Cloudflare
 
-2. View Nginx logs:
-```bash
-homelab.sh tail reverseproxy
-```
+2. Service Access Issues:
+   - Check service logs: `./homelab.sh tail <service>`
+   - Verify service is enabled in `.enabled-services`
+   - Check nginx configuration in reverseproxy/templates
 
-3. Common issues:
-- Domain not resolving: Check your .env file and DNS settings
-- SSL not working: Verify certificates and ssl enabled flag
-- Service unreachable: Ensure the service container is running
+3. Container Issues:
+   - Access container shell: `./homelab.sh dropin <service>`
+   - Check container status: `docker compose ps`
+   - View container logs: `docker compose logs <service>`
 
 ## Contributing
 
 1. Fork the repository
 2. Create a feature branch
-3. Commit your changes
-4. Push to the branch
-5. Create a Pull Request
+3. Run tests and pre-commit hooks
+4. Submit a pull request
 
 ## License
 
