@@ -1,12 +1,12 @@
 server {
     listen 443 ssl;
+    listen [::]:443 ssl;
     server_name ${DOMAIN_BUDGET};
 
-    include /etc/nginx/includes/ssl.conf;
+    include /etc/nginx/conf.d/includes/ssl;
 
     location / {
-        include /etc/nginx/includes/proxy.conf;
-        proxy_pass https://actual_server:5006;
+        proxy_pass http://actual_server:5006;
         proxy_set_header Cross-Origin-Embedder-Policy require-corp;
         proxy_set_header Cross-Origin-Opener-Policy same-origin;
     }

@@ -1,9 +1,20 @@
 server {
     listen 80;
-    server_name $DOMAIN_BUDGET;
+    listen [::]:80;
+    server_name ${DOMAIN_SONARR};
+
+    return 301 https://$host$request_uri;
+}
+
+server {
+    listen 443 ssl;
+    listen [::]:443 ssl;
+    server_name ${DOMAIN_SONARR};
+
+    include /etc/nginx/conf.d/includes/ssl;
 
     location / {
-        include /etc/nginx/includes/proxy.conf;
+        include /etc/nginx/conf.d/includes/proxy;
         proxy_pass http://sonarr:8989;
     }
 
