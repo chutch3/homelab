@@ -6,7 +6,6 @@ AVAILABLE_DIR="$PROJECT_ROOT/reverseproxy/templates/conf.d"
 ENABLED_DIR="$PROJECT_ROOT/reverseproxy/templates/conf.d/enabled"
 SSL_DIR="$PROJECT_ROOT/reverseproxy/ssl"
 DOMAIN_FILE="$PROJECT_ROOT/.domains"
-COMPOSE_PROFILES="acme,reverseproxy"
 
 # Create required directories if they don't exist
 mkdir -p "$ENABLED_DIR" "$SSL_DIR"
@@ -163,9 +162,12 @@ up() {
     # source build_domain.sh and invoke build_domains_file
     # shellcheck source=/dev/null
     source "${PROJECT_ROOT}/scripts/build_domain.sh"
-    # shellcheck source=/dev/null
-    source "${DOMAIN_FILE}"
 
+    set -a
+    # Add shellcheck directive to specify .domains file location
+    # shellcheck source=.domains
+    source "${DOMAIN_FILE}"
+    set +a
     env | grep -E '^(DOMAIN|BASE_DOMAIN)'
 
     setup_templates
@@ -185,7 +187,7 @@ enable_services() {
     # Get currently enabled services
     CURRENT_ENABLED=()
     if [ -f .enabled-services ]; then
-        mapfile -t CURRENT_ENABLED < .enabled-services
+        mapfile -t CURRENT_ENABLED <.enabled-services
     fi
 
     # Get available services into array using mapfile
@@ -195,9 +197,9 @@ enable_services() {
     for i in "${!AVAILABLE_SERVICES[@]}"; do
         service="${AVAILABLE_SERVICES[$i]}"
         if [[ " ${CURRENT_ENABLED[*]} " =~ \ ${service}\  ]]; then
-            echo -e "  $((i+1)). ${service} \033[32m✓\033[0m"
+            echo -e "  $((i + 1)). ${service} \033[32m✓\033[0m"
         else
-            echo "  $((i+1)). ${service}"
+            echo "  $((i + 1)). ${service}"
         fi
     done
 
@@ -207,7 +209,7 @@ enable_services() {
     NEW_ENABLED=()
     for num in "${selections[@]}"; do
         # Convert to 0-based index
-        idx=$((num-1))
+        idx=$((num - 1))
 
         # Validate input
         if [ "$idx" -lt 0 ] || [ "$idx" -ge "${#AVAILABLE_SERVICES[@]}" ]; then
@@ -230,7 +232,7 @@ enable_services() {
     FINAL_ENABLED=("${CURRENT_ENABLED[@]}" "${NEW_ENABLED[@]}")
 
     # Write to file
-    printf "%s\n" "${FINAL_ENABLED[@]}" > .enabled-services
+    printf "%s\n" "${FINAL_ENABLED[@]}" >.enabled-services
 }
 
 # Function: setup_templates
