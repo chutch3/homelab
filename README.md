@@ -1,173 +1,115 @@
-# Homelab Docker Environment
+# Docker Selfhosted
 
-A Docker-based homelab environment with automated reverse proxy, SSL certificate management, and service orchestration.
+**Features • Get Started • Documentation**
 
-## Features
+![License](https://img.shields.io/badge/license-MIT-blue.svg)
+![Docker](https://img.shields.io/badge/docker-%230db7ed.svg?logo=docker&logoColor=white)
 
-- Automated Nginx reverse proxy configuration
-- Automatic SSL certificate management via acme.sh and Cloudflare DNS
+This project provides an automated, Docker-based self-hosted environment for running services with automated SSL certificate management, reverse proxying, and service orchestration. It's designed to be a simple yet production-ready framework for running your own services.
+
+> **What is self-hosting?**
+>
+> Self-hosting is the practice of running and maintaining your own services instead of relying on third-party providers, giving you control over your data and infrastructure. For more information, see [r/selfhosted](https://www.reddit.com/r/selfhosted/wiki/index).
+
+## Overview
+
+Project status: **BETA**
+
+### Features
+
+- Automated reverse proxy configuration with Nginx
+- Automatic SSL certificate management
 - Dynamic service domain management
 - Docker-based service orchestration
-- Simple service enabling/disabling via .enabled-services file
+- Simple service enabling/disabling
+- Modular architecture for easy addition/removal of services
+- Automated testing and validation
+- Pre-commit hooks for code quality
+- Monitoring and logging support
+- Backup capabilities
+- Production-ready security practices
 
-## Supported Services
+### Tech Stack
+
+| Logo | Name | Description |
+|------|------|-------------|
+| <img src="https://raw.githubusercontent.com/docker/compose/main/logo.png" width="32"> | [Docker Compose](https://docs.docker.com/compose/) | Container runtime and orchestration |
+| <img src="https://nginx.org/img/nginx_logo.png" width="32"> | [NGINX](https://www.nginx.com) | Reverse proxy and load balancer |
+| <img src="https://www.cloudflare.com/img/logo-cloudflare-dark.svg" width="32"> | [Cloudflare](https://www.cloudflare.com) | DNS and SSL certificate management |
+| <img src="https://github.com/acmesh-official/acme.sh/raw/master/wiki/logo.png" width="32"> | [acme.sh](https://github.com/acmesh-official/acme.sh) | ACME client for SSL certificates |
+
+### Supported Services
 
 - **Collaboration**
-  - Cryptpad (drive.domain.com)
-  - LibreChat (chat.domain.com)
+  - Cryptpad - Encrypted document collaboration
+  - LibreChat - Team chat platform
 
 - **Media**
-  - Emby (media server)
-  - PhotoPrism (photo management)
-  - Radarr (movie management)
-  - Sonarr (TV show management)
-
-- **Downloads**
-  - Deluge (torrent client)
-  - qBittorrent (torrent client)
-  - Prowlarr (indexer management)
+  - Emby - Media streaming server
+  - PhotoPrism - Photo management
+  - Radarr/Sonarr - Media management
 
 - **Management & Utilities**
-  - Portainer Agent (container management)
-  - Home Assistant (home automation)
-  - Actual Budget (personal finance)
+  - Portainer Agent - Container management
+  - Home Assistant - Home automation
+  - Actual Budget - Personal finance
 
-## Prerequisites
+## Get Started
 
-- Docker and Docker Compose v2
-- Cloudflare DNS (for SSL certificates)
-- Bash shell environment
+### Prerequisites
 
-## Quick Start
+- Docker Engine 24.0+
+- Docker Compose v2
+- Cloudflare DNS account
+- Linux/Unix environment
+
+### Quick Start
 
 1. Clone and setup:
 ```bash
-git clone https://github.com/yourusername/homelab.git
-cd homelab
+git clone https://github.com/yourusername/selfhosted.git
+cd selfhosted
 cp .env.example .env
 ```
 
-2. Configure environment in `.env`:
-```env
-BASE_DOMAIN=yourdomain.com
-WILDCARD_DOMAIN=*.yourdomain.com
-CF_Token=your_cloudflare_token
-CF_Account_ID=your_cloudflare_account_id
-```
-
-3. Enable desired services:
+2. Configure environment:
 ```bash
-echo "cryptpad" > .enabled-services
-echo "actual_budget" >> .enabled-services
+# Edit .env with your settings
+nano .env
 ```
 
-4. Initialize SSL certificates:
+3. Initialize and start:
 ```bash
-./homelab.sh init-certs
+./selfhosted.sh init-certs  # Setup SSL certificates
+./selfhosted.sh up         # Start enabled services
 ```
 
-5. Start services:
-```bash
-./homelab.sh up
-```
+For detailed setup instructions, see our [Getting Started Guide](docs/getting-started.md).
 
-## Usage
+## Documentation
 
-### Basic Commands
-
-```bash
-./homelab.sh up                  # Start all enabled services
-./homelab.sh down               # Stop all services
-./homelab.sh rebuild            # Rebuild all services
-./homelab.sh list              # List available services
-./homelab.sh dropin <service>   # Open shell in service container
-./homelab.sh tail <service>     # View service logs
-./homelab.sh init-certs        # Initialize SSL certificates
-```
-
-### Managing Services
-
-1. Enable a service:
-   - Add the service name to `.enabled-services`
-   - Run `./homelab.sh rebuild`
-
-2. Disable a service:
-   - Remove the service from `.enabled-services`
-   - Run `./homelab.sh rebuild`
-
-## Directory Structure
-
-```
-.
-├── docker-compose.yaml         # Main service definitions
-├── homelab.sh                 # Main control script
-├── .env                      # Environment configuration
-├── .domains                  # Generated domain configurations
-├── .enabled-services        # List of enabled services
-├── scripts/
-│   ├── build_domain.sh      # Domain configuration generator
-│   └── setup_env.sh         # Environment setup
-├── reverseproxy/
-│   ├── templates/           # Nginx configuration templates
-│   └── ssl/                # SSL certificates
-└── tests/                  # BATS test files
-```
-
-## Development
-
-### Testing
-
-Tests are written using BATS (Bash Automated Testing System):
-
-```bash
-# Run all tests
-bats tests/
-```
-
-### Pre-commit Hooks
-
-The project uses pre-commit for code quality:
-
-```bash
-# Install pre-commit
-pip install pre-commit
-
-# Install hooks
-pre-commit install
-```
-
-Available hooks:
-- Shell script linting (shellcheck)
-- YAML validation
-- Dockerfile linting
-- Trailing whitespace cleanup
-- BATS test running
-- Secret detection
-
-## Troubleshooting
-
-1. SSL Certificate Issues:
-   - Verify Cloudflare credentials in `.env`
-   - Check `./homelab.sh init-certs` output
-   - Verify domain DNS settings in Cloudflare
-
-2. Service Access Issues:
-   - Check service logs: `./homelab.sh tail <service>`
-   - Verify service is enabled in `.enabled-services`
-   - Check nginx configuration in reverseproxy/templates
-
-3. Container Issues:
-   - Access container shell: `./homelab.sh dropin <service>`
-   - Check container status: `docker compose ps`
-   - View container logs: `docker compose logs <service>`
+- [Architecture Overview](docs/architecture.md)
+- [Service Configuration](docs/services.md)
+- [SSL Certificate Management](docs/ssl.md)
+- [Backup and Restore](docs/backup.md)
+- [Troubleshooting Guide](docs/troubleshooting.md)
 
 ## Contributing
 
-1. Fork the repository
-2. Create a feature branch
-3. Run tests and pre-commit hooks
-4. Submit a pull request
+Contributions are welcome! Please see our [Contributing Guide](CONTRIBUTING.md) for details.
 
 ## License
 
-This project is licensed under the MIT License - see the LICENSE file for details.
+Copyright © 2024 [Your Name]
+
+Distributed under the MIT License. See [LICENSE](LICENSE) for more information.
+
+## Acknowledgements
+
+- [khuedoan/homelab](https://github.com/khuedoan/homelab) - For README structure inspiration
+- [nginx-proxy/nginx-proxy](https://github.com/nginx-proxy/nginx-proxy) - For reverse proxy concepts
+- [acmesh-official/acme.sh](https://github.com/acmesh-official/acme.sh) - For SSL automation
+
+## Stargazers over time
+
+[![Stargazers over time](https://starchart.cc/yourusername/selfhosted.svg)](https://starchart.cc/yourusername/selfhosted)
