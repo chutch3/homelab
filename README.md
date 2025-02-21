@@ -109,7 +109,3 @@ Distributed under the MIT License. See [LICENSE](LICENSE) for more information.
 - [khuedoan/homelab](https://github.com/khuedoan/homelab) - For README structure inspiration
 - [nginx-proxy/nginx-proxy](https://github.com/nginx-proxy/nginx-proxy) - For reverse proxy concepts
 - [acmesh-official/acme.sh](https://github.com/acmesh-official/acme.sh) - For SSL automation
-
-## Stargazers over time
-
-[![Stargazers over time](https://starchart.cc/yourusername/selfhosted.svg)](https://starchart.cc/yourusername/selfhosted)
