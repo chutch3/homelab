@@ -55,6 +55,31 @@ services:
     profiles:
       - core
 
+  homepage:
+    image: ghcr.io/gethomepage/homepage:latest
+    container_name: homepage
+    user: "root"
+    # user: "${UID}:${GID}"
+    # environment:
+    #   PUID: ${UID}
+    #   PGID: ${GID}
+    ports:
+      - 3001:3000
+    volumes:
+      - ${PWD}/configs/homepage:/app/config
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    restart: unless-stopped
+    networks:
+      - reverseproxy
+    profiles:
+      - homepage
+    labels:
+      - homepage.group=System
+      - homepage.name=Homepage
+      - homepage.icon=homepage.png
+      - homepage.href=https://${DOMAIN_HOMEPAGE}/
+      - homepage.description=Dashboard
+
   actual_server:
     image: docker.io/actualbudget/actual-server:latest
     ports:
@@ -74,6 +99,12 @@ services:
       - reverseproxy
     profiles:
       - actual_server
+    labels:
+      - homepage.group=Finance
+      - homepage.name=Actual Budget
+      - homepage.icon=actual.png
+      - homepage.href=https://${DOMAIN_ACTUAL}/
+      - homepage.description=Budgeting Application
 
   portainer_agent:
     image: portainer/agent:2.19.4
@@ -148,12 +179,22 @@ services:
       interval: 30s
       timeout: 10s
       retries: 3
+    restart: unless-stopped
     depends_on:
       - mariadb
     networks:
       - reverseproxy
     profiles:
       - photoprism
+    labels:
+      - homepage.group=Media
+      - homepage.name=PhotoPrism
+      - homepage.icon=photoprism.png
+      - homepage.href=https://${DOMAIN_PHOTOPRISM}/
+      - homepage.description=Photo Management
+      - homepage.widget.type=photoprism
+      - homepage.widget.url=https://${DOMAIN_PHOTOPRISM}
+      - homepage.widget.key=${PHOTOPRISM_ADMIN_PASSWORD}
 
   mariadb:
     image: mariadb:11
@@ -197,6 +238,15 @@ services:
       - reverseproxy
     profiles:
       - emby
+    labels:
+      - homepage.group=Media
+      - homepage.name=Emby
+      - homepage.icon=emby.png
+      - homepage.href=https://${DOMAIN_EMBY}/
+      - homepage.description=Media Server
+      - homepage.widget.type=emby
+      - homepage.widget.url=https://${DOMAIN_EMBY}
+      - homepage.widget.key=${EMBY_API_KEY}
 
   librechat:
     image: ghcr.io/danny-avila/librechat:v0.6.6
@@ -220,6 +270,12 @@ services:
       - reverseproxy
     profiles:
       - librechat
+    labels:
+      - homepage.group=AI
+      - homepage.name=LibreChat
+      - homepage.icon=chat.png
+      - homepage.href=https://${DOMAIN_LIBRECHAT}/
+      - homepage.description=AI Chat Interface
 
   mongodb:
     container_name: chat-mongodb
@@ -288,12 +344,19 @@ services:
       interval: 90s
       timeout: 60s
       retries: 2
+    restart: unless-stopped
     dns:
       - ${DNS_SERVER}
     networks:
       - reverseproxy
     profiles:
       - cryptpad
+    labels:
+      - homepage.group=Productivity
+      - homepage.name=CryptPad
+      - homepage.icon=cryptpad.png
+      - homepage.href=https://${DOMAIN_CRYPTPAD}/
+      - homepage.description=Collaborative Documents
 
   homeassistant:
     container_name: homeassistant
@@ -316,6 +379,15 @@ services:
       - reverseproxy
     profiles:
       - homeassistant
+    labels:
+      - homepage.group=Home
+      - homepage.name=Home Assistant
+      - homepage.icon=home-assistant.png
+      - homepage.href=https://${DOMAIN_HOMEASSISTANT}/
+      - homepage.description=Home Automation
+      - homepage.widget.type=homeassistant
+      - homepage.widget.url=https://${DOMAIN_HOMEASSISTANT}
+      - homepage.widget.key=${HASS_TOKEN}
 
   radarr:
     image: lscr.io/linuxserver/radarr:latest
@@ -336,6 +408,15 @@ services:
       - reverseproxy
     profiles:
       - radarr
+    labels:
+      - homepage.group=Downloads
+      - homepage.name=Radarr
+      - homepage.icon=radarr.png
+      - homepage.href=https://${DOMAIN_RADARR}/
+      - homepage.description=Movie Management
+      - homepage.widget.type=radarr
+      - homepage.widget.url=https://${DOMAIN_RADARR}
+      - homepage.widget.key=${RADARR_API_KEY}
 
   sonarr:
     image: lscr.io/linuxserver/sonarr:latest
@@ -357,6 +438,15 @@ services:
       - reverseproxy
     profiles:
       - sonarr
+    labels:
+      - homepage.group=Downloads
+      - homepage.name=Sonarr
+      - homepage.icon=sonarr.png
+      - homepage.href=https://${DOMAIN_SONARR}/
+      - homepage.description=TV Show Management
+      - homepage.widget.type=sonarr
+      - homepage.widget.url=https://${DOMAIN_SONARR}
+      - homepage.widget.key=${SONARR_API_KEY}
 
   deluge:
     image: lscr.io/linuxserver/deluge:latest
@@ -381,6 +471,15 @@ services:
       - reverseproxy
     profiles:
       - deluge
+    labels:
+      - homepage.group=Downloads
+      - homepage.name=Deluge
+      - homepage.icon=deluge.png
+      - homepage.href=https://${DOMAIN_DELUGE}/
+      - homepage.description=Torrent Client
+      - homepage.widget.type=deluge
+      - homepage.widget.url=https://${DOMAIN_DELUGE}
+      - homepage.widget.key=${DELUGE_PASSWORD}
 
   qbittorrent:
     image: lscr.io/linuxserver/qbittorrent:latest
@@ -402,6 +501,16 @@ services:
       - reverseproxy
     profiles:
       - qbittorrent
+    labels:
+      - homepage.group=Downloads
+      - homepage.name=qBittorrent
+      - homepage.icon=qbittorrent.png
+      - homepage.href=https://${DOMAIN_QBITTORRENT}/
+      - homepage.description=Torrent Client
+      - homepage.widget.type=qbittorrent
+      - homepage.widget.url=https://${DOMAIN_QBITTORRENT}
+      - homepage.widget.username=${QBIT_USERNAME}
+      - homepage.widget.password=${QBIT_PASSWORD}
 
   prowlarr:
     image: lscr.io/linuxserver/prowlarr:latest
@@ -421,6 +530,15 @@ services:
       - reverseproxy
     profiles:
       - prowlarr
+    labels:
+      - homepage.group=Downloads
+      - homepage.name=Prowlarr
+      - homepage.icon=prowlarr.png
+      - homepage.href=https://${DOMAIN_PROWLARR}/
+      - homepage.description=Indexer Manager
+      - homepage.widget.type=prowlarr
+      - homepage.widget.url=https://${DOMAIN_PROWLARR}
+      - homepage.widget.key=${PROWLARR_API_KEY}
 
 networks:
   reverseproxy:
