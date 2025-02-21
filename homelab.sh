@@ -51,7 +51,7 @@ start_enabled_services() {
         -e "DEPLOY_DOCKER_CONTAINER_CERT_FILE=/etc/nginx/ssl/${BASE_DOMAIN}/cert.pem" \
         -e "DEPLOY_DOCKER_CONTAINER_CA_FILE=/etc/nginx/ssl/${BASE_DOMAIN}/ca.pem" \
         -e "DEPLOY_DOCKER_CONTAINER_FULLCHAIN_FILE=/etc/nginx/ssl/${BASE_DOMAIN}/full.pem" \
-        -e "DEPLOKER_CONTAINER_RELOAD_CMD=service nginx force-reload" \
+        -e "DEPLOY_DOCKER_CONTAINER_RELOAD_CMD=service nginx force-reload" \
         acme.sh --deploy -d "${BASE_DOMAIN}" --deploy-hook docker
 }
 
@@ -241,6 +241,16 @@ enable_services() {
 setup_templates() {
     ENABLED_SERVICES=$(tr '\n' ' ' <.enabled-services | xargs)
     echo "Enabled services: $ENABLED_SERVICES"
+
+    # remove files in enabled dir that are not in the enabled services
+    FILES_IN_ENABLED_DIR=$(ls "$ENABLED_DIR"/*.template)
+    for file in $FILES_IN_ENABLED_DIR; do
+        if [[ ! " ${ENABLED_SERVICES[*]} " =~ \ ${file}\  ]]; then
+            rm "$file"
+        fi
+    done
+
+    # add files in available dir that are not in the enabled services
     for service in $ENABLED_SERVICES; do
         echo "Setting up template for $service"
         cp "$AVAILABLE_DIR/$service.template" "$ENABLED_DIR/$service.template"
