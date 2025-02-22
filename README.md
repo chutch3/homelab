@@ -1,4 +1,4 @@
-# Docker Selfhosted
+# Selfhosted
 
 **Features • Get Started • Documentation**
 
@@ -94,12 +94,6 @@ For detailed setup instructions, see our [Getting Started Guide](docs/getting-st
 - [SSL Certificate Management](docs/ssl.md) (WIP)
 - [Backup and Restore](docs/backup.md) (WIP)
 - [Troubleshooting Guide](docs/troubleshooting.md) (WIP)
-
-## License
-
-Copyright © 2024 [Your Name]
-
-Distributed under the MIT License. See [LICENSE](LICENSE) for more information.
 
 ## Acknowledgements
 

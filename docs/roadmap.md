@@ -16,9 +16,10 @@ This is a list of high level goals and tasks to achieve the mission.
 
 ## Hardware Management
 - [ ] Allow users to easily define their existing hardware
-  - [ ] Define hardware requirements
   - [ ] Easily add or remove hardware
-  - [ ] Simple deployments regardless of where hardware is located
+  - [ ] Setup deployment infrastructure of choice
+    - [ ] Docker (Compose and Swarm)
+    - [ ] Kubernetes
 - [ ] Infrastructure as code to deploy deployment infrastructure
 
 ## Homelab Applications
