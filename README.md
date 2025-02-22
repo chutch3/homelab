@@ -84,19 +84,16 @@ nano .env
 ./selfhosted.sh up         # Start enabled services
 ```
 
-For detailed setup instructions, see our [Getting Started Guide](docs/getting-started.md).
+For detailed setup instructions, see our [Getting Started Guide](docs/getting-started.md). (WIP)
 
 ## Documentation
 
-- [Architecture Overview](docs/architecture.md)
-- [Service Configuration](docs/services.md)
-- [SSL Certificate Management](docs/ssl.md)
-- [Backup and Restore](docs/backup.md)
-- [Troubleshooting Guide](docs/troubleshooting.md)
-
-## Contributing
-
-Contributions are welcome! Please see our [Contributing Guide](CONTRIBUTING.md) for details.
+- [Roadmap](docs/roadmap.md)
+- [Architecture Overview](docs/architecture.md) (WIP)
+- [Service Configuration](docs/services.md) (WIP)
+- [SSL Certificate Management](docs/ssl.md) (WIP)
+- [Backup and Restore](docs/backup.md) (WIP)
+- [Troubleshooting Guide](docs/troubleshooting.md) (WIP)
 
 ## License
 
