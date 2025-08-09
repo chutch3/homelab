@@ -56,22 +56,12 @@ jobs:
         id: release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          task release:full
-          # Set GitHub Actions outputs for downstream jobs
-          if [ -f .version.txt ] && [ "$(cat .version.txt)" != "0.0.0" ]; then
-            echo "released=true" >> $GITHUB_OUTPUT
-            echo "version=$(cat .version.txt)" >> $GITHUB_OUTPUT
-            echo "tag=v$(cat .version.txt)" >> $GITHUB_OUTPUT
-          else
-            echo "released=false" >> $GITHUB_OUTPUT
-          fi
+        run: task release
 
   update-lock:
     name: Update Poetry Lock
     runs-on: ubuntu-latest
     needs: release
-    if: needs.release.outputs.released == 'true'
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -102,7 +92,8 @@ jobs:
 
       - name: Update Poetry lock file
         run: |
-          task release:setup-git
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
           task release:update-lock
           # Push changes if any were made
           if [ -n "$(git log --oneline HEAD~1..HEAD | grep 'chore: update poetry.lock')" ]; then

@@ -82,44 +82,12 @@ tasks:
     cmds:
       - poetry run semantic-release version --print
 
-  release:publish:
-    desc: Publish a new release
-    cmds:
-      - poetry run semantic-release publish
-
-  release:setup-git:
-    desc: Configure Git for automated releases
+  release:
+    desc: Run semantic release (determines if release needed and executes)
     cmds:
       - git config --global user.name "github-actions[bot]"
       - git config --global user.email "github-actions[bot]@users.noreply.github.com"
-
-  release:check-version:
-    desc: Check if a new version should be released and output result
-    cmds:
-      - |
-        poetry run semantic-release version --print > .version.txt 2>/dev/null || echo "0.0.0" > .version.txt
-        if [ "$(cat .version.txt)" != "0.0.0" ]; then
-          echo "New version: $(cat .version.txt)"
-          echo "SHOULD_RELEASE=true" >> $GITHUB_ENV
-          echo "NEW_VERSION=$(cat .version.txt)" >> $GITHUB_ENV
-          echo "NEW_TAG=v$(cat .version.txt)" >> $GITHUB_ENV
-        else
-          echo "No release necessary"
-          echo "SHOULD_RELEASE=false" >> $GITHUB_ENV
-        fi
-
-  release:full:
-    desc: Complete release workflow (check, publish if needed)
-    cmds:
-      - task: release:setup-git
-      - task: release:check-version
-      - |
-        if [ "${SHOULD_RELEASE:-false}" = "true" ]; then
-          echo "Publishing release..."
-          task release:publish
-        else
-          echo "Skipping release - no changes requiring version bump"
-        fi
+      - poetry run semantic-release version
 
   release:update-lock:
     desc: Update Poetry lock file after release
