@@ -1,0 +1,71 @@
+version: "1.0"
+
+# Storage Configuration
+storage:
+  # Local storage configuration
+  local:
+    enabled: true
+    base_path: "${PROJECT_ROOT:-./}/appdata"
+    permissions:
+      owner: "${UID:-1000}"
+      group: "${GID:-1000}"
+      mode: "755"
+
+  # NFS storage configuration
+  nfs:
+    enabled: false
+    server: "192.168.1.100"
+    export_path: "/srv/nfs/appdata"
+    mount_point: "/mnt/nas"
+    mount_options: "vers=4,rsize=1048576,wsize=1048576,hard,intr,timeo=600"
+    permissions:
+      owner: "${UID:-1000}"
+      group: "${GID:-1000}"
+      mode: "755"
+
+# Volume type defaults
+volume_types:
+  application_data:
+    backup_priority: "high"
+    permissions: "755"
+    description: "Critical application data and databases"
+
+  config:
+    backup_priority: "medium"
+    permissions: "755"
+    description: "Service configuration files"
+
+  media:
+    backup_priority: "high"
+    permissions: "755"
+    description: "User media files (photos, videos, documents)"
+
+  cache:
+    backup_priority: "low"
+    permissions: "777"
+    description: "Temporary cache and working files"
+
+  logs:
+    backup_priority: "low"
+    permissions: "755"
+    description: "Application and system logs"
+
+  uploads:
+    backup_priority: "medium"
+    permissions: "755"
+    description: "User uploaded content"
+
+# Backup configuration
+backup:
+  enabled: true
+  base_path: "${PROJECT_ROOT:-./}/backups"
+  retention:
+    high_priority: "30 days"
+    medium_priority: "14 days"
+    low_priority: "7 days"
+
+  # Backup schedule (cron format)
+  schedule:
+    high_priority: "0 2 * * *"    # Daily at 2 AM
+    medium_priority: "0 3 * * 0"  # Weekly on Sunday at 3 AM
+    low_priority: "0 4 1 * *"     # Monthly on 1st at 4 AM

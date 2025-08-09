@@ -32,7 +32,7 @@ teardown() {
 
 @test "build_domain.sh creates .domains file with correct variables" {
     # Run the script
-    run "${BATS_TEST_DIRNAME}/../../scripts/build_domain.sh"
+    run "${BATS_TEST_DIRNAME}/../../../scripts/build_domain.sh"
 
     # Check exit status
     [ "$status" -eq 0 ]
@@ -59,7 +59,7 @@ teardown() {
     unset BASE_DOMAIN
 
     # Run the script
-    run "${BATS_TEST_DIRNAME}/../../scripts/build_domain.sh"
+    run "${BATS_TEST_DIRNAME}/../../../scripts/build_domain.sh"
 
     # Check that script failed
     [ "$status" -eq 1 ]
@@ -73,7 +73,7 @@ teardown() {
     echo "unknown_service" >>"${TEST_TEMP_DIR}/.enabled-services"
 
     # Run the script
-    run "${BATS_TEST_DIRNAME}/../../scripts/build_domain.sh"
+    run "${BATS_TEST_DIRNAME}/../../../scripts/build_domain.sh"
 
     # Check exit status
     [ "$status" -eq 0 ]
@@ -85,11 +85,12 @@ teardown() {
 
 @test "build_domain.sh sources variables into current shell" {
     # Run the script with source
-    source "${BATS_TEST_DIRNAME}/../../scripts/build_domain.sh"
+    # shellcheck source=/dev/null
+    source "${BATS_TEST_DIRNAME}/../../../scripts/build_domain.sh"
 
     # Verify variables are set in current environment
     [ "$BASE_DOMAIN" = "test.local" ]
     [ "$DOMAIN_CRYPTPAD" = "drive.test.local" ]
-    [ "$DOMAIN_CRYPTPAD_SANDBOX" = "sandbox.drive.test.local" ]
+    [ "$DOMAIN_CRYPTPAD_SANDBOX" = "sandbox-drive.test.local" ]
     [ "$DOMAIN_BUDGET" = "budget.test.local" ]
 }

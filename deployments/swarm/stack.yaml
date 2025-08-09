@@ -1,0 +1,42 @@
+# Convert existing compose file for swarm
+services:
+  reverseproxy:
+    image: nginx:alpine
+    deploy:
+      mode: global  # Run on all nodes
+      restart_policy:
+        condition: on-failure
+    volumes:
+      - ${PWD}/reverseproxy/templates/conf.d/enabled:/etc/nginx/templates/enabled:ro
+      - ${PWD}/reverseproxy/templates/includes/swarm/ssl.template:/etc/nginx/templates/includes/ssl.template:ro
+      - ${PWD}/reverseproxy/templates/includes/proxy.template:/etc/nginx/templates/includes/proxy.template:ro
+      - ${PWD}/reverseproxy/backend-not-found.html:/var/www/html/backend-not-found.html:ro
+      - ${PWD}/reverseproxy/default.conf:/etc/nginx/conf.d/default.conf:ro
+      - ${PWD}/scripts/sleep.sh:/docker-entrypoint.d/99-sleep.sh:ro
+    secrets:
+      - ssl_full.pem
+      - ssl_key.pem
+      - ssl_ca.pem
+      - ssl_dhparam.pem
+    environment:
+      - BASE_DOMAIN
+      - DOMAIN_TEST
+    ports:
+      - "80:80"
+      - "443:443"
+    networks:
+      - reverseproxy
+
+secrets:
+  ssl_full.pem:
+    external: true
+  ssl_key.pem:
+    external: true
+  ssl_ca.pem:
+    external: true
+  ssl_dhparam.pem:
+    external: true
+
+networks:
+  reverseproxy:
+    driver: overlay  # Enable cross-node communication

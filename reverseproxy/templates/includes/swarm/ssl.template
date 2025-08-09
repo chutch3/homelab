@@ -2,14 +2,14 @@
 resolver ${DNS_SERVER} valid=300s;
 resolver_timeout 5s;
 
-ssl_dhparam /etc/nginx/ssl/dhparam.pem;
+ssl_dhparam /run/secrets/ssl_dhparam.pem;
 
-ssl_certificate /etc/nginx/ssl/${BASE_DOMAIN}/full.pem;
-ssl_certificate_key /etc/nginx/ssl/${BASE_DOMAIN}/key.pem;
-ssl_client_certificate /etc/nginx/ssl/${BASE_DOMAIN}/ca.pem;
+ssl_certificate /run/secrets/ssl_full.pem;
+ssl_certificate_key /run/secrets/ssl_key.pem;
+ssl_client_certificate /run/secrets/ssl_ca.pem;
 
 # verify chain of trust of OCSP response using Root CA and Intermediate certs
-ssl_trusted_certificate /etc/nginx/ssl/${BASE_DOMAIN}/ca.pem;
+ssl_trusted_certificate /run/secrets/ssl_ca.pem;
 
 # OCSP stapling
 ssl_stapling on;

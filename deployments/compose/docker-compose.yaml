@@ -12,11 +12,7 @@ services:
       - ${PWD}/certs/dhparam.pem:/etc/nginx/ssl/dhparam.pem:ro
       - ${PWD}/scripts/sleep.sh:/docker-entrypoint.d/99-sleep.sh:ro
     restart: always
-    command: [
-      "nginx",
-      "-g",
-      "daemon off;"
-    ]
+    command: [ "nginx", "-g", "daemon off;" ]
     env_file:
       - path: .env
         required: true
@@ -173,9 +169,9 @@ services:
           devices:
             - driver: "nvidia"
               count: 1
-              capabilities: [gpu]
+              capabilities: [ gpu ]
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:2342/api/v1/status"]
+      test: [ "CMD", "curl", "-f", "http://localhost:2342/api/v1/status" ]
       interval: 30s
       timeout: 10s
       retries: 3

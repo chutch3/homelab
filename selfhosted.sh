@@ -14,6 +14,7 @@ mkdir -p "$ENABLED_DIR" "$SSL_DIR"
 # Description: Loads environment variables from .env file if it exists
 # Arguments: None
 # Returns: None
+# shellcheck disable=SC2317
 load_env() {
     if [ -f "$PROJECT_ROOT/.env" ]; then
         # shellcheck source=/dev/null
@@ -26,6 +27,7 @@ load_env() {
 # Arguments: None
 # Returns: None
 # Example: list_available_services
+# shellcheck disable=SC2317
 list_available_services() {
     AVAILABLE_SERVICES=$(basename -a "$AVAILABLE_DIR"/*.template | sed 's/\.template$//' | tr '\n' ' ' | xargs)
     echo "Available services:"
@@ -259,62 +261,393 @@ setup_templates() {
     done
 }
 
-# Function: show_usage
-# Description: Displays the script usage information
-# Arguments: None
-# Returns: None
-# Example: show_usage
-show_usage() {
-    echo "Usage:"
-    echo "  $0 up                        # Start all enabled services"
-    echo "  $0 down                      # Stop all services"
-    echo "  $0 rebuild                   # Rebuild all services"
-    echo "  $0 list                      # List available services"
-    echo "  $0 dropin <service>          # Drop into a service"
-    echo "  $0 tail <service>            # Tail logs for a service"
-    echo "  $0 init-certs                # Initialize certs"
-    echo "  $0 sync-certs                # Sync certs"
-    echo "  $0 enable-services           # Enable services"
+# # Function: show_usage
+# # Description: Displays the script usage information
+# # Arguments: None
+# # Returns: None
+# # Example: show_usage
+# show_usage() {
+#     echo "Usage:"
+#     echo "  $0 up                        # Start all enabled services"
+#     echo "  $0 down                      # Stop all services"
+#     echo "  $0 rebuild                   # Rebuild all services"
+#     echo "  $0 list                      # List available services"
+#     echo "  $0 dropin <service>          # Drop into a service"
+#     echo "  $0 tail <service>            # Tail logs for a service"
+#     echo "  $0 init-certs                # Initialize certs"
+#     echo "  $0 sync-certs                # Sync certs"
+#     echo "  $0 enable-services           # Enable services"
+# }
+
+# # Main command processing
+# main() {
+#     case "$1" in
+#     up)
+#         up
+#         ;;
+#     down)
+#         down
+#         ;;
+#     rebuild)
+#         rebuild_all_services
+#         ;;
+#     list)
+#         list_available_services
+#         ;;
+#     enable-services)
+#         enable_services
+#         ;;
+#     sync-certs)
+#         sync-certs
+#         ;;
+#     dropin)
+#         dropin "$2"
+#         ;;
+#     tail)
+#         tail "$2"
+#         ;;
+#     init-certs)
+#         initialize_certs
+#         ;;
+#     make-dhparam)
+#         make_dhparam
+#         ;;
+#     *)
+#         show_usage
+#         exit 1
+#         ;;
+#     esac
+# }
+
+# main "$@"
+
+
+#!/bin/bash
+
+# Load common functions and variables
+source "scripts/common.sh"
+source "scripts/machines.sh"
+
+# Load deployment target implementations
+# shellcheck disable=SC1090
+for target in scripts/deployments/*.sh; do
+    source "$target"
+done
+
+# Load service generator
+if [ -f "scripts/service_generator.sh" ]; then
+    source scripts/service_generator.sh
+fi
+
+# Enhanced CLI Functions
+
+# Function: show_help
+# Description: Shows comprehensive help information
+show_help() {
+    cat <<EOF
+🏠 Selfhosted - Self-hosted Services Management
+
+USAGE:
+    $0 <command> [subcommand] [options...]
+
+COMMANDS:
+    service         Manage service configurations
+    deploy          Deploy services to infrastructure
+    config          Manage environment and configuration
+    help            Show this help message
+
+SERVICE COMMANDS:
+    service list              List all available services with descriptions
+    service generate          Generate deployment files from services.yaml
+    service validate          Validate services configuration
+    service info <name>       Show detailed information about a service
+
+DEPLOY COMMANDS:
+    deploy compose <cmd>      Deploy using Docker Compose
+    deploy swarm <cmd>        Deploy using Docker Swarm
+    deploy k8s <cmd>          Deploy using Kubernetes (future)
+
+CONFIG COMMANDS:
+    config init               Initialize environment and certificates
+    config validate           Validate all configuration files
+
+LEGACY COMMANDS (deprecated):
+    init-certs               Use 'config init' instead
+    list                     Use 'service list' instead
+    sync-files               Use 'config sync' instead
+
+EXAMPLES:
+    $0 service list                    # List all available services
+    $0 service generate                # Generate deployment files
+    $0 deploy compose up               # Start services with Docker Compose
+    $0 config init                     # Initialize certificates and environment
+
+For more information, see: https://github.com/selfhosted/selfhosted
+EOF
 }
 
-# Main command processing
-main() {
-    case "$1" in
-    up)
-        up
+# Function: service_list
+# Description: Lists all available services from configuration
+service_list() {
+    if [ -f "$PROJECT_ROOT/config/services.yaml" ]; then
+        list_available_services_from_config
+    else
+        echo "❌ Error: Services configuration not found at $PROJECT_ROOT/config/services.yaml"
+        echo "💡 Run '$0 config init' to set up the environment"
+        exit 1
+    fi
+}
+
+# Function: service_generate
+# Description: Generates all deployment files from services configuration
+service_generate() {
+    echo "🚀 Generating deployment files from services configuration..."
+    if ! generate_all_from_services; then
+        echo "❌ Failed to generate deployment files"
+        exit 1
+    fi
+    echo "✅ All deployment files generated successfully!"
+    echo "📁 Generated files:"
+    echo "   - generated-docker-compose.yaml (Docker Compose configuration)"
+    echo "   - generated-nginx/ (Nginx templates)"
+    echo "   - .domains (Domain variables)"
+}
+
+# Function: service_validate
+# Description: Validates the services configuration
+service_validate() {
+    if ! validate_services_config; then
+        exit 1
+    fi
+}
+
+# Function: service_info
+# Description: Shows detailed information about a specific service
+service_info() {
+    local service_name="$1"
+    if [ -z "$service_name" ]; then
+        echo "❌ Error: Service name required"
+        echo "💡 Usage: $0 service info <service-name>"
+        echo "💡 Run '$0 service list' to see available services"
+        exit 1
+    fi
+
+    if [ ! -f "$PROJECT_ROOT/config/services.yaml" ]; then
+        echo "❌ Error: Services configuration not found"
+        exit 1
+    fi
+
+    # Check if service exists
+    if ! yq ".services.${service_name}" "$PROJECT_ROOT/config/services.yaml" > /dev/null 2>&1; then
+        echo "❌ Error: Service '$service_name' not found"
+        echo "💡 Run '$0 service list' to see available services"
+        exit 1
+    fi
+
+    # Display service information
+    echo "📋 Service Information: $service_name"
+    echo ""
+    echo "Name:        $(yq -r ".services.${service_name}.name" "$PROJECT_ROOT/config/services.yaml")"
+    echo "Description: $(yq -r ".services.${service_name}.description" "$PROJECT_ROOT/config/services.yaml")"
+    echo "Category:    $(yq -r ".services.${service_name}.category" "$PROJECT_ROOT/config/services.yaml")"
+    echo "Domain:      $(yq -r ".services.${service_name}.domain" "$PROJECT_ROOT/config/services.yaml").${BASE_DOMAIN:-\${BASE_DOMAIN\}}"
+    echo "Port:        $(yq -r ".services.${service_name}.port" "$PROJECT_ROOT/config/services.yaml")"
+    echo ""
+    echo "🐳 Docker Configuration:"
+    echo "Image:       $(yq -r ".services.${service_name}.compose.image" "$PROJECT_ROOT/config/services.yaml")"
+    echo ""
+    echo "🌐 Access URL: https://$(yq -r ".services.${service_name}.domain" "$PROJECT_ROOT/config/services.yaml").${BASE_DOMAIN:-\${BASE_DOMAIN\}}"
+}
+
+# Function: service_help
+# Description: Shows service-specific help
+service_help() {
+    cat <<EOF
+🔧 Service Management Commands
+
+USAGE:
+    $0 service <subcommand> [options...]
+
+SUBCOMMANDS:
+    list                     List all available services with metadata
+    generate                 Generate deployment files from services.yaml
+    validate                 Validate services configuration syntax
+    info <name>              Show detailed information about a service
+    help                     Show this help message
+
+EXAMPLES:
+    $0 service list          # Show all available services
+    $0 service info actual   # Show details about 'actual' service
+    $0 service generate      # Generate docker-compose.yaml and nginx templates
+    $0 service validate      # Check services.yaml syntax and structure
+EOF
+}
+
+# Function: config_init
+# Description: Initializes the environment and certificates
+config_init() {
+    echo "🚀 Initializing selfhosted environment..."
+
+    # Check for .env file
+    if [ ! -f "$PROJECT_ROOT/.env" ]; then
+        if [ -f "$PROJECT_ROOT/.env.example" ]; then
+            echo "📋 .env file not found. Copying from .env.example..."
+            cp "$PROJECT_ROOT/.env.example" "$PROJECT_ROOT/.env"
+            echo "⚠️  Please edit .env file with your configuration before proceeding"
+            echo "💡 Required: BASE_DOMAIN, CF_Token (or CF_Email/CF_Key)"
+            exit 1
+        else
+            echo "❌ Error: Neither .env nor .env.example found"
+            echo "💡 Please create .env file with required configuration"
+            exit 1
+        fi
+    fi
+
+    # Load environment
+    load_env
+
+    # Validate required variables
+    if [ -z "$BASE_DOMAIN" ]; then
+        echo "❌ Error: BASE_DOMAIN not set in .env file"
+        exit 1
+    fi
+
+    if [ -z "$CF_Token" ] && { [ -z "$CF_Email" ] || [ -z "$CF_Key" ]; }; then
+        echo "❌ Error: Cloudflare credentials not set in .env file"
+        echo "💡 Set either CF_Token or both CF_Email and CF_Key"
+        exit 1
+    fi
+
+    # Initialize certificates
+    ensure_certs_exist
+
+    # Generate deployment files if services.yaml exists
+    if [ -f "$PROJECT_ROOT/config/services.yaml" ]; then
+        echo "🔧 Generating deployment files..."
+        generate_all_from_services
+    fi
+
+    echo "✅ Environment setup complete!"
+    echo "💡 You can now deploy services with: $0 deploy compose up"
+}
+
+# Enhanced deploy command with file generation
+enhanced_deploy() {
+    local target="$1"
+    local cmd="$2"
+    shift 2
+
+    # Generate deployment files before deploying (if not dry-run)
+    if [ -f "$PROJECT_ROOT/config/services.yaml" ] && [[ "$*" != *"--dry-run"* ]]; then
+        echo "🔧 Generating latest deployment files..."
+        if ! generate_all_from_services; then
+            echo "❌ Failed to generate deployment files"
+            exit 1
+        fi
+    fi
+
+    # Check if target-specific function exists
+    if command_exists "${target}_${cmd}"; then
+        # Add special handling for compose commands to use generated files
+        if [ "$target" = "compose" ] && [ -f "$PROJECT_ROOT/generated-docker-compose.yaml" ]; then
+            echo "📁 Using generated docker-compose.yaml"
+            # For dry-run, just show the command that would be executed
+            if [[ "$*" == *"--dry-run"* ]]; then
+                echo "Would execute: docker compose -f generated-docker-compose.yaml ${*//--dry-run/}"
+                return 0
+            fi
+            # Set compose file environment variable
+            export COMPOSE_FILE="$PROJECT_ROOT/generated-docker-compose.yaml"
+        fi
+
+        "${target}_${cmd}" "$@"
+    else
+        echo "❌ Unknown command '$cmd' for target '$target'"
+        echo "💡 Available commands for $target:"
+        list_commands "$target"
+        exit 1
+    fi
+}
+
+# Main command router
+case "$1" in
+    # New enhanced commands
+    service)
+        case "$2" in
+            list) service_list ;;
+            generate) service_generate ;;
+            validate) service_validate ;;
+            info) service_info "$3" ;;
+            help|"") service_help ;;
+            *)
+                echo "❌ Unknown service command: $2"
+                service_help
+                exit 1
+                ;;
+        esac
         ;;
-    down)
-        down
+    deploy)
+        case "$2" in
+            compose|swarm|k8s)
+                enhanced_deploy "$2" "$3" "${@:4}"
+                ;;
+            "")
+                echo "❌ Deploy target required"
+                echo "💡 Usage: $0 deploy {compose|swarm|k8s} <command>"
+                exit 1
+                ;;
+            *)
+                echo "❌ Unknown deploy target: $2"
+                echo "💡 Available targets: compose, swarm, k8s"
+                exit 1
+                ;;
+        esac
         ;;
-    rebuild)
-        rebuild_all_services
+    config)
+        case "$2" in
+            init) config_init ;;
+            validate) service_validate ;;
+            help|"")
+                echo "💡 Config commands: init, validate"
+                ;;
+            *)
+                echo "❌ Unknown config command: $2"
+                exit 1
+                ;;
+        esac
+        ;;
+    help|"") show_help ;;
+
+    # Legacy commands (deprecated but still functional)
+    init-certs)
+        echo "⚠️  Warning: 'init-certs' is deprecated. Use '$0 config init' instead"
+        ensure_certs_exist
         ;;
     list)
-        list_available_services
+        echo "⚠️  Warning: 'list' is deprecated. Use '$0 service list' instead"
+        service_list
         ;;
-    enable-services)
-        enable_services
+    sync-files)
+        echo "⚠️  Warning: 'sync-files' is deprecated. Use '$0 config sync' instead"
+        sync-files
         ;;
-    sync-certs)
-        sync-certs
+
+    # Legacy deployment commands (still support old format)
+    compose|swarm|k8s|machines)
+        echo "⚠️  Warning: '$1 $2' is deprecated. Use '$0 deploy $1 $2' instead"
+        enhanced_deploy "$1" "$2" "${@:3}"
         ;;
-    dropin)
-        dropin "$2"
-        ;;
-    tail)
-        tail "$2"
-        ;;
-    init-certs)
-        initialize_certs
-        ;;
-    make-dhparam)
-        make_dhparam
-        ;;
+
     *)
-        show_usage
+        echo "❌ Unknown command: $1"
+        echo ""
+        echo "💡 Available commands:"
+        echo "   service    - Manage service configurations"
+        echo "   deploy     - Deploy services to infrastructure"
+        echo "   config     - Manage environment and configuration"
+        echo "   help       - Show detailed help"
+        echo ""
+        echo "💡 Run '$0 help' for detailed usage information"
         exit 1
         ;;
-    esac
-}
-
-main "$@"
+esac

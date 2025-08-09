@@ -167,3 +167,8 @@ cython_debug/
 **/enabled/*.template
 .enabled-services
 certs/
+
+# Environment-specific configuration files
+plan.md
+machines.yml
+.swarm_token

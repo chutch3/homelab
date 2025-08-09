@@ -1,0 +1,374 @@
+# Unified Service Configuration
+# This file contains all service definitions in a single, consistent format
+# Each service can be deployed to compose, swarm, or k8s with appropriate overrides
+
+version: "1.0"
+
+# Service categories for organization
+categories:
+  core: "Core Infrastructure"
+  finance: "Finance & Budgeting"
+  media: "Media Management"
+  collaboration: "Collaboration & Productivity"
+  automation: "Smart Home & Automation"
+  development: "Development & Management"
+
+# Global defaults that apply to all services
+defaults:
+  domain_pattern: "${service}.${BASE_DOMAIN}"
+  restart_policy: unless-stopped
+  networks:
+    - reverseproxy
+  nginx:
+    ssl_config: "/etc/nginx/conf.d/includes/ssl"
+    proxy_config: "/etc/nginx/conf.d/includes/proxy"
+
+# Service definitions
+services:
+  # Core Infrastructure Services
+  homepage:
+    name: "Homepage Dashboard"
+    description: "Centralized dashboard for all services"
+    category: core
+    domain: "dashboard"
+    port: 3000
+    compose:
+      image: "ghcr.io/gethomepage/homepage:latest"
+      container_name: homepage
+      user: "root"
+      ports:
+        - "3001:3000"
+      volumes:
+        - "/var/run/docker.sock:/var/run/docker.sock:ro"
+      labels:
+        - "homepage.group=System"
+        - "homepage.name=Homepage"
+        - "homepage.icon=homepage.png"
+        - "homepage.href=https://${DOMAIN_HOMEPAGE}/"
+        - "homepage.description=Dashboard"
+    nginx:
+      upstream: "homepage:3000"
+      additional_config: |
+        location / {
+            proxy_pass http://homepage:3000;
+        }
+
+  # Finance Services
+  actual:
+    name: "Actual Budget"
+    description: "Personal finance and budgeting application"
+    category: finance
+    domain: "budget"
+    port: 5006
+    volumes:
+      - name: "data"
+        description: "Application data and database"
+        type: "application_data"
+        size: "1GB"
+        backup_priority: "high"
+    # Shared container configuration
+    container:
+      image: "docker.io/actualbudget/actual-server:latest"
+      environment:
+        ACTUAL_UPLOAD_FILE_SYNC_SIZE_LIMIT_MB: "20"
+        ACTUAL_UPLOAD_SYNC_ENCRYPTED_FILE_SYNC_SIZE_LIMIT_MB: "50"
+        ACTUAL_UPLOAD_FILE_SIZE_LIMIT_MB: "20"
+        DEBUG: "actual:config"
+      resources:
+        cpu_request: "0.1"
+        cpu_limit: "0.5"
+        memory_request: "128Mi"
+        memory_limit: "512Mi"
+    compose:
+      image: "docker.io/actualbudget/actual-server:latest"
+      ports:
+        - "5006:5006"
+      environment:
+        - "ACTUAL_UPLOAD_FILE_SYNC_SIZE_LIMIT_MB=20"
+        - "ACTUAL_UPLOAD_SYNC_ENCRYPTED_FILE_SYNC_SIZE_LIMIT_MB=50"
+        - "ACTUAL_UPLOAD_FILE_SIZE_LIMIT_MB=20"
+        - "DEBUG=actual:config"
+      volumes:
+        - "/media/external/budget:/data"
+        - "${PWD}/certs/:/certs"
+      labels:
+        - "homepage.group=Finance"
+        - "homepage.name=Actual Budget"
+        - "homepage.icon=actual.png"
+        - "homepage.href=https://${DOMAIN_BUDGET}/"
+        - "homepage.description=Budgeting Application"
+    nginx:
+      upstream: "actual_server:5006"
+      additional_config: |
+        location / {
+            proxy_pass http://actual_server:5006;
+            proxy_set_header Cross-Origin-Embedder-Policy require-corp;
+            proxy_set_header Cross-Origin-Opener-Policy same-origin;
+        }
+
+  # Media Services
+  photoprism:
+    name: "PhotoPrism"
+    description: "AI-powered photo management"
+    category: media
+    domain: "photos"
+    port: 2342
+    depends_on:
+      - mariadb
+    volumes:
+      - name: "config"
+        description: "Configuration files"
+        type: "config"
+        size: "100MB"
+        backup_priority: "medium"
+      - name: "photos"
+        description: "Photo storage"
+        type: "media"
+        size: "500GB"
+        backup_priority: "high"
+      - name: "cache"
+        description: "Thumbnail cache"
+        type: "cache"
+        size: "50GB"
+        backup_priority: "low"
+    # Shared container configuration
+    container:
+      image: "photoprism/photoprism:latest"
+      environment:
+        PHOTOPRISM_ADMIN_USER: "admin"
+        PHOTOPRISM_ADMIN_PASSWORD: "${PHOTOPRISM_ADMIN_PASSWORD:-changeme}"
+        PHOTOPRISM_AUTH_MODE: "password"
+        PHOTOPRISM_SITE_URL: "https://${DOMAIN_PHOTOPRISM}/"
+        PHOTOPRISM_DATABASE_DRIVER: "mysql"
+        PHOTOPRISM_DATABASE_SERVER: "mariadb:3306"
+        PHOTOPRISM_DATABASE_NAME: "photoprism"
+        PHOTOPRISM_DATABASE_USER: "photoprism"
+        PHOTOPRISM_DATABASE_PASSWORD: "${PHOTOPRISM_DATABASE_PASSWORD:-changeme}"
+      resources:
+        cpu_request: "0.5"
+        cpu_limit: "2.0"
+        memory_request: "1Gi"
+        memory_limit: "4Gi"
+    compose:
+      image: "photoprism/photoprism:latest"
+      stop_grace_period: 10s
+      security_opt:
+        - "seccomp:unconfined"
+        - "apparmor:unconfined"
+      ports:
+        - "2342:2342"
+      environment:
+        PHOTOPRISM_ADMIN_USER: "admin"
+        PHOTOPRISM_ADMIN_PASSWORD: "${PHOTOPRISM_ADMIN_PASSWORD:-changeme}"
+        PHOTOPRISM_AUTH_MODE: "password"
+        PHOTOPRISM_SITE_URL: "https://${DOMAIN_PHOTOPRISM}/"
+        PHOTOPRISM_DISABLE_TLS: "false"
+        PHOTOPRISM_DEFAULT_TLS: "false"
+        PHOTOPRISM_ORIGINALS_LIMIT: 5000
+        PHOTOPRISM_HTTP_COMPRESSION: "gzip"
+        PHOTOPRISM_LOG_LEVEL: "info"
+        PHOTOPRISM_READONLY: "false"
+        PHOTOPRISM_EXPERIMENTAL: "true"
+        PHOTOPRISM_DISABLE_CHOWN: "false"
+        PHOTOPRISM_DISABLE_WEBDAV: "false"
+        PHOTOPRISM_DISABLE_SETTINGS: "false"
+        PHOTOPRISM_DISABLE_TENSORFLOW: "false"
+        PHOTOPRISM_DISABLE_FACES: "false"
+        PHOTOPRISM_DISABLE_CLASSIFICATION: "false"
+        PHOTOPRISM_DISABLE_VECTORS: "false"
+        PHOTOPRISM_DISABLE_RAW: "false"
+        PHOTOPRISM_RAW_PRESETS: "false"
+        PHOTOPRISM_JPEG_QUALITY: 85
+        PHOTOPRISM_DETECT_NSFW: "true"
+        PHOTOPRISM_UPLOAD_NSFW: "true"
+        PHOTOPRISM_DATABASE_DRIVER: "mysql"
+        PHOTOPRISM_DATABASE_SERVER: "mariadb:3306"
+        PHOTOPRISM_DATABASE_NAME: "photoprism"
+        PHOTOPRISM_DATABASE_USER: "photoprism"
+        PHOTOPRISM_DATABASE_PASSWORD: "${PHOTOPRISM_DATABASE_PASSWORD:-changeme}"
+        PHOTOPRISM_SITE_CAPTION: "AI-Powered Photos App"
+        PHOTOPRISM_SITE_DESCRIPTION: ""
+        PHOTOPRISM_SITE_AUTHOR: ""
+        PHOTOPRISM_FFMPEG_ENCODER: "nvidia"
+        NVIDIA_VISIBLE_DEVICES: "all"
+        NVIDIA_DRIVER_CAPABILITIES: "compute,video,utility"
+        PHOTOPRISM_INIT: "gpu tensorflow"
+      working_dir: "/photoprism"
+      volumes:
+        - "/media/external:/photoprism/originals"
+        - "${PWD}/photoprism:/photoprism/storage"
+      deploy:
+        resources:
+          reservations:
+            devices:
+              - driver: "nvidia"
+                count: 1
+                capabilities: [gpu]
+      healthcheck:
+        test: ["CMD", "curl", "-f", "http://localhost:2342/api/v1/status"]
+        interval: 30s
+        timeout: 10s
+        retries: 3
+      labels:
+        - "homepage.group=Media"
+        - "homepage.name=PhotoPrism"
+        - "homepage.icon=photoprism.png"
+        - "homepage.href=https://${DOMAIN_PHOTOPRISM}/"
+        - "homepage.description=Photo Management"
+        - "homepage.widget.type=photoprism"
+        - "homepage.widget.url=https://${DOMAIN_PHOTOPRISM}"
+        - "homepage.widget.username=admin"
+        - "homepage.widget.password=${PHOTOPRISM_ADMIN_PASSWORD:-changeme}"
+    nginx:
+      upstream: "photoprism:2342"
+      additional_config: |
+        location / {
+            proxy_pass http://photoprism:2342;
+            proxy_set_header X-Forwarded-Proto $scheme;
+            proxy_set_header Upgrade $http_upgrade;
+            proxy_set_header Connection $connection_upgrade;
+            proxy_buffering off;
+        }
+
+  # Collaboration Services
+  cryptpad:
+    name: "CryptPad"
+    description: "Encrypted collaborative document editing"
+    category: collaboration
+    domain: "docs"
+    domain_sandbox: "sandbox-docs"
+    port: 3000
+    compose:
+      image: "promasu/cryptpad:version-2024.6.0"
+      user: "${UID}:${GID}"
+      environment:
+        - "CPAD_MAIN_DOMAIN=https://${DOMAIN_CRYPTPAD}"
+        - "CPAD_SANDBOX_DOMAIN=https://${DOMAIN_CRYPTPAD_SANDBOX}"
+      volumes:
+        - "/media/external/cryptpad/blob:/cryptpad/blob"
+        - "/media/external/cryptpad/block:/cryptpad/block"
+        - "/media/external/cryptpad/customize:/cryptpad/customize"
+        - "/media/external/cryptpad/data:/cryptpad/data"
+        - "${PWD}/cryptpad/config.js:/cryptpad/config/config.js"
+      ports:
+        - "3000:3000"
+      labels:
+        - "homepage.group=Collaboration"
+        - "homepage.name=CryptPad"
+        - "homepage.icon=cryptpad.png"
+        - "homepage.href=https://${DOMAIN_CRYPTPAD}/"
+        - "homepage.description=Document Collaboration"
+    nginx:
+      domains:
+        - "${DOMAIN_CRYPTPAD}"
+        - "${DOMAIN_CRYPTPAD_SANDBOX}"
+      upstream: "cryptpad:3000"
+      additional_config: |
+        set $main_domain ${DOMAIN_CRYPTPAD};
+        set $sandbox_domain ${DOMAIN_CRYPTPAD_SANDBOX};
+        set $api_domain "api.${DOMAIN_CRYPTPAD}";
+        set $files_domain "files.${DOMAIN_CRYPTPAD}";
+
+        add_header Cross-Origin-Resource-Policy cross-origin;
+        add_header Cross-Origin-Embedder-Policy require-corp;
+
+        set $allowed_origins "https://${DOMAIN_CRYPTPAD_SANDBOX}";
+
+        location / {
+            proxy_pass http://cryptpad:3000;
+        }
+
+  # Smart Home & Automation
+  homeassistant:
+    name: "Home Assistant"
+    description: "Open source home automation platform"
+    category: automation
+    domain: "home"
+    port: 8123
+    compose:
+      image: "ghcr.io/home-assistant/home-assistant:stable"
+      privileged: true
+      restart: unless-stopped
+      environment:
+        - "TZ=America/New_York"
+      volumes:
+        - "${PWD}/homeassistant:/config"
+        - "/etc/localtime:/etc/localtime:ro"
+        - "/run/dbus:/run/dbus:ro"
+      ports:
+        - "8123:8123"
+      labels:
+        - "homepage.group=Automation"
+        - "homepage.name=Home Assistant"
+        - "homepage.icon=home-assistant.png"
+        - "homepage.href=https://${DOMAIN_HOMEASSISTANT}/"
+        - "homepage.description=Home Automation"
+        - "homepage.widget.type=homeassistant"
+        - "homepage.widget.url=https://${DOMAIN_HOMEASSISTANT}"
+        - "homepage.widget.key=your_long_lived_access_token"
+    nginx:
+      upstream: "homeassistant:8123"
+      additional_config: |
+        location / {
+            proxy_pass http://homeassistant:8123;
+            proxy_set_header Upgrade $http_upgrade;
+            proxy_set_header Connection $connection_upgrade;
+        }
+
+  # Development & Management
+  portainer_agent:
+    name: "Portainer Agent"
+    description: "Container management interface"
+    category: development
+    domain: "containers"
+    port: 9001
+    compose:
+      image: "portainer/agent:2.19.4"
+      ports:
+        - "9001:9001"
+      volumes:
+        - "/var/run/docker.sock:/var/run/docker.sock"
+        - "/var/lib/docker/volumes:/var/lib/docker/volumes"
+      restart: always
+    nginx:
+      upstream: "portainer_agent:9001"
+      additional_config: |
+        location / {
+            proxy_pass http://portainer_agent:9001;
+        }
+
+# Swarm-specific overrides
+swarm:
+  # Global swarm overrides
+  defaults:
+    deploy:
+      restart_policy:
+        condition: on-failure
+
+  # Service-specific swarm overrides
+  services:
+    actual:
+      deploy:
+        replicas: 1
+        placement:
+          constraints:
+            - node.role == manager
+
+    photoprism:
+      deploy:
+        replicas: 1
+        resources:
+          reservations:
+            generic_resources:
+              - discrete_resource_spec:
+                  kind: "NVIDIA-GPU"
+                  value: 1
+
+# Kubernetes-specific overrides (for future use)
+kubernetes:
+  defaults:
+    namespace: selfhosted
+  services:
+    actual:
+      kind: Deployment
+      replicas: 1
