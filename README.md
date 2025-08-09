@@ -323,19 +323,42 @@ bats tests/unit/cli/enhanced_cli_test.bats
 
 ### CI/CD Pipeline
 
-The project includes automated CI/CD workflows:
+✅ **Production-Ready CI/CD**: Automated workflows using GitHub Actions with semantic releases:
 
-- **Pull Request Checks**: Linting, static analysis, and tests run on every PR
-- **Automated Releases**: Semantic versioning and changelog generation on main branch
-- **Conventional Commits**: Use conventional commit messages for automated releases
+#### **Pull Request Workflow**
+- **Automated Linting**: ShellCheck, yamllint, hadolint for code quality
+- **Static Analysis**: Security scanning with gitleaks for secret detection
+- **Comprehensive Testing**: Full BATS test suite (152 tests) runs on every PR
+- **Python-Only Dependencies**: All tools installed via Poetry for consistent environments
 
-Example commit messages:
+#### **Release Workflow**
+- **Semantic Versioning**: Automatic version bumps based on conventional commits
+- **Changelog Generation**: Auto-generated `CHANGELOG.md` with commit history
+- **GitHub Releases**: Automated release creation with release notes
+- **Tag Management**: Proper git tagging (`v0.1.0`, `v0.2.0`, etc.)
+
+#### **Taskfile Integration**
+Local and CI commands are identical using [Task](https://taskfile.dev/):
+
 ```bash
-feat: add new service configuration
-fix: resolve domain validation issue
-docs: update installation guide
-chore: update dependencies
+task install         # Install all dependencies
+task test           # Run comprehensive test suite
+task lint           # Run all linting (shell, yaml, docker, secrets)
+task static-analysis # Run security and quality analysis
+task check          # Run complete CI pipeline locally
 ```
+
+#### **Conventional Commits**
+Use conventional commit messages for automated semantic releases:
+```bash
+feat: add new service configuration     # Minor version bump
+fix: resolve domain validation issue    # Patch version bump
+docs: update installation guide        # No version bump
+chore: update dependencies             # No version bump
+BREAKING CHANGE: ...                   # Major version bump
+```
+
+The CI/CD pipeline ensures code quality, prevents regressions, and automates the entire release process.
 
 ## 🤝 Contributing
 
@@ -360,6 +383,7 @@ See [docs/roadmap.md](docs/roadmap.md) for detailed planned features.
 - ✅ Volume management (local + NFS support)
 - ✅ Domain standardization and SSL automation
 - ✅ Comprehensive test suite (152 tests, 95%+ pass rate)
+- ✅ **CI/CD Pipeline**: Automated testing, linting, semantic releases, and GitHub Actions workflows
 
 **🚀 Next Priorities**:
 - Integration testing and end-to-end validation
