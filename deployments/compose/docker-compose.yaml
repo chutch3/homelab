@@ -5,10 +5,10 @@ services:
       - 80:80
       - 443:443
     volumes:
-      - ${PWD}/reverseproxy/templates/conf.d/enabled:/etc/nginx/templates/enabled:ro
-      - ${PWD}/reverseproxy/templates/includes:/etc/nginx/templates/includes:ro
-      - ${PWD}/reverseproxy/backend-not-found.html:/var/www/html/backend-not-found.html:ro
-      - ${PWD}/reverseproxy/default.conf:/etc/nginx/conf.d/default.conf:ro
+      - ${PWD}/config/services/reverseproxy/templates/conf.d/enabled:/etc/nginx/templates/enabled:ro
+      - ${PWD}/config/services/reverseproxy/templates/includes:/etc/nginx/templates/includes:ro
+      - ${PWD}/config/services/reverseproxy/backend-not-found.html:/var/www/html/backend-not-found.html:ro
+      - ${PWD}/config/services/reverseproxy/default.conf:/etc/nginx/conf.d/default.conf:ro
       - ${PWD}/certs/dhparam.pem:/etc/nginx/ssl/dhparam.pem:ro
       - ${PWD}/scripts/sleep.sh:/docker-entrypoint.d/99-sleep.sh:ro
     restart: always
@@ -324,14 +324,14 @@ services:
       - CPAD_INSTALL_ONLYOFFICE=yes
     user: "4001:4001"
     volumes:
-      - ${PWD}/cryptpad/data/blob:/cryptpad/blob
-      - ${PWD}/cryptpad/data/block:/cryptpad/block
-      - ${PWD}/cryptpad/customize:/cryptpad/customize
-      - ${PWD}/cryptpad/data/data:/cryptpad/data
-      - ${PWD}/cryptpad/data/files:/cryptpad/datastore
-      - ${PWD}/cryptpad/onlyoffice-dist:/cryptpad/www/common/onlyoffice/dist
-      - ${PWD}/cryptpad/onlyoffice-conf:/cryptpad/onlyoffice-conf
-      - ${PWD}/cryptpad/config.js:/cryptpad/config/config.js
+      - ${PWD}/config/services/cryptpad/data/blob:/cryptpad/blob
+      - ${PWD}/config/services/cryptpad/data/block:/cryptpad/block
+      - ${PWD}/config/services/cryptpad/customize:/cryptpad/customize
+      - ${PWD}/config/services/cryptpad/data/data:/cryptpad/data
+      - ${PWD}/config/services/cryptpad/data/files:/cryptpad/datastore
+      - ${PWD}/config/services/cryptpad/onlyoffice-dist:/cryptpad/www/common/onlyoffice/dist
+      - ${PWD}/config/services/cryptpad/onlyoffice-conf:/cryptpad/onlyoffice-conf
+      - ${PWD}/config/services/cryptpad/config.js:/cryptpad/config/config.js
     ports:
       - "3000:3000"
       - "3003:3003"
@@ -365,7 +365,7 @@ services:
     container_name: homeassistant
     image: "ghcr.io/home-assistant/home-assistant:stable"
     volumes:
-      - ${PWD}/homeassistant:/config
+      - ${PWD}/config/services/homeassistant:/config
       - /etc/localtime:/etc/localtime:ro
     ports:
       - 8181:8181
