@@ -87,7 +87,7 @@ tasks:
     cmds:
       - git config --global user.name "github-actions[bot]"
       - git config --global user.email "github-actions[bot]@users.noreply.github.com"
-      - poetry run semantic-release version
+      - poetry run semantic-release version --skip-build
 
   release:update-lock:
     desc: Update Poetry lock file after release
