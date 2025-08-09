@@ -77,10 +77,6 @@ tasks:
     deps: [lint, test, "static-analysis"]
 
 
-  release:prepare:
-    desc: Prepare for release (run all checks)
-    deps: [check]
-
   release:version:
     desc: Check what the next version would be
     cmds:

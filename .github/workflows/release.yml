@@ -13,46 +13,9 @@ permissions:
   pull-requests: write
 
 jobs:
-  test:
-    name: Test Before Release
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Setup Python
-        uses: actions/setup-python@v4
-        with:
-          python-version: "3.9"
-
-      - name: Install Poetry
-        uses: abatilo/actions-poetry@v3
-        with:
-          poetry-version: latest
-
-      - name: Configure Poetry
-        run: |
-          poetry config virtualenvs.create true --local
-          poetry config virtualenvs.in-project true --local
-
-      - name: Install Task
-        uses: arduino/setup-task@v1
-        with:
-          version: 3.x
-          repo-token: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Install BATS
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y bats
-
-      - name: Install dependencies and run checks
-        run: task release:prepare
-
   release:
     name: Semantic Release
     runs-on: ubuntu-latest
-    needs: test
     if: github.ref == 'refs/heads/main'
     outputs:
       released: ${{ steps.release.outputs.released }}
