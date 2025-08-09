@@ -26,7 +26,17 @@ get_all_services() {
         return 1
     fi
 
-    yq '.services | keys[]' "$SERVICES_CONFIG" | tr -d '"'
+    # Use yq-agnostic approach: extract service names using awk
+    # This finds entries under the 'services:' section only
+    awk '
+        /^services:/ { in_services = 1; next }
+        in_services && /^[a-zA-Z]/ && !/^  / { in_services = 0 }
+        in_services && /^  [a-zA-Z0-9_-]+:/ {
+            gsub(/^  /, "");
+            gsub(/:.*/, "");
+            print
+        }
+    ' "$SERVICES_CONFIG" | sort
 }
 
 # Function: get_service_dependencies
@@ -40,15 +50,26 @@ get_service_dependencies() {
         return 1
     fi
 
-    if ! yq ".services[\"${service}\"]" "$SERVICES_CONFIG" | grep -q -v null; then
+    # Check if service exists using grep
+    if ! grep -q "^  ${service}:" "$SERVICES_CONFIG"; then
         echo "❌ Error: Service '$service' not found" >&2
         return 1
     fi
 
-    # Check if service has dependencies
-    if yq ".services[\"${service}\"].depends_on" "$SERVICES_CONFIG" | grep -q -v null; then
-        yq ".services[\"${service}\"].depends_on[]" "$SERVICES_CONFIG" | tr -d '"'
-    fi
+    # Extract dependencies using awk - this is yq-agnostic
+    awk "
+        /^  ${service}:/ { in_service = 1; next }
+        in_service && /^  [a-zA-Z0-9_-]+:/ { in_service = 0 }
+        in_service && /^    depends_on:/ { in_depends = 1; next }
+        in_service && in_depends && /^      - / {
+            gsub(/^      - /, \"\");
+            gsub(/[\"']/, \"\");
+            print;
+            next
+        }
+        in_service && in_depends && /^    [a-zA-Z0-9_-]+:/ { in_depends = 0 }
+        in_service && in_depends && /^  [a-zA-Z0-9_-]+:/ { in_service = 0; in_depends = 0 }
+    " "$SERVICES_CONFIG"
 }
 
 # Function: get_service_priority
@@ -195,8 +216,7 @@ generate_startup_order() {
     echo "🚀 Generating startup order..." >&2
 
     local resolved_order
-    resolved_order=$(resolve_service_dependencies)
-    if [ $? -ne 0 ]; then
+    if ! resolved_order=$(resolve_service_dependencies); then
         return 1
     fi
 
@@ -310,16 +330,17 @@ EOF
         echo "| $service | $deps | $dependents | $priority |" >> "$DEPENDENCY_GRAPH_FILE"
     done
 
-    echo "" >> "$DEPENDENCY_GRAPH_FILE"
-    echo "## Startup Order" >> "$DEPENDENCY_GRAPH_FILE"
-    echo "" >> "$DEPENDENCY_GRAPH_FILE"
-
     local startup_order
     startup_order=$(generate_startup_order 2>/dev/null)
 
-    echo '```' >> "$DEPENDENCY_GRAPH_FILE"
-    echo "$startup_order" >> "$DEPENDENCY_GRAPH_FILE"
-    echo '```' >> "$DEPENDENCY_GRAPH_FILE"
+    {
+        echo ""
+        echo "## Startup Order"
+        echo ""
+        echo '```'
+        echo "$startup_order"
+        echo '```'
+    } >> "$DEPENDENCY_GRAPH_FILE"
 
     echo "✅ Dependency graph saved to $DEPENDENCY_GRAPH_FILE"
 }
@@ -415,7 +436,7 @@ wait_for_service_dependencies() {
             current_time=$(date +%s)
             local elapsed=$((current_time - start_time))
 
-            if [ $elapsed -ge $max_wait ]; then
+            if [ "$elapsed" -ge "$max_wait" ]; then
                 echo "❌ Timeout waiting for dependency $dep of $service"
                 return 1
             fi

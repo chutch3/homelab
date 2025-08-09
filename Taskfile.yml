@@ -1,0 +1,144 @@
+version: "3"
+
+vars:
+  PROJECT_NAME: homelab
+  PYTHON_VERSION: "3.9"
+
+tasks:
+  install:
+    desc: Install project dependencies
+    cmds:
+      - poetry install --no-root
+      - poetry run pre-commit install
+
+  test:
+    desc: Run all tests
+    cmds:
+      - bats tests/unit/**/*.bats
+
+  test-fast:
+    desc: Run tests with faster execution
+    cmds:
+      - bats --tap tests/unit/**/*.bats
+
+  lint:
+    desc: Run all linting checks
+    deps: ["lint:shell", "lint:yaml", "lint:dockerfile", "lint:secrets"]
+
+  lint:shell:
+    desc: Run shellcheck on shell scripts
+    cmds:
+      - poetry run shellcheck -x scripts/**/*.sh selfhosted.sh
+
+  lint:yaml:
+    desc: Run yamllint on YAML files
+    cmds:
+      - poetry run yamllint .
+
+  lint:dockerfile:
+    desc: Run hadolint on Dockerfiles (using pre-commit)
+    cmds:
+      - poetry run pre-commit run hadolint --all-files
+
+  lint:secrets:
+    desc: Run gitleaks to check for secrets (via pre-commit)
+    cmds:
+      - poetry run pre-commit run gitleaks --all-files
+
+  lint:python:
+    desc: Run pre-commit hooks (includes Python linting)
+    cmds:
+      - poetry run pre-commit run --all-files
+
+  static-analysis:
+    desc: Run static analysis tools
+    deps: [lint, "security-scan"]
+
+  security-scan:
+    desc: Run security scanning (via pre-commit)
+    cmds:
+      - poetry run pre-commit run gitleaks --all-files
+
+  format:
+    desc: Format code
+    cmds:
+      - poetry run pre-commit run --all-files
+
+  clean:
+    desc: Clean up generated files and caches
+    cmds:
+      - rm -rf .pytest_cache
+      - rm -rf __pycache__
+      - find . -name "*.pyc" -delete
+      - find . -name ".bats-*" -delete
+
+  check:
+    desc: Run all checks (lint, test, static analysis)
+    deps: [lint, test, "static-analysis"]
+
+
+  release:prepare:
+    desc: Prepare for release (run all checks)
+    deps: [check]
+
+  release:version:
+    desc: Check what the next version would be
+    cmds:
+      - poetry run semantic-release version --print
+
+  release:publish:
+    desc: Publish a new release
+    cmds:
+      - poetry run semantic-release publish
+
+  release:setup-git:
+    desc: Configure Git for automated releases
+    cmds:
+      - git config --global user.name "github-actions[bot]"
+      - git config --global user.email "github-actions[bot]@users.noreply.github.com"
+
+  release:check-version:
+    desc: Check if a new version should be released and output result
+    cmds:
+      - |
+        poetry run semantic-release version --print > .version.txt 2>/dev/null || echo "0.0.0" > .version.txt
+        if [ "$(cat .version.txt)" != "0.0.0" ]; then
+          echo "New version: $(cat .version.txt)"
+          echo "SHOULD_RELEASE=true" >> $GITHUB_ENV
+          echo "NEW_VERSION=$(cat .version.txt)" >> $GITHUB_ENV
+          echo "NEW_TAG=v$(cat .version.txt)" >> $GITHUB_ENV
+        else
+          echo "No release necessary"
+          echo "SHOULD_RELEASE=false" >> $GITHUB_ENV
+        fi
+
+  release:full:
+    desc: Complete release workflow (check, publish if needed)
+    cmds:
+      - task: release:setup-git
+      - task: release:check-version
+      - |
+        if [ "${SHOULD_RELEASE:-false}" = "true" ]; then
+          echo "Publishing release..."
+          task release:publish
+        else
+          echo "Skipping release - no changes requiring version bump"
+        fi
+
+  release:update-lock:
+    desc: Update Poetry lock file after release
+    cmds:
+      - poetry lock --no-update
+      - |
+        if [ -n "$(git diff --name-only)" ]; then
+          git add poetry.lock
+          git commit -m "chore: update poetry.lock after release"
+          echo "Poetry lock file updated and committed"
+        else
+          echo "Poetry lock file is already up to date"
+        fi
+
+  help:
+    desc: Show available tasks
+    cmds:
+      - task --list

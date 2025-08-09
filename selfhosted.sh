@@ -166,8 +166,8 @@ up() {
     source "${PROJECT_ROOT}/scripts/build_domain.sh"
 
     set -a
-    # Add shellcheck directive to specify .domains file location
-    # shellcheck source=.domains
+    # .domains file is created dynamically by build_domain.sh
+    # shellcheck source=/dev/null
     source "${DOMAIN_FILE}"
     set +a
     env | grep -E '^(DOMAIN|BASE_DOMAIN)'

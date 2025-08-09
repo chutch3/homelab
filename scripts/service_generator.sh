@@ -39,7 +39,11 @@ EOF
         {
             echo "  ${service_key}:"
             # Get service compose configuration and properly indent (convert from JSON to YAML)
-            yq --yaml-output ".services[\"${service_key}\"].compose" "$SERVICES_CONFIG" | sed 's/^/    /'
+            # Try different yq versions - first attempt with --yaml-output (python yq)
+            # If that fails, try without flag (go yq)
+            if ! yq --yaml-output ".services[\"${service_key}\"].compose" "$SERVICES_CONFIG" 2>/dev/null; then
+                yq ".services[\"${service_key}\"].compose" "$SERVICES_CONFIG"
+            fi | sed 's/^/    /'
             echo ""
         } >> "$GENERATED_COMPOSE"
     done

@@ -172,3 +172,4 @@ certs/
 plan.md
 machines.yml
 .swarm_token
+bin/

@@ -287,14 +287,54 @@ This project follows Test-Driven Development (TDD) principles:
 - **Red/Green/Refactor Cycle**: Ensures reliable, maintainable code
 - **No Mocking of External Dependencies**: Integration-focused testing approach
 
-### Running Tests
+### Development Commands
+
+We use [Task](https://taskfile.dev/) for development commands. All dependencies are Python-based for easy CI/CD integration:
+
 ```bash
+# Install dependencies
+task install
+
 # Run all tests
+task test
+
+# Run linting
+task lint
+
+# Run static analysis
+task static-analysis
+
+# Run all checks (CI pipeline)
+task check
+
+# Show all available tasks
+task --list
+```
+
+### Running Tests Directly
+```bash
+# Run all tests with BATS
 bats tests/unit/**/*.bats
 
 # Run specific test suites
 bats tests/unit/scripts/service_generator_test.bats
 bats tests/unit/cli/enhanced_cli_test.bats
+```
+
+### CI/CD Pipeline
+
+The project includes automated CI/CD workflows:
+
+- **Pull Request Checks**: Linting, static analysis, and tests run on every PR
+- **Automated Releases**: Semantic versioning and changelog generation on main branch
+- **Conventional Commits**: Use conventional commit messages for automated releases
+
+Example commit messages:
+```bash
+feat: add new service configuration
+fix: resolve domain validation issue
+docs: update installation guide
+chore: update dependencies
 ```
 
 ## 🤝 Contributing

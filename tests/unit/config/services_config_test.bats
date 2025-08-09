@@ -34,7 +34,8 @@ teardown() {
     # Test that actual budget service is defined
     run yq '.services.actual.name' "${BATS_TEST_DIRNAME}/../../../config/services.yaml"
     [ "$status" -eq 0 ]
-    [[ "$output" == '"Actual Budget"' ]]
+    # Handle both quoted (python yq) and unquoted (go yq) output
+    [[ "$output" == '"Actual Budget"' || "$output" == 'Actual Budget' ]]
 }
 
 @test "services_yaml_should_define_service_metadata" {
@@ -45,14 +46,16 @@ teardown() {
 
     run yq '.services.actual.category' "${BATS_TEST_DIRNAME}/../../../config/services.yaml"
     [ "$status" -eq 0 ]
-    [[ "$output" == '"finance"' ]]
+    # Handle both quoted (python yq) and unquoted (go yq) output
+    [[ "$output" == '"finance"' || "$output" == 'finance' ]]
 }
 
 @test "services_yaml_should_define_domain_patterns" {
     # Test that services have domain configuration
     run yq '.services.actual.domain' "${BATS_TEST_DIRNAME}/../../../config/services.yaml"
     [ "$status" -eq 0 ]
-    [[ "$output" == '"budget"' ]]
+    # Handle both quoted (python yq) and unquoted (go yq) output
+    [[ "$output" == '"budget"' || "$output" == 'budget' ]]
 }
 
 @test "services_yaml_should_define_compose_config" {

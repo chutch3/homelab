@@ -217,8 +217,8 @@ teardown() {
 
 @test "check_service_health_should_validate_endpoints" {
     # Test service health checking (dry run)
+    # shellcheck disable=SC2030
     export HEALTH_CHECK_DRY_RUN=true
-
     run check_service_health "mariadb"
     [ "$status" -eq 0 ]
     [[ "$output" == *"Would check health"* ]]
@@ -227,8 +227,8 @@ teardown() {
 
 @test "wait_for_service_dependencies_should_check_health" {
     # Test waiting for service dependencies (dry run)
+    # shellcheck disable=SC2030,SC2031
     export HEALTH_CHECK_DRY_RUN=true
-
     run wait_for_service_dependencies "photoprism"
     [ "$status" -eq 0 ]
     [[ "$output" == *"Waiting for dependencies"* ]]
