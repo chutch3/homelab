@@ -683,7 +683,7 @@ test = ["coverage[toml] (>=6,<8)", "pytest (>=7,<8)", "pytest-clarity (>=1.0.1)"
 name = "pyyaml"
 version = "6.0"
 description = "YAML parser and emitter for Python"
-category = "dev"
+category = "main"
 optional = false
 python-versions = ">=3.6"
 files = [
@@ -950,4 +950,4 @@ type = ["pytest-mypy"]
 [metadata]
 lock-version = "2.0"
 python-versions = "^3.9"
-content-hash = "d943071ec7c53864c244984bc33df101e632d1f2f4956662bf5d130e4a20ae5d"
+content-hash = "8eb18d43ebb2ac6341606d921079ac35388d3217c232a1f65a73bef56db44e6a"

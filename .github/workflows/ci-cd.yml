@@ -1,4 +1,4 @@
-name: PR Checks
+name: CI/CD Pipeline
 
 on:
   pull_request:
@@ -9,6 +9,11 @@ on:
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
+
+permissions:
+  contents: write
+  issues: write
+  pull-requests: write
 
 jobs:
   lint:
@@ -98,3 +103,26 @@ jobs:
 
       - name: Run tests
         run: task test
+
+  release:
+    name: Semantic Release
+    runs-on: ubuntu-latest
+    needs: [lint, test]
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    outputs:
+      released: ${{ steps.release.outputs.released }}
+      version: ${{ steps.release.outputs.version }}
+      tag: ${{ steps.release.outputs.tag }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Run Semantic Release
+        id: release
+        uses: python-semantic-release/python-semantic-release@v10.3.1
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          build: false

@@ -168,6 +168,16 @@ cython_debug/
 .enabled-services
 certs/
 
+# Generated files - auto-generated from config/services.yaml
+generated/
+generated-docker-compose.yaml
+generated-nginx/
+generated-swarm-stack.yaml
+.enabled-services.backup
+
+# Temporary system files
+.*csm_setup*
+
 # Environment-specific configuration files
 plan.md
 machines.yml

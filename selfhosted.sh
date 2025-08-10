@@ -161,12 +161,13 @@ make_dhparam() {
 up() {
     load_env
 
-    # source build_domain.sh and invoke build_domains_file
+    # Generate domains from services.yaml instead of legacy build_domain.sh
     # shellcheck source=/dev/null
-    source "${PROJECT_ROOT}/scripts/build_domain.sh"
+    source "${PROJECT_ROOT}/scripts/service_generator.sh"
+    generate_domains_from_services
 
     set -a
-    # .domains file is created dynamically by build_domain.sh
+    # .domains file is created dynamically by generate_domains_from_services
     # shellcheck source=/dev/null
     source "${DOMAIN_FILE}"
     set +a
@@ -413,6 +414,19 @@ service_generate() {
     echo "   - .domains (Domain variables)"
 }
 
+# Function: service_generate_consolidated
+# Description: Generates all files to consolidated generated/ directory structure
+service_generate_consolidated() {
+    echo "🏗️ Generating files to consolidated directory structure..."
+    if ! generate_all_to_generated_dir; then
+        echo "❌ Failed to generate consolidated directory structure"
+        exit 1
+    fi
+    echo "🎉 Consolidated structure generated successfully!"
+    echo "📁 View the structure: ls -la generated/"
+    echo "📖 Read the guide: cat generated/README.md"
+}
+
 # Function: service_validate
 # Description: Validates the services configuration
 service_validate() {
@@ -459,6 +473,55 @@ service_info() {
     echo "🌐 Access URL: https://$(yq -r ".services.${service_name}.domain" "$PROJECT_ROOT/config/services.yaml").${BASE_DOMAIN:-\${BASE_DOMAIN\}}"
 }
 
+# Function: service_enable
+# Description: Enables services in services.yaml
+service_enable() {
+    if [ $# -eq 0 ]; then
+        echo "❌ Error: Service name(s) required"
+        echo "💡 Usage: $0 service enable <service1> [service2] ..."
+        echo "💡 Example: $0 service enable actual homepage"
+        exit 1
+    fi
+
+    enable_services_via_yaml "$@"
+
+    echo ""
+    echo "📋 Currently enabled services:"
+    list_enabled_services_from_yaml
+}
+
+# Function: service_disable
+# Description: Disables services in services.yaml
+service_disable() {
+    if [ $# -eq 0 ]; then
+        echo "❌ Error: Service name(s) required"
+        echo "💡 Usage: $0 service disable <service1> [service2] ..."
+        echo "💡 Example: $0 service disable actual homepage"
+        exit 1
+    fi
+
+    disable_services_via_yaml "$@"
+
+    echo ""
+    echo "📋 Currently enabled services:"
+    list_enabled_services_from_yaml
+}
+
+# Function: service_status
+# Description: Shows enabled/disabled status of all services
+service_status() {
+    echo "📊 Service Status Overview"
+    echo "=========================="
+    echo ""
+    list_enabled_services_from_yaml
+}
+
+# Function: service_interactive
+# Description: Interactive service enablement interface
+service_interactive() {
+    interactive_service_enablement
+}
+
 # Function: service_help
 # Description: Shows service-specific help
 service_help() {
@@ -470,16 +533,26 @@ USAGE:
 
 SUBCOMMANDS:
     list                     List all available services with metadata
+    enable <service...>      Enable one or more services
+    disable <service...>     Disable one or more services
+    status                   Show enabled/disabled status of all services
+    interactive              Interactive service selection interface
     generate                 Generate deployment files from services.yaml
+    generate-consolidated    Generate files to consolidated generated/ directory
     validate                 Validate services configuration syntax
     info <name>              Show detailed information about a service
     help                     Show this help message
 
 EXAMPLES:
-    $0 service list          # Show all available services
-    $0 service info actual   # Show details about 'actual' service
-    $0 service generate      # Generate docker-compose.yaml and nginx templates
-    $0 service validate      # Check services.yaml syntax and structure
+    $0 service list                    # Show all available services
+    $0 service enable actual           # Enable the 'actual' service
+    $0 service disable homepage        # Disable the 'homepage' service
+    $0 service status                  # Show which services are enabled/disabled
+    $0 service interactive             # Interactive service selection
+    $0 service info actual             # Show details about 'actual' service
+    $0 service generate                # Generate docker-compose.yaml and nginx templates
+    $0 service generate-consolidated   # Generate to clean generated/ directory structure
+    $0 service validate                # Check services.yaml syntax and structure
 EOF
 }
 
@@ -531,11 +604,17 @@ config_init() {
     echo "💡 You can now deploy services with: $0 deploy compose up"
 }
 
-# Enhanced deploy command with file generation
+# Enhanced deploy command with file generation and modern service enablement
 enhanced_deploy() {
     local target="$1"
     local cmd="$2"
     shift 2
+
+    # Check for legacy .enabled-services file and migrate if needed
+    if [ -f "$PROJECT_ROOT/.enabled-services" ]; then
+        echo "🔄 Detected legacy .enabled-services file, migrating to services.yaml..."
+        migrate_from_legacy_enabled_services
+    fi
 
     # Generate deployment files before deploying (if not dry-run)
     if [ -f "$PROJECT_ROOT/config/services.yaml" ] && [[ "$*" != *"--dry-run"* ]]; then
@@ -543,6 +622,16 @@ enhanced_deploy() {
         if ! generate_all_from_services; then
             echo "❌ Failed to generate deployment files"
             exit 1
+        fi
+
+        # Generate .enabled-services file for backward compatibility
+        generate_enabled_services_from_yaml
+
+        # Check certificate status and initialize if needed
+        echo "🔐 Checking certificate status..."
+        if ! ensure_certs_exist; then
+            echo "⚠️ Certificate initialization recommended"
+            echo "💡 Certificates will be initialized automatically on first service start"
         fi
     fi
 
@@ -575,7 +664,12 @@ case "$1" in
     service)
         case "$2" in
             list) service_list ;;
+            enable) service_enable "${@:3}" ;;
+            disable) service_disable "${@:3}" ;;
+            status) service_status ;;
+            interactive) service_interactive ;;
             generate) service_generate ;;
+            generate-consolidated) service_generate_consolidated ;;
             validate) service_validate ;;
             info) service_info "$3" ;;
             help|"") service_help ;;
