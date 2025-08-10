@@ -1,0 +1,118 @@
+/* Custom styles for Selfhosted documentation */
+
+:root {
+  --md-primary-fg-color: #2196F3;
+  --md-primary-fg-color--light: #42A5F5;
+  --md-primary-fg-color--dark: #1976D2;
+  --md-accent-fg-color: #2196F3;
+}
+
+/* Grid cards styling */
+.grid.cards {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  margin: 1rem 0;
+}
+
+.grid.cards > * {
+  border: 1px solid var(--md-default-fg-color--lightest);
+  border-radius: 0.2rem;
+  padding: 1rem;
+  transition: all 0.2s ease;
+}
+
+.grid.cards > *:hover {
+  border-color: var(--md-primary-fg-color);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  transform: translateY(-2px);
+}
+
+/* Code block enhancements */
+.highlight .filename {
+  background: var(--md-code-bg-color);
+  border-bottom: 1px solid var(--md-default-fg-color--lightest);
+  color: var(--md-code-fg-color);
+  font-size: 0.85em;
+  padding: 0.5rem 1rem;
+  font-weight: 500;
+}
+
+/* Admonition styling */
+.md-typeset .admonition {
+  border-left-width: 4px;
+}
+
+/* Command line styling */
+.md-typeset code {
+  background-color: var(--md-code-bg-color);
+  border-radius: 0.2rem;
+  padding: 0.1rem 0.3rem;
+}
+
+/* Service cards styling */
+.service-card {
+  border: 1px solid var(--md-default-fg-color--lightest);
+  border-radius: 0.5rem;
+  padding: 1.5rem;
+  margin: 1rem 0;
+  background: var(--md-default-bg-color);
+  transition: all 0.2s ease;
+}
+
+.service-card:hover {
+  border-color: var(--md-primary-fg-color);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.service-card h3 {
+  margin-top: 0;
+  color: var(--md-primary-fg-color);
+}
+
+.service-card .badge {
+  display: inline-block;
+  background: var(--md-primary-fg-color--light);
+  color: white;
+  padding: 0.2rem 0.5rem;
+  border-radius: 1rem;
+  font-size: 0.8rem;
+  margin-right: 0.5rem;
+}
+
+/* Table enhancements */
+.md-typeset table:not([class]) {
+  border: 1px solid var(--md-default-fg-color--lightest);
+  border-radius: 0.2rem;
+}
+
+.md-typeset table:not([class]) th {
+  background: var(--md-default-fg-color--lighter);
+  font-weight: 600;
+}
+
+/* Navigation enhancements */
+.md-nav__title {
+  font-weight: 600;
+}
+
+/* Mermaid diagram styling */
+.mermaid {
+  text-align: center;
+  margin: 2rem 0;
+}
+
+/* Dark mode adjustments */
+[data-md-color-scheme="slate"] {
+  --md-code-bg-color: #2d2d2d;
+}
+
+[data-md-color-scheme="slate"] .grid.cards > * {
+  border-color: var(--md-default-fg-color--dark);
+  background: var(--md-default-bg-color);
+}
+
+[data-md-color-scheme="slate"] .service-card {
+  background: var(--md-default-bg-color);
+  border-color: var(--md-default-fg-color--dark);
+}

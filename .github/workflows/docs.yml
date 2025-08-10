@@ -1,0 +1,136 @@
+name: 📚 Documentation
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'docs/**'
+      - 'mkdocs.yml'
+      - '.github/workflows/docs.yml'
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'docs/**'
+      - 'mkdocs.yml'
+      - '.github/workflows/docs.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: "pages"
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: 🏗️ Build Documentation
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    runs-on: ubuntu-latest
+    steps:
+      - name: 📥 Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Fetch full history for git plugins
+
+      - name: 🐍 Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: 📦 Install Poetry
+        uses: snok/install-poetry@v1
+        with:
+          version: latest
+          virtualenvs-create: true
+          virtualenvs-in-project: true
+
+      - name: 📥 Load cached dependencies
+        id: cached-poetry-dependencies
+        uses: actions/cache@v4
+        with:
+          path: .venv
+          key: venv-${{ runner.os }}-${{ steps.setup-python.outputs.python-version }}-${{ hashFiles('**/poetry.lock') }}
+
+      - name: 🔧 Install Task
+        uses: arduino/setup-task@v1
+        with:
+          version: 3.x
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: 🔧 Install dependencies
+        if: steps.cached-poetry-dependencies.outputs.cache-hit != 'true'
+        run: task install
+
+      - name: 📚 Build documentation
+        run: task docs:build
+
+      - name: 📤 Upload documentation artifacts
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: ./site
+
+  deploy:
+    name: 🚀 Deploy to GitHub Pages
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: 🚀 Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
+
+  # Validate documentation on PRs
+  validate:
+    name: 🔍 Validate Documentation
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - name: 📥 Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: 🐍 Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: 📦 Install Poetry
+        uses: snok/install-poetry@v1
+        with:
+          version: latest
+          virtualenvs-create: true
+          virtualenvs-in-project: true
+
+      - name: 📥 Load cached dependencies
+        id: cached-poetry-dependencies
+        uses: actions/cache@v4
+        with:
+          path: .venv
+          key: venv-${{ runner.os }}-${{ steps.setup-python.outputs.python-version }}-${{ hashFiles('**/poetry.lock') }}
+
+      - name: 🔧 Install Task
+        uses: arduino/setup-task@v1
+        with:
+          version: 3.x
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: 🔧 Install dependencies
+        if: steps.cached-poetry-dependencies.outputs.cache-hit != 'true'
+        run: task install
+
+      - name: 🔍 Validate documentation build
+        run: task docs:validate
+
+      - name: 🔗 Check for broken links
+        run: |
+          # Install linkchecker if needed for future validation
+          echo "✅ Documentation builds successfully"

@@ -72,9 +72,37 @@ tasks:
       - find . -name "*.pyc" -delete
       - find . -name ".bats-*" -delete
 
+  docs:build:
+    desc: Build documentation with MkDocs
+    cmds:
+      - poetry run mkdocs build --clean --strict
+    env:
+      MKDOCS_ENABLE_SOCIAL: false
+
+  docs:serve:
+    desc: Serve documentation locally with live reload
+    cmds:
+      - poetry run mkdocs serve --dev-addr=127.0.0.1:8000
+
+  docs:validate:
+    desc: Validate documentation build and check for issues
+    cmds:
+      - poetry run mkdocs build --clean
+      - echo "✅ Documentation builds successfully"
+    env:
+      MKDOCS_ENABLE_SOCIAL: false
+
+  docs:validate-strict:
+    desc: Validate documentation build with strict mode (fails on warnings)
+    cmds:
+      - poetry run mkdocs build --clean --strict
+      - echo "✅ Documentation builds successfully with no warnings"
+    env:
+      MKDOCS_ENABLE_SOCIAL: false
+
   check:
-    desc: Run all checks (lint, test, static analysis)
-    deps: [lint, test, "static-analysis"]
+    desc: Run all checks (lint, test, static analysis, docs)
+    deps: [lint, test, "static-analysis", "docs:validate"]
 
 
   release:version:

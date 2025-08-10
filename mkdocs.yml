@@ -1,0 +1,207 @@
+site_name: Selfhosted - Unified Self-Hosting Platform
+site_description: A modern, unified self-hosted platform that makes deploying and managing services incredibly simple
+site_author: Cody Hutchens
+site_url: https://chutch3.github.io/selfhosted.sh
+
+# Repository
+repo_name: chutch3/selfhosted.sh
+repo_url: https://github.com/chutch3/selfhosted.sh
+edit_uri: edit/main/docs/
+
+# Docs directory
+docs_dir: docs
+
+# Copyright
+copyright: Copyright &copy; 2025 Cody Hutchens
+
+# Configuration
+theme:
+  name: material
+  language: en
+  palette:
+    # Palette toggle for automatic mode
+    - media: "(prefers-color-scheme)"
+      toggle:
+        icon: material/brightness-auto
+        name: Switch to light mode
+    # Palette toggle for light mode
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: blue
+      accent: blue
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    # Palette toggle for dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: blue
+      accent: blue
+      toggle:
+        icon: material/brightness-4
+        name: Switch to system preference
+  font:
+    text: Roboto
+    code: Roboto Mono
+  features:
+    - announce.dismiss
+    - content.action.edit
+    - content.action.view
+    - content.code.annotate
+    - content.code.copy
+    - content.tabs.link
+    - content.tooltips
+    - header.autohide
+    - navigation.expand
+    - navigation.footer
+    - navigation.indexes
+    - navigation.instant
+    - navigation.instant.prefetch
+    - navigation.sections
+    - navigation.tabs
+    - navigation.tabs.sticky
+    - navigation.top
+    - navigation.tracking
+    - search.highlight
+    - search.share
+    - search.suggest
+    - toc.follow
+  icon:
+    repo: fontawesome/brands/github
+    edit: material/pencil
+    view: material/eye
+
+# Plugins
+plugins:
+  - search:
+      separator: '[\s\-,:!=\[\]()"`/]+|\.(?!\d)|&[lg]t;|(?!\b)(?=[A-Z][a-z])'
+  - minify:
+      minify_html: true
+  - glightbox:
+      touchNavigation: true
+      loop: false
+      effect: zoom
+      slide_effect: slide
+      width: 100%
+      height: auto
+  - mermaid2:
+      arguments:
+        theme: |
+          ^(JSON.parse(__md_get("__palette").index == 1)) ?
+          'dark' : 'light'
+  - git-revision-date-localized:
+      enable_creation_date: true
+      type: timeago
+  - include-markdown:
+      preserve_includer_indent: true
+      dedent: false
+      trailing_newlines: false
+      comments: false
+  - tags
+
+# Customization
+extra:
+  homepage: https://github.com/cody/homelab
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/cody/homelab
+      name: GitHub Repository
+    - icon: fontawesome/brands/docker
+      link: https://hub.docker.com/
+      name: Docker Hub
+  version:
+    provider: mike
+    default: latest
+  generator: false
+
+extra_css:
+  - assets/stylesheets/extra.css
+
+extra_javascript:
+  - assets/javascripts/extra.js
+
+# Extensions
+markdown_extensions:
+  - abbr
+  - admonition
+  - attr_list
+  - def_list
+  - footnotes
+  - md_in_html
+  - toc:
+      permalink: true
+  - pymdownx.arithmatex:
+      generic: true
+  - pymdownx.betterem:
+      smart_enable: all
+  - pymdownx.caret
+  - pymdownx.details
+  - pymdownx.emoji:
+      emoji_generator: !!python/name:material.extensions.emoji.to_svg
+      emoji_index: !!python/name:material.extensions.emoji.twemoji
+  - pymdownx.highlight:
+      anchor_linenums: true
+      line_spans: __span
+      pygments_lang_class: true
+  - pymdownx.inlinehilite
+  - pymdownx.keys
+  - pymdownx.magiclink:
+      normalize_issue_symbols: true
+      repo_url_shorthand: true
+      user: chutch3
+      repo: selfhosted.sh
+  - pymdownx.mark
+  - pymdownx.smartsymbols
+  - pymdownx.snippets:
+      auto_append:
+        - includes/mkdocs.md
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+  - pymdownx.tabbed:
+      alternate_style: true
+      combine_header_slug: true
+      slugify: !!python/object/apply:pymdownx.slugs.slugify
+        kwds:
+          case: lower
+  - pymdownx.tasklist:
+      custom_checkbox: true
+  - pymdownx.tilde
+
+# Page tree
+nav:
+  - Home: index.md
+  - Getting Started:
+      - Quick Start: getting-started/quick-start.md
+      - Installation: getting-started/installation.md
+      - Configuration: getting-started/configuration.md
+      - First Deployment: getting-started/first-deployment.md
+  - User Guide:
+      - Service Management: user-guide/service-management.md
+      - Deployment Options: user-guide/deployment-options.md
+      - Domain & SSL Setup: user-guide/domain-ssl.md
+      - Volume Management: user-guide/volume-management.md
+      - Troubleshooting: user-guide/troubleshooting.md
+  - Services:
+      - Available Services: services/index.md
+      - Adding New Services: services/adding-services.md
+      - Service Categories: services/categories.md
+  - Architecture:
+      - Overview: architecture/overview.md
+      - Configuration System: architecture/configuration.md
+      - Generation Engine: architecture/generation.md
+      - Deployment Targets: architecture/deployment.md
+  - Development:
+      - Contributing: development/contributing.md
+      - Testing: development/testing.md
+      - Architecture Details: development/architecture.md
+      - Release Process: development/releases.md
+  - Reference:
+      - CLI Commands: reference/cli.md
+      - Configuration Schema: reference/configuration-schema.md
+      - Environment Variables: reference/environment.md
+      - API Reference: reference/api.md
+  - Roadmap: roadmap.md
+  - Tags: tags.md
