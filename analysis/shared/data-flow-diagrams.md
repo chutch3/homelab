@@ -1,12 +1,13 @@
 # Generation Engine Data Flow Diagrams
 
 **Date**: 2025-01-08
+**Updated**: 2025-01-08 (Corrected for deployment type exclusivity)
 **Purpose**: Analysis 10.3 - Visualize data transformation flow through generation engine
 **Issue**: [#30](https://github.com/chutch3/selfhosted.sh/issues/30) - Generation Engine Clarity
 
 ## Executive Summary
 
-This analysis provides visual representations of how data flows through the generation engine, from input sources through transformation rules to final deployment artifacts, making the generation process clear and understandable.
+This analysis provides visual representations of how data flows through the generation engine, from input sources through transformation rules to final deployment artifacts. **Critical Context**: Deployment types are mutually exclusive - only one deployment type is used at a time (Docker Compose OR Docker Swarm OR Kubernetes), not simultaneously.
 
 ## 1. High-Level Generation Flow
 
@@ -28,11 +29,11 @@ graph TD
         J[Template Generation<br/>📋 Create Config Files]
     end
 
-    subgraph "📦 Generated Artifacts"
-        K[generated-docker-compose.yaml<br/>🐳 Docker Compose]
-        L[generated-nginx/<br/>🌐 Nginx Templates]
-        M[.domains<br/>🌐 Domain Variables]
-        N[generated-swarm-stack.yaml<br/>🐝 Docker Swarm]
+    subgraph "📦 Generated Artifacts (Deployment Type Specific)"
+        K[generated-docker-compose.yaml<br/>🐳 Docker Compose Only]
+        L[generated-nginx/<br/>🌐 Nginx Templates - All Types]
+        M[.domains<br/>🌐 Domain Variables - All Types]
+        N[generated-swarm-stack.yaml<br/>🐝 Docker Swarm Only]
     end
 
     A --> F
@@ -135,9 +136,9 @@ graph LR
     style H fill:#fff3e0
 ```
 
-## 4. Multi-Target Generation Flow
+## 4. Deployment Type Selection Flow
 
-This diagram shows how the same service configuration generates different deployment artifacts for different targets:
+This diagram shows how the same service configuration can generate different deployment artifacts depending on the chosen deployment type (mutually exclusive):
 
 ```mermaid
 graph TD
@@ -145,29 +146,25 @@ graph TD
         A[services.yaml<br/>homepage service]
     end
 
-    subgraph "🔄 Generation Targets"
-        B[Docker Compose Generator<br/>🐳 generate_compose]
-        C[Docker Swarm Generator<br/>🐝 generate_swarm_stack]
-        D[Nginx Template Generator<br/>🌐 generate_nginx_templates]
-        E[Domain Variables Generator<br/>📝 generate_domains]
+        subgraph "🔄 Deployment Type Choice (Exclusive)"
+        B[Docker Compose Mode<br/>🐳 generate_compose]
+        C[Docker Swarm Mode<br/>🐝 generate_swarm_stack]
+        D[Kubernetes Mode<br/>☸️ generate_k8s (future)]
     end
 
-    subgraph "📦 Target-Specific Outputs"
-        F[generated-docker-compose.yaml<br/>services.homepage.image<br/>services.homepage.ports]
-        G[generated-swarm-stack.yaml<br/>services.homepage.deploy<br/>services.homepage.networks]
-        H[generated-nginx/homepage.template<br/>server_name $HOMEPAGE_DOMAIN<br/>proxy_pass http://homepage:3000]
-        I[.domains<br/>HOMEPAGE_DOMAIN=homepage.example.com<br/>export HOMEPAGE_DOMAIN]
+    subgraph "📦 Deployment-Specific Outputs"
+        F[Docker Compose Output<br/>generated-docker-compose.yaml<br/>+ nginx/ + .domains]
+        G[Docker Swarm Output<br/>generated-swarm-stack.yaml<br/>+ nginx/ + .domains]
+        H[Kubernetes Output<br/>generated-k8s/<br/>+ nginx/ + .domains]
     end
 
     A --> B
     A --> C
     A --> D
-    A --> E
 
     B --> F
     C --> G
     D --> H
-    E --> I
 
     style A fill:#e1f5fe
     style F fill:#e8f5e8
@@ -419,14 +416,14 @@ graph TD
 #### Strengths ✅:
 - **Clear Structure**: Well-defined input → processing → output flow
 - **Inheritance Model**: Logical default application with override capability
-- **Multi-Format Support**: Single configuration generates multiple deployment types
+- **Multi-Format Capability**: Single configuration can generate different deployment types (but only one is used)
 - **Enablement Control**: Fine-grained service activation control
 - **Domain Automation**: Automatic domain generation and variable creation
 
 #### Complexity Areas ⚠️:
 - **Multiple Generators**: 4+ generation functions with different rules
 - **Cross-Dependencies**: Domain generation affects template generation
-- **Format Specifics**: Different rules for Docker Compose vs Swarm vs Nginx
+- **Format Specifics**: Different rules for each deployment type (Docker Compose vs Swarm vs K8s)
 - **Variable Substitution**: Multiple layers of environment variable expansion
 
 #### Performance Characteristics ✅:
@@ -462,7 +459,7 @@ graph TD
 
 1. **Clear Data Flow**: Well-structured input → processing → output pipeline
 2. **Logical Inheritance**: Application defaults with service override patterns
-3. **Multi-Target Generation**: Single configuration supports multiple deployment types
+3. **Multi-Target Capability**: Single configuration supports different deployment types (chosen exclusively)
 4. **Effective Filtering**: Enablement-based service inclusion works correctly
 5. **Domain Automation**: Sophisticated domain pattern expansion system
 

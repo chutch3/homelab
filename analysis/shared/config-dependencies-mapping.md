@@ -1,12 +1,13 @@
 # Configuration Dependencies Mapping
 
 **Date**: 2025-01-08
+**Updated**: 2025-01-08 (Corrected for deployment type exclusivity)
 **Purpose**: Analysis 12.1 - Identify all configuration relationships and dependencies
 **Issue**: [#32](https://github.com/chutch3/selfhosted.sh/issues/32) - Configuration Orchestration
 
 ## Executive Summary
 
-This analysis maps all configuration relationships and dependencies within the selfhosted system, identifying how different configuration files, environment variables, and generated artifacts depend on each other. This provides the foundation for proper configuration orchestration and dependency management.
+This analysis maps all configuration relationships and dependencies within the selfhosted system, identifying how different configuration files, environment variables, and generated artifacts depend on each other. **Critical Context**: Deployment types are mutually exclusive - only one deployment type (Docker Compose OR Docker Swarm OR Kubernetes) is used at a time, not simultaneously.
 
 ## 1. Configuration File Inventory
 
