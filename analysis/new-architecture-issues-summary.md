@@ -42,10 +42,14 @@
 **Concern**: Different machines may need different artifacts/configurations
 
 **Questions Raised**:
-- Do nodes need different service sets?
+- Do nodes need different service sets? What happens at the edge cases (e.g. a node that is both a driver and a worker or there is a node for every single service)?
 - Should deployment be optimized per node type?
 - How to handle resource constraints per node?
 - Is current generation too generic?
+- Can we automate the inspection of node determine the appropriate service set?
+- Are we reinventing an existing technology?
+
+
 
 **Analysis Priority**: Medium - enhancement opportunity
 
