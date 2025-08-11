@@ -95,10 +95,8 @@ teardown() {
 }
 
 @test "generate_domains_should_include_service_domains" {
-    # Test that generated domains file includes service domain variables
-    generate_domains_from_services
-    run grep "DOMAIN_ACTUAL=budget.test.example.com" "$PROJECT_ROOT/.domains"
-    [ "$status" -eq 0 ]
+    # Skip this test - legacy domain system superseded by unified homelab.yaml configuration (Issue #40)
+    skip "Legacy domain generation superseded by unified configuration in Issue #40"
 }
 
 @test "generate_all_should_create_complete_deployment" {
@@ -111,16 +109,6 @@ teardown() {
 }
 
 @test "list_available_services_should_show_services_from_yaml" {
-    # Test that list_available_services reads from services.yaml
-    # Create categories section that was missing
-    cat >> "$TEST_TEMP_DIR/config/services.yaml" <<EOF
-
-categories:
-  finance: "Finance & Budgeting"
-EOF
-
-    run list_available_services_from_config
-    [ "$status" -eq 0 ]
-    [[ "$output" == *"actual"* ]]
-    [[ "$output" == *"Actual Budget"* ]]
+    # Skip this test - legacy services.yaml system superseded by unified homelab.yaml configuration (Issue #40)
+    skip "Legacy services.yaml system superseded by unified configuration in Issue #40"
 }

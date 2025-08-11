@@ -1,0 +1,284 @@
+name: PR Validation Suite
+
+on:
+  pull_request:
+    branches: [ main ]
+  push:
+    branches: [ main ]  # Also run on main for baseline updates
+
+env:
+  # Test configuration
+  YQ_VERSION: "v4.35.2"
+
+jobs:
+
+  # =============================================================================
+  # PERFORMANCE TESTS (Using Taskfile)
+  # =============================================================================
+  performance-tests:
+    name: Performance Tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install Task
+        uses: arduino/setup-task@v1
+        with:
+          version: 3.x
+
+      - name: Install test dependencies
+        run: |
+          # Install yq
+          sudo wget -qO /usr/local/bin/yq \
+            "https://github.com/mikefarah/yq/releases/download/${{ env.YQ_VERSION }}/yq_linux_amd64"
+          sudo chmod +x /usr/local/bin/yq
+
+          # Install jq, bc, time, and BATS
+          sudo apt-get update
+          sudo apt-get install -y jq bc time bats
+
+          # Install Poetry for pre-commit dependencies
+          curl -sSL https://install.python-poetry.org | python3 -
+          echo "$HOME/.local/bin" >> $GITHUB_PATH
+
+      - name: Run performance tests
+        run: task test-performance
+
+      - name: Upload performance results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: performance-results
+          path: |
+            **/performance_results/
+            local_test_report.txt
+          retention-days: 7
+
+  # =============================================================================
+  # YAML AND SCHEMA VALIDATION
+  # =============================================================================
+  yaml-validation:
+    name: YAML and Schema Validation
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          # Install yq and jq
+          sudo wget -qO /usr/local/bin/yq \
+            "https://github.com/mikefarah/yq/releases/download/${{ env.YQ_VERSION }}/yq_linux_amd64"
+          sudo chmod +x /usr/local/bin/yq
+          sudo apt-get update
+          sudo apt-get install -y jq
+
+      - name: Validate JSON schema
+        run: |
+          echo "📋 Validating JSON schema..."
+          if [ -f "schemas/homelab-schema.json" ]; then
+            jq . schemas/homelab-schema.json >/dev/null
+            echo "✅ JSON schema is valid"
+          else
+            echo "⚠️  Schema file not found"
+          fi
+
+      - name: Validate YAML files
+        run: |
+          echo "📝 Validating YAML files..."
+
+          # Validate examples
+          for config in examples/*.yaml; do
+            if [ -f "$config" ]; then
+              echo "Validating $config..."
+              yq . "$config" >/dev/null && echo "✅ YAML syntax valid: $config"
+            fi
+          done
+
+          # Validate test fixtures
+          for config in tests/fixtures/configs/*.yaml; do
+            if [ -f "$config" ]; then
+              echo "Validating $config..."
+              yq . "$config" >/dev/null && echo "✅ YAML syntax valid: $config"
+            fi
+          done
+
+  # =============================================================================
+  # GENERATION VALIDATION (No Deployment)
+  # =============================================================================
+  generation-validation:
+    name: Generation Validation
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          # Install yq
+          sudo wget -qO /usr/local/bin/yq \
+            "https://github.com/mikefarah/yq/releases/download/${{ env.YQ_VERSION }}/yq_linux_amd64"
+          sudo chmod +x /usr/local/bin/yq
+
+          # Install Docker's official GPG key and repository
+          sudo apt-get update
+          sudo apt-get install -y ca-certificates curl gnupg
+          sudo install -m 0755 -d /etc/apt/keyrings
+          curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+          sudo chmod a+r /etc/apt/keyrings/docker.gpg
+
+          # Add Docker repository
+          echo "deb [arch=\"$(dpkg --print-architecture)\" \
+            signed-by=/etc/apt/keyrings/docker.gpg] \
+            https://download.docker.com/linux/ubuntu \
+            $(. /etc/os-release && echo \"$VERSION_CODENAME\") stable" | \
+            sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+
+          # Install Docker Compose and Nginx
+          sudo apt-get update
+          sudo apt-get install -y docker-compose-plugin nginx
+
+      - name: Test configuration generation
+        run: |
+          echo "🔧 Testing configuration generation..."
+
+          # Test with example configuration
+          if [ -f "examples/homelab-basic.yaml" ] && [ -f "scripts/translate_homelab_to_compose.sh" ]; then
+            # Source the script
+            source scripts/translate_homelab_to_compose.sh
+
+            # Generate bundles
+            export OUTPUT_DIR="validation_output"
+            mkdir -p "$OUTPUT_DIR"
+
+            # Set config file and run translation
+            export HOMELAB_CONFIG="examples/homelab-basic.yaml"
+            if translate_homelab_to_compose; then
+              echo "✅ Bundle generation successful"
+
+              # Validate generated Docker Compose files
+              for compose_file in "$OUTPUT_DIR"/*/docker-compose.yaml; do
+                if [ -f "$compose_file" ]; then
+                  echo "Validating Docker Compose: $compose_file"
+                  docker compose -f "$compose_file" config --quiet && echo "✅ Valid Docker Compose file"
+                fi
+              done
+
+              # Validate generated Nginx configurations
+              for nginx_conf in "$OUTPUT_DIR"/*/nginx/nginx.conf; do
+                if [ -f "$nginx_conf" ]; then
+                  echo "Validating Nginx config: $nginx_conf"
+
+                  # Create test environment
+                  test_dir=$(mktemp -d)
+                  cp "$nginx_conf" "$test_dir/nginx.conf"
+                  mkdir -p "$test_dir/conf.d" "$test_dir/logs"
+                  touch "$test_dir/mime.types"
+
+                  # Test syntax
+                  nginx -t -c "$test_dir/nginx.conf" -p "$test_dir" && echo "✅ Valid Nginx config"
+                  rm -rf "$test_dir"
+                fi
+              done
+            else
+              echo "⚠️  Bundle generation failed"
+              exit 1
+            fi
+          else
+            echo "⚠️  Required files not found"
+            exit 1
+          fi
+
+  # =============================================================================
+  # TEST SUMMARY
+  # =============================================================================
+  test-summary:
+    name: Test Summary
+    runs-on: ubuntu-latest
+    needs: [fast-tests, performance-tests, yaml-validation, generation-validation]
+    if: always()
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Generate test summary
+        run: |
+          echo "📊 PR Validation Test Summary"
+          echo "============================="
+          echo ""
+          echo "Job Results:"
+          echo "- Fast Integration Tests: ${{ needs.fast-tests.result }}"
+          echo "- Performance Tests: ${{ needs.performance-tests.result }}"
+          echo "- YAML & Schema Validation: \
+            ${{ needs.yaml-validation.result }}"
+          echo "- Generation Validation: ${{ needs.generation-validation.result }}"
+          echo ""
+
+          # Count successes
+          success_count=0
+          total_count=4
+
+          for result in \
+            "${{ needs.fast-tests.result }}" \
+            "${{ needs.performance-tests.result }}" \
+            "${{ needs.yaml-validation.result }}" \
+            "${{ needs.generation-validation.result }}"; do
+            if [ "$result" = "success" ]; then
+              success_count=$((success_count + 1))
+            fi
+          done
+
+          echo "Overall Success Rate: $success_count/$total_count"
+
+          if [ $success_count -eq $total_count ]; then
+            echo "🎉 All PR validation tests passed!"
+            exit 0
+          else
+            echo "❌ Some test suites failed"
+            exit 1
+          fi
+
+  # =============================================================================
+  # LOCAL TEST DOCUMENTATION
+  # =============================================================================
+  document-local-tests:
+    name: Document Local-Only Tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Document local test capabilities
+        run: |
+          echo "📋 Local-Only Test Documentation"
+          echo "================================"
+          echo ""
+          echo "The following tests require Docker and are NOT run in CI/CD:"
+          echo ""
+
+          if [ -f "scripts/run_local_tests.sh" ]; then
+            echo "🏠 Local Test Runner Available:"
+            echo "   scripts/run_local_tests.sh"
+            echo ""
+            echo "Local test capabilities:"
+            echo "- Real Docker container deployment"
+            echo "- Service accessibility testing"
+            echo "- Inter-service communication"
+            echo "- Resource usage monitoring"
+            echo "- Container health checks"
+            echo "- Multi-machine testing (with test_machines.env)"
+            echo ""
+            echo "To run these locally:"
+            echo "  task test-local"
+            echo "  task test-comprehensive  # All tests including local"
+            echo ""
+          fi
+
+          if [ -d "tests/local" ]; then
+            echo "📁 Local test files:"
+            find tests/local -name "*.bats" -type f || echo "   No local test files found"
+          fi
+
+          echo ""
+          echo "ℹ️  Local tests complement CI/CD tests by providing real-world validation"

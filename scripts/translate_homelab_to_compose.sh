@@ -31,11 +31,11 @@ log_warning() {
     echo "⚠️  $*"
 }
 
-# Function: validate_homelab_config
-# Description: Validates that homelab.yaml exists and has correct deployment type
+# Function: validate_homelab_config_compose
+# Description: Validates that homelab.yaml exists and has correct deployment type for Compose
 # Arguments: None
 # Returns: 0 on success, 1 on failure
-validate_homelab_config() {
+validate_homelab_config_compose() {
     log_info "Validating homelab.yaml configuration..."
 
     if [[ ! -f "$HOMELAB_CONFIG" ]]; then
@@ -462,7 +462,7 @@ translate_homelab_to_compose() {
     log_info "Starting homelab.yaml to Docker Compose translation..."
 
     # Validate configuration
-    validate_homelab_config || return 1
+    validate_homelab_config_compose || return 1
 
     # Create output directory
     mkdir -p "$OUTPUT_DIR"
