@@ -1,0 +1,36 @@
+---
+description: "Strict TDD Red/Green/Refactor workflow and test validation rules"
+globs: ["**/*.js", "**/*.ts", "**/*.tsx", "**/*.py", "**/*.java", "**/*.go", "**/*.sh",]
+alwaysApply: true
+---
+
+# STRICT TDD WORKFLOW
+
+## 1. Red/Green/Refactor Process
+- Apply **Red → Green → Refactor** for all code changes.
+- **RED**: Write one or more failing tests first for new behavior.
+- **GREEN**: Implement the minimum code to make the new tests pass.
+- **REFACTOR**: Clean up the code while keeping all tests passing.
+- Skip this process only for *pure analysis* or *validation* tasks.
+
+## 2. Test Passing Requirements
+- At the end of **every** Red/Green/Refactor cycle:
+  - All tests directly related to the implementation change must be passing.
+  - No marking the GREEN phase complete if related tests are failing.
+- Resolve the **root cause** of any failure—no shortcuts or bypasses.
+
+## 3. Iterative Nature
+- TDD is **iterative**:
+  - Multiple Red/Green/Refactor cycles may occur within the same branch or PR.
+  - Each new failing test restarts the cycle.
+- Maintain a **cycle number** for each iteration in the state log.
+
+## 4. State Tracking
+- Track in a persistent log:
+  - Current phase (RED, GREEN, or REFACTOR)
+  - Current cycle number
+  - Relevant test results
+  - Any detected violations and their corrections
+- If a violation is detected:
+  - Automatically correct it.
+  - Log the violation and the corrective action.
