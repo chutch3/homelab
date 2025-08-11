@@ -78,10 +78,6 @@ This diagram demonstrates how only enabled services flow through to generated ar
 
 This comprehensive diagram shows the entire generation process from input to output:
 
-## 7. Error Handling and Validation Flow
-
-This diagram shows how validation and error handling are integrated throughout the generation process:
-
 ## 8. Data Transformation Summary
 
 ### 📊 Flow Characteristics
