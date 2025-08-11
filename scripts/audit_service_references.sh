@@ -1,7 +1,7 @@
 #!/bin/bash
 
-# Analysis script for service.yml vs services.yaml naming conflicts
-# This script audits all service configuration references
+# Analysis script for services.yaml configuration consistency
+# This script audits service configuration references for consistency
 
 set -euo pipefail
 
@@ -14,8 +14,8 @@ BLUE='\033[0;34m'
 CYAN='\033[0;36m'
 NC='\033[0m' # No Color
 
-echo -e "${BLUE}📋 Service Configuration References Audit${NC}"
-echo "=========================================="
+echo -e "${BLUE}📋 services.yaml Configuration Consistency Audit${NC}"
+echo "=============================================="
 
 # Find the project root
 PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -35,18 +35,18 @@ else
     echo -e "  ❌ ${RED}config/services.yaml${NC} not found"
 fi
 
-if [ -f "service.yml" ]; then
-    echo -e "  ⚠️  ${YELLOW}service.yml${NC} exists in root ($(wc -l < service.yml) lines)"
-    files_found+=("service.yml")
+if [ -f "services.yaml" ]; then
+    echo -e "  ⚠️  ${YELLOW}services.yaml${NC} exists in root (should be in config/)"
+    files_found+=("services.yaml")
 else
-    echo -e "  ✅ ${GREEN}service.yml${NC} does not exist in root (good)"
+    echo -e "  ✅ ${GREEN}services.yaml${NC} does not exist in root (good - should be in config/)"
 fi
 
-if [ -f "config/service.yml" ]; then
-    echo -e "  ⚠️  ${YELLOW}config/service.yml${NC} exists ($(wc -l < config/service.yml) lines)"
-    files_found+=("config/service.yml")
+if [ -f "config/services.yml" ]; then
+    echo -e "  ⚠️  ${YELLOW}config/services.yml${NC} exists (wrong extension - should be .yaml)"
+    files_found+=("config/services.yml")
 else
-    echo -e "  ✅ ${GREEN}config/service.yml${NC} does not exist (good)"
+    echo -e "  ✅ ${GREEN}config/services.yml${NC} does not exist (good - using .yaml extension)"
 fi
 
 echo -e "\n📊 Total service config files found: ${#files_found[@]}"
@@ -56,12 +56,12 @@ echo "------------------------------"
 
 echo "🔍 Searching for references to different service file patterns..."
 
-# Search for service.yml references (problematic)
-echo -e "\n${CYAN}References to 'service.yml':${NC}"
-SERVICE_YML_REFS=$(find . -type f \( -name "*.sh" -o -name "*.bats" -o -name "*.md" -o -name "*.yml" -o -name "*.yaml" \) -exec grep -l "service\.yml" {} \; 2>/dev/null || true)
+# Search for incorrect service.yml references (should be services.yaml)
+echo -e "\n${CYAN}Checking for incorrect 'service.yml' references:${NC}"
+SERVICE_YML_REFS=$(find . -type f \( -name "*.sh" -o -name "*.bats" -o -name "*.md" -o -name "*.yml" -o -name "*.yaml" \) -not -path "./scripts/audit_service_references.sh" -exec grep -l "service\.yml" {} \; 2>/dev/null || true)
 
 if [ -n "$SERVICE_YML_REFS" ]; then
-    echo -e "${RED}⚠️  Found problematic references:${NC}"
+    echo -e "${RED}⚠️  Found incorrect references (should be services.yaml):${NC}"
     echo "$SERVICE_YML_REFS" | while read -r file; do
         count=$(grep -c "service\.yml" "$file" 2>/dev/null || echo "0")
         echo "  • $file ($count occurrences)"
@@ -71,7 +71,7 @@ if [ -n "$SERVICE_YML_REFS" ]; then
         grep -n "service\.yml" "$file" | head -3 | sed 's/^/      /'
     done
 else
-    echo -e "${GREEN}✅ No references to 'service.yml' found${NC}"
+    echo -e "${GREEN}✅ No incorrect 'service.yml' references found${NC}"
 fi
 
 # Search for services.yaml references (correct)
@@ -191,14 +191,14 @@ echo "  • 'service.yml' references: $service_yml_count files"
 echo "  • 'services.yaml' references: $services_yaml_count files"
 
 if [ "$service_yml_count" -gt 0 ]; then
-    echo -e "\n${RED}⚠️  PROBLEM DETECTED: Inconsistent naming${NC}"
-    echo "   • Found references to 'service.yml' which conflicts with 'services.yaml'"
-    echo "   • This creates confusion about which file to use"
-    echo "   • Need to standardize on single naming convention"
+    echo -e "\n${RED}⚠️  PROBLEM DETECTED: Incorrect references to 'service.yml'${NC}"
+    echo "   • Found references to 'service.yml' which should be 'services.yaml'"
+    echo "   • This creates confusion about the correct filename"
+    echo "   • Need to update these references to use 'services.yaml'"
 elif [ "$services_yaml_count" -gt 0 ]; then
-    echo -e "\n${GREEN}✅ CONSISTENT NAMING: All references use 'services.yaml'${NC}"
-    echo "   • No conflicting 'service.yml' references found"
-    echo "   • Naming convention is consistent"
+    echo -e "\n${GREEN}✅ CONSISTENT NAMING: All references correctly use 'services.yaml'${NC}"
+    echo "   • No incorrect 'service.yml' references found"
+    echo "   • Naming convention is consistent and correct"
 else
     echo -e "\n${YELLOW}⚠️  NO REFERENCES: No service configuration references found${NC}"
     echo "   • This might indicate unused configuration"
@@ -210,15 +210,16 @@ echo "=================="
 
 if [ "$service_yml_count" -gt 0 ]; then
     echo -e "${CYAN}Action Required:${NC}"
-    echo "1. Standardize all references to use 'services.yaml'"
+    echo "1. Update all references to use correct 'services.yaml' filename"
     echo "2. Update documentation to use consistent naming"
-    echo "3. Remove any references to 'service.yml'"
-    echo "4. Update environment variables to use SERVICES_CONFIG"
+    echo "3. Remove any references to incorrect 'service.yml'"
+    echo "4. Ensure all environment variables use SERVICES_CONFIG"
 elif [ "$services_yaml_count" -gt 0 ]; then
     echo -e "${CYAN}Maintenance:${NC}"
-    echo "1. Continue using 'services.yaml' as standard"
+    echo "1. Continue using 'config/services.yaml' as the standard"
     echo "2. Ensure new code follows this convention"
     echo "3. Document the naming standard clearly"
+    echo "4. Maintain single source of truth in config/services.yaml"
 else
     echo -e "${CYAN}Investigation:${NC}"
     echo "1. Determine if service configuration is actually used"

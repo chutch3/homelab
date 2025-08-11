@@ -10,13 +10,13 @@
 
 **Context**: Check if `machines.yml.example` and `scripts/machines.sh` are actually needed.
 
-## Issue #22: service.yml Concerns
+## Issue #22: services.yaml Configuration Concerns
 
-✅ **Analysis 2.1**: `audit_service_references` - Find naming conflicts (COMPLETED)
+✅ **Analysis 2.1**: `audit_service_references` - Check services.yaml consistency (COMPLETED)
 ❌ **Test 2.2**: `test_service_config_consistency` - Validate single source of truth
 ❌ **Test 2.3**: `test_service_schema_validation` - Ensure consistent schema
 
-**Context**: Resolve confusion between `service.yml` and `config/services.yaml`.
+**Context**: Ensure consistent usage of `config/services.yaml` as single source of truth.
 
 ## Issue #23: artifact_copier Implementation
 
