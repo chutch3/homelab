@@ -16,6 +16,19 @@ on:
       - 'mkdocs.yml'
       - '.github/workflows/docs.yml'
   workflow_dispatch:
+    inputs:
+      deploy:
+        description: 'Deploy to GitHub Pages (only works on main branch)'
+        required: false
+        default: 'true'
+        type: boolean
+      environment:
+        description: 'Target environment'
+        required: false
+        default: 'github-pages'
+        type: choice
+        options:
+          - github-pages
 
 permissions:
   contents: read
@@ -77,10 +90,18 @@ jobs:
           path: ./site
           retention-days: 7
 
-  # Build and deploy documentation only on main branch pushes
+      - name: 📤 Upload documentation artifact (for manual runs)
+        if: github.event_name == 'workflow_dispatch'
+        uses: actions/upload-artifact@v4
+        with:
+          name: documentation-manual-${{ github.run_number }}
+          path: ./site
+          retention-days: 7
+
+  # Build and deploy documentation on main branch pushes or manual triggers
   build-and-deploy:
     name: 🏗️ Build & Deploy Documentation
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.deploy == true))
     needs: validate
     runs-on: ubuntu-latest
     environment:
