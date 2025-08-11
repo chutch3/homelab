@@ -1,0 +1,59 @@
+# homelab.yaml - Unified Configuration Template
+# Copy this file to homelab.yaml and customize for your environment
+version: "2.0"
+deployment: docker_compose
+
+# Global environment variables
+# Only specify variables that need to be different from .env defaults
+# Common vars like BASE_DOMAIN, PROJECT_ROOT are automatically loaded from .env
+environment:
+  # Only uncomment if you need to override .env values
+  # TIMEZONE: "${TIMEZONE:-UTC}"
+  # DOCKER_NETWORK: "${DOCKER_NETWORK:-homelab}"
+
+  # Service-specific global variables
+  PUID: "${UID:-1000}"
+  PGID: "${GID:-1000}"
+
+# Machine definitions for multi-node deployments
+machines:
+  driver:
+    host: localhost
+    user: "${SSH_USER:-homelab}"
+
+# Service definitions
+services:
+  # Basic dashboard service
+  homepage:
+    image: ghcr.io/gethomepage/homepage:latest
+    port: 3000
+    environment:
+      HOMEPAGE_VAR_TITLE: "My Homelab"
+      HOMEPAGE_VAR_SEARCH_PROVIDER: duckduckgo
+
+  # Example service with storage and secrets
+  actual:
+    image: actualbudget/actual-server:latest
+    port: 5006
+    storage: true
+    environment:
+      # Mix of direct config and sensitive data from .env
+      ACTUAL_UPLOAD_FILE_SYNC_SIZE_LIMIT_MB: "20"
+      ACTUAL_SERVER_KEY: "${ACTUAL_SERVER_KEY}"  # Secret from .env
+      ACTUAL_TRUSTED_PROXIES: "${TRUSTED_PROXIES:-127.0.0.1}"
+
+  # Database with credentials
+  postgres:
+    image: postgres:15
+    port: 5432
+    storage: true
+    environment:
+      # Sensitive data should come from .env
+      POSTGRES_PASSWORD: "${DB_PASSWORD}"
+      POSTGRES_USER: "${DB_USER:-homelab}"
+      POSTGRES_DB: "homelab"
+
+  # Reverse proxy (basic config, uses .env automatically)
+  nginx:
+    image: nginx:alpine
+    ports: [80, 443]

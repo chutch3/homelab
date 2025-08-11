@@ -2,10 +2,10 @@
 
 # Define project paths
 PROJECT_ROOT="$PWD"
-AVAILABLE_DIR="$PROJECT_ROOT/reverseproxy/templates/conf.d"
-ENABLED_DIR="$PROJECT_ROOT/reverseproxy/templates/conf.d/enabled"
-SSL_DIR="$PROJECT_ROOT/reverseproxy/ssl"
-DOMAIN_FILE="$PROJECT_ROOT/.domains"
+export AVAILABLE_DIR="$PROJECT_ROOT/reverseproxy/templates/conf.d"
+export ENABLED_DIR="$PROJECT_ROOT/reverseproxy/templates/conf.d/enabled"
+export SSL_DIR="$PROJECT_ROOT/reverseproxy/ssl"
+export DOMAIN_FILE="$PROJECT_ROOT/.domains"
 
 # Helper function to check if command exists
 command_exists() {
@@ -26,6 +26,57 @@ load_env() {
     fi
 
     source "$PROJECT_ROOT/.env"
+}
+
+# Function: expand_env_variables
+# Description: Expands ${VAR_NAME} references in a string using .env file and current environment
+# Arguments: $1 - string with potential ${VAR} references
+# Returns: String with variables expanded
+expand_env_variables() {
+    local input="$1"
+
+    # Load .env file if it exists (suppress readonly variable errors)
+    if [[ -f "$PROJECT_ROOT/.env" ]]; then
+        # Source .env file in a subshell to avoid polluting current environment
+        # shellcheck source=/dev/null
+        source "$PROJECT_ROOT/.env" 2>/dev/null || true
+    fi
+
+    # Use eval to let the shell do the variable expansion
+    # This is the most reliable approach across different shells
+    eval "echo \"$input\""
+}
+
+# Function: load_and_expand_homelab_config
+# Description: Loads homelab.yaml and expands all environment variables
+# Arguments: $1 - path to homelab.yaml
+# Returns: Outputs expanded YAML to stdout
+load_and_expand_homelab_config() {
+    local config_file="$1"
+
+    if [[ ! -f "$config_file" ]]; then
+        echo "Error: Configuration file not found: $config_file" >&2
+        return 1
+    fi
+
+    # Load .env file if it exists
+    if [[ -f "$PROJECT_ROOT/.env" ]]; then
+        # shellcheck source=/dev/null
+        source "$PROJECT_ROOT/.env"
+    fi
+
+    # Process the YAML file line by line to expand variables
+    while IFS= read -r line; do
+        # Skip comments and empty lines
+        if [[ "$line" =~ ^[[:space:]]*# ]] || [[ -z "${line// }" ]]; then
+            echo "$line"
+            continue
+        fi
+
+        # Expand environment variables in the line
+        expanded_line=$(expand_env_variables "$line")
+        echo "$expanded_line"
+    done < "$config_file"
 }
 
 ensure_certs_exist() {
