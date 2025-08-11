@@ -89,8 +89,8 @@ load test_helper
 **Files**: `machines.yml.example`, `scripts/machines.sh`
 **Tests**: Analyze usage patterns and alternatives
 
-### Issue #22: service.yml Concerns
-**Goal**: Resolve naming confusion with services.yaml
+### Issue #22: services.yaml Configuration
+**Goal**: Ensure consistent usage of services.yaml configuration
 **Files**: `config/services.yaml`
 **Tests**: Audit references and ensure consistency
 
