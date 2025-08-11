@@ -4,7 +4,11 @@
 
 ## Overview
 
-This directory contains all analysis documentation for the selfhosted.sh project, organized by deployment type and scope. **Critical Understanding**: Deployment types are mutually exclusive - Docker Compose, Docker Swarm, and Kubernetes (future) are separate deployment paths that cannot be used simultaneously.
+This directory contains all analysis documentation for the selfhosted.sh project. **Status**: Most analyses have been **superseded by the new simplified unified configuration approach** using `homelab.yaml`.
+
+**Current Focus**: The project now uses a single, simple `homelab.yaml` configuration file that replaces the previous multi-file approach (`services.yaml` + `machines.yml` + `volumes.yaml` + `.env`).
+
+**Key Change**: Deployment types remain mutually exclusive (Docker Compose, Docker Swarm, Kubernetes), but configuration is now unified with deployment-specific translation engines.
 
 ## Directory Structure
 
@@ -24,45 +28,69 @@ Analysis focused exclusively on Docker Swarm orchestrated deployment:
 **Context**: Docker Swarm is used for orchestrated multi-node deployments with automatic scheduling, service discovery, and high availability.
 
 ### 📂 `/shared/` - Cross-Deployment Analyses
-Analysis that applies to multiple deployment types or focuses on shared components:
-- `application-vs-service-config-analysis.md` - Application vs service configuration distinction
-- `config-boundaries-validation.md` - Configuration boundaries and separation of concerns
-- `config-dependencies-mapping.md` - Configuration file dependencies and relationships
-- `data-flow-diagrams.md` - Generation engine data flow visualization
-- `generation-inputs-mapping.md` - Generation engine input sources
-- `services-config-consistency-analysis.md` - services.yaml consistency validation
-- `services-schema-validation-analysis.md` - services.yaml schema validation
-- `transformation-rules-analysis.md` - Configuration transformation rules
-- `unified-approach-design.md` - Unified configuration approach analysis
+**Status**: Most files superseded by unified configuration approach. Current focus:
+- `simple-abstract-config-design.md` - **CURRENT**: Simplified unified configuration design
+- `abstract-configuration-design.md` - **SUPERSEDED**: Previous complex design (too verbose)
+- `data-flow-diagrams.md` - **UPDATED**: Data flow for new translation engines
 
-**Context**: These analyses examine shared infrastructure like `config/services.yaml`, generation engine, and configuration patterns that apply regardless of deployment type choice.
+**Legacy Files** (superseded by unified approach):
+- `application-vs-service-config-analysis.md` - No longer needed (single config file)
+- `config-boundaries-validation.md` - No longer needed (no boundaries)
+- `config-dependencies-mapping.md` - No longer needed (no dependencies)
+- `generation-inputs-mapping.md` - Replaced by translation engines
+- `services-config-consistency-analysis.md` - Replaced by schema validation
+- `services-schema-validation-analysis.md` - Replaced by homelab.yaml schema
+- `transformation-rules-analysis.md` - Replaced by translation engines
+- `unified-approach-design.md` - Replaced by simple design
+
+**Context**: The new unified approach eliminates most configuration complexity through a single `homelab.yaml` file with smart defaults.
 
 ### 📂 `/architecture/` - High-Level Architecture
 System-wide architectural analysis and project summaries:
-- `completed-work-summary.md` - Summary of all completed analysis work
-- `new-architecture-issues-summary.md` - Summary of GitHub issues created from architecture diagram
+- `simple-implementation-plan.md` - **CURRENT**: 3-week implementation plan for unified config
+- `implementation-plan-unified-config.md` - **SUPERSEDED**: Previous 6-week plan (too complex)
+- `completed-work-summary.md` - **LEGACY**: Summary of old analysis work
+- `new-architecture-issues-summary.md` - **LEGACY**: Superseded GitHub issues
 
-**Context**: High-level architectural decisions, project summaries, and cross-cutting concerns.
+**Context**: Focus on `simple-implementation-plan.md` for current development approach.
 
-## Deployment Type Context
+## New Unified Configuration Approach
 
-### 🐳 Docker Compose Deployment
-- **Use Case**: Development, single-node production, manual multi-node coordination
-- **Artifacts**: `generated-docker-compose.yaml`, `generated-nginx/`, `.domains`
-- **Management**: Manual service management with `docker compose` commands
-- **Scope**: Current architecture diagram represents this deployment type
+### 🎯 Current Implementation (Issues #33-40)
 
-### 🐝 Docker Swarm Deployment
-- **Use Case**: Orchestrated multi-node production with automatic failover
-- **Artifacts**: `generated-swarm-stack.yaml`, `generated-nginx/`, `.domains`
-- **Management**: Swarm-orchestrated with automatic scheduling and discovery
-- **Scope**: Future enhancement for production multi-node deployments
+**Single Configuration**: `homelab.yaml` replaces all previous config files
+```yaml
+# homelab.yaml - Everything in one place
+version: "2.0"
+deployment: docker_compose  # or docker_swarm
 
-### ☸️ Kubernetes Deployment (Future)
-- **Use Case**: Advanced enterprise orchestration
-- **Artifacts**: `generated-k8s/`, `generated-nginx/`, `.domains`
-- **Management**: Kubernetes orchestration
-- **Scope**: Future roadmap item
+machines:
+  driver: {host: 192.168.1.100, user: ubuntu}
+
+services:
+  homepage:
+    image: ghcr.io/gethomepage/homepage:latest
+    port: 3000
+
+  nginx:
+    image: nginx:alpine
+    ports: [80, 443]
+    deploy: all
+```
+
+### 🐳 Docker Compose Implementation (Issues #35-37)
+- **Translation**: `homelab.yaml` → per-machine `docker-compose.yaml` files
+- **Distribution**: SSH-based deployment to each machine
+- **Architecture**: Distributed nginx, machine-specific bundles
+
+### 🐝 Docker Swarm Implementation (Issues #38-39)
+- **Translation**: `homelab.yaml` → single `docker-stack.yaml`
+- **Orchestration**: Swarm placement constraints and service discovery
+- **Architecture**: Centralized deployment, automatic scheduling
+
+### ☸️ Kubernetes (Future)
+- **Status**: Design placeholder only
+- **Approach**: Same `homelab.yaml` → K8s manifest translation
 
 ## Analysis Principles
 
@@ -90,29 +118,35 @@ All analyses should:
 
 ## Navigation Guide
 
-### For Docker Compose Development:
-1. Start with `/docker-compose/` analyses
-2. Reference `/shared/` for configuration understanding
-3. Check `/architecture/` for broader context
+### For Current Development:
+1. **Start with**: `architecture/simple-implementation-plan.md` - Current roadmap
+2. **Configuration**: `shared/simple-abstract-config-design.md` - New unified approach
+3. **GitHub Issues**: Issues #33-40 contain detailed implementation specs
 
-### For Docker Swarm Planning:
-1. Review `/docker-swarm/` analyses
-2. Reference `/shared/` for shared infrastructure
-3. Compare with `/docker-compose/` for differences
+### For Docker Compose Implementation:
+1. **Issues**: #35 (Translation), #36 (Nginx), #37 (Deployment)
+2. **Legacy context**: `docker-compose/` directory (mostly superseded)
 
-### For Configuration Work:
-1. Focus on `/shared/` analyses
-2. Check deployment-specific implications in type-specific directories
-3. Validate against `/architecture/` for system-wide impact
+### For Docker Swarm Implementation:
+1. **Issues**: #38 (Translation), #39 (Cluster Management)
+2. **Legacy context**: `docker-swarm/` directory (mostly superseded)
 
-## Future Organization
+## Current Status
 
-As the project evolves:
-- `/kubernetes/` directory will be added for K8s-specific analyses
-- Additional deployment types can be added as separate directories
-- Shared analyses should be moved to appropriate subdirectories
-- Legacy analyses should be clearly marked and moved to archive
+### ✅ Active Documents:
+- `architecture/simple-implementation-plan.md` - **Current roadmap**
+- `shared/simple-abstract-config-design.md` - **Current design**
+- `shared/data-flow-diagrams.md` - **Updated for new approach**
+
+### 📚 Legacy Documents:
+- Most other files superseded by unified configuration approach
+- Kept for historical reference and context
+
+### 🚀 Implementation Tracking:
+- **GitHub Issues #33-40**: Detailed implementation specifications
+- **Estimated Timeline**: 3 weeks for basic functionality
+- **Focus**: Docker Compose first, then Docker Swarm
 
 ---
 
-**Key Principle**: Deployment types are mutually exclusive. Choose one deployment type for your environment and focus on analyses relevant to that choice.
+**Key Principle**: Single `homelab.yaml` configuration file with deployment-specific translation engines. Choose Docker Compose or Docker Swarm as your deployment type.
