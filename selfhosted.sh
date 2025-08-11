@@ -697,6 +697,61 @@ case "$1" in
                 ;;
         esac
         ;;
+    deploy-compose)
+        # SSH-based Docker Compose deployment coordination
+        case "$2" in
+            all)
+                "$PROJECT_ROOT/scripts/deploy_compose_bundles.sh" deploy-all "${3:-homelab.yaml}" "${@:4}"
+                ;;
+            status)
+                "$PROJECT_ROOT/scripts/deploy_compose_bundles.sh" status "${3:-homelab.yaml}"
+                ;;
+            test-ssh)
+                "$PROJECT_ROOT/scripts/deploy_compose_bundles.sh" test-connectivity "${3:-homelab.yaml}"
+                ;;
+            logs)
+                if [[ -z "$3" ]]; then
+                    echo "❌ Machine name required for logs"
+                    echo "💡 Usage: $0 deploy-compose logs <machine> [config]"
+                    exit 1
+                fi
+                "$PROJECT_ROOT/scripts/deploy_compose_bundles.sh" logs "$3" "${4:-homelab.yaml}"
+                ;;
+            rollback)
+                if [[ -z "$3" ]]; then
+                    echo "❌ Machine name required for rollback"
+                    echo "💡 Usage: $0 deploy-compose rollback <machine> [config]"
+                    exit 1
+                fi
+                "$PROJECT_ROOT/scripts/deploy_compose_bundles.sh" rollback "$3" "${4:-homelab.yaml}"
+                ;;
+            help|"")
+                echo "💡 Deploy-Compose Commands:"
+                echo "   all [config] [--dry-run] [--progress]  - Deploy to all machines"
+                echo "   status [config]                        - Check deployment status"
+                echo "   test-ssh [config]                      - Test SSH connectivity"
+                echo "   logs <machine> [config]                - Collect deployment logs"
+                echo "   rollback <machine> [config]            - Rollback deployment"
+                echo ""
+                echo "💡 Examples:"
+                echo "   $0 deploy-compose all homelab.yaml                # Deploy to all machines"
+                echo "   $0 deploy-compose all homelab.yaml --dry-run      # Dry run deployment"
+                echo "   $0 deploy-compose status                          # Check all machine status"
+                echo "   $0 deploy-compose logs driver                     # View driver logs"
+                echo "   $0 deploy-compose rollback node-01                # Rollback node-01"
+                ;;
+            *)
+                if [[ -n "$2" ]]; then
+                    # Handle deploy to specific machine
+                    "$PROJECT_ROOT/scripts/deploy_compose_bundles.sh" deploy "$2" "${3:-homelab.yaml}"
+                else
+                    echo "❌ Unknown deploy-compose command: $2"
+                    echo "💡 Run '$0 deploy-compose help' for available commands"
+                    exit 1
+                fi
+                ;;
+        esac
+        ;;
     config)
         case "$2" in
             init) config_init ;;
@@ -736,10 +791,11 @@ case "$1" in
         echo "❌ Unknown command: $1"
         echo ""
         echo "💡 Available commands:"
-        echo "   service    - Manage service configurations"
-        echo "   deploy     - Deploy services to infrastructure"
-        echo "   config     - Manage environment and configuration"
-        echo "   help       - Show detailed help"
+        echo "   service        - Manage service configurations"
+        echo "   deploy         - Deploy services to infrastructure"
+        echo "   deploy-compose - Multi-machine Docker Compose deployment coordination"
+        echo "   config         - Manage environment and configuration"
+        echo "   help           - Show detailed help"
         echo ""
         echo "💡 Run '$0 help' for detailed usage information"
         exit 1
