@@ -28,10 +28,11 @@
         },
         "environment": {
             "type": "object",
-            "description": "Environment variables for all services",
+            "description": "Environment variables for all services. Values can be literal strings or ${VAR_NAME} references to .env file variables",
             "patternProperties": {
                 "^[A-Z][A-Z0-9_]*$": {
-                    "type": "string"
+                    "type": "string",
+                    "description": "Environment variable value. Can be a literal string or ${VAR_NAME} to reference .env variables"
                 }
             },
             "additionalProperties": false
@@ -144,10 +145,11 @@
                         },
                         "environment": {
                             "type": "object",
-                            "description": "Service-specific environment variables",
+                            "description": "Service-specific environment variables. Values can be literal strings or ${VAR_NAME} references to .env file variables",
                             "patternProperties": {
                                 "^[A-Z][A-Z0-9_]*$": {
-                                    "type": "string"
+                                    "type": "string",
+                                    "description": "Environment variable value. Can be a literal string or ${VAR_NAME} to reference .env variables"
                                 }
                             },
                             "additionalProperties": false

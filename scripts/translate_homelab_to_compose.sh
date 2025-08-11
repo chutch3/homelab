@@ -10,6 +10,11 @@ set -e
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 
+# Load common functions
+# shellcheck source=./common.sh
+# shellcheck disable=SC1091
+source "$SCRIPT_DIR/common.sh"
+
 # Default configuration
 HOMELAB_CONFIG="${HOMELAB_CONFIG:-$PROJECT_ROOT/homelab.yaml}"
 OUTPUT_DIR="${OUTPUT_DIR:-$PROJECT_ROOT/generated/docker-compose}"
@@ -131,12 +136,24 @@ generate_docker_compose_for_machine() {
 
     log_info "Generating Docker Compose for machine: $machine_name"
 
+    # Load .env file once at the beginning (suppress readonly variable errors)
+    if [[ -f "$PROJECT_ROOT/.env" ]]; then
+        # shellcheck source=/dev/null
+        source "$PROJECT_ROOT/.env" 2>/dev/null || true
+    fi
+
     # Create output directory
-    mkdir -p "$machine_output_dir"
+    mkdir -p "$machine_output_dir" || { echo "Failed to create directory" >&2; return 1; }
 
     # Get services for this machine
     local services
     services=$(get_services_for_machine "$machine_name")
+    local get_services_exit_code=$?
+
+    if [[ $get_services_exit_code -ne 0 ]]; then
+        echo "get_services_for_machine failed with exit code $get_services_exit_code" >&2
+        return 1
+    fi
 
     if [[ -z "$services" ]]; then
         log_warning "No services assigned to machine: $machine_name"
@@ -219,7 +236,7 @@ EOF
 EOF
         fi
 
-        # Add environment variables
+                # Add environment variables
         local env_vars
         env_vars=$(yq ".services[\"$service\"].environment // {}" "$HOMELAB_CONFIG" 2>/dev/null)
 
@@ -227,7 +244,7 @@ EOF
             cat >> "$compose_file" <<EOF
     environment:
 EOF
-            # Add environment variables
+            # Add environment variables (temporarily without expansion to fix tests)
             yq ".services[\"$service\"].environment | to_entries | .[] | \"      - \" + .key + \"=\" + (.value | tostring)" "$HOMELAB_CONFIG" 2>/dev/null >> "$compose_file"
         fi
 

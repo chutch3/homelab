@@ -179,6 +179,7 @@ generated-swarm-stack.yaml
 .*csm_setup*
 
 # Environment-specific configuration files
+homelab.yaml
 plan.md
 machines.yml
 .swarm_token
