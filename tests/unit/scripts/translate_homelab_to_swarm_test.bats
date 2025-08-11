@@ -127,7 +127,7 @@ EOF
 @test "should validate homelab.yaml for docker_swarm deployment" {
     create_test_config
 
-    run validate_homelab_config "$TEST_CONFIG"
+    run validate_homelab_config_swarm "$TEST_CONFIG"
     [ "$status" -eq 0 ]
     [[ "$output" =~ "validation passed" ]]
 }
@@ -141,7 +141,7 @@ services:
     image: "test:latest"
 EOF
 
-    run validate_homelab_config "$TEST_CONFIG"
+    run validate_homelab_config_swarm "$TEST_CONFIG"
     [ "$status" -eq 1 ]
     [[ "$output" =~ "Invalid deployment type" ]]
 }

@@ -1,0 +1,21 @@
+version: "2.0"
+deployment: docker_compose
+
+environment:
+  BASE_DOMAIN: test.local
+
+machines:
+  driver: {host: localhost, user: testuser}
+
+services:
+  homepage:
+    image: ghcr.io/gethomepage/homepage:latest
+    port: 3000
+    deploy: driver
+    enabled: true
+
+  nginx:
+    image: nginx:alpine
+    ports: [80, 443]
+    deploy: driver
+    enabled: true

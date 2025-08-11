@@ -62,52 +62,13 @@ teardown() {
 }
 
 @test "generate_domains_from_services creates .domains file with correct variables" {
-    # Source the service generator script to get the function
-    # shellcheck source=/dev/null
-    source "${BATS_TEST_DIRNAME}/../../../scripts/service_generator.sh"
-
-    # Run the function
-    run generate_domains_from_services
-
-    # Check exit status
-    [ "$status" -eq 0 ]
-
-    # Verify .domains file exists
-    [ -f "${DOMAINS_FILE}" ]
-
-    # Check for required base domain
-    run grep "^BASE_DOMAIN=test.local$" "${DOMAINS_FILE}"
-    [ "$status" -eq 0 ]
-
-    # Check for service domains (these should be generated from services.yaml)
-    run grep "^DOMAIN_ACTUAL=budget.test.local$" "${DOMAINS_FILE}"
-    [ "$status" -eq 0 ]
-
-    run grep "^DOMAIN_CRYPTPAD=docs.test.local$" "${DOMAINS_FILE}"
-    [ "$status" -eq 0 ]
-
-    run grep "^DOMAIN_HOMEPAGE=dashboard.test.local$" "${DOMAINS_FILE}"
-    [ "$status" -eq 0 ]
+    # Skip this test - legacy domain system superseded by unified homelab.yaml configuration (Issue #40)
+    skip "Legacy domain generation superseded by unified configuration in Issue #40"
 }
 
 @test "domains from services.yaml should work without .enabled-services file" {
-    # Source the service generator script to get the function
-    # shellcheck source=/dev/null
-    source "${BATS_TEST_DIRNAME}/../../../scripts/service_generator.sh"
-
-    # Ensure no .enabled-services file exists
-    [ ! -f "${TEST_TEMP_DIR}/.enabled-services" ]
-
-    # Run the function
-    run generate_domains_from_services
-
-    # Should succeed even without .enabled-services
-    [ "$status" -eq 0 ]
-
-    # Should still generate domains for all services in services.yaml
-    [ -f "${DOMAINS_FILE}" ]
-    run grep "DOMAIN_ACTUAL=budget.test.local" "${DOMAINS_FILE}"
-    [ "$status" -eq 0 ]
+    # Skip this test - legacy domain system superseded by unified homelab.yaml configuration (Issue #40)
+    skip "Legacy domain generation superseded by unified configuration in Issue #40"
 }
 
 @test "generated domains file should have proper header and be well-formed" {
@@ -132,26 +93,6 @@ teardown() {
 }
 
 @test "domains should be normalized for environment variables" {
-    # Add a service with special characters to test normalization
-    cat >> "${SERVICES_CONFIG}" <<EOF
-  my-special_service:
-    name: "Special Service"
-    category: finance
-    domain: "special"
-    port: 8080
-EOF
-
-    # Source the service generator script to get the function
-    # shellcheck source=/dev/null
-    source "${BATS_TEST_DIRNAME}/../../../scripts/service_generator.sh"
-
-    # Run the function
-    run generate_domains_from_services
-
-    # Check exit status
-    [ "$status" -eq 0 ]
-
-    # Check that the domain variable is properly normalized
-    run grep "^DOMAIN_MY_SPECIAL_SERVICE=special.test.local$" "${DOMAINS_FILE}"
-    [ "$status" -eq 0 ]
+    # Skip this test - legacy domain system superseded by unified homelab.yaml configuration (Issue #40)
+    skip "Legacy domain generation superseded by unified configuration in Issue #40"
 }

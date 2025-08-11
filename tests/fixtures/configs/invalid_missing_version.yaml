@@ -1,0 +1,12 @@
+deployment: docker_compose
+
+environment:
+  BASE_DOMAIN: test.local
+
+machines:
+  driver: {host: localhost, user: testuser}
+
+services:
+  homepage:
+    image: homepage:latest
+    port: 3000

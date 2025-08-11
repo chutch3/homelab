@@ -101,7 +101,10 @@ jobs:
   # Build and deploy documentation on main branch pushes or manual triggers
   build-and-deploy:
     name: 🏗️ Build & Deploy Documentation
-    if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.deploy == true))
+    if: >-
+      github.ref == 'refs/heads/main' &&
+      (github.event_name == 'push' ||
+       (github.event_name == 'workflow_dispatch' && inputs.deploy == true))
     needs: validate
     runs-on: ubuntu-latest
     environment:
