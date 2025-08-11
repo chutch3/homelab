@@ -71,6 +71,38 @@
 
 **Context**: Validate complete workflow after all components implemented.
 
+## Issue #29: Application vs Service Configuration
+
+❌ **Analysis 9.1**: `analyze_config_relationships` - Define app vs service config distinction
+❌ **Analysis 9.2**: `validate_config_boundaries` - Ensure clear separation of concerns
+❌ **Analysis 9.3**: `design_unified_approach` - Determine if merger is needed
+
+**Context**: Clarify relationship between application configs and service configurations.
+
+## Issue #30: Generation Engine Clarity
+
+❌ **Analysis 10.1**: `map_generation_inputs` - Document all input sources and processing
+❌ **Analysis 10.2**: `define_transformation_rules` - Clarify processing logic
+❌ **Analysis 10.3**: `create_flow_diagrams` - Visualize data transformation
+
+**Context**: Clarify generation engine inputs, outputs, and processing logic.
+
+## Issue #31: Node-Specific Generation
+
+❌ **Test 11.1**: `test_node_capability_detection` - Identify node-specific needs
+❌ **Test 11.2**: `test_role_based_filtering` - Filter services by node role
+❌ **Test 11.3**: `test_hardware_constraints` - Respect node hardware limits
+
+**Context**: Implement node-specific artifact generation and deployment logic.
+
+## Issue #32: Configuration Orchestration
+
+❌ **Analysis 12.1**: `map_config_dependencies` - Identify all configuration relationships
+❌ **Test 12.2**: `test_dependency_resolution` - Implement dependency ordering
+❌ **Test 12.3**: `test_circular_dependency_detection` - Prevent circular deps
+
+**Context**: Design configuration orchestration and dependency management.
+
 ---
 
 **Testing Framework**: Use BATS in `tests/unit/scripts/` following existing patterns.
