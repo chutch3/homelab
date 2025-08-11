@@ -183,3 +183,5 @@ plan.md
 machines.yml
 .swarm_token
 bin/
+plan.md
+plan-*.md
