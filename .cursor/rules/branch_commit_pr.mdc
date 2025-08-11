@@ -1,0 +1,25 @@
+---
+description: "Branching, commit, and PR policy"
+globs: ["**/*.js", "**/*.ts", "**/*.tsx", "**/*.py", "**/*.java", "**/*.md", "**/*.sh"]
+alwaysApply: true
+---
+
+# BRANCHING, COMMIT, AND PR RULES
+
+## 1. Branch Management
+- **Before starting a new issue**, create and check out a new branch.
+- Use clear branch naming conventions tied to the issue number.
+
+## 2. Pull Request Guidelines
+- Open one PR per issue.
+- PR must include:
+  - A summary of the changes.
+  - A list of TDD cycles performed.
+  - A link to the state log.
+
+## 3. Commit Rules
+- Commit frequently.
+- Each commit message:
+  - Must be a single line.
+  - Must follow **Conventional Commits** format.
+- Always choose the simplest possible solution.
