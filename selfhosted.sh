@@ -752,6 +752,27 @@ case "$1" in
                 ;;
         esac
         ;;
+    generate-nginx)
+        # Generate nginx bundles for Docker Compose deployment
+        case "$2" in
+            bundles)
+                "$PROJECT_ROOT/scripts/translate_homelab_to_compose.sh" generate-nginx-bundles "${3:-homelab.yaml}"
+                ;;
+            help|"")
+                echo "💡 Generate-Nginx Commands:"
+                echo "   bundles [config]  - Generate nginx bundles for all machines"
+                echo ""
+                echo "💡 Examples:"
+                echo "   $0 generate-nginx bundles homelab.yaml    # Generate nginx bundles"
+                echo "   $0 generate-nginx bundles                 # Use default homelab.yaml"
+                ;;
+            *)
+                echo "❌ Unknown generate-nginx command: $2"
+                echo "💡 Run '$0 generate-nginx help' for available commands"
+                exit 1
+                ;;
+        esac
+        ;;
     config)
         case "$2" in
             init) config_init ;;
@@ -794,6 +815,7 @@ case "$1" in
         echo "   service        - Manage service configurations"
         echo "   deploy         - Deploy services to infrastructure"
         echo "   deploy-compose - Multi-machine Docker Compose deployment coordination"
+        echo "   generate-nginx - Generate nginx bundles for Docker Compose"
         echo "   config         - Manage environment and configuration"
         echo "   help           - Show detailed help"
         echo ""
