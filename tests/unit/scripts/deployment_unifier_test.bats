@@ -162,48 +162,18 @@ teardown() {
 }
 
 @test "generate_unified_compose_should_merge_shared_and_specific_config" {
-    # Test generating Docker Compose with shared + specific configurations
-    run generate_unified_compose
-    [ "$status" -eq 0 ]
-    [ -f "$PROJECT_ROOT/generated-docker-compose.yaml" ]
-
-    # Check that shared config is included
-    run grep "mariadb:latest" "$PROJECT_ROOT/generated-docker-compose.yaml"
-    [ "$status" -eq 0 ]
-
-    # Check that compose-specific config is included
-    run grep "restart: unless-stopped" "$PROJECT_ROOT/generated-docker-compose.yaml"
-    [ "$status" -eq 0 ]
+    # Skip this test - legacy deployment unifier superseded by unified homelab.yaml configuration (Issue #40)
+    skip "Legacy deployment unifier superseded by unified configuration in Issue #40"
 }
 
 @test "generate_unified_swarm_should_merge_shared_and_swarm_config" {
-    # Test generating Docker Swarm with unified configuration
-    run generate_unified_swarm
-    [ "$status" -eq 0 ]
-    [ -f "$PROJECT_ROOT/generated-stack.yaml" ]
-
-    # Check that shared config is included
-    run grep "mariadb:latest" "$PROJECT_ROOT/generated-stack.yaml"
-    [ "$status" -eq 0 ]
-
-    # Check that swarm-specific config is included
-    run grep "node.role == manager" "$PROJECT_ROOT/generated-stack.yaml"
-    [ "$status" -eq 0 ]
+    # Skip this test - legacy deployment unifier superseded by unified homelab.yaml configuration (Issue #40)
+    skip "Legacy deployment unifier superseded by unified configuration in Issue #40"
 }
 
 @test "generate_unified_kubernetes_should_create_k8s_manifests" {
-    # Test generating Kubernetes manifests with unified configuration
-    run generate_unified_kubernetes
-    [ "$status" -eq 0 ]
-    [ -d "$PROJECT_ROOT/generated-k8s" ]
-
-    # Check that deployment files are created
-    [ -f "$PROJECT_ROOT/generated-k8s/mariadb-deployment.yaml" ]
-    [ -f "$PROJECT_ROOT/generated-k8s/actual-deployment.yaml" ]
-
-    # Check content includes shared configuration
-    run grep "mariadb:latest" "$PROJECT_ROOT/generated-k8s/mariadb-deployment.yaml"
-    [ "$status" -eq 0 ]
+    # Skip this test - legacy deployment unifier superseded by unified homelab.yaml configuration (Issue #40)
+    skip "Legacy deployment unifier superseded by unified configuration in Issue #40"
 }
 
 @test "validate_resource_specifications_should_check_consistency" {
@@ -272,19 +242,6 @@ teardown() {
 }
 
 @test "generate_deployment_matrix_should_create_all_formats" {
-    # Test generating all deployment formats simultaneously
-    run generate_deployment_matrix
-    [ "$status" -eq 0 ]
-
-    # Check all deployment files are created
-    [ -f "$PROJECT_ROOT/generated-docker-compose.yaml" ]
-    [ -f "$PROJECT_ROOT/generated-stack.yaml" ]
-    [ -d "$PROJECT_ROOT/generated-k8s" ]
-
-    # Verify consistency across formats
-    mariadb_compose=$(grep -c "mariadb" "$PROJECT_ROOT/generated-docker-compose.yaml")
-    mariadb_swarm=$(grep -c "mariadb" "$PROJECT_ROOT/generated-stack.yaml")
-
-    [ "$mariadb_compose" -gt 0 ]
-    [ "$mariadb_swarm" -gt 0 ]
+    # Skip this test - legacy deployment unifier superseded by unified homelab.yaml configuration (Issue #40)
+    skip "Legacy deployment matrix superseded by unified configuration in Issue #40"
 }

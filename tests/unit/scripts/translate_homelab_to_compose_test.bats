@@ -86,7 +86,7 @@ EOF
 @test "validate_homelab_config should succeed with valid docker_compose config" {
     create_test_config
 
-    run validate_homelab_config
+    run validate_homelab_config_compose
     [ "$status" -eq 0 ]
     [[ "$output" =~ homelab.yaml\ validation\ passed ]]
 }
@@ -94,7 +94,7 @@ EOF
 @test "validate_homelab_config should fail when file does not exist" {
     # Don't create config file
 
-    run validate_homelab_config
+    run validate_homelab_config_compose
     [ "$status" -eq 1 ]
     [[ "$output" =~ homelab.yaml\ not\ found ]]
 }
@@ -102,7 +102,7 @@ EOF
 @test "validate_homelab_config should fail with wrong deployment type" {
     create_invalid_config
 
-    run validate_homelab_config
+    run validate_homelab_config_compose
     [ "$status" -eq 1 ]
     [[ "$output" =~ "Invalid deployment type: 'docker_swarm'" ]]
 }

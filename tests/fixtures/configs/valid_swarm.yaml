@@ -1,0 +1,39 @@
+version: "2.0"
+deployment: docker_swarm
+
+environment:
+  BASE_DOMAIN: swarm.local
+
+machines:
+  driver: {host: 192.168.1.10, user: admin, role: manager}
+  node-01: {host: 192.168.1.11, user: admin, role: worker}
+  node-02: {host: 192.168.1.12, user: admin, role: worker}
+
+services:
+  homepage:
+    image: ghcr.io/gethomepage/homepage:latest
+    port: 3000
+    deploy: driver
+    enabled: true
+    replicas: 1
+
+  nginx:
+    image: nginx:alpine
+    ports: [80, 443]
+    deploy: all
+    enabled: true
+
+  jellyfin:
+    image: jellyfin/jellyfin:latest
+    port: 8096
+    deploy: any
+    enabled: true
+    replicas: 2
+    storage: true
+    health_check: /health
+
+secrets:
+  db_password:
+    external: false
+  api_key:
+    external: true

@@ -300,11 +300,11 @@ log_warning() {
     echo "⚠️  $*"
 }
 
-# Function: validate_homelab_config
-# Description: Validates that homelab.yaml exists and has correct deployment type
+# Function: validate_homelab_config_swarm
+# Description: Validates that homelab.yaml exists and has correct deployment type for Swarm
 # Arguments: $1 - config file path (optional)
 # Returns: 0 on success, 1 on failure
-validate_homelab_config() {
+validate_homelab_config_swarm() {
     local config_file="${1:-$HOMELAB_CONFIG}"
 
     log_info "Validating homelab.yaml configuration..."
@@ -395,7 +395,7 @@ translate_to_docker_swarm() {
     local config_file="${1:-$HOMELAB_CONFIG}"
 
     # Validate config first (redirect to stderr)
-    validate_homelab_config "$config_file" >/dev/null 2>&1 || return 1
+    validate_homelab_config_swarm "$config_file" >/dev/null 2>&1 || return 1
 
     # Start Swarm stack YAML
     echo "version: '3.8'"

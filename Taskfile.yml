@@ -12,14 +12,45 @@ tasks:
       - poetry run pre-commit install
 
   test:
-    desc: Run all tests
+    desc: Run unit and integration tests
     cmds:
-      - bats tests/unit/**/*.bats
+      - echo "🧪 Running unit tests..."
+      - bats tests/unit/scripts/*.bats
+      - echo "🧪 Unit tests completed successfully"
+      - echo "🔍 Running integration tests..."
+      - echo "🔍 Running schema validation tests..."
+      - bats tests/integration/schema_validation_test.bats
+      - echo "🔍 Schema validation completed successfully"
+      - echo "🔍 Running workflow integration tests..."
+      - bats tests/integration/workflow_integration_test.bats
+      - echo "🔍 Workflow integration completed successfully"
+      - echo "✅ All unit and integration tests completed"
 
   test-fast:
-    desc: Run tests with faster execution
+    desc: Run core tests with faster execution
     cmds:
-      - bats --tap tests/unit/**/*.bats
+      - echo "🧪 Running unit tests..."
+      - bats --tap tests/unit/scripts/*.bats
+      - echo "🔍 Running schema validation tests..."
+      - bats --tap tests/integration/schema_validation_test.bats
+
+  test-local:
+    desc: Run local-only tests (requires Docker)
+    cmds:
+      - echo "🏠 Running local-only tests..."
+      - scripts/run_local_tests.sh
+      - echo "✅ Local tests completed"
+
+  test-comprehensive:
+    desc: Run all tests (unit/integration + local)
+    deps: ["test", "test-local"]
+
+  test-performance:
+    desc: Run performance and regression tests
+    cmds:
+      - echo "⚡ Running performance tests..."
+      - bats tests/performance/generation_performance_test.bats
+      - echo "✅ Performance tests completed"
 
   lint:
     desc: Run all linting checks

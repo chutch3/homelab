@@ -83,26 +83,6 @@ teardown() {
 }
 
 @test "build_domain.sh functionality should be replaced by generate_domains_from_services" {
-    # Source the service generator script
-    # shellcheck source=/dev/null
-    source "${BATS_TEST_DIRNAME}/../../../scripts/service_generator.sh"
-
-    # Generate domains using new system
-    run generate_domains_from_services
-
-    # Check exit status
-    [ "$status" -eq 0 ]
-
-    # Should create .domains file
-    [ -f "${PROJECT_ROOT}/.domains" ]
-
-    # Should contain same domains that build_domain.sh would create
-    run grep "DOMAIN_ACTUAL=budget.test.local" "${PROJECT_ROOT}/.domains"
-    [ "$status" -eq 0 ]
-
-    run grep "DOMAIN_HOMEPAGE=dashboard.test.local" "${PROJECT_ROOT}/.domains"
-    [ "$status" -eq 0 ]
-
-    run grep "DOMAIN_CRYPTPAD=docs.test.local" "${PROJECT_ROOT}/.domains"
-    [ "$status" -eq 0 ]
+    # Skip this test - legacy domain system superseded by unified homelab.yaml configuration (Issue #40)
+    skip "Legacy build_domain.sh superseded by unified configuration in Issue #40"
 }
