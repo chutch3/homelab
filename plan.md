@@ -5,7 +5,7 @@
 ## Issue #21: machines.yml Investigation
 
 ✅ **Analysis 1.1**: `analyze_machines_yml_usage` - Count actual usage vs references (COMPLETED)
-❌ **Test 1.2**: `test_docker_swarm_vs_machines_yml` - Compare approaches
+✅ **Analysis 1.2**: `compare_swarm_vs_machines` - Compare approaches (COMPLETED)
 ❌ **Test 1.3**: `test_machines_yml_value_analysis` - Validate unique value
 
 **Context**: Check if `machines.yml.example` and `scripts/machines.sh` are actually needed.
