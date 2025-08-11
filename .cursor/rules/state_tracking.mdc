@@ -1,0 +1,39 @@
+---
+description: "Unified state tracking format for TDD cycles, commits, and violations"
+globs: ["**/*"]
+alwaysApply: true
+---
+
+# STATE TRACKING & LOGGING REQUIREMENTS
+
+## 1. State Log Structure
+The state log must include, at a minimum:
+- **Cycle number** (increment for each Red/Green/Refactor iteration)
+- **Current phase** (RED, GREEN, or REFACTOR)
+- **Timestamp** of last action
+- **Commit history** (with commit messages and hashes)
+- **Relevant test results**:
+  - Pass/fail status for directly affected test files
+  - Summary of total passed/failed tests in this cycle
+- **Violations**:
+  - Description of the violation
+  - Root cause
+  - Corrective action taken
+
+## 2. Update Requirements
+- Update the state log at the end of each phase.
+- Log changes **immediately** when:
+  - A violation is detected
+  - A new commit is made
+  - A cycle restarts
+
+## 3. Accessibility
+- State log must be accessible to reviewers via:
+  - A link in the PR description
+  - Local file reference (if working offline)
+
+## 4. Automation
+- If automated correction is possible:
+  - Apply the correction
+  - Log the fix and the exact changes made
+- Never silently bypass or hide violations.

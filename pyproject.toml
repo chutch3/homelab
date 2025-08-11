@@ -21,9 +21,9 @@ mkdocs-include-markdown-plugin = "^6.0.0"
 pillow = "^10.0.0"
 cairosvg = "^2.7.0"
 
-[tool.poetry.dev-dependencies]
+[tool.poetry.group.dev.dependencies]
 pre-commit = "^3.2.2"
-python-semantic-release = "^8.7.0"
+python-semantic-release = "^10.3.1"
 yamllint = "^1.35.1"
 shellcheck-py = "^0.10.0"
 
@@ -32,24 +32,24 @@ version_toml = ["pyproject.toml:tool.poetry.version"]
 branch = "main"
 upload_to_pypi = false
 upload_to_release = true
+build_command = false
 
-commit_message = "chore(release): {version}"
-commit_parser = "angular"
-major_on_zero = false
+[tool.semantic_release.commit_parser_options]
+allowed_tags = ["build", "chore", "ci", "docs", "feat", "fix", "perf", "style", "refactor", "test"]
+minor_tags = ["feat"]
+patch_tags = ["fix", "perf"]
+
+[tool.semantic_release.commit_message]
+template = "chore(release): {version}"
 
 [tool.semantic_release.changelog]
-template_dir = "templates"
 changelog_file = "CHANGELOG.md"
+exclude_commit_patterns = []
 
-[tool.semantic_release.changelog.environment]
-block_start_string = "{%"
-block_end_string = "%}"
-variable_start_string = "{{"
-variable_end_string = "}}"
-comment_start_string = "{#"
-comment_end_string = "#}"
-trim_blocks = false
-lstrip_blocks = false
+[tool.semantic_release.branches.main]
+match = "(main|master)"
+prerelease_token = "rc"
+prerelease = false
 
 [build-system]
 requires = ["poetry-core>=1.0.0"]
