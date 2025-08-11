@@ -1,0 +1,196 @@
+{
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "$id": "https://github.com/chutch3/selfhosted.sh/schemas/homelab-schema.json",
+    "title": "Homelab Configuration Schema",
+    "description": "JSON schema for homelab.yaml unified configuration file",
+    "type": "object",
+    "required": [
+        "version",
+        "deployment",
+        "services"
+    ],
+    "properties": {
+        "version": {
+            "type": "string",
+            "enum": [
+                "2.0"
+            ],
+            "description": "Configuration schema version"
+        },
+        "deployment": {
+            "type": "string",
+            "enum": [
+                "docker_compose",
+                "docker_swarm",
+                "kubernetes"
+            ],
+            "description": "Target deployment type (mutually exclusive)"
+        },
+        "environment": {
+            "type": "object",
+            "description": "Environment variables for all services",
+            "patternProperties": {
+                "^[A-Z][A-Z0-9_]*$": {
+                    "type": "string"
+                }
+            },
+            "additionalProperties": false
+        },
+        "machines": {
+            "type": "object",
+            "description": "Machine definitions for multi-node deployments",
+            "patternProperties": {
+                "^[a-z0-9-]+$": {
+                    "type": "object",
+                    "required": [
+                        "host",
+                        "user"
+                    ],
+                    "properties": {
+                        "host": {
+                            "type": "string",
+                            "description": "IP address or hostname"
+                        },
+                        "user": {
+                            "type": "string",
+                            "description": "SSH username"
+                        },
+                        "role": {
+                            "type": "string",
+                            "enum": [
+                                "manager",
+                                "worker"
+                            ],
+                            "description": "Docker Swarm role (optional)"
+                        },
+                        "labels": {
+                            "type": "array",
+                            "items": {
+                                "type": "string"
+                            },
+                            "description": "Custom labels for service placement"
+                        }
+                    },
+                    "additionalProperties": false
+                }
+            },
+            "additionalProperties": false
+        },
+        "services": {
+            "type": "object",
+            "description": "Service definitions",
+            "minProperties": 1,
+            "patternProperties": {
+                "^[a-z0-9-]+$": {
+                    "type": "object",
+                    "required": [
+                        "image"
+                    ],
+                    "properties": {
+                        "image": {
+                            "type": "string",
+                            "description": "Docker image name and tag"
+                        },
+                        "port": {
+                            "type": "integer",
+                            "minimum": 1,
+                            "maximum": 65535,
+                            "description": "Single port exposure"
+                        },
+                        "ports": {
+                            "type": "array",
+                            "items": {
+                                "type": "integer",
+                                "minimum": 1,
+                                "maximum": 65535
+                            },
+                            "description": "Multiple port exposures"
+                        },
+                        "storage": {
+                            "oneOf": [
+                                {
+                                    "type": "boolean",
+                                    "description": "Enable/disable persistent storage"
+                                },
+                                {
+                                    "type": "string",
+                                    "pattern": "^(\\d+)(GB|MB|TB|temp)$",
+                                    "description": "Storage size (e.g., '5GB') or 'temp'"
+                                }
+                            ]
+                        },
+                        "deploy": {
+                            "type": "string",
+                            "description": "Deployment strategy",
+                            "oneOf": [
+                                {
+                                    "enum": [
+                                        "driver",
+                                        "all",
+                                        "random",
+                                        "any"
+                                    ]
+                                },
+                                {
+                                    "pattern": "^[a-z0-9-]+$",
+                                    "description": "Specific machine name"
+                                }
+                            ]
+                        },
+                        "enabled": {
+                            "type": "boolean",
+                            "default": true,
+                            "description": "Enable/disable service"
+                        },
+                        "environment": {
+                            "type": "object",
+                            "description": "Service-specific environment variables",
+                            "patternProperties": {
+                                "^[A-Z][A-Z0-9_]*$": {
+                                    "type": "string"
+                                }
+                            },
+                            "additionalProperties": false
+                        },
+                        "overrides": {
+                            "type": "object",
+                            "description": "Deployment-specific overrides",
+                            "properties": {
+                                "docker_compose": {
+                                    "type": "object",
+                                    "description": "Docker Compose specific configuration"
+                                },
+                                "docker_swarm": {
+                                    "type": "object",
+                                    "description": "Docker Swarm specific configuration"
+                                },
+                                "kubernetes": {
+                                    "type": "object",
+                                    "description": "Kubernetes specific configuration"
+                                }
+                            },
+                            "additionalProperties": false
+                        }
+                    },
+                    "additionalProperties": false,
+                    "not": {
+                        "allOf": [
+                            {
+                                "required": [
+                                    "port"
+                                ]
+                            },
+                            {
+                                "required": [
+                                    "ports"
+                                ]
+                            }
+                        ]
+                    }
+                }
+            },
+            "additionalProperties": false
+        }
+    },
+    "additionalProperties": false
+}
