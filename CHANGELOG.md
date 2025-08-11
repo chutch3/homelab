@@ -2,6 +2,14 @@
 
 <!-- version list -->
 
+## v1.3.0 (2025-08-11)
+
+### Features
+
+- Updated the way environments works and removed homlab.yaml
+  ([`9c8d0c3`](https://github.com/chutch3/selfhosted.sh/commit/9c8d0c381397beb8d5ec005adbfef58bdc3683d2))
+
+
 ## v1.2.0 (2025-08-11)
 
 ### Features
