@@ -21,8 +21,9 @@ list_commands() {
 # Common functions used across deployment targets
 load_env() {
     if [ ! -f "$PROJECT_ROOT/.env" ]; then
-        echo "❌ Error: .env file not found in $PROJECT_ROOT"
-        exit 1
+        echo "⚠️  Warning: .env file not found in $PROJECT_ROOT"
+        echo "   Environment variables will be loaded from homelab.yaml or system environment"
+        return 0
     fi
 
     source "$PROJECT_ROOT/.env"

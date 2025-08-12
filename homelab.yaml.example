@@ -1,59 +1,116 @@
-# homelab.yaml - Unified Configuration Template
-# Copy this file to homelab.yaml and customize for your environment
+# homelab.yaml.example - Configuration Template
+# Copy this file to homelab.yaml and customize with your values
+# Or use .env file for sensitive environment variables
+
 version: "2.0"
 deployment: docker_compose
 
-# Global environment variables
-# Only specify variables that need to be different from .env defaults
-# Common vars like BASE_DOMAIN, PROJECT_ROOT are automatically loaded from .env
 environment:
-  # Only uncomment if you need to override .env values
-  # TIMEZONE: "${TIMEZONE:-UTC}"
-  # DOCKER_NETWORK: "${DOCKER_NETWORK:-homelab}"
+  HOST_IP: 192.168.16.1
+  DNS_SERVER: 192.168.86.1
+  TZ: America/New_York
+  UID: 1000
+  GID: 1000
+  BASE_DOMAIN: diyhub.dev
+  WILDCARD_DOMAIN: "*.diyhub.dev"
+  # Security sensitive variables - use .env file instead:
+  # CF_Key: your_cloudflare_api_key
+  # CF_Email: your_cloudflare_email
+  ACME_SH_EMAIL: your_email@example.com
+  ACME_OCSP: true
+  NGINX_ENTRYPOINT_QUIET_LOGS: 1
+  # Service API keys - use .env file for production:
+  # EMBY_API_KEY: your_emby_api_key
+  # HASS_TOKEN: your_homeassistant_long_lived_token
+  # RADARR_API_KEY: your_radarr_api_key
+  # SONARR_API_KEY: your_sonarr_api_key
+  # DELUGE_PASSWORD: your_deluge_password
+  # QBIT_USERNAME: admin
+  # QBIT_PASSWORD: your_qbit_password
+  # PROWLARR_API_KEY: your_prowlarr_api_key
 
-  # Service-specific global variables
-  PUID: "${UID:-1000}"
-  PGID: "${GID:-1000}"
-
-# Machine definitions for multi-node deployments
 machines:
   driver:
     host: localhost
-    user: "${SSH_USER:-homelab}"
+    user: user
+    labels:
+      role: manager
 
-# Service definitions
 services:
-  # Basic dashboard service
+  actual:
+    image: docker.io/actualbudget/actual-server:latest
+    port: 5006
+    storage: true
+    enabled: true
+    deploy: driver
+    domain: actual.diyhub.dev
+    overrides:
+      docker_compose:
+        volumes:
+          - "${VOLUME_ACTUAL_DATA}:/data"
+
+  cryptpad:
+    image: promasu/cryptpad:version-2024.6.0
+    port: 3000
+    enabled: true
+    deploy: driver
+    domain: cryptpad.diyhub.dev
+    overrides:
+      docker_compose:
+        volumes:
+          - "${VOLUME_CRYPTPAD_FILES}:/cryptpad/datastore"
+          - "${VOLUME_CRYPTPAD_CUSTOMIZATION}:/cryptpad/customize"
+
+  homeassistant:
+    image: ghcr.io/home-assistant/home-assistant:stable
+    port: 8123
+    enabled: true
+    deploy: driver
+    domain: homeassistant.diyhub.dev
+    overrides:
+      docker_compose:
+        volumes:
+          - "${VOLUME_HOMEASSISTANT_CONFIG}:/config"
+          - "/etc/localtime:/etc/localtime:ro"
+        privileged: true
+        network_mode: host
+
   homepage:
     image: ghcr.io/gethomepage/homepage:latest
     port: 3000
-    environment:
-      HOMEPAGE_VAR_TITLE: "My Homelab"
-      HOMEPAGE_VAR_SEARCH_PROVIDER: duckduckgo
+    enabled: true
+    deploy: driver
+    domain: homepage.diyhub.dev
+    overrides:
+      docker_compose:
+        volumes:
+          - "${VOLUME_HOMEPAGE_CONFIG}:/app/config"
+          - "/var/run/docker.sock:/var/run/docker.sock:ro"
 
-  # Example service with storage and secrets
-  actual:
-    image: actualbudget/actual-server:latest
-    port: 5006
+  photoprism:
+    image: photoprism/photoprism:latest
+    port: 2342
     storage: true
-    environment:
-      # Mix of direct config and sensitive data from .env
-      ACTUAL_UPLOAD_FILE_SYNC_SIZE_LIMIT_MB: "20"
-      ACTUAL_SERVER_KEY: "${ACTUAL_SERVER_KEY}"  # Secret from .env
-      ACTUAL_TRUSTED_PROXIES: "${TRUSTED_PROXIES:-127.0.0.1}"
+    enabled: true
+    deploy: driver
+    domain: photoprism.diyhub.dev
+    overrides:
+      docker_compose:
+        volumes:
+          - "${VOLUME_PHOTOPRISM_CONFIG}:/photoprism/storage"
+          - "${VOLUME_PHOTOPRISM_PHOTOS}:/photoprism/originals"
+        security_opt:
+          - seccomp:unconfined
+          - apparmor:unconfined
+        working_dir: "/photoprism"
 
-  # Database with credentials
-  postgres:
-    image: postgres:15
-    port: 5432
-    storage: true
-    environment:
-      # Sensitive data should come from .env
-      POSTGRES_PASSWORD: "${DB_PASSWORD}"
-      POSTGRES_USER: "${DB_USER:-homelab}"
-      POSTGRES_DB: "homelab"
-
-  # Reverse proxy (basic config, uses .env automatically)
-  nginx:
-    image: nginx:alpine
-    ports: [80, 443]
+  portainer_agent:
+    image: portainer/agent:2.19.4
+    port: 9001
+    enabled: true
+    deploy: driver
+    overrides:
+      docker_compose:
+        volumes:
+          - "/var/run/docker.sock:/var/run/docker.sock"
+          - "/var/lib/docker/volumes:/var/lib/docker/volumes"

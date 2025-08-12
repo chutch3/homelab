@@ -7,6 +7,46 @@
 
 The `homelab.yaml` file is the single configuration file that defines your entire homelab setup. It replaces the previous multi-file approach (`services.yaml` + `machines.yml` + `volumes.yaml` + `.env`) with a simple, unified configuration.
 
+## Security Best Practices
+
+### Environment Variables and Sensitive Data
+
+**IMPORTANT**: Never commit sensitive data directly to `homelab.yaml`. Instead, use a `.env` file for sensitive environment variables:
+
+1. **Create a `.env` file** in your project root:
+   ```bash
+   # Cloudflare API credentials
+   CF_Key=your_cloudflare_api_key_here
+   CF_Email=your_cloudflare_email@example.com
+
+   # Service API Keys and Credentials
+   EMBY_API_KEY=your_emby_api_key
+   HASS_TOKEN=your_homeassistant_long_lived_token
+   RADARR_API_KEY=your_radarr_api_key
+   SONARR_API_KEY=your_sonarr_api_key
+   DELUGE_PASSWORD=your_deluge_password
+   QBIT_USERNAME=admin
+   QBIT_PASSWORD=your_qbit_password
+   PROWLARR_API_KEY=your_prowlarr_api_key
+   ```
+
+2. **Reference variables in homelab.yaml** using comments to indicate they're loaded from .env:
+   ```yaml
+   environment:
+     # These are loaded from .env file
+     # CF_Key: ${CF_Key}
+     # CF_Email: ${CF_Email}
+   ```
+
+3. **The .env file is automatically ignored** by git to protect your sensitive data.
+
+### Environment Variable Loading Priority
+
+The system loads environment variables in the following order (later values override earlier ones):
+1. System environment variables
+2. Variables from `.env` file (if present)
+3. Variables defined directly in `homelab.yaml`
+
 ## Schema Structure
 
 ### Required Fields
