@@ -12,19 +12,22 @@ tasks:
       - poetry run pre-commit install
 
   test:
-    desc: Run unit and integration tests
+    desc: Run unit and integration tests with coverage
     cmds:
-      - echo "🧪 Running unit tests..."
-      - bats tests/unit/scripts/*.bats
+      - echo "🧪 Running unit tests with coverage..."
+      - mkdir -p coverage
+      - kcov --include-pattern=scripts --exclude-pattern=/usr,/tmp,/var coverage/unit bats tests/unit/scripts/*.bats
       - echo "🧪 Unit tests completed successfully"
-      - echo "🔍 Running integration tests..."
+      - echo "🔍 Running integration tests with coverage..."
       - echo "🔍 Running schema validation tests..."
-      - bats tests/integration/schema_validation_test.bats
+      - kcov --include-pattern=scripts --exclude-pattern=/usr,/tmp,/var coverage/schema bats tests/integration/schema_validation_test.bats
       - echo "🔍 Schema validation completed successfully"
       - echo "🔍 Running workflow integration tests..."
-      - bats tests/integration/workflow_integration_test.bats
+      - kcov --include-pattern=scripts --exclude-pattern=/usr,/tmp,/var coverage/workflow bats tests/integration/workflow_integration_test.bats
       - echo "🔍 Workflow integration completed successfully"
-      - echo "✅ All unit and integration tests completed"
+      - echo "📊 Merging coverage reports..."
+      - kcov --merge coverage/merged coverage/unit coverage/schema coverage/workflow
+      - echo "✅ All tests completed [Coverage report](coverage/merged/index.html)"
 
   test-fast:
     desc: Run core tests with faster execution
