@@ -11,7 +11,7 @@ setup() {
     export TEST=true
     export BASE_DOMAIN="test.local"
     export PROJECT_ROOT="${TEST_TEMP_DIR}"
-    export SERVICES_CONFIG="${TEST_TEMP_DIR}/config/services.yaml"
+    export HOMELAB_CONFIG="${TEST_TEMP_DIR}/homelab.yaml"
     export GENERATED_NGINX_DIR="${TEST_TEMP_DIR}/generated-nginx"
 
     # Create config directory
@@ -23,12 +23,12 @@ teardown() {
     temp_del "$TEST_TEMP_DIR"
 
     # Unset test environment variables
-    unset TEST BASE_DOMAIN PROJECT_ROOT SERVICES_CONFIG GENERATED_NGINX_DIR
+    unset TEST BASE_DOMAIN PROJECT_ROOT HOMELAB_CONFIG GENERATED_NGINX_DIR
 }
 
 @test "existing services.yaml nginx config should work with new generator" {
     # Copy the real services.yaml structure for a typical service
-    cat > "${SERVICES_CONFIG}" <<EOF
+    cat > "${HOMELAB_CONFIG}" <<EOF
 version: "1.0"
 
 categories:
@@ -82,7 +82,7 @@ EOF
 
 @test "service without nginx config should get default proxy setup" {
     # Create a minimal service without custom nginx config
-    cat > "${SERVICES_CONFIG}" <<EOF
+    cat > "${HOMELAB_CONFIG}" <<EOF
 version: "1.0"
 
 categories:

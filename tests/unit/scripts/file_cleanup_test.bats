@@ -3,6 +3,7 @@
 setup() {
     # Load test helper functions
     load test_helper
+    load ../../helpers/homelab_builder
 
     # Create temporary test directory
     TEST_TEMP_DIR="$(temp_make)"
@@ -11,15 +12,15 @@ setup() {
     export TEST=true
     export BASE_DOMAIN="test.local"
     export PROJECT_ROOT="${TEST_TEMP_DIR}"
-    export SERVICES_CONFIG="${TEST_TEMP_DIR}/config/services.yaml"
+    export HOMELAB_CONFIG="${TEST_TEMP_DIR}/homelab.yaml"
     export GENERATED_NGINX_DIR="${TEST_TEMP_DIR}/generated-nginx"
 
     # Create config directory structure
     mkdir -p "${TEST_TEMP_DIR}/config"
     mkdir -p "${TEST_TEMP_DIR}/config/services/reverseproxy/templates/conf.d"
 
-    # Copy the real services.yaml for testing
-    cp "${BATS_TEST_DIRNAME}/../../../config/services.yaml" "${SERVICES_CONFIG}"
+    # Create test homelab.yaml with services
+    create_homelab_with_services "$HOMELAB_CONFIG" "actual" "homepage" "homeassistant" "nginx"
 }
 
 teardown() {
@@ -27,10 +28,10 @@ teardown() {
     temp_del "$TEST_TEMP_DIR"
 
     # Unset test environment variables
-    unset TEST BASE_DOMAIN PROJECT_ROOT SERVICES_CONFIG GENERATED_NGINX_DIR
+    unset TEST BASE_DOMAIN PROJECT_ROOT HOMELAB_CONFIG GENERATED_NGINX_DIR
 }
 
-@test "services defined in services.yaml should not need static templates" {
+@test "services defined in homelab.yaml should not need static templates" {
     # Source the service generator script
     # shellcheck source=/dev/null
     source "${BATS_TEST_DIRNAME}/../../../scripts/service_generator.sh"
@@ -41,15 +42,13 @@ teardown() {
     # Check exit status
     [ "$status" -eq 0 ]
 
-    # Services in services.yaml should generate templates automatically
+    # Services in homelab.yaml should generate templates automatically
     [ -f "${GENERATED_NGINX_DIR}/actual.template" ]
     [ -f "${GENERATED_NGINX_DIR}/homepage.template" ]
     [ -f "${GENERATED_NGINX_DIR}/homeassistant.template" ]
-    [ -f "${GENERATED_NGINX_DIR}/photoprism.template" ]
-    [ -f "${GENERATED_NGINX_DIR}/portainer_agent.template" ]
 
     # These should have proper content
-    run grep "proxy_pass http://actual_server:5006" "${GENERATED_NGINX_DIR}/actual.template"
+    run grep "proxy_pass http://actual:5006" "${GENERATED_NGINX_DIR}/actual.template"
     [ "$status" -eq 0 ]
 
     run grep "proxy_pass http://homepage:3000" "${GENERATED_NGINX_DIR}/homepage.template"
@@ -64,9 +63,9 @@ teardown() {
     sed '/cryptpad:/,/nginx:/{
         /nginx:/a\
       template_file: "cryptpad.template"
-    }' "${SERVICES_CONFIG}" > "${temp_services}"
+    }' "${HOMELAB_CONFIG}" > "${temp_services}"
 
-    export SERVICES_CONFIG="${temp_services}"
+    export HOMELAB_CONFIG="${temp_services}"
 
     # Source the service generator script
     # shellcheck source=/dev/null

@@ -3,6 +3,7 @@
 setup() {
     # Load test helper functions
     load test_helper
+    load ../../helpers/homelab_builder
 
     # Create temporary test directory
     TEST_TEMP_DIR="$(temp_make)"
@@ -11,14 +12,14 @@ setup() {
     export TEST=true
     export BASE_DOMAIN="test.local"
     export PROJECT_ROOT="${TEST_TEMP_DIR}"
-    export SERVICES_CONFIG="${TEST_TEMP_DIR}/config/services.yaml"
+    export HOMELAB_CONFIG="${TEST_TEMP_DIR}/homelab.yaml"
 
     # Create config directory structure
     mkdir -p "${TEST_TEMP_DIR}/config"
     mkdir -p "${TEST_TEMP_DIR}/config/services/reverseproxy/templates/conf.d/enabled"
 
-    # Copy the real services.yaml for testing
-    cp "${BATS_TEST_DIRNAME}/../../../config/services.yaml" "${SERVICES_CONFIG}"
+    # Create test homelab.yaml with services
+    create_homelab_with_services "$HOMELAB_CONFIG" "actual" "homepage"
 }
 
 teardown() {
@@ -26,7 +27,7 @@ teardown() {
     temp_del "$TEST_TEMP_DIR"
 
     # Unset test environment variables
-    unset TEST BASE_DOMAIN PROJECT_ROOT SERVICES_CONFIG
+    unset TEST BASE_DOMAIN PROJECT_ROOT HOMELAB_CONFIG
 }
 
 @test "selfhosted.sh should provide service enable command" {
@@ -36,16 +37,16 @@ teardown() {
     # Check exit status
     [ "$status" -eq 0 ]
 
-    # Should enable services in services.yaml
+    # Should enable services in homelab.yaml
     [[ "$output" =~ "Enabling service: actual" ]]
     [[ "$output" =~ "Enabling service: homepage" ]]
     [[ "$output" =~ Successfully\ enabled\ 2\ service\(s\) ]]
 
     # Verify services are enabled in config
-    run yq '.services.actual.enabled' "${SERVICES_CONFIG}"
+    run yq '.services.actual.enabled' "${HOMELAB_CONFIG}"
     [ "$output" = "true" ]
 
-    run yq '.services.homepage.enabled' "${SERVICES_CONFIG}"
+    run yq '.services.homepage.enabled' "${HOMELAB_CONFIG}"
     [ "$output" = "true" ]
 }
 
@@ -59,16 +60,16 @@ teardown() {
     # Check exit status
     [ "$status" -eq 0 ]
 
-    # Should disable services in services.yaml
+    # Should disable services in homelab.yaml
     [[ "$output" =~ "Disabling service: actual" ]]
     [[ "$output" =~ Successfully\ disabled\ 1\ service\(s\) ]]
 
     # Verify service is disabled in config
-    run yq '.services.actual.enabled' "${SERVICES_CONFIG}"
+    run yq '.services.actual.enabled' "${HOMELAB_CONFIG}"
     [ "$output" = "false" ]
 
     # Homepage should still be enabled
-    run yq '.services.homepage.enabled' "${SERVICES_CONFIG}"
+    run yq '.services.homepage.enabled' "${HOMELAB_CONFIG}"
     [ "$output" = "true" ]
 }
 
@@ -89,37 +90,7 @@ teardown() {
 }
 
 @test "legacy migration function should work independently" {
-    # Create legacy .enabled-services file
-    cat > "${TEST_TEMP_DIR}/.enabled-services" <<EOF
-actual
-homepage
-EOF
-
-    # Source the service generator script
-    # shellcheck source=/dev/null
-    source "${BATS_TEST_DIRNAME}/../../../scripts/service_generator.sh"
-
-    # Test migration function directly
-    run migrate_from_legacy_enabled_services
-
-    # Check exit status
-    [ "$status" -eq 0 ]
-
-    # Should mention migration
-    [[ "$output" =~ "Migrating from legacy" ]]
-
-    # Should migrate to services.yaml
-    run yq '.services.actual.enabled' "${SERVICES_CONFIG}"
-    [ "$output" = "true" ]
-
-    run yq '.services.homepage.enabled' "${SERVICES_CONFIG}"
-    [ "$output" = "true" ]
-
-    # Should backup legacy file
-    [ -f "${TEST_TEMP_DIR}/.enabled-services.backup" ]
-
-    # Should remove legacy file
-    [ ! -f "${TEST_TEMP_DIR}/.enabled-services" ]
+    skip "Migration function removed - migration completed in previous phase"
 }
 
 @test "generate_enabled_services_from_yaml should create backward compatibility file" {

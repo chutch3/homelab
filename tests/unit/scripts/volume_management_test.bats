@@ -14,7 +14,7 @@ setup() {
 
     # Create test services config with volume definitions
     mkdir -p "$TEST_TEMP_DIR/config"
-    cat > "$TEST_TEMP_DIR/config/services.yaml" <<EOF
+    cat > "$TEST_TEMP_DIR/homelab.yaml" <<EOF
 version: "1.0"
 categories:
   finance: "Finance & Budgeting"
@@ -135,7 +135,7 @@ teardown() {
     if [ -n "${CI:-}" ] || [ -n "${GITHUB_ACTIONS:-}" ]; then
         skip "CI environment differs from local - test passes locally"
     fi
-    
+
     # Test local volume path generation
     export VOLUME_STORAGE_TYPE="local"
     export VOLUME_BASE_PATH="/home/user/appdata"
@@ -152,7 +152,7 @@ teardown() {
     if [ -n "${CI:-}" ] || [ -n "${GITHUB_ACTIONS:-}" ]; then
         skip "CI environment differs from local - test passes locally"
     fi
-    
+
     # Test NFS volume path generation (with fallback to local when NFS not configured)
     export VOLUME_STORAGE_TYPE="nfs"
     export VOLUME_BASE_PATH="/mnt/nas"
@@ -210,7 +210,7 @@ teardown() {
     if [ -n "${CI:-}" ] || [ -n "${GITHUB_ACTIONS:-}" ]; then
         skip "CI environment differs from local - test passes locally"
     fi
-    
+
     # Test backup configuration generation
     export VOLUME_BASE_PATH="$TEST_TEMP_DIR/appdata"
 

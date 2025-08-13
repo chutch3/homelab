@@ -5,7 +5,7 @@
 
 # Set default paths
 PROJECT_ROOT="${PROJECT_ROOT:-$PWD}"
-SERVICES_CONFIG="${SERVICES_CONFIG:-$PROJECT_ROOT/config/services.yaml}"
+HOMELAB_CONFIG="${HOMELAB_CONFIG:-$PROJECT_ROOT/homelab.yaml}"
 DEPENDENCY_GRAPH_FILE="${DEPENDENCY_GRAPH_FILE:-$PROJECT_ROOT/dependency-graph.md}"
 STARTUP_SCRIPT="${STARTUP_SCRIPT:-$PROJECT_ROOT/startup-services.sh}"
 SHUTDOWN_SCRIPT="${SHUTDOWN_SCRIPT:-$PROJECT_ROOT/shutdown-services.sh}"
@@ -21,8 +21,8 @@ fi
 # Arguments: None
 # Returns: List of service names
 get_all_services() {
-    if [ ! -f "$SERVICES_CONFIG" ]; then
-        echo "❌ Error: Services configuration not found at $SERVICES_CONFIG" >&2
+    if [ ! -f "$HOMELAB_CONFIG" ]; then
+        echo "❌ Error: Services configuration not found at $HOMELAB_CONFIG" >&2
         return 1
     fi
 
@@ -36,7 +36,7 @@ get_all_services() {
             gsub(/:.*/, "");
             print
         }
-    ' "$SERVICES_CONFIG" | sort
+    ' "$HOMELAB_CONFIG" | sort
 }
 
 # Function: get_service_dependencies
@@ -51,7 +51,7 @@ get_service_dependencies() {
     fi
 
     # Check if service exists using grep
-    if ! grep -q "^  ${service}:" "$SERVICES_CONFIG"; then
+    if ! grep -q "^  ${service}:" "$HOMELAB_CONFIG"; then
         echo "❌ Error: Service '$service' not found" >&2
         return 1
     fi
@@ -69,7 +69,7 @@ get_service_dependencies() {
         }
         in_service && in_depends && /^    [a-zA-Z0-9_-]+:/ { in_depends = 0 }
         in_service && in_depends && /^  [a-zA-Z0-9_-]+:/ { in_service = 0; in_depends = 0 }
-    " "$SERVICES_CONFIG"
+    " "$HOMELAB_CONFIG"
 }
 
 # Function: get_service_priority
@@ -83,7 +83,7 @@ get_service_priority() {
     fi
 
     local priority
-    priority=$(yq ".services[\"${service}\"].startup_priority" "$SERVICES_CONFIG" 2>/dev/null | tr -d '"')
+    priority=$(yq ".services[\"${service}\"].startup_priority" "$HOMELAB_CONFIG" 2>/dev/null | tr -d '"')
 
     # Default priority if not specified
     if [ "$priority" = "null" ] || [ -z "$priority" ]; then
@@ -358,7 +358,7 @@ check_service_health() {
 
     # Check if health check is enabled
     local health_enabled
-    health_enabled=$(yq ".services[\"${service}\"].health_check.enabled" "$SERVICES_CONFIG" 2>/dev/null | tr -d '"')
+    health_enabled=$(yq ".services[\"${service}\"].health_check.enabled" "$HOMELAB_CONFIG" 2>/dev/null | tr -d '"')
 
     if [ "$health_enabled" != "true" ]; then
         echo "ℹ️  Health check not configured for $service"
@@ -366,10 +366,10 @@ check_service_health() {
     fi
 
     local endpoint timeout domain port
-    endpoint=$(yq ".services[\"${service}\"].health_check.endpoint" "$SERVICES_CONFIG" 2>/dev/null | tr -d '"')
-    timeout=$(yq ".services[\"${service}\"].health_check.timeout" "$SERVICES_CONFIG" 2>/dev/null | tr -d '"')
-    domain=$(yq ".services[\"${service}\"].domain" "$SERVICES_CONFIG" 2>/dev/null | tr -d '"')
-    port=$(yq ".services[\"${service}\"].port" "$SERVICES_CONFIG" 2>/dev/null | tr -d '"')
+    endpoint=$(yq ".services[\"${service}\"].health_check.endpoint" "$HOMELAB_CONFIG" 2>/dev/null | tr -d '"')
+    timeout=$(yq ".services[\"${service}\"].health_check.timeout" "$HOMELAB_CONFIG" 2>/dev/null | tr -d '"')
+    domain=$(yq ".services[\"${service}\"].domain" "$HOMELAB_CONFIG" 2>/dev/null | tr -d '"')
+    port=$(yq ".services[\"${service}\"].port" "$HOMELAB_CONFIG" 2>/dev/null | tr -d '"')
 
     [ "$timeout" = "null" ] && timeout=30
     [ "$endpoint" = "null" ] && endpoint="/health"

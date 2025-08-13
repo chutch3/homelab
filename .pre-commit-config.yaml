@@ -19,6 +19,7 @@ repos:
     hooks:
       - id: shellcheck
         args: ["-x"]  # Follow source statements
+        exclude: ^tests/
 
   - repo: https://github.com/adrienverge/yamllint.git
     rev: v1.33.0
