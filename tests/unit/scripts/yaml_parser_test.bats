@@ -7,8 +7,8 @@ setup() {
     # Create a temporary directory for this test
     TEST_TEMP_DIR="$(mktemp -d)"
 
-    # Create a test services.yaml file
-    TEST_SERVICES_YAML="$TEST_TEMP_DIR/services.yaml"
+    # Create a test homelab.yaml file
+    TEST_SERVICES_YAML="$TEST_TEMP_DIR/homelab.yaml"
     cat > "$TEST_SERVICES_YAML" <<EOF
 services:
   actual:

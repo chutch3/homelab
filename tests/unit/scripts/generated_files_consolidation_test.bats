@@ -3,6 +3,7 @@
 setup() {
     # Load test helper functions
     load test_helper
+    load "${BATS_TEST_DIRNAME}/../../helpers/homelab_builder"
 
     # Create temporary test directory
     TEST_TEMP_DIR="$(temp_make)"
@@ -11,14 +12,14 @@ setup() {
     export TEST=true
     export BASE_DOMAIN="test.local"
     export PROJECT_ROOT="${TEST_TEMP_DIR}"
-    export SERVICES_CONFIG="${TEST_TEMP_DIR}/config/services.yaml"
+    export HOMELAB_CONFIG="${TEST_TEMP_DIR}/homelab.yaml"
     export GENERATED_DIR="${TEST_TEMP_DIR}/generated"
 
     # Create config directory structure
     mkdir -p "${TEST_TEMP_DIR}/config"
 
     # Copy the real services.yaml for testing
-    cp "${BATS_TEST_DIRNAME}/../../../config/services.yaml" "${SERVICES_CONFIG}"
+    create_homelab_with_services "$HOMELAB_CONFIG" "actual" "homepage"
 }
 
 teardown() {
@@ -26,7 +27,7 @@ teardown() {
     temp_del "$TEST_TEMP_DIR"
 
     # Unset test environment variables
-    unset TEST BASE_DOMAIN PROJECT_ROOT SERVICES_CONFIG GENERATED_DIR
+    unset TEST BASE_DOMAIN PROJECT_ROOT HOMELAB_CONFIG GENERATED_DIR
 }
 
 @test "generate_all_to_generated_dir should create consolidated structure" {
@@ -191,31 +192,4 @@ teardown() {
 
     # Should use generated directory paths
     [[ "$output" =~ "generated/deployments" ]]
-}
-
-@test "cleanup_legacy_generated_files should remove old structure" {
-    # Create legacy files
-    touch "${PROJECT_ROOT}/generated-docker-compose.yaml"
-    mkdir -p "${PROJECT_ROOT}/generated-nginx"
-    touch "${PROJECT_ROOT}/generated-nginx/test.template"
-    touch "${PROJECT_ROOT}/.domains"
-    touch "${PROJECT_ROOT}/.enabled-services"
-
-    # Source the service generator script
-    # shellcheck source=/dev/null
-    source "${BATS_TEST_DIRNAME}/../../../scripts/service_generator.sh"
-
-    # This function should clean up old files (after migration)
-    run cleanup_legacy_generated_files
-
-    # Check exit status
-    [ "$status" -eq 0 ]
-
-    # Legacy files should be removed
-    [ ! -f "${PROJECT_ROOT}/generated-docker-compose.yaml" ]
-    [ ! -d "${PROJECT_ROOT}/generated-nginx" ]
-    [ ! -f "${PROJECT_ROOT}/.domains" ]
-
-    # .enabled-services should be preserved (user data)
-    [ -f "${PROJECT_ROOT}/.enabled-services" ]
 }

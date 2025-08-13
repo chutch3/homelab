@@ -178,6 +178,12 @@ generated-swarm-stack.yaml
 # Temporary system files
 .*csm_setup*
 
+# Test coverage reports
+coverage/
+
+# Analysis and cleanup documentation
+UNUSED_LEGACY_CODE_ANALYSIS.md
+
 # Environment-specific configuration files
 homelab.yaml
 plan.md

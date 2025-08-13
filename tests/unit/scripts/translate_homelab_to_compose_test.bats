@@ -15,23 +15,29 @@ setup() {
     local test_dir
     test_dir=$(mktemp -d)
     export TEST_DIR="$test_dir"
-    export TEST_CONFIG="$TEST_DIR/homelab.yaml"
-    export TEST_OUTPUT="$TEST_DIR/output"
-    export HOMELAB_CONFIG="$TEST_CONFIG"
-    export OUTPUT_DIR="$TEST_OUTPUT"
+    export HOMELAB_CONFIG="$TEST_DIR/homelab.yaml"
+    export BUNDLES_DIR="$TEST_DIR/bundles"
 
     # Source the translation script
     source "$PROJECT_ROOT/scripts/translate_homelab_to_compose.sh"
+
+    # Mock load_env function
+    load_env() {
+        echo "loaded environment variables"
+    }
 }
 
 teardown() {
     # Clean up temporary directories
     rm -rf "$TEST_DIR"
+
+    # Unset test environment variables
+    unset TEST_DIR HOMELAB_CONFIG BUNDLES_DIR
 }
 
 # Helper function to create a basic test homelab.yaml
 create_test_config() {
-    cat > "$TEST_CONFIG" <<EOF
+    cat > "$HOMELAB_CONFIG" <<EOF
 version: "2.0"
 deployment: docker_compose
 
@@ -67,7 +73,7 @@ EOF
 
 # Helper function to create invalid config
 create_invalid_config() {
-    cat > "$TEST_CONFIG" <<EOF
+    cat > "$HOMELAB_CONFIG" <<EOF
 version: "2.0"
 deployment: docker_swarm
 
@@ -139,7 +145,7 @@ EOF
 @test "get_services_for_machine should handle disabled services" {
     create_test_config
     # Disable jellyfin
-    yq '.services.jellyfin.enabled = false' "$TEST_CONFIG" > "${TEST_CONFIG}.tmp" && mv "${TEST_CONFIG}.tmp" "$TEST_CONFIG"
+    yq '.services.jellyfin.enabled = false' "$HOMELAB_CONFIG" > "${HOMELAB_CONFIG}.tmp" && mv "${HOMELAB_CONFIG}.tmp" "$HOMELAB_CONFIG"
 
     run get_services_for_machine "driver"
     [ "$status" -eq 0 ]
@@ -153,14 +159,14 @@ EOF
 
     # Test the function directly - if it creates the file, it works
     generate_docker_compose_for_machine "driver"
-    [ -f "$TEST_OUTPUT/driver/docker-compose.yaml" ]
+    [ -f "$BUNDLES_DIR/driver/docker-compose.yaml" ]
 }
 
 @test "generated docker-compose.yaml should contain nginx-proxy service" {
     create_test_config
     generate_docker_compose_for_machine "driver"
 
-    run grep -q "nginx-proxy:" "$TEST_OUTPUT/driver/docker-compose.yaml"
+    run grep -q "nginx-proxy:" "$BUNDLES_DIR/driver/docker-compose.yaml"
     [ "$status" -eq 0 ]
 }
 
@@ -168,7 +174,7 @@ EOF
     create_test_config
     generate_docker_compose_for_machine "driver"
 
-    local compose_file="$TEST_OUTPUT/driver/docker-compose.yaml"
+    local compose_file="$BUNDLES_DIR/driver/docker-compose.yaml"
 
     # Should contain homepage and jellyfin (but not nginx as separate service)
     run grep -q "homepage:" "$compose_file"
@@ -186,7 +192,7 @@ EOF
     create_test_config
     generate_docker_compose_for_machine "driver"
 
-    local compose_file="$TEST_OUTPUT/driver/docker-compose.yaml"
+    local compose_file="$BUNDLES_DIR/driver/docker-compose.yaml"
 
     run grep -q "image: ghcr.io/gethomepage/homepage:latest" "$compose_file"
     [ "$status" -eq 0 ]
@@ -199,7 +205,7 @@ EOF
     create_test_config
     generate_docker_compose_for_machine "driver"
 
-    local compose_file="$TEST_OUTPUT/driver/docker-compose.yaml"
+    local compose_file="$BUNDLES_DIR/driver/docker-compose.yaml"
 
     # Should have volumes section
     run grep -q "volumes:" "$compose_file"
@@ -215,8 +221,8 @@ EOF
 
     run generate_nginx_config_for_machine "driver"
     [ "$status" -eq 0 ]
-    [ -d "$TEST_OUTPUT/driver/nginx" ]
-    [ -f "$TEST_OUTPUT/driver/nginx/nginx.conf" ]
+    [ -d "$BUNDLES_DIR/driver/nginx" ]
+    [ -f "$BUNDLES_DIR/driver/nginx/nginx.conf" ]
 }
 
 @test "generate_deployment_script_for_machine should create executable script" {
@@ -224,15 +230,15 @@ EOF
 
     run generate_deployment_script_for_machine "driver"
     [ "$status" -eq 0 ]
-    [ -f "$TEST_OUTPUT/driver/deploy.sh" ]
-    [ -x "$TEST_OUTPUT/driver/deploy.sh" ]
+    [ -f "$BUNDLES_DIR/driver/deploy.sh" ]
+    [ -x "$BUNDLES_DIR/driver/deploy.sh" ]
 }
 
 @test "deployment script should contain correct machine information" {
     create_test_config
     generate_deployment_script_for_machine "driver"
 
-    local deploy_script="$TEST_OUTPUT/driver/deploy.sh"
+    local deploy_script="$BUNDLES_DIR/driver/deploy.sh"
 
     run grep -q 'MACHINE_HOST="192.168.1.10"' "$deploy_script"
     [ "$status" -eq 0 ]
@@ -248,19 +254,19 @@ EOF
     translate_homelab_to_compose
 
     # Should create directories for all machines
-    [ -d "$TEST_OUTPUT/driver" ]
-    [ -d "$TEST_OUTPUT/node-01" ]
+    [ -d "$BUNDLES_DIR/driver" ]
+    [ -d "$BUNDLES_DIR/node-01" ]
 
     # Should create master deployment script
-    [ -f "$TEST_OUTPUT/deploy-all.sh" ]
-    [ -x "$TEST_OUTPUT/deploy-all.sh" ]
+    [ -f "$BUNDLES_DIR/deploy-all.sh" ]
+    [ -x "$BUNDLES_DIR/deploy-all.sh" ]
 }
 
 @test "master deployment script should reference all machines" {
     create_test_config
     translate_homelab_to_compose
 
-    local master_script="$TEST_OUTPUT/deploy-all.sh"
+    local master_script="$BUNDLES_DIR/deploy-all.sh"
 
     run grep -q "driver/deploy.sh" "$master_script"
     [ "$status" -eq 0 ]
@@ -272,8 +278,8 @@ EOF
 @test "should handle machine with no services gracefully" {
     create_test_config
     # Remove all services for node-01 by setting all to driver only
-    yq '.services.jellyfin.deploy = "driver"' "$TEST_CONFIG" > "${TEST_CONFIG}.tmp" && mv "${TEST_CONFIG}.tmp" "$TEST_CONFIG"
-    yq '.services.nginx.deploy = "driver"' "$TEST_CONFIG" > "${TEST_CONFIG}.tmp" && mv "${TEST_CONFIG}.tmp" "$TEST_CONFIG"
+    yq '.services.jellyfin.deploy = "driver"' "$HOMELAB_CONFIG" > "${HOMELAB_CONFIG}.tmp" && mv "${HOMELAB_CONFIG}.tmp" "$HOMELAB_CONFIG"
+    yq '.services.nginx.deploy = "driver"' "$HOMELAB_CONFIG" > "${HOMELAB_CONFIG}.tmp" && mv "${HOMELAB_CONFIG}.tmp" "$HOMELAB_CONFIG"
 
     # Test the function directly - it should handle gracefully by not creating files for machines with no services
     generate_docker_compose_for_machine "node-01"
@@ -294,10 +300,10 @@ EOF
     create_test_config
 
     # Add service with 'any' strategy
-    yq '.services.test_any = {"image": "test:latest", "port": 9000, "deploy": "any", "enabled": true}' "$TEST_CONFIG" > "${TEST_CONFIG}.tmp" && mv "${TEST_CONFIG}.tmp" "$TEST_CONFIG"
+    yq '.services.test_any = {"image": "test:latest", "port": 9000, "deploy": "any", "enabled": true}' "$HOMELAB_CONFIG" > "${HOMELAB_CONFIG}.tmp" && mv "${HOMELAB_CONFIG}.tmp" "$HOMELAB_CONFIG"
 
     # Add service with 'random' strategy
-    yq '.services.test_random = {"image": "test2:latest", "port": 9001, "deploy": "random", "enabled": true}' "$TEST_CONFIG" > "${TEST_CONFIG}.tmp" && mv "${TEST_CONFIG}.tmp" "$TEST_CONFIG"
+    yq '.services.test_random = {"image": "test2:latest", "port": 9001, "deploy": "random", "enabled": true}' "$HOMELAB_CONFIG" > "${HOMELAB_CONFIG}.tmp" && mv "${HOMELAB_CONFIG}.tmp" "$HOMELAB_CONFIG"
 
     # 'any' and 'random' should deploy to first machine (driver)
     run get_services_for_machine "driver"

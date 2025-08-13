@@ -430,7 +430,7 @@ service_generate_consolidated() {
 # Function: service_validate
 # Description: Validates the services configuration
 service_validate() {
-    if ! validate_services_config; then
+    if ! validate_HOMELAB_CONFIG; then
         exit 1
     fi
 }
@@ -610,11 +610,7 @@ enhanced_deploy() {
     local cmd="$2"
     shift 2
 
-    # Check for legacy .enabled-services file and migrate if needed
-    if [ -f "$PROJECT_ROOT/.enabled-services" ]; then
-        echo "🔄 Detected legacy .enabled-services file, migrating to services.yaml..."
-        migrate_from_legacy_enabled_services
-    fi
+
 
     # Generate deployment files before deploying (if not dry-run)
     if [ -f "$PROJECT_ROOT/config/services.yaml" ] && [[ "$*" != *"--dry-run"* ]]; then
@@ -788,25 +784,7 @@ case "$1" in
         ;;
     help|"") show_help ;;
 
-    # Legacy commands (deprecated but still functional)
-    init-certs)
-        echo "⚠️  Warning: 'init-certs' is deprecated. Use '$0 config init' instead"
-        ensure_certs_exist
-        ;;
-    list)
-        echo "⚠️  Warning: 'list' is deprecated. Use '$0 service list' instead"
-        service_list
-        ;;
-    sync-files)
-        echo "⚠️  Warning: 'sync-files' is deprecated. Use '$0 config sync' instead"
-        sync-files
-        ;;
 
-    # Legacy deployment commands (still support old format)
-    compose|swarm|k8s|machines)
-        echo "⚠️  Warning: '$1 $2' is deprecated. Use '$0 deploy $1 $2' instead"
-        enhanced_deploy "$1" "$2" "${@:3}"
-        ;;
 
     *)
         echo "❌ Unknown command: $1"

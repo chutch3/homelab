@@ -3,6 +3,7 @@
 setup() {
     # Load test helper functions
     load ../scripts/test_helper
+    load ../../helpers/homelab_builder
 
     # Create temporary test directory
     TEST_TEMP_DIR="$(temp_make)"
@@ -14,7 +15,7 @@ setup() {
 
     # Create test services config with dependencies
     mkdir -p "$TEST_TEMP_DIR/config"
-    cat > "$TEST_TEMP_DIR/config/services.yaml" <<EOF
+    cat > "$TEST_TEMP_DIR/homelab.yaml" <<EOF
 version: "1.0"
 categories:
   database: "Database Services"
@@ -161,6 +162,7 @@ teardown() {
 @test "detect_circular_dependencies_should_find_circular_refs" {
     # Test circular dependency detection
     run detect_circular_dependencies
+    echo "output: $output"
     [ "$status" -eq 1 ]  # Should fail with circular dependency
     [[ "$output" == *"Circular dependency detected"* ]]
     # Should mention at least one of the circular services

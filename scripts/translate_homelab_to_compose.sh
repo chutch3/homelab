@@ -4,6 +4,8 @@
 # Translates homelab.yaml to Docker Compose configurations for distributed deployment
 # Part of Issue #35 - Docker Compose Translation Engine
 
+source "$PROJECT_ROOT/scripts/common.sh"
+
 set -e
 
 # Get script directory for relative path resolution
@@ -17,7 +19,7 @@ source "$SCRIPT_DIR/common.sh"
 
 # Default configuration
 HOMELAB_CONFIG="${HOMELAB_CONFIG:-$PROJECT_ROOT/homelab.yaml}"
-OUTPUT_DIR="${OUTPUT_DIR:-$PROJECT_ROOT/generated/docker-compose}"
+BUNDLES_DIR="${BUNDLES_DIR:-$PROJECT_ROOT/bundles}"
 
 # Logging functions
 log_info() {
@@ -131,19 +133,22 @@ get_services_for_machine() {
 # Returns: 0 on success, 1 on failure
 generate_docker_compose_for_machine() {
     local machine_name="$1"
-    local machine_output_dir="$OUTPUT_DIR/$machine_name"
-    local compose_file="$machine_output_dir/docker-compose.yaml"
+    local machine_bundles_dir="$BUNDLES_DIR/$machine_name"
+    local compose_file="$machine_bundles_dir/docker-compose.yaml"
 
     log_info "Generating Docker Compose for machine: $machine_name"
 
-    # Load .env file once at the beginning (suppress readonly variable errors)
-    if [[ -f "$PROJECT_ROOT/.env" ]]; then
-        # shellcheck source=/dev/null
-        source "$PROJECT_ROOT/.env" 2>/dev/null || true
-    fi
+    # # Load .env file once at the beginning (suppress readonly variable errors)
+    # if [[ -f "$PROJECT_ROOT/.env" ]]; then
+    #     # shellcheck source=/dev/null
+    #     source "$PROJECT_ROOT/.env" 2>/dev/null || true
+    # fi
+    load_env
+
+    log_info "Machine bundles directory: $machine_bundles_dir"
 
     # Create output directory
-    mkdir -p "$machine_output_dir" || { echo "Failed to create directory" >&2; return 1; }
+    mkdir -p "$machine_bundles_dir" || { echo "Failed to create directory" >&2; return 1; }
 
     # Get services for this machine
     local services
@@ -151,7 +156,7 @@ generate_docker_compose_for_machine() {
     local get_services_exit_code=$?
 
     if [[ $get_services_exit_code -ne 0 ]]; then
-        echo "get_services_for_machine failed with exit code $get_services_exit_code" >&2
+        log_error "get_services_for_machine failed with exit code $get_services_exit_code" >&2
         return 1
     fi
 
@@ -159,6 +164,8 @@ generate_docker_compose_for_machine() {
         log_warning "No services assigned to machine: $machine_name"
         return 0
     fi
+
+    log_info "Services for machine: $machine_name"
 
     # Start docker-compose.yaml file
     cat > "$compose_file" <<EOF
@@ -290,8 +297,8 @@ EOF
 # Returns: 0 on success, 1 on failure
 generate_nginx_config_for_machine() {
     local machine_name="$1"
-    local machine_output_dir="$OUTPUT_DIR/$machine_name"
-    local nginx_dir="$machine_output_dir/nginx"
+    local machine_bundles_dir="$BUNDLES_DIR/$machine_name"
+    local nginx_dir="$machine_bundles_dir/nginx"
 
     log_info "Generating nginx configuration for machine: $machine_name"
 
@@ -402,13 +409,13 @@ EOF
 # Returns: 0 on success, 1 on failure
 generate_deployment_script_for_machine() {
     local machine_name="$1"
-    local machine_output_dir="$OUTPUT_DIR/$machine_name"
-    local deploy_script="$machine_output_dir/deploy.sh"
+    local machine_bundles_dir="$BUNDLES_DIR/$machine_name"
+    local deploy_script="$machine_bundles_dir/deploy.sh"
 
     log_info "Generating deployment script for machine: $machine_name"
 
     # Ensure directory exists
-    mkdir -p "$machine_output_dir"
+    mkdir -p "$machine_bundles_dir"
 
     # Get machine configuration
     local machine_host machine_user
@@ -482,7 +489,7 @@ translate_homelab_to_compose() {
     validate_homelab_config_compose || return 1
 
     # Create output directory
-    mkdir -p "$OUTPUT_DIR"
+    mkdir -p "$BUNDLES_DIR"
 
     # Get all machines
     local machines
@@ -506,7 +513,7 @@ translate_homelab_to_compose() {
     # Generate master deployment script
     generate_master_deployment_script || return 1
 
-    log_success "Translation completed! Generated files in: $OUTPUT_DIR"
+    log_success "Translation completed! Generated files in: $BUNDLES_DIR"
     return 0
 }
 
@@ -515,7 +522,7 @@ translate_homelab_to_compose() {
 # Arguments: None
 # Returns: 0 on success, 1 on failure
 generate_master_deployment_script() {
-    local master_script="$OUTPUT_DIR/deploy-all.sh"
+    local master_script="$BUNDLES_DIR/deploy-all.sh"
 
     log_info "Generating master deployment script..."
 
@@ -606,7 +613,7 @@ main() {
                 shift 2
                 ;;
             -o|--output)
-                OUTPUT_DIR="$2"
+                BUNDLES_DIR="$2"
                 shift 2
                 ;;
             generate-nginx-bundles)
