@@ -192,3 +192,4 @@ machines.yml
 bin/
 plan.md
 plan-*.md
+coverage/
