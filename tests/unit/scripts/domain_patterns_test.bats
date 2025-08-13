@@ -3,6 +3,7 @@
 setup() {
     # Load test helper functions
     load ../scripts/test_helper
+    load ../../helpers/homelab_builder
 
     # Create temporary test directory
     TEST_TEMP_DIR="$(temp_make)"
@@ -14,7 +15,7 @@ setup() {
 
     # Create test services config with various domain patterns
     mkdir -p "$TEST_TEMP_DIR/config"
-    cat > "$TEST_TEMP_DIR/config/services.yaml" <<EOF
+    cat > "$TEST_TEMP_DIR/homelab.yaml" <<EOF
 version: "1.0"
 categories:
   finance: "Finance & Budgeting"

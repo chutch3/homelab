@@ -5,7 +5,7 @@
 
 # Set default paths
 PROJECT_ROOT="${PROJECT_ROOT:-$PWD}"
-SERVICES_CONFIG="${SERVICES_CONFIG:-$PROJECT_ROOT/config/services.yaml}"
+HOMELAB_CONFIG="${HOMELAB_CONFIG:-$PROJECT_ROOT/homelab.yaml}"
 VOLUMES_CONFIG="${VOLUMES_CONFIG:-$PROJECT_ROOT/config/volumes.yaml}"
 VOLUMES_ENV_FILE="${VOLUMES_ENV_FILE:-$PROJECT_ROOT/.volumes}"
 
@@ -38,21 +38,34 @@ load_volume_config() {
     if yq '.storage.nfs.enabled' "$VOLUMES_CONFIG" | grep -q true; then
         storage_type="nfs"
         export VOLUME_STORAGE_TYPE="nfs"
-        export NFS_SERVER=$(yq -r '.storage.nfs.server' "$VOLUMES_CONFIG")
-        export NFS_EXPORT_PATH=$(yq -r '.storage.nfs.export_path' "$VOLUMES_CONFIG")
-        export NFS_MOUNT_POINT=$(yq -r '.storage.nfs.mount_point' "$VOLUMES_CONFIG")
-        export NFS_MOUNT_OPTIONS=$(yq -r '.storage.nfs.mount_options' "$VOLUMES_CONFIG")
+        local nfs_server nfs_export_path nfs_mount_point nfs_mount_options volume_owner volume_group volume_permissions
+        nfs_server=$(yq -r '.storage.nfs.server' "$VOLUMES_CONFIG")
+        export NFS_SERVER="$nfs_server"
+        nfs_export_path=$(yq -r '.storage.nfs.export_path' "$VOLUMES_CONFIG")
+        export NFS_EXPORT_PATH="$nfs_export_path"
+        nfs_mount_point=$(yq -r '.storage.nfs.mount_point' "$VOLUMES_CONFIG")
+        export NFS_MOUNT_POINT="$nfs_mount_point"
+        nfs_mount_options=$(yq -r '.storage.nfs.mount_options' "$VOLUMES_CONFIG")
+        export NFS_MOUNT_OPTIONS="$nfs_mount_options"
         export VOLUME_BASE_PATH="$NFS_MOUNT_POINT"
-        export VOLUME_OWNER=$(yq -r '.storage.nfs.permissions.owner' "$VOLUMES_CONFIG")
-        export VOLUME_GROUP=$(yq -r '.storage.nfs.permissions.group' "$VOLUMES_CONFIG")
-        export VOLUME_PERMISSIONS=$(yq -r '.storage.nfs.permissions.mode' "$VOLUMES_CONFIG")
+        volume_owner=$(yq -r '.storage.nfs.permissions.owner' "$VOLUMES_CONFIG")
+        export VOLUME_OWNER="$volume_owner"
+        volume_group=$(yq -r '.storage.nfs.permissions.group' "$VOLUMES_CONFIG")
+        export VOLUME_GROUP="$volume_group"
+        volume_permissions=$(yq -r '.storage.nfs.permissions.mode' "$VOLUMES_CONFIG")
+        export VOLUME_PERMISSIONS="$volume_permissions"
     else
         storage_type="local"
         export VOLUME_STORAGE_TYPE="local"
-        export VOLUME_BASE_PATH=$(yq -r '.storage.local.base_path' "$VOLUMES_CONFIG")
-        export VOLUME_OWNER=$(yq -r '.storage.local.permissions.owner' "$VOLUMES_CONFIG")
-        export VOLUME_GROUP=$(yq -r '.storage.local.permissions.group' "$VOLUMES_CONFIG")
-        export VOLUME_PERMISSIONS=$(yq -r '.storage.local.permissions.mode' "$VOLUMES_CONFIG")
+        local volume_base_path volume_owner volume_group volume_permissions
+        volume_base_path=$(yq -r '.storage.local.base_path' "$VOLUMES_CONFIG")
+        export VOLUME_BASE_PATH="$volume_base_path"
+        volume_owner=$(yq -r '.storage.local.permissions.owner' "$VOLUMES_CONFIG")
+        export VOLUME_OWNER="$volume_owner"
+        volume_group=$(yq -r '.storage.local.permissions.group' "$VOLUMES_CONFIG")
+        export VOLUME_GROUP="$volume_group"
+        volume_permissions=$(yq -r '.storage.local.permissions.mode' "$VOLUMES_CONFIG")
+        export VOLUME_PERMISSIONS="$volume_permissions"
     fi
 
     echo "📁 Loaded $storage_type storage configuration"
@@ -66,8 +79,8 @@ load_volume_config() {
 # Arguments: None
 # Returns: Outputs volume environment variables
 generate_volume_paths() {
-    if [ ! -f "$SERVICES_CONFIG" ]; then
-        echo "❌ Error: Services configuration not found at $SERVICES_CONFIG"
+    if [ ! -f "$HOMELAB_CONFIG" ]; then
+        echo "❌ Error: Services configuration not found at $HOMELAB_CONFIG"
         return 1
     fi
 
@@ -105,19 +118,19 @@ EOF
     echo "# Volume paths" >> "$VOLUMES_ENV_FILE"
 
     # Extract services and generate volume paths
-    yq '.services | keys[]' "$SERVICES_CONFIG" | while read -r service_key; do
+    yq '.services | keys[]' "$HOMELAB_CONFIG" | while read -r service_key; do
         service_key=$(echo "$service_key" | tr -d '"')
 
         # Check if service has volumes defined
-        if yq ".services[\"${service_key}\"].volumes" "$SERVICES_CONFIG" | grep -q -v null; then
+        if yq ".services[\"${service_key}\"].volumes" "$HOMELAB_CONFIG" | grep -q -v null; then
             echo "  Processing volumes for: $service_key"
 
             # Get number of volumes for this service
-            volume_count=$(yq ".services[\"${service_key}\"].volumes | length" "$SERVICES_CONFIG")
+            volume_count=$(yq ".services[\"${service_key}\"].volumes | length" "$HOMELAB_CONFIG")
 
             # Process each volume by index
             for i in $(seq 0 $((volume_count - 1))); do
-                volume_name=$(yq ".services[\"${service_key}\"].volumes[$i].name" "$SERVICES_CONFIG" | tr -d '"')
+                volume_name=$(yq ".services[\"${service_key}\"].volumes[$i].name" "$HOMELAB_CONFIG" | tr -d '"')
                 if [ "$volume_name" != "null" ] && [ -n "$volume_name" ]; then
                     # Generate volume path variable
                     service_var=$(echo "$service_key" | tr '[:lower:]' '[:upper:]' | sed 's/[^A-Z0-9]/_/g')
@@ -239,8 +252,8 @@ setup_nfs_mount() {
 # Arguments: None
 # Returns: 0 on success, 1 on failure
 create_volume_directories() {
-    if [ ! -f "$SERVICES_CONFIG" ]; then
-        echo "❌ Error: Services configuration not found at $SERVICES_CONFIG"
+    if [ ! -f "$HOMELAB_CONFIG" ]; then
+        echo "❌ Error: Services configuration not found at $HOMELAB_CONFIG"
         return 1
     fi
 
@@ -255,19 +268,19 @@ create_volume_directories() {
     fi
 
     # Extract services and create volume directories
-    yq '.services | keys[]' "$SERVICES_CONFIG" | while read -r service_key; do
+    yq '.services | keys[]' "$HOMELAB_CONFIG" | while read -r service_key; do
         service_key=$(echo "$service_key" | tr -d '"')
 
         # Check if service has volumes defined
-        if yq ".services[\"${service_key}\"].volumes" "$SERVICES_CONFIG" | grep -q -v null; then
+        if yq ".services[\"${service_key}\"].volumes" "$HOMELAB_CONFIG" | grep -q -v null; then
             echo "  Creating directories for: $service_key"
 
             # Get number of volumes for this service
-            volume_count=$(yq ".services[\"${service_key}\"].volumes | length" "$SERVICES_CONFIG")
+            volume_count=$(yq ".services[\"${service_key}\"].volumes | length" "$HOMELAB_CONFIG")
 
             # Process each volume by index
             for i in $(seq 0 $((volume_count - 1))); do
-                volume_name=$(yq ".services[\"${service_key}\"].volumes[$i].name" "$SERVICES_CONFIG" | tr -d '"')
+                volume_name=$(yq ".services[\"${service_key}\"].volumes[$i].name" "$HOMELAB_CONFIG" | tr -d '"')
                 if [ "$volume_name" != "null" ] && [ -n "$volume_name" ]; then
                     volume_path="$VOLUME_BASE_PATH/${service_key}/${volume_name}"
 
@@ -295,8 +308,8 @@ create_volume_directories() {
 # Arguments: None
 # Returns: 0 on success, 1 on failure
 generate_backup_config() {
-    if [ ! -f "$SERVICES_CONFIG" ]; then
-        echo "❌ Error: Services configuration not found at $SERVICES_CONFIG"
+    if [ ! -f "$HOMELAB_CONFIG" ]; then
+        echo "❌ Error: Services configuration not found at $HOMELAB_CONFIG"
         return 1
     fi
 
@@ -321,15 +334,15 @@ HIGH_PRIORITY_VOLUMES=(
 EOF
 
     # Extract high priority volumes
-    yq '.services | keys[]' "$SERVICES_CONFIG" | while read -r service_key; do
+    yq '.services | keys[]' "$HOMELAB_CONFIG" | while read -r service_key; do
         service_key=$(echo "$service_key" | tr -d '"')
 
-        if yq ".services[\"${service_key}\"].volumes" "$SERVICES_CONFIG" | grep -q -v null; then
-            volume_count=$(yq ".services[\"${service_key}\"].volumes | length" "$SERVICES_CONFIG")
+        if yq ".services[\"${service_key}\"].volumes" "$HOMELAB_CONFIG" | grep -q -v null; then
+            volume_count=$(yq ".services[\"${service_key}\"].volumes | length" "$HOMELAB_CONFIG")
 
             for i in $(seq 0 $((volume_count - 1))); do
-                volume_name=$(yq ".services[\"${service_key}\"].volumes[$i].name" "$SERVICES_CONFIG" | tr -d '"')
-                backup_priority=$(yq ".services[\"${service_key}\"].volumes[$i].backup_priority" "$SERVICES_CONFIG" | tr -d '"')
+                volume_name=$(yq ".services[\"${service_key}\"].volumes[$i].name" "$HOMELAB_CONFIG" | tr -d '"')
+                backup_priority=$(yq ".services[\"${service_key}\"].volumes[$i].backup_priority" "$HOMELAB_CONFIG" | tr -d '"')
 
                 if [ "$backup_priority" = "high" ]; then
                     echo "    \"${service_key}/${volume_name}\"" >> "$backup_script"
@@ -346,15 +359,15 @@ MEDIUM_PRIORITY_VOLUMES=(
 EOF
 
     # Extract medium priority volumes
-    yq '.services | keys[]' "$SERVICES_CONFIG" | while read -r service_key; do
+    yq '.services | keys[]' "$HOMELAB_CONFIG" | while read -r service_key; do
         service_key=$(echo "$service_key" | tr -d '"')
 
-        if yq ".services[\"${service_key}\"].volumes" "$SERVICES_CONFIG" | grep -q -v null; then
-            volume_count=$(yq ".services[\"${service_key}\"].volumes | length" "$SERVICES_CONFIG")
+        if yq ".services[\"${service_key}\"].volumes" "$HOMELAB_CONFIG" | grep -q -v null; then
+            volume_count=$(yq ".services[\"${service_key}\"].volumes | length" "$HOMELAB_CONFIG")
 
             for i in $(seq 0 $((volume_count - 1))); do
-                volume_name=$(yq ".services[\"${service_key}\"].volumes[$i].name" "$SERVICES_CONFIG" | tr -d '"')
-                backup_priority=$(yq ".services[\"${service_key}\"].volumes[$i].backup_priority" "$SERVICES_CONFIG" | tr -d '"')
+                volume_name=$(yq ".services[\"${service_key}\"].volumes[$i].name" "$HOMELAB_CONFIG" | tr -d '"')
+                backup_priority=$(yq ".services[\"${service_key}\"].volumes[$i].backup_priority" "$HOMELAB_CONFIG" | tr -d '"')
 
                 if [ "$backup_priority" = "medium" ]; then
                     echo "    \"${service_key}/${volume_name}\"" >> "$backup_script"
@@ -440,7 +453,7 @@ show_volume_usage() {
     find "$VOLUME_BASE_PATH" -maxdepth 2 -type d | while read -r dir; do
         if [ "$dir" != "$VOLUME_BASE_PATH" ]; then
             size=$(du -sh "$dir" 2>/dev/null | cut -f1)
-            relative_path=$(echo "$dir" | sed "s|$VOLUME_BASE_PATH/||")
+            relative_path="${dir#"$VOLUME_BASE_PATH"/}"
             echo "  $relative_path: $size"
         fi
     done
@@ -481,7 +494,7 @@ migrate_volumes() {
     if $dry_run; then
         echo "🔍 Dry run mode - showing what would be migrated:"
         find "$source_path" -mindepth 1 -maxdepth 2 -type d | while read -r dir; do
-            relative_path=$(echo "$dir" | sed "s|$source_path/||")
+            relative_path="${dir#"$source_path"/}"
             echo "Would migrate: $relative_path"
         done
         return 0
@@ -496,9 +509,7 @@ migrate_volumes() {
         dest_service_dir="$dest_path/$service_name"
 
         echo "📦 Migrating: $service_name"
-        rsync -av "$service_dir/" "$dest_service_dir/"
-
-        if [ $? -eq 0 ]; then
+        if rsync -av "$service_dir/" "$dest_service_dir/"; then
             echo "✅ Successfully migrated: $service_name"
         else
             echo "❌ Failed to migrate: $service_name"
@@ -523,7 +534,8 @@ check_volume_permissions() {
         return 1
     fi
 
-    local issues=0
+    local temp_file
+    temp_file=$(mktemp)
 
     # Check permissions for each volume directory
     find "$VOLUME_BASE_PATH" -mindepth 2 -maxdepth 2 -type d | while read -r volume_dir; do
@@ -532,12 +544,12 @@ check_volume_permissions() {
         current_owner=$(stat -c "%U" "$volume_dir" 2>/dev/null)
         current_group=$(stat -c "%G" "$volume_dir" 2>/dev/null)
 
-        relative_path=$(echo "$volume_dir" | sed "s|$VOLUME_BASE_PATH/||")
+        relative_path="${volume_dir#"$VOLUME_BASE_PATH"/}"
 
         # Check if permissions match expected
         if [ "$current_perms" != "$VOLUME_PERMISSIONS" ]; then
             echo "⚠️  Incorrect permissions: $relative_path ($current_perms, expected $VOLUME_PERMISSIONS)"
-            issues=$((issues + 1))
+            echo "1" >> "$temp_file"
         fi
 
         # Check ownership (if we can determine expected owner name)
@@ -547,17 +559,21 @@ check_volume_permissions() {
 
             if [ -n "$expected_owner" ] && [ "$current_owner" != "$expected_owner" ]; then
                 echo "⚠️  Incorrect owner: $relative_path ($current_owner, expected $expected_owner)"
-                issues=$((issues + 1))
+                echo "1" >> "$temp_file"
             fi
 
             if [ -n "$expected_group" ] && [ "$current_group" != "$expected_group" ]; then
                 echo "⚠️  Incorrect group: $relative_path ($current_group, expected $expected_group)"
-                issues=$((issues + 1))
+                echo "1" >> "$temp_file"
             fi
         fi
     done
 
-    if [ $issues -eq 0 ]; then
+    local issues
+    issues=$(wc -l < "$temp_file" 2>/dev/null || echo "0")
+    rm -f "$temp_file"
+
+    if [ "$issues" -eq 0 ]; then
         echo "✅ Volume permissions are valid"
         return 0
     else

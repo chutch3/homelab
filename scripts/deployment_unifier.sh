@@ -5,7 +5,7 @@
 
 # Set default paths
 PROJECT_ROOT="${PROJECT_ROOT:-$PWD}"
-SERVICES_CONFIG="${SERVICES_CONFIG:-$PROJECT_ROOT/config/services.yaml}"
+HOMELAB_CONFIG="${HOMELAB_CONFIG:-$PROJECT_ROOT/homelab.yaml}"
 COMPOSE_OUTPUT="${COMPOSE_OUTPUT:-$PROJECT_ROOT/generated-docker-compose.yaml}"
 SWARM_OUTPUT="${SWARM_OUTPUT:-$PROJECT_ROOT/generated-stack.yaml}"
 K8S_OUTPUT_DIR="${K8S_OUTPUT_DIR:-$PROJECT_ROOT/generated-k8s}"
@@ -46,21 +46,21 @@ extract_shared_container_config() {
         return 1
     fi
 
-    if [ ! -f "$SERVICES_CONFIG" ]; then
-        echo "❌ Error: Services configuration not found at $SERVICES_CONFIG" >&2
+    if [ ! -f "$HOMELAB_CONFIG" ]; then
+        echo "❌ Error: Services configuration not found at $HOMELAB_CONFIG" >&2
         return 1
     fi
 
     echo "📦 Extracting shared container config for: $service" >&2
 
     # Check if service exists
-    if ! yq ".services[\"${service}\"]" "$SERVICES_CONFIG" | grep -q -v null; then
+    if ! yq ".services[\"${service}\"]" "$HOMELAB_CONFIG" | grep -q -v null; then
         echo "❌ Error: Service '$service' not found" >&2
         return 1
     fi
 
     # Extract shared container configuration
-    yq ".services[\"${service}\"].container" "$SERVICES_CONFIG" 2>/dev/null
+    yq ".services[\"${service}\"].container" "$HOMELAB_CONFIG" 2>/dev/null
 }
 
 # Function: convert_resources_to_compose
@@ -75,8 +75,8 @@ convert_resources_to_compose() {
     fi
 
     local cpu_limit memory_limit
-    cpu_limit=$(yq ".services[\"${service}\"].container.resources.cpu_limit" "$SERVICES_CONFIG" 2>/dev/null | tr -d '"')
-    memory_limit=$(yq ".services[\"${service}\"].container.resources.memory_limit" "$SERVICES_CONFIG" 2>/dev/null | tr -d '"')
+    cpu_limit=$(yq ".services[\"${service}\"].container.resources.cpu_limit" "$HOMELAB_CONFIG" 2>/dev/null | tr -d '"')
+    memory_limit=$(yq ".services[\"${service}\"].container.resources.memory_limit" "$HOMELAB_CONFIG" 2>/dev/null | tr -d '"')
 
     if [ "$cpu_limit" != "null" ] && [ -n "$cpu_limit" ] || [ "$memory_limit" != "null" ] && [ -n "$memory_limit" ]; then
         echo "deploy:"
@@ -99,10 +99,10 @@ convert_resources_to_swarm() {
     fi
 
     local cpu_request cpu_limit memory_request memory_limit
-    cpu_request=$(yq ".services[\"${service}\"].container.resources.cpu_request" "$SERVICES_CONFIG" 2>/dev/null | tr -d '"')
-    cpu_limit=$(yq ".services[\"${service}\"].container.resources.cpu_limit" "$SERVICES_CONFIG" 2>/dev/null | tr -d '"')
-    memory_request=$(yq ".services[\"${service}\"].container.resources.memory_request" "$SERVICES_CONFIG" 2>/dev/null | tr -d '"')
-    memory_limit=$(yq ".services[\"${service}\"].container.resources.memory_limit" "$SERVICES_CONFIG" 2>/dev/null | tr -d '"')
+    cpu_request=$(yq ".services[\"${service}\"].container.resources.cpu_request" "$HOMELAB_CONFIG" 2>/dev/null | tr -d '"')
+    cpu_limit=$(yq ".services[\"${service}\"].container.resources.cpu_limit" "$HOMELAB_CONFIG" 2>/dev/null | tr -d '"')
+    memory_request=$(yq ".services[\"${service}\"].container.resources.memory_request" "$HOMELAB_CONFIG" 2>/dev/null | tr -d '"')
+    memory_limit=$(yq ".services[\"${service}\"].container.resources.memory_limit" "$HOMELAB_CONFIG" 2>/dev/null | tr -d '"')
 
     echo "deploy:"
     echo "  resources:"
@@ -130,10 +130,10 @@ convert_resources_to_kubernetes() {
     fi
 
     local cpu_request cpu_limit memory_request memory_limit
-    cpu_request=$(yq ".services[\"${service}\"].container.resources.cpu_request" "$SERVICES_CONFIG" 2>/dev/null | tr -d '"')
-    cpu_limit=$(yq ".services[\"${service}\"].container.resources.cpu_limit" "$SERVICES_CONFIG" 2>/dev/null | tr -d '"')
-    memory_request=$(yq ".services[\"${service}\"].container.resources.memory_request" "$SERVICES_CONFIG" 2>/dev/null | tr -d '"')
-    memory_limit=$(yq ".services[\"${service}\"].container.resources.memory_limit" "$SERVICES_CONFIG" 2>/dev/null | tr -d '"')
+    cpu_request=$(yq ".services[\"${service}\"].container.resources.cpu_request" "$HOMELAB_CONFIG" 2>/dev/null | tr -d '"')
+    cpu_limit=$(yq ".services[\"${service}\"].container.resources.cpu_limit" "$HOMELAB_CONFIG" 2>/dev/null | tr -d '"')
+    memory_request=$(yq ".services[\"${service}\"].container.resources.memory_request" "$HOMELAB_CONFIG" 2>/dev/null | tr -d '"')
+    memory_limit=$(yq ".services[\"${service}\"].container.resources.memory_limit" "$HOMELAB_CONFIG" 2>/dev/null | tr -d '"')
 
     echo "resources:"
     if [ "$cpu_request" != "null" ] && [ -n "$cpu_request" ] || [ "$memory_request" != "null" ] && [ -n "$memory_request" ]; then
@@ -193,7 +193,7 @@ EOF
     echo "services:" >> "$COMPOSE_OUTPUT"
 
     # Process each service
-    yq '.services | keys[]' "$SERVICES_CONFIG" | while read -r service_key; do
+    yq '.services | keys[]' "$HOMELAB_CONFIG" | while read -r service_key; do
         service_key=$(echo "$service_key" | tr -d '"')
 
         echo "  Processing service: $service_key" >&2
@@ -201,14 +201,14 @@ EOF
         echo "  $service_key:" >> "$COMPOSE_OUTPUT"
 
         # Add shared container configuration
-        local image environment
-        image=$(yq ".services[\"${service_key}\"].container.image" "$SERVICES_CONFIG" 2>/dev/null | tr -d '"')
+        local image
+        image=$(yq ".services[\"${service_key}\"].container.image" "$HOMELAB_CONFIG" 2>/dev/null | tr -d '"')
         [ "$image" != "null" ] && [ -n "$image" ] && echo "    image: $image" >> "$COMPOSE_OUTPUT"
 
         # Add environment variables
-        if yq ".services[\"${service_key}\"].container.environment" "$SERVICES_CONFIG" | grep -q -v null; then
+        if yq ".services[\"${service_key}\"].container.environment" "$HOMELAB_CONFIG" | grep -q -v null; then
             echo "    environment:" >> "$COMPOSE_OUTPUT"
-            yq ".services[\"${service_key}\"].container.environment | to_entries[]" "$SERVICES_CONFIG" | while read -r env_entry; do
+            yq ".services[\"${service_key}\"].container.environment | to_entries[]" "$HOMELAB_CONFIG" | while read -r env_entry; do
                 env_key=$(echo "$env_entry" | yq '.key' | tr -d '"')
                 env_value=$(echo "$env_entry" | yq '.value' | tr -d '"')
                 echo "      $env_key: \"$env_value\"" >> "$COMPOSE_OUTPUT"
@@ -216,15 +216,15 @@ EOF
         fi
 
         # Add compose-specific configuration
-        if yq ".services[\"${service_key}\"].compose" "$SERVICES_CONFIG" | grep -q -v null; then
+        if yq ".services[\"${service_key}\"].compose" "$HOMELAB_CONFIG" | grep -q -v null; then
             # Add restart policy
-            restart=$(yq ".services[\"${service_key}\"].compose.restart" "$SERVICES_CONFIG" 2>/dev/null | tr -d '"')
+            restart=$(yq ".services[\"${service_key}\"].compose.restart" "$HOMELAB_CONFIG" 2>/dev/null | tr -d '"')
             [ "$restart" != "null" ] && [ -n "$restart" ] && echo "    restart: $restart" >> "$COMPOSE_OUTPUT"
 
             # Add networks
-            if yq ".services[\"${service_key}\"].compose.networks" "$SERVICES_CONFIG" | grep -q -v null; then
+            if yq ".services[\"${service_key}\"].compose.networks" "$HOMELAB_CONFIG" | grep -q -v null; then
                 echo "    networks:" >> "$COMPOSE_OUTPUT"
-                yq ".services[\"${service_key}\"].compose.networks[]" "$SERVICES_CONFIG" | while read -r network; do
+                yq ".services[\"${service_key}\"].compose.networks[]" "$HOMELAB_CONFIG" | while read -r network; do
                     network=$(echo "$network" | tr -d '"')
                     echo "      - $network" >> "$COMPOSE_OUTPUT"
                 done
@@ -235,7 +235,9 @@ EOF
         local resource_config
         resource_config=$(convert_resources_to_compose "$service_key")
         if [ -n "$resource_config" ]; then
-            echo "$resource_config" | sed 's/^/    /' >> "$COMPOSE_OUTPUT"
+            while IFS= read -r line; do
+                echo "    $line" >> "$COMPOSE_OUTPUT"
+            done <<< "$resource_config"
         fi
     done
 
@@ -264,7 +266,7 @@ services:
 EOF
 
     # Process each service
-    yq '.services | keys[]' "$SERVICES_CONFIG" | while read -r service_key; do
+    yq '.services | keys[]' "$HOMELAB_CONFIG" | while read -r service_key; do
         service_key=$(echo "$service_key" | tr -d '"')
 
         echo "  Processing service: $service_key" >&2
@@ -273,13 +275,13 @@ EOF
 
         # Add shared container configuration
         local image
-        image=$(yq ".services[\"${service_key}\"].container.image" "$SERVICES_CONFIG" 2>/dev/null | tr -d '"')
+        image=$(yq ".services[\"${service_key}\"].container.image" "$HOMELAB_CONFIG" 2>/dev/null | tr -d '"')
         [ "$image" != "null" ] && [ -n "$image" ] && echo "    image: $image" >> "$SWARM_OUTPUT"
 
         # Add environment variables
-        if yq ".services[\"${service_key}\"].container.environment" "$SERVICES_CONFIG" | grep -q -v null; then
+        if yq ".services[\"${service_key}\"].container.environment" "$HOMELAB_CONFIG" | grep -q -v null; then
             echo "    environment:" >> "$SWARM_OUTPUT"
-            yq ".services[\"${service_key}\"].container.environment | to_entries[]" "$SERVICES_CONFIG" | while read -r env_entry; do
+            yq ".services[\"${service_key}\"].container.environment | to_entries[]" "$HOMELAB_CONFIG" | while read -r env_entry; do
                 env_key=$(echo "$env_entry" | yq '.key' | tr -d '"')
                 env_value=$(echo "$env_entry" | yq '.value' | tr -d '"')
                 echo "      $env_key: \"$env_value\"" >> "$SWARM_OUTPUT"
@@ -287,22 +289,22 @@ EOF
         fi
 
         # Add swarm-specific deployment configuration
-        if yq ".services[\"${service_key}\"].swarm.deploy" "$SERVICES_CONFIG" | grep -q -v null; then
+        if yq ".services[\"${service_key}\"].swarm.deploy" "$HOMELAB_CONFIG" | grep -q -v null; then
             echo "    deploy:" >> "$SWARM_OUTPUT"
 
             # Add deployment mode and replicas
             local mode replicas
-            mode=$(yq ".services[\"${service_key}\"].swarm.deploy.mode" "$SERVICES_CONFIG" 2>/dev/null | tr -d '"')
-            replicas=$(yq ".services[\"${service_key}\"].swarm.deploy.replicas" "$SERVICES_CONFIG" 2>/dev/null | tr -d '"')
+            mode=$(yq ".services[\"${service_key}\"].swarm.deploy.mode" "$HOMELAB_CONFIG" 2>/dev/null | tr -d '"')
+            replicas=$(yq ".services[\"${service_key}\"].swarm.deploy.replicas" "$HOMELAB_CONFIG" 2>/dev/null | tr -d '"')
 
             [ "$mode" != "null" ] && [ -n "$mode" ] && echo "      mode: $mode" >> "$SWARM_OUTPUT"
             [ "$replicas" != "null" ] && [ -n "$replicas" ] && echo "      replicas: $replicas" >> "$SWARM_OUTPUT"
 
             # Add placement constraints
-            if yq ".services[\"${service_key}\"].swarm.deploy.placement.constraints" "$SERVICES_CONFIG" | grep -q -v null; then
+            if yq ".services[\"${service_key}\"].swarm.deploy.placement.constraints" "$HOMELAB_CONFIG" | grep -q -v null; then
                 echo "      placement:" >> "$SWARM_OUTPUT"
                 echo "        constraints:" >> "$SWARM_OUTPUT"
-                yq ".services[\"${service_key}\"].swarm.deploy.placement.constraints[]" "$SERVICES_CONFIG" | while read -r constraint; do
+                yq ".services[\"${service_key}\"].swarm.deploy.placement.constraints[]" "$HOMELAB_CONFIG" | while read -r constraint; do
                     constraint=$(echo "$constraint" | tr -d '"')
                     echo "          - $constraint" >> "$SWARM_OUTPUT"
                 done
@@ -313,13 +315,15 @@ EOF
         local resource_config
         resource_config=$(convert_resources_to_swarm "$service_key")
         if [ -n "$resource_config" ]; then
-            echo "$resource_config" | sed 's/^/    /' >> "$SWARM_OUTPUT"
+            while IFS= read -r line; do
+                echo "    $line" >> "$SWARM_OUTPUT"
+            done <<< "$resource_config"
         fi
 
         # Add networks
         echo "    networks:" >> "$SWARM_OUTPUT"
         echo "      - reverseproxy" >> "$SWARM_OUTPUT"
-        if yq ".services[\"${service_key}\"]" "$SERVICES_CONFIG" | grep -q "database\|mariadb\|postgres"; then
+        if yq ".services[\"${service_key}\"]" "$HOMELAB_CONFIG" | grep -q "database\|mariadb\|postgres"; then
             echo "      - database" >> "$SWARM_OUTPUT"
         fi
     done
@@ -338,7 +342,7 @@ generate_unified_kubernetes() {
     mkdir -p "$K8S_OUTPUT_DIR"
 
     # Process each service
-    yq '.services | keys[]' "$SERVICES_CONFIG" | while read -r service_key; do
+    yq '.services | keys[]' "$HOMELAB_CONFIG" | while read -r service_key; do
         service_key=$(echo "$service_key" | tr -d '"')
 
         echo "  Creating K8s manifests for: $service_key" >&2
@@ -360,7 +364,7 @@ EOF
 
         # Add replicas
         local replicas
-        replicas=$(yq ".services[\"${service_key}\"].kubernetes.deployment.replicas" "$SERVICES_CONFIG" 2>/dev/null | tr -d '"')
+        replicas=$(yq ".services[\"${service_key}\"].kubernetes.deployment.replicas" "$HOMELAB_CONFIG" 2>/dev/null | tr -d '"')
         [ "$replicas" = "null" ] || [ -z "$replicas" ] && replicas=1
         echo "  replicas: $replicas" >> "$K8S_OUTPUT_DIR/${service_key}-deployment.yaml"
 
@@ -380,12 +384,12 @@ EOF
 
         # Add container image
         local image
-        image=$(yq ".services[\"${service_key}\"].container.image" "$SERVICES_CONFIG" 2>/dev/null | tr -d '"')
+        image=$(yq ".services[\"${service_key}\"].container.image" "$HOMELAB_CONFIG" 2>/dev/null | tr -d '"')
         echo "        image: $image" >> "$K8S_OUTPUT_DIR/${service_key}-deployment.yaml"
 
         # Add ports
         local port
-        port=$(yq ".services[\"${service_key}\"].port" "$SERVICES_CONFIG" 2>/dev/null | tr -d '"')
+        port=$(yq ".services[\"${service_key}\"].port" "$HOMELAB_CONFIG" 2>/dev/null | tr -d '"')
         if [ "$port" != "null" ] && [ -n "$port" ]; then
             cat >> "$K8S_OUTPUT_DIR/${service_key}-deployment.yaml" <<EOF
         ports:
@@ -394,9 +398,9 @@ EOF
         fi
 
         # Add environment variables
-        if yq ".services[\"${service_key}\"].container.environment" "$SERVICES_CONFIG" | grep -q -v null; then
+        if yq ".services[\"${service_key}\"].container.environment" "$HOMELAB_CONFIG" | grep -q -v null; then
             echo "        env:" >> "$K8S_OUTPUT_DIR/${service_key}-deployment.yaml"
-            yq ".services[\"${service_key}\"].container.environment | to_entries[]" "$SERVICES_CONFIG" | while read -r env_entry; do
+            yq ".services[\"${service_key}\"].container.environment | to_entries[]" "$HOMELAB_CONFIG" | while read -r env_entry; do
                 env_key=$(echo "$env_entry" | yq '.key' | tr -d '"')
                 env_value=$(echo "$env_entry" | yq '.value' | tr -d '"')
                 cat >> "$K8S_OUTPUT_DIR/${service_key}-deployment.yaml" <<EOF
@@ -410,7 +414,9 @@ EOF
         local resource_config
         resource_config=$(convert_resources_to_kubernetes "$service_key")
         if [ -n "$resource_config" ]; then
-            echo "$resource_config" | sed 's/^/        /' >> "$K8S_OUTPUT_DIR/${service_key}-deployment.yaml"
+            while IFS= read -r line; do
+                echo "        $line" >> "$K8S_OUTPUT_DIR/${service_key}-deployment.yaml"
+            done <<< "$resource_config"
         fi
 
         # Generate Service manifest if port is defined
@@ -445,12 +451,11 @@ EOF
 validate_resource_specifications() {
     echo "🔍 Validating resource specifications across platforms..." >&2
 
-    local errors=0
-    yq '.services | keys[]' "$SERVICES_CONFIG" | while read -r service_key; do
+    yq '.services | keys[]' "$HOMELAB_CONFIG" | while read -r service_key; do
         service_key=$(echo "$service_key" | tr -d '"')
 
         # Check if container resources are defined
-        if yq ".services[\"${service_key}\"].container.resources" "$SERVICES_CONFIG" | grep -q -v null; then
+        if yq ".services[\"${service_key}\"].container.resources" "$HOMELAB_CONFIG" | grep -q -v null; then
             echo "  ✅ Resource specs found for: $service_key" >&2
         else
             echo "  ⚠️  No resource specs for: $service_key" >&2
@@ -518,7 +523,7 @@ This report compares the deployment configuration across different platforms.
 EOF
 
     # Add service comparison table
-    yq '.services | keys[]' "$SERVICES_CONFIG" | while read -r service_key; do
+    yq '.services | keys[]' "$HOMELAB_CONFIG" | while read -r service_key; do
         service_key=$(echo "$service_key" | tr -d '"')
 
         local compose_ready swarm_ready k8s_ready

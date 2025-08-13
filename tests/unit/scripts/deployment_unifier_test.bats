@@ -11,10 +11,11 @@ setup() {
     export TEST=true
     export PROJECT_ROOT="$TEST_TEMP_DIR"
     export BASE_DOMAIN="example.com"
+    export HOMELAB_CONFIG="$TEST_TEMP_DIR/homelab.yaml"
 
     # Create test services config with deployment-specific configurations
     mkdir -p "$TEST_TEMP_DIR/config"
-    cat > "$TEST_TEMP_DIR/config/services.yaml" <<EOF
+    cat > "$HOMELAB_CONFIG" <<EOF
 version: "1.0"
 categories:
   database: "Database Services"
@@ -135,9 +136,6 @@ services:
         className: nginx
 EOF
 
-    # Change to test directory
-    cd "$TEST_TEMP_DIR" || return
-
     # Source the deployment unifier script
     # shellcheck source=/dev/null
     source "${BATS_TEST_DIRNAME}/../../../scripts/deployment_unifier.sh"
@@ -146,6 +144,9 @@ EOF
 teardown() {
     # Clean up test directory
     temp_del "$TEST_TEMP_DIR"
+
+    # Unset test environment variables
+    unset TEST PROJECT_ROOT BASE_DOMAIN HOMELAB_CONFIG
 }
 
 @test "deployment_unifier_script_should_exist" {

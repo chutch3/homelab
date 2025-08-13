@@ -18,7 +18,7 @@ source "$SCRIPT_DIR/translate_homelab_to_compose.sh"
 
 # Default configuration
 HOMELAB_CONFIG="${HOMELAB_CONFIG:-$PROJECT_ROOT/homelab.yaml}"
-BUNDLES_DIR="${BUNDLES_DIR:-$PROJECT_ROOT/generated/docker-compose}"
+BUNDLES_DIR="${BUNDLES_DIR:-$PROJECT_ROOT/bundles}"
 REMOTE_DEPLOY_PATH="${REMOTE_DEPLOY_PATH:-/opt/homelab}"
 
 # Logging functions
@@ -406,31 +406,27 @@ deploy_to_specific_machines() {
 }
 
 # Function: filter_machines_by_role
-# Description: Filters machines by role (placeholder for future enhancement)
+# Description: Filters machines by role using homelab.yaml configuration
 # Arguments: $1 - role name, $2 - config file path
 # Returns: List of machines with specified role
 filter_machines_by_role() {
     local role="$1"
     local config_file="${2:-$HOMELAB_CONFIG}"
 
-    # Placeholder implementation - role filtering will be added later
-    # shellcheck disable=SC2034
-    local _unused_role="$role"
-    get_all_machines "$config_file"
+    # Simple implementation using yq to filter by role
+    yq ".machines | to_entries[] | select(.value.role == \"$role\") | .key" "$config_file" 2>/dev/null || get_all_machines "$config_file"
 }
 
 # Function: filter_machines_by_labels
-# Description: Filters machines by labels (placeholder for future enhancement)
+# Description: Filters machines by labels using homelab.yaml configuration
 # Arguments: $1 - label name, $2 - config file path
 # Returns: List of machines with specified label
 filter_machines_by_labels() {
     local label="$1"
     local config_file="${2:-$HOMELAB_CONFIG}"
 
-    # Placeholder implementation - label filtering will be added later
-    # shellcheck disable=SC2034
-    local _unused_label="$label"
-    get_all_machines "$config_file"
+    # Simple implementation using yq to filter by labels
+    yq ".machines | to_entries[] | select(.value.labels[]? | contains(\"$label\")) | .key" "$config_file" 2>/dev/null || get_all_machines "$config_file"
 }
 
 # Function: collect_deployment_logs

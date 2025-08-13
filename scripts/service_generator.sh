@@ -5,7 +5,7 @@
 
 # Set default paths
 PROJECT_ROOT="${PROJECT_ROOT:-$PWD}"
-SERVICES_CONFIG="${SERVICES_CONFIG:-$PROJECT_ROOT/config/services.yaml}"
+HOMELAB_CONFIG="${HOMELAB_CONFIG:-$PROJECT_ROOT/homelab.yaml}"
 GENERATED_COMPOSE="${GENERATED_COMPOSE:-$PROJECT_ROOT/generated-docker-compose.yaml}"
 GENERATED_NGINX_DIR="${GENERATED_NGINX_DIR:-$PROJECT_ROOT/generated-nginx}"
 DOMAINS_FILE="${DOMAINS_FILE:-$PROJECT_ROOT/.domains}"
@@ -22,8 +22,8 @@ yaml_parser() {
 # Arguments: None
 # Returns: 0 on success, 1 on failure
 generate_compose_from_services() {
-    if [ ! -f "$SERVICES_CONFIG" ]; then
-        echo "❌ Error: Services configuration not found at $SERVICES_CONFIG"
+    if [ ! -f "$HOMELAB_CONFIG" ]; then
+        echo "❌ Error: Services configuration not found at $HOMELAB_CONFIG"
         return 1
     fi
 
@@ -38,7 +38,7 @@ services:
 EOF
 
     # Extract services from YAML and generate compose entries
-    yaml_parser get-services "$SERVICES_CONFIG" | while read -r service_key; do
+    yaml_parser get-services "$HOMELAB_CONFIG" | while read -r service_key; do
         echo "  Processing service: $service_key"
 
         # Add service name and configuration
@@ -47,8 +47,8 @@ EOF
             # Get service compose configuration and properly indent (convert from JSON to YAML)
             # Try different yq versions - first attempt with --yaml-output (python yq)
             # If that fails, try without flag (go yq)
-            if ! yq --yaml-output ".services[\"${service_key}\"].compose" "$SERVICES_CONFIG" 2>/dev/null; then
-                yq ".services[\"${service_key}\"].compose" "$SERVICES_CONFIG"
+            if ! yq --yaml-output ".services[\"${service_key}\"].compose" "$HOMELAB_CONFIG" 2>/dev/null; then
+                yq ".services[\"${service_key}\"].compose" "$HOMELAB_CONFIG"
             fi | sed 's/^/    /'
             echo ""
         } >> "$GENERATED_COMPOSE"
@@ -98,8 +98,8 @@ EOF
 # Arguments: None
 # Returns: 0 on success, 1 on failure
 generate_nginx_from_services() {
-    if [ ! -f "$SERVICES_CONFIG" ]; then
-        echo "❌ Error: Services configuration not found at $SERVICES_CONFIG"
+    if [ ! -f "$HOMELAB_CONFIG" ]; then
+        echo "❌ Error: Services configuration not found at $HOMELAB_CONFIG"
         return 1
     fi
 
@@ -109,11 +109,11 @@ generate_nginx_from_services() {
     mkdir -p "$GENERATED_NGINX_DIR"
 
     # Extract services and generate nginx templates
-    yaml_parser get-services "$SERVICES_CONFIG" | while read -r service_key; do
+    yaml_parser get-services "$HOMELAB_CONFIG" | while read -r service_key; do
         echo "  Processing nginx config for: $service_key"
 
         # Check if service uses external template file
-        template_file=$(yq -r ".services[\"${service_key}\"].nginx.template_file" "$SERVICES_CONFIG")
+        template_file=$(yq -r ".services[\"${service_key}\"].nginx.template_file" "$HOMELAB_CONFIG")
         if [ "$template_file" != "null" ] && [ -n "$template_file" ]; then
             echo "    → Using external template: $template_file"
             # Skip generation - external template will be used directly
@@ -121,9 +121,9 @@ generate_nginx_from_services() {
         fi
 
         # Get configuration values
-        domain=$(yq ".services[\"${service_key}\"].domain" "$SERVICES_CONFIG" | tr -d '"')
-        upstream=$(yq -r ".services[\"${service_key}\"].nginx.upstream" "$SERVICES_CONFIG")
-        additional_config=$(yq -r ".services[\"${service_key}\"].nginx.additional_config" "$SERVICES_CONFIG")
+        domain=$(yq ".services[\"${service_key}\"].domain" "$HOMELAB_CONFIG" | tr -d '"')
+        upstream=$(yq -r ".services[\"${service_key}\"].nginx.upstream" "$HOMELAB_CONFIG")
+        additional_config=$(yq -r ".services[\"${service_key}\"].nginx.additional_config" "$HOMELAB_CONFIG")
 
         # Generate normalized domain variable name
         domain_var=$(normalize_service_name_for_env "$service_key")
@@ -194,8 +194,8 @@ normalize_service_name_for_env() {
 # Arguments: None
 # Returns: 0 if valid, 1 if invalid
 validate_domain_patterns() {
-    if [ ! -f "$SERVICES_CONFIG" ]; then
-        echo "❌ Error: Services configuration not found at $SERVICES_CONFIG"
+    if [ ! -f "$HOMELAB_CONFIG" ]; then
+        echo "❌ Error: Services configuration not found at $HOMELAB_CONFIG"
         return 1
     fi
 
@@ -206,9 +206,9 @@ validate_domain_patterns() {
     echo "0" > "$temp_errors"
 
     # Check each service's domain pattern
-    yq '.services | keys[]' "$SERVICES_CONFIG" | while read -r service_key; do
+    yq '.services | keys[]' "$HOMELAB_CONFIG" | while read -r service_key; do
         service_key=$(echo "$service_key" | tr -d '"')
-        domain=$(yq ".services[\"${service_key}\"].domain" "$SERVICES_CONFIG" | tr -d '"')
+        domain=$(yq ".services[\"${service_key}\"].domain" "$HOMELAB_CONFIG" | tr -d '"')
 
         if [ "$domain" != "null" ]; then
             # Check domain naming conventions (lowercase, no special chars except hyphens)
@@ -247,8 +247,8 @@ validate_domain_patterns() {
 # Arguments: None
 # Returns: 0 if unique, 1 if duplicates found
 validate_domain_uniqueness() {
-    if [ ! -f "$SERVICES_CONFIG" ]; then
-        echo "❌ Error: Services configuration not found at $SERVICES_CONFIG"
+    if [ ! -f "$HOMELAB_CONFIG" ]; then
+        echo "❌ Error: Services configuration not found at $HOMELAB_CONFIG"
         return 1
     fi
 
@@ -258,9 +258,9 @@ validate_domain_uniqueness() {
     local duplicates="/tmp/duplicates_$$"
 
     # Extract all domains
-    yq '.services | keys[]' "$SERVICES_CONFIG" | while read -r service_key; do
+    yq '.services | keys[]' "$HOMELAB_CONFIG" | while read -r service_key; do
         service_key=$(echo "$service_key" | tr -d '"')
-        domain=$(yq ".services[\"${service_key}\"].domain" "$SERVICES_CONFIG" | tr -d '"')
+        domain=$(yq ".services[\"${service_key}\"].domain" "$HOMELAB_CONFIG" | tr -d '"')
         if [ "$domain" != "null" ]; then
             echo "$domain"
         fi
@@ -318,8 +318,8 @@ suggest_domain_name() {
 # Arguments: None
 # Returns: 0 on success, 1 on failure
 generate_domain_mapping() {
-    if [ ! -f "$SERVICES_CONFIG" ]; then
-        echo "❌ Error: Services configuration not found at $SERVICES_CONFIG"
+    if [ ! -f "$HOMELAB_CONFIG" ]; then
+        echo "❌ Error: Services configuration not found at $HOMELAB_CONFIG"
         return 1
     fi
 
@@ -339,10 +339,10 @@ This file is auto-generated from \`config/services.yaml\`. It provides a quick r
 EOF
 
     # Generate table rows
-    yq '.services | keys[]' "$SERVICES_CONFIG" | while read -r service_key; do
+    yq '.services | keys[]' "$HOMELAB_CONFIG" | while read -r service_key; do
         service_key=$(echo "$service_key" | tr -d '"')
-        name=$(yq ".services[\"${service_key}\"].name" "$SERVICES_CONFIG" | tr -d '"')
-        domain=$(yq ".services[\"${service_key}\"].domain" "$SERVICES_CONFIG" | tr -d '"')
+        name=$(yq ".services[\"${service_key}\"].name" "$HOMELAB_CONFIG" | tr -d '"')
+        domain=$(yq ".services[\"${service_key}\"].domain" "$HOMELAB_CONFIG" | tr -d '"')
 
         if [ "$domain" != "null" ]; then
             echo "| $name | \`$domain\` | https://$domain.${BASE_DOMAIN:-\${BASE_DOMAIN\}} |" >> "$mapping_file"
@@ -358,9 +358,9 @@ These environment variables are automatically generated in \`.domains\`:
 EOF
 
     # Generate environment variable list
-    yq '.services | keys[]' "$SERVICES_CONFIG" | while read -r service_key; do
+    yq '.services | keys[]' "$HOMELAB_CONFIG" | while read -r service_key; do
         service_key=$(echo "$service_key" | tr -d '"')
-        domain=$(yq ".services[\"${service_key}\"].domain" "$SERVICES_CONFIG" | tr -d '"')
+        domain=$(yq ".services[\"${service_key}\"].domain" "$HOMELAB_CONFIG" | tr -d '"')
 
         if [ "$domain" != "null" ]; then
             domain_var=$(normalize_service_name_for_env "$service_key")
@@ -380,8 +380,8 @@ EOF
 # Arguments: None
 # Returns: 0 on success, 1 on failure
 generate_domains_from_services() {
-    if [ ! -f "$SERVICES_CONFIG" ]; then
-        echo "❌ Error: Services configuration not found at $SERVICES_CONFIG"
+    if [ ! -f "$HOMELAB_CONFIG" ]; then
+        echo "❌ Error: Services configuration not found at $HOMELAB_CONFIG"
         return 1
     fi
 
@@ -397,9 +397,9 @@ BASE_DOMAIN=${BASE_DOMAIN}
 EOF
 
     # Extract services and generate domain variables with proper escaping
-    yq '.services | keys[]' "$SERVICES_CONFIG" | while read -r service_key; do
+    yq '.services | keys[]' "$HOMELAB_CONFIG" | while read -r service_key; do
         service_key=$(echo "$service_key" | tr -d '"')
-        domain=$(yq ".services[\"${service_key}\"].domain" "$SERVICES_CONFIG" | tr -d '"')
+        domain=$(yq ".services[\"${service_key}\"].domain" "$HOMELAB_CONFIG" | tr -d '"')
 
         if [ "$domain" != "null" ]; then
             domain_var=$(normalize_service_name_for_env "$service_key")
@@ -416,8 +416,8 @@ EOF
 # Arguments: None
 # Returns: 0 on success, 1 on failure
 generate_swarm_stack_from_services() {
-    if [ ! -f "$SERVICES_CONFIG" ]; then
-        echo "❌ Error: Services configuration not found at $SERVICES_CONFIG"
+    if [ ! -f "$HOMELAB_CONFIG" ]; then
+        echo "❌ Error: Services configuration not found at $HOMELAB_CONFIG"
         return 1
     fi
 
@@ -463,7 +463,7 @@ EOF
 
     # Add services from services.yaml with swarm-specific config
     local services_list
-    services_list=$(yq '.services | keys[]' "$SERVICES_CONFIG" | tr -d '"')
+    services_list=$(yq '.services | keys[]' "$HOMELAB_CONFIG" | tr -d '"')
 
     while IFS= read -r service_key; do
         [ -z "$service_key" ] && continue
@@ -471,9 +471,9 @@ EOF
 
         # Get base configuration
         local image
-        image=$(yq ".services[\"${service_key}\"].container.image" "$SERVICES_CONFIG" 2>/dev/null | tr -d '"')
+        image=$(yq ".services[\"${service_key}\"].container.image" "$HOMELAB_CONFIG" 2>/dev/null | tr -d '"')
         if [ "$image" = "null" ] || [ -z "$image" ]; then
-            image=$(yq ".services[\"${service_key}\"].compose.image" "$SERVICES_CONFIG" 2>/dev/null | tr -d '"')
+            image=$(yq ".services[\"${service_key}\"].compose.image" "$HOMELAB_CONFIG" 2>/dev/null | tr -d '"')
         fi
 
         if [ "$image" != "null" ] && [ -n "$image" ]; then
@@ -537,8 +537,8 @@ generate_all_from_services() {
 # Arguments: service names (space-separated)
 # Returns: 0 on success, 1 on failure
 enable_services_via_yaml() {
-    if [ ! -f "$SERVICES_CONFIG" ]; then
-        echo "❌ Error: Services configuration not found at $SERVICES_CONFIG"
+    if [ ! -f "$HOMELAB_CONFIG" ]; then
+        echo "❌ Error: Services configuration not found at $HOMELAB_CONFIG"
         return 1
     fi
 
@@ -548,13 +548,13 @@ enable_services_via_yaml() {
         echo "✅ Enabling service: $service"
 
         # Check if service exists in config
-        if ! yaml_parser get-services "$SERVICES_CONFIG" | grep -q "^$service$"; then
+        if ! yaml_parser get-services "$HOMELAB_CONFIG" | grep -q "^$service$"; then
             echo "❌ Error: Service '$service' not found in configuration"
             return 1
         fi
 
         # Set enabled: true for the service
-        yaml_parser set-enabled "$SERVICES_CONFIG" "$service" "true"
+        yaml_parser set-enabled "$HOMELAB_CONFIG" "$service" "true"
     done
 
     echo "🎉 Successfully enabled ${#services[@]} service(s)"
@@ -566,8 +566,8 @@ enable_services_via_yaml() {
 # Arguments: service names (space-separated)
 # Returns: 0 on success, 1 on failure
 disable_services_via_yaml() {
-    if [ ! -f "$SERVICES_CONFIG" ]; then
-        echo "❌ Error: Services configuration not found at $SERVICES_CONFIG"
+    if [ ! -f "$HOMELAB_CONFIG" ]; then
+        echo "❌ Error: Services configuration not found at $HOMELAB_CONFIG"
         return 1
     fi
 
@@ -577,13 +577,13 @@ disable_services_via_yaml() {
         echo "❌ Disabling service: $service"
 
         # Check if service exists in config
-        if ! yaml_parser get-services "$SERVICES_CONFIG" | grep -q "^$service$"; then
+        if ! yaml_parser get-services "$HOMELAB_CONFIG" | grep -q "^$service$"; then
             echo "❌ Error: Service '$service' not found in configuration"
             return 1
         fi
 
         # Set enabled: false for the service
-        yaml_parser set-enabled "$SERVICES_CONFIG" "$service" "false"
+        yaml_parser set-enabled "$HOMELAB_CONFIG" "$service" "false"
     done
 
     echo "🎉 Successfully disabled ${#services[@]} service(s)"
@@ -595,8 +595,8 @@ disable_services_via_yaml() {
 # Arguments: None
 # Returns: 0 on success, 1 on failure
 list_enabled_services_from_yaml() {
-    if [ ! -f "$SERVICES_CONFIG" ]; then
-        echo "❌ Error: Services configuration not found at $SERVICES_CONFIG"
+    if [ ! -f "$HOMELAB_CONFIG" ]; then
+        echo "❌ Error: Services configuration not found at $HOMELAB_CONFIG"
         return 1
     fi
 
@@ -604,7 +604,7 @@ list_enabled_services_from_yaml() {
 
     # Get all services where enabled = true
     local enabled_services
-    enabled_services=$(yaml_parser get-enabled "$SERVICES_CONFIG")
+    enabled_services=$(yaml_parser get-enabled "$HOMELAB_CONFIG")
 
     if [ -z "$enabled_services" ]; then
         echo "   No services currently enabled"
@@ -623,8 +623,8 @@ list_enabled_services_from_yaml() {
 # Arguments: None
 # Returns: 0 on success, 1 on failure
 generate_enabled_services_from_yaml() {
-    if [ ! -f "$SERVICES_CONFIG" ]; then
-        echo "❌ Error: Services configuration not found at $SERVICES_CONFIG"
+    if [ ! -f "$HOMELAB_CONFIG" ]; then
+        echo "❌ Error: Services configuration not found at $HOMELAB_CONFIG"
         return 1
     fi
 
@@ -633,7 +633,7 @@ generate_enabled_services_from_yaml() {
     echo "📝 Generating .enabled-services file from services.yaml..."
 
     # Get all services where enabled = true and write to file
-    yaml_parser get-enabled "$SERVICES_CONFIG" > "$enabled_services_file"
+    yaml_parser get-enabled "$HOMELAB_CONFIG" > "$enabled_services_file"
 
     local count
     count=$(wc -l < "$enabled_services_file")
@@ -647,8 +647,8 @@ generate_enabled_services_from_yaml() {
 # Arguments: None
 # Returns: 0 on success, 1 on failure
 start_enabled_services_modern() {
-    if [ ! -f "$SERVICES_CONFIG" ]; then
-        echo "❌ Error: Services configuration not found at $SERVICES_CONFIG"
+    if [ ! -f "$HOMELAB_CONFIG" ]; then
+        echo "❌ Error: Services configuration not found at $HOMELAB_CONFIG"
         return 1
     fi
 
@@ -656,7 +656,7 @@ start_enabled_services_modern() {
 
     # Get enabled services as comma-separated list
     local enabled_services
-    enabled_services=$(yq '.services | to_entries | map(select(.value.enabled == true)) | .[].key' "$SERVICES_CONFIG" | tr -d '"' | tr '\n' ',' | sed 's/,$//')
+    enabled_services=$(yq '.services | to_entries | map(select(.value.enabled == true)) | .[].key' "$HOMELAB_CONFIG" | tr -d '"' | tr '\n' ',' | sed 's/,$//')
 
     if [ -z "$enabled_services" ]; then
         echo "⚠️  No services enabled, nothing to start"
@@ -672,61 +672,15 @@ start_enabled_services_modern() {
     return 0
 }
 
-# Function: migrate_from_legacy_enabled_services
-# Description: Migrates from .enabled-services file to services.yaml enabled flags
-# Arguments: None
-# Returns: 0 on success, 1 on failure
-migrate_from_legacy_enabled_services() {
-    local legacy_file="${PROJECT_ROOT}/.enabled-services"
 
-    if [ ! -f "$legacy_file" ]; then
-        echo "ℹ️  No legacy .enabled-services file found, migration not needed"
-        return 0
-    fi
-
-    if [ ! -f "$SERVICES_CONFIG" ]; then
-        echo "❌ Error: Services configuration not found at $SERVICES_CONFIG"
-        return 1
-    fi
-
-    echo "🔄 Migrating from legacy .enabled-services to services.yaml..."
-
-    # First, set all services to disabled
-    local services
-    services=$(yaml_parser get-services "$SERVICES_CONFIG")
-
-    while IFS= read -r service; do
-        [ -z "$service" ] && continue
-        yaml_parser set-enabled "$SERVICES_CONFIG" "$service" "false"
-    done <<< "$services"
-
-    # Read legacy file and enable those services
-    while IFS= read -r service; do
-        [ -z "$service" ] && continue
-        echo "  Migrating: $service"
-
-        if yaml_parser get-services "$SERVICES_CONFIG" | grep -q "^$service$"; then
-            yaml_parser set-enabled "$SERVICES_CONFIG" "$service" "true"
-        else
-            echo "  ⚠️  Warning: Service '$service' not found in services.yaml, skipping"
-        fi
-    done < "$legacy_file"
-
-    # Backup and remove legacy file
-    cp "$legacy_file" "${legacy_file}.backup"
-    rm "$legacy_file"
-
-    echo "✅ Migration completed. Legacy file backed up to .enabled-services.backup"
-    return 0
-}
 
 # Function: interactive_service_enablement
 # Description: Provides interactive service selection interface
 # Arguments: None
 # Returns: 0 on success, 1 on failure
 interactive_service_enablement() {
-    if [ ! -f "$SERVICES_CONFIG" ]; then
-        echo "❌ Error: Services configuration not found at $SERVICES_CONFIG"
+    if [ ! -f "$HOMELAB_CONFIG" ]; then
+        echo "❌ Error: Services configuration not found at $HOMELAB_CONFIG"
         return 1
     fi
 
@@ -750,8 +704,8 @@ interactive_service_enablement() {
         service_names+=("$service_key")
 
         local name enabled
-        name=$(yq ".services[\"${service_key}\"].name" "$SERVICES_CONFIG" | tr -d '"')
-        enabled=$(yq ".services[\"${service_key}\"].enabled" "$SERVICES_CONFIG")
+        name=$(yq ".services[\"${service_key}\"].name" "$HOMELAB_CONFIG" | tr -d '"')
+        enabled=$(yq ".services[\"${service_key}\"].enabled" "$HOMELAB_CONFIG")
 
         local status=""
         if [ "$enabled" = "true" ]; then
@@ -763,7 +717,7 @@ interactive_service_enablement() {
         printf "%s\n" "$status"
 
         i=$((i + 1))
-    done < <(yq '.services | keys[]' "$SERVICES_CONFIG")
+    done < <(yq '.services | keys[]' "$HOMELAB_CONFIG")
 
     echo ""
     echo "Enter the numbers of services to toggle (space-separated):"
@@ -774,7 +728,7 @@ interactive_service_enablement() {
         if [[ "$num" =~ ^[0-9]+$ ]] && [ "$num" -ge 1 ] && [ "$num" -le "${#services[@]}" ]; then
             local service="${services[$((num - 1))]}"
             local current_state
-            current_state=$(yq ".services[\"${service}\"].enabled" "$SERVICES_CONFIG")
+            current_state=$(yq ".services[\"${service}\"].enabled" "$HOMELAB_CONFIG")
 
             if [ "$current_state" = "true" ]; then
                 disable_services_via_yaml "$service"
@@ -798,8 +752,8 @@ interactive_service_enablement() {
 # Arguments: None
 # Returns: 0 on success, 1 on failure
 list_available_services_from_config() {
-    if [ ! -f "$SERVICES_CONFIG" ]; then
-        echo "❌ Error: Services configuration not found at $SERVICES_CONFIG"
+    if [ ! -f "$HOMELAB_CONFIG" ]; then
+        echo "❌ Error: Services configuration not found at $HOMELAB_CONFIG"
         return 1
     fi
 
@@ -807,18 +761,18 @@ list_available_services_from_config() {
     echo ""
 
     # Group services by category
-    yq '.categories | keys[]' "$SERVICES_CONFIG" | while read -r category_key; do
+    yq '.categories | keys[]' "$HOMELAB_CONFIG" | while read -r category_key; do
         category_key=$(echo "$category_key" | tr -d '"')
-        category_name=$(yq ".categories.${category_key}" "$SERVICES_CONFIG" | tr -d '"')
+        category_name=$(yq ".categories.${category_key}" "$HOMELAB_CONFIG" | tr -d '"')
 
         echo "📁 $category_name ($category_key)"
 
         # Find services in this category
-        yq '.services | to_entries[] | select(.value.category == "'"$category_key"'") | .key' "$SERVICES_CONFIG" | while read -r service_key; do
+        yq '.services | to_entries[] | select(.value.category == "'"$category_key"'") | .key' "$HOMELAB_CONFIG" | while read -r service_key; do
             service_key=$(echo "$service_key" | tr -d '"')
-            service_name=$(yq ".services.${service_key}.name" "$SERVICES_CONFIG" | tr -d '"')
-            service_desc=$(yq ".services.${service_key}.description" "$SERVICES_CONFIG" | tr -d '"')
-            domain=$(yq ".services.${service_key}.domain" "$SERVICES_CONFIG" | tr -d '"')
+            service_name=$(yq ".services.${service_key}.name" "$HOMELAB_CONFIG" | tr -d '"')
+            service_desc=$(yq ".services.${service_key}.description" "$HOMELAB_CONFIG" | tr -d '"')
+            domain=$(yq ".services.${service_key}.domain" "$HOMELAB_CONFIG" | tr -d '"')
 
             echo "  └── $service_key: $service_name"
             echo "      $service_desc"
@@ -830,42 +784,42 @@ list_available_services_from_config() {
     return 0
 }
 
-# Function: validate_services_config
+# Function: validate_HOMELAB_CONFIG
 # Description: Validates the services.yaml configuration
 # Arguments: None
 # Returns: 0 if valid, 1 if invalid
-validate_services_config() {
-    if [ ! -f "$SERVICES_CONFIG" ]; then
-        echo "❌ Error: Services configuration not found at $SERVICES_CONFIG"
+validate_HOMELAB_CONFIG() {
+    if [ ! -f "$HOMELAB_CONFIG" ]; then
+        echo "❌ Error: Services configuration not found at $HOMELAB_CONFIG"
         return 1
     fi
 
     echo "🔍 Validating services configuration..."
 
     # Check if it's valid YAML
-    if ! yq '.' "$SERVICES_CONFIG" > /dev/null 2>&1; then
-        echo "❌ Error: Invalid YAML syntax in $SERVICES_CONFIG"
+    if ! yq '.' "$HOMELAB_CONFIG" > /dev/null 2>&1; then
+        echo "❌ Error: Invalid YAML syntax in $HOMELAB_CONFIG"
         return 1
     fi
 
     # Check required top-level keys
-    if ! yq '.version' "$SERVICES_CONFIG" > /dev/null 2>&1; then
+    if ! yq '.version' "$HOMELAB_CONFIG" > /dev/null 2>&1; then
         echo "❌ Error: Missing 'version' key in services configuration"
         return 1
     fi
 
-    if ! yq '.services' "$SERVICES_CONFIG" > /dev/null 2>&1; then
+    if ! yq '.services' "$HOMELAB_CONFIG" > /dev/null 2>&1; then
         echo "❌ Error: Missing 'services' key in services configuration"
         return 1
     fi
 
     # Validate each service has required fields
-    yq '.services | keys[]' "$SERVICES_CONFIG" | while read -r service_key; do
+    yq '.services | keys[]' "$HOMELAB_CONFIG" | while read -r service_key; do
         service_key=$(echo "$service_key" | tr -d '"')
 
         # Check required fields
         for field in name description category domain compose; do
-            if ! yq ".services.${service_key}.${field}" "$SERVICES_CONFIG" > /dev/null 2>&1; then
+            if ! yq ".services.${service_key}.${field}" "$HOMELAB_CONFIG" > /dev/null 2>&1; then
                 echo "❌ Error: Service '$service_key' missing required field '$field'"
                 return 1
             fi
@@ -1240,8 +1194,8 @@ EOF
 # Arguments: None
 # Returns: 0 on success, 1 on failure
 generate_all_to_generated_dir() {
-    if [ ! -f "$SERVICES_CONFIG" ]; then
-        echo "❌ Error: Services configuration not found at $SERVICES_CONFIG"
+    if [ ! -f "$HOMELAB_CONFIG" ]; then
+        echo "❌ Error: Services configuration not found at $HOMELAB_CONFIG"
         return 1
     fi
 
@@ -1438,49 +1392,6 @@ start_enabled_services_from_generated() {
     return 0
 }
 
-# Function: cleanup_legacy_generated_files
-# Description: Removes old generated files after migration to consolidated structure
-# Arguments: None
-# Returns: 0 on success, 1 on failure
-cleanup_legacy_generated_files() {
-    echo "🧹 Cleaning up legacy generated files..."
 
-    local files_removed=0
-
-    # Remove legacy generated files (but preserve user data)
-    if [ -f "$PROJECT_ROOT/generated-docker-compose.yaml" ]; then
-        rm "$PROJECT_ROOT/generated-docker-compose.yaml"
-        files_removed=$((files_removed + 1))
-        echo "   Removed: generated-docker-compose.yaml"
-    fi
-
-    if [ -d "$PROJECT_ROOT/generated-nginx" ]; then
-        rm -rf "$PROJECT_ROOT/generated-nginx"
-        files_removed=$((files_removed + 1))
-        echo "   Removed: generated-nginx/"
-    fi
-
-    if [ -f "$PROJECT_ROOT/generated-swarm-stack.yaml" ]; then
-        rm "$PROJECT_ROOT/generated-swarm-stack.yaml"
-        files_removed=$((files_removed + 1))
-        echo "   Removed: generated-swarm-stack.yaml"
-    fi
-
-    if [ -f "$PROJECT_ROOT/.domains" ]; then
-        rm "$PROJECT_ROOT/.domains"
-        files_removed=$((files_removed + 1))
-        echo "   Removed: .domains"
-    fi
-
-    # Preserve .enabled-services as it might be user data
-    if [ -f "$PROJECT_ROOT/.enabled-services" ]; then
-        echo "   Preserved: .enabled-services (user data)"
-    fi
-
-    echo "✅ Cleaned up $files_removed legacy generated files"
-    echo "💡 User data files (.enabled-services) were preserved"
-
-    return 0
-}
 
 # Note: Functions are available when script is sourced

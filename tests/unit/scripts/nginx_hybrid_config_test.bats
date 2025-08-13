@@ -4,14 +4,14 @@ setup() {
     # Load test helper functions
     load test_helper
 
-    # Create temporary test directory
+    # Create temporary directories for testing
     TEST_TEMP_DIR="$(temp_make)"
 
     # Set up test environment variables
     export TEST=true
     export BASE_DOMAIN="test.local"
     export PROJECT_ROOT="${TEST_TEMP_DIR}"
-    export SERVICES_CONFIG="${TEST_TEMP_DIR}/config/services.yaml"
+    export HOMELAB_CONFIG="${TEST_TEMP_DIR}/homelab.yaml"
     export GENERATED_NGINX_DIR="${TEST_TEMP_DIR}/generated-nginx"
 
     # Create config directory
@@ -19,7 +19,7 @@ setup() {
     mkdir -p "${TEST_TEMP_DIR}/config/services/reverseproxy/templates/conf.d"
 
     # Create test services.yaml with different nginx configuration types
-    cat > "${SERVICES_CONFIG}" <<EOF
+    cat > "${HOMELAB_CONFIG}" <<EOF
 version: "1.0"
 
 categories:
@@ -94,7 +94,7 @@ teardown() {
     temp_del "$TEST_TEMP_DIR"
 
     # Unset test environment variables
-    unset TEST BASE_DOMAIN PROJECT_ROOT SERVICES_CONFIG GENERATED_NGINX_DIR
+    unset TEST BASE_DOMAIN PROJECT_ROOT HOMELAB_CONFIG GENERATED_NGINX_DIR
 }
 
 @test "simple service should use default nginx template" {

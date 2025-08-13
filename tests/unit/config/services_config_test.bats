@@ -3,9 +3,14 @@
 setup() {
     # Load test helper functions
     load ../scripts/test_helper
+    load ../../helpers/homelab_builder
 
     # Create temporary test directory
     TEST_TEMP_DIR="$(temp_make)"
+
+    # Set up test homelab.yaml
+    TEST_HOMELAB_CONFIG="${TEST_TEMP_DIR}/homelab.yaml"
+    copy_test_fixture "$TEST_HOMELAB_CONFIG"
 
     # Set up test environment variables
     export TEST=true
@@ -19,48 +24,48 @@ teardown() {
     temp_del "$TEST_TEMP_DIR"
 }
 
-@test "services_yaml_should_exist" {
-    # Test that the unified services.yaml configuration exists
-    [ -f "${BATS_TEST_DIRNAME}/../../../config/services.yaml" ]
+@test "homelab_config_should_exist" {
+    # Test that the homelab.yaml configuration exists
+    [ -f "$TEST_HOMELAB_CONFIG" ]
 }
 
-@test "services_yaml_should_be_valid_yaml" {
-    # Test that services.yaml is valid YAML
-    run yq '.' "${BATS_TEST_DIRNAME}/../../../config/services.yaml"
+@test "homelab_config_should_be_valid_yaml" {
+    # Test that homelab.yaml is valid YAML
+    run yq '.' "$TEST_HOMELAB_CONFIG"
     [ "$status" -eq 0 ]
 }
 
-@test "services_yaml_should_contain_actual_service" {
+@test "homelab_config_should_contain_actual_service" {
     # Test that actual budget service is defined
-    run yq '.services.actual.name' "${BATS_TEST_DIRNAME}/../../../config/services.yaml"
+    run yq '.services.actual.name' "$TEST_HOMELAB_CONFIG"
     [ "$status" -eq 0 ]
     # Handle both quoted (python yq) and unquoted (go yq) output
     [[ "$output" == '"Actual Budget"' || "$output" == 'Actual Budget' ]]
 }
 
-@test "services_yaml_should_define_service_metadata" {
+@test "homelab_config_should_define_service_metadata" {
     # Test that services have required metadata
-    run yq '.services.actual.description' "${BATS_TEST_DIRNAME}/../../../config/services.yaml"
+    run yq '.services.actual.description' "$TEST_HOMELAB_CONFIG"
     [ "$status" -eq 0 ]
     [[ "$output" != "null" ]]
 
-    run yq '.services.actual.category' "${BATS_TEST_DIRNAME}/../../../config/services.yaml"
+    run yq '.services.actual.category' "$TEST_HOMELAB_CONFIG"
     [ "$status" -eq 0 ]
     # Handle both quoted (python yq) and unquoted (go yq) output
     [[ "$output" == '"finance"' || "$output" == 'finance' ]]
 }
 
-@test "services_yaml_should_define_domain_patterns" {
+@test "homelab_config_should_define_domain_patterns" {
     # Test that services have domain configuration
-    run yq '.services.actual.domain' "${BATS_TEST_DIRNAME}/../../../config/services.yaml"
+    run yq '.services.actual.domain' "$TEST_HOMELAB_CONFIG"
     [ "$status" -eq 0 ]
     # Handle both quoted (python yq) and unquoted (go yq) output
     [[ "$output" == '"budget"' || "$output" == 'budget' ]]
 }
 
-@test "services_yaml_should_define_compose_config" {
+@test "homelab_config_should_define_compose_config" {
     # Test that services have compose configuration
-    run yq '.services.actual.compose' "${BATS_TEST_DIRNAME}/../../../config/services.yaml"
+    run yq '.services.actual.compose' "$TEST_HOMELAB_CONFIG"
     [ "$status" -eq 0 ]
     [[ "$output" != "null" ]]
 }

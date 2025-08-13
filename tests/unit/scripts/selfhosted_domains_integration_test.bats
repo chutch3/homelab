@@ -3,6 +3,7 @@
 setup() {
     # Load test helper functions
     load test_helper
+    load ../../helpers/homelab_builder
 
     # Create temporary test directory
     TEST_TEMP_DIR="$(temp_make)"
@@ -11,14 +12,14 @@ setup() {
     export TEST=true
     export BASE_DOMAIN="test.local"
     export PROJECT_ROOT="${TEST_TEMP_DIR}"
-    export SERVICES_CONFIG="${TEST_TEMP_DIR}/config/services.yaml"
+    export HOMELAB_CONFIG="${TEST_TEMP_DIR}/homelab.yaml"
     export DOMAINS_FILE="${TEST_TEMP_DIR}/.domains"
 
     # Create config directory
     mkdir -p "${TEST_TEMP_DIR}/config"
 
-    # Create test services.yaml
-    cat > "${SERVICES_CONFIG}" <<EOF
+    # Create test homelab.yaml
+    cat > "${HOMELAB_CONFIG}" <<EOF
 version: "1.0"
 
 categories:
@@ -55,10 +56,10 @@ teardown() {
     temp_del "$TEST_TEMP_DIR"
 
     # Unset test environment variables
-    unset TEST BASE_DOMAIN PROJECT_ROOT SERVICES_CONFIG DOMAINS_FILE
+    unset TEST BASE_DOMAIN PROJECT_ROOT HOMELAB_CONFIG DOMAINS_FILE
 }
 
-@test "up() function should use services.yaml for domain generation instead of legacy build_domain.sh" {
+@test "up() function should use homelab.yaml for domain generation instead of legacy build_domain.sh" {
     # Skip this test - legacy domain system superseded by unified homelab.yaml configuration (Issue #40)
     skip "Legacy domain generation superseded by unified configuration in Issue #40"
 }
@@ -68,7 +69,7 @@ teardown() {
     skip "Legacy domain generation superseded by unified configuration in Issue #40"
 }
 
-@test "domains from services.yaml should match legacy format exactly" {
+@test "domains from homelab.yaml should match legacy format exactly" {
     # Skip this test - legacy domain system superseded by unified homelab.yaml configuration (Issue #40)
     skip "Legacy domain generation superseded by unified configuration in Issue #40"
 }
