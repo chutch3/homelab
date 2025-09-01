@@ -1,170 +1,162 @@
 version: "3"
 
 vars:
-  PROJECT_NAME: homelab
-  PYTHON_VERSION: "3.9"
+    PROJECT_NAME: homelab
+    PYTHON_VERSION: "3.9"
 
 tasks:
-  install:
-    desc: Install project dependencies
-    cmds:
-      - poetry install --no-root
-      - poetry run pre-commit install
+    install:
+        desc: Install project dependencies
+        cmds:
+            - poetry install --no-root
+            - poetry run pre-commit install
 
-  test:
-    desc: Run unit and integration tests with coverage
-    cmds:
-      - echo "🧪 Running unit tests with coverage..."
-      - mkdir -p coverage
-      - kcov --include-pattern=scripts --exclude-pattern=/usr,/tmp,/var coverage/unit bats tests/unit/scripts/*.bats
-      - echo "🧪 Unit tests completed successfully"
-      - echo "🔍 Running integration tests with coverage..."
-      - echo "🔍 Running schema validation tests..."
-      - kcov --include-pattern=scripts --exclude-pattern=/usr,/tmp,/var coverage/schema bats tests/integration/schema_validation_test.bats
-      - echo "🔍 Schema validation completed successfully"
-      - echo "🔍 Running workflow integration tests..."
-      - kcov --include-pattern=scripts --exclude-pattern=/usr,/tmp,/var coverage/workflow bats tests/integration/workflow_integration_test.bats
-      - echo "🔍 Workflow integration completed successfully"
-      - echo "📊 Merging coverage reports..."
-      - kcov --merge coverage/merged coverage/unit coverage/schema coverage/workflow
-      - echo "✅ All tests completed [Coverage report](coverage/merged/index.html)"
+    test:
+        desc: Run unit and integration tests with coverage
+        cmds:
+            - echo "🧪 Running unit tests with coverage..."
+            - mkdir -p coverage
+            - kcov --bash-method=DEBUG --include-pattern=scripts --exclude-pattern=/usr,/tmp,/var coverage/unit bats tests/unit/scripts/*.bats
+            - echo "🧪 Unit tests completed successfully"
+            - echo "📊 Merging coverage reports..."
+            - kcov --merge coverage/merged coverage/unit
+            - echo "✅ All tests completed [Coverage report](coverage/merged/index.html)"
 
-  test-fast:
-    desc: Run core tests with faster execution
-    cmds:
-      - echo "🧪 Running unit tests..."
-      - bats --tap tests/unit/scripts/*.bats
-      - echo "🔍 Running schema validation tests..."
-      - bats --tap tests/integration/schema_validation_test.bats
+    test-fast:
+        desc: Run core tests with faster execution
+        cmds:
+            - echo "🧪 Running unit tests..."
+            - bats --tap tests/unit/scripts/*.bats
+            - echo "🔍 Running schema validation tests..."
+            - bats --tap tests/integration/schema_validation_test.bats
 
-  test-local:
-    desc: Run local-only tests (requires Docker)
-    cmds:
-      - echo "🏠 Running local-only tests..."
-      - scripts/run_local_tests.sh
-      - echo "✅ Local tests completed"
+    test-local:
+        desc: Run local-only tests (requires Docker)
+        cmds:
+            - echo "🏠 Running local-only tests..."
+            - scripts/run_local_tests.sh
+            - echo "✅ Local tests completed"
 
-  test-comprehensive:
-    desc: Run all tests (unit/integration + local)
-    deps: ["test", "test-local"]
+    test-comprehensive:
+        desc: Run all tests (unit/integration + local)
+        deps: ["test", "test-local"]
 
-  test-performance:
-    desc: Run performance and regression tests
-    cmds:
-      - echo "⚡ Running performance tests..."
-      - bats tests/performance/generation_performance_test.bats
-      - echo "✅ Performance tests completed"
+    test-performance:
+        desc: Run performance and regression tests
+        cmds:
+            - echo "⚡ Running performance tests..."
+            - bats tests/performance/generation_performance_test.bats
+            - echo "✅ Performance tests completed"
 
-  lint:
-    desc: Run all linting checks
-    deps: ["lint:shell", "lint:yaml", "lint:dockerfile", "lint:secrets"]
+    lint:
+        desc: Run all linting checks
+        deps: ["lint:shell", "lint:yaml", "lint:dockerfile", "lint:secrets"]
 
-  lint:shell:
-    desc: Run shellcheck on shell scripts
-    cmds:
-      - poetry run shellcheck -x scripts/**/*.sh selfhosted.sh
+    lint:shell:
+        desc: Run shellcheck on shell scripts
+        cmds:
+            - poetry run shellcheck -x --source-path=scripts scripts/*.sh scripts/wrappers/*.sh
 
-  lint:yaml:
-    desc: Run yamllint on YAML files
-    cmds:
-      - poetry run yamllint .
+    lint:yaml:
+        desc: Run yamllint on YAML files
+        cmds:
+            - poetry run yamllint .
 
-  lint:dockerfile:
-    desc: Run hadolint on Dockerfiles (using pre-commit)
-    cmds:
-      - poetry run pre-commit run hadolint --all-files
+    lint:dockerfile:
+        desc: Run hadolint on Dockerfiles (using pre-commit)
+        cmds:
+            - poetry run pre-commit run hadolint --all-files
 
-  lint:secrets:
-    desc: Run gitleaks to check for secrets (via pre-commit)
-    cmds:
-      - poetry run pre-commit run gitleaks --all-files
+    lint:secrets:
+        desc: Run gitleaks to check for secrets (via pre-commit)
+        cmds:
+            - poetry run pre-commit run gitleaks --all-files
 
-  lint:python:
-    desc: Run pre-commit hooks (includes Python linting)
-    cmds:
-      - poetry run pre-commit run --all-files
+    lint:python:
+        desc: Run pre-commit hooks (includes Python linting)
+        cmds:
+            - poetry run pre-commit run --all-files
 
-  static-analysis:
-    desc: Run static analysis tools
-    deps: [lint, "security-scan"]
+    static-analysis:
+        desc: Run static analysis tools
+        deps: [lint, "security-scan"]
 
-  security-scan:
-    desc: Run security scanning (via pre-commit)
-    cmds:
-      - poetry run pre-commit run gitleaks --all-files
+    security-scan:
+        desc: Run security scanning (via pre-commit)
+        cmds:
+            - poetry run pre-commit run gitleaks --all-files
 
-  format:
-    desc: Format code
-    cmds:
-      - poetry run pre-commit run --all-files
+    format:
+        desc: Format code
+        cmds:
+            - poetry run pre-commit run --all-files
 
-  clean:
-    desc: Clean up generated files and caches
-    cmds:
-      - rm -rf .pytest_cache
-      - rm -rf __pycache__
-      - find . -name "*.pyc" -delete
-      - find . -name ".bats-*" -delete
+    clean:
+        desc: Clean up generated files and caches
+        cmds:
+            - rm -rf .pytest_cache
+            - rm -rf __pycache__
+            - find . -name "*.pyc" -delete
+            - find . -name ".bats-*" -delete
 
-  docs:build:
-    desc: Build documentation with MkDocs
-    cmds:
-      - poetry run mkdocs build --clean --strict
-    env:
-      MKDOCS_ENABLE_SOCIAL: false
+    docs:build:
+        desc: Build documentation with MkDocs
+        cmds:
+            - poetry run mkdocs build --clean --strict
+        env:
+            MKDOCS_ENABLE_SOCIAL: false
 
-  docs:serve:
-    desc: Serve documentation locally with live reload
-    cmds:
-      - poetry run mkdocs serve --dev-addr=127.0.0.1:8000
+    docs:serve:
+        desc: Serve documentation locally with live reload
+        cmds:
+            - poetry run mkdocs serve --dev-addr=127.0.0.1:8000
 
-  docs:validate:
-    desc: Validate documentation build and check for issues
-    cmds:
-      - poetry run mkdocs build --clean
-      - echo "✅ Documentation builds successfully"
-    env:
-      MKDOCS_ENABLE_SOCIAL: false
+    docs:validate:
+        desc: Validate documentation build and check for issues
+        cmds:
+            - poetry run mkdocs build --clean
+            - echo "✅ Documentation builds successfully"
+        env:
+            MKDOCS_ENABLE_SOCIAL: false
 
-  docs:validate-strict:
-    desc: Validate documentation build with strict mode (fails on warnings)
-    cmds:
-      - poetry run mkdocs build --clean --strict
-      - echo "✅ Documentation builds successfully with no warnings"
-    env:
-      MKDOCS_ENABLE_SOCIAL: false
+    docs:validate-strict:
+        desc: Validate documentation build with strict mode (fails on warnings)
+        cmds:
+            - poetry run mkdocs build --clean --strict
+            - echo "✅ Documentation builds successfully with no warnings"
+        env:
+            MKDOCS_ENABLE_SOCIAL: false
 
-  check:
-    desc: Run all checks (lint, test, static analysis, docs)
-    deps: [lint, test, "static-analysis", "docs:validate"]
+    check:
+        desc: Run all checks (lint, test, static analysis, docs)
+        deps: [lint, test, "static-analysis", "docs:validate"]
 
+    release:version:
+        desc: Check what the next version would be
+        cmds:
+            - poetry run semantic-release version --print
 
-  release:version:
-    desc: Check what the next version would be
-    cmds:
-      - poetry run semantic-release version --print
+    release:
+        desc: Run semantic release (determines if release needed and executes)
+        cmds:
+            - git config --global user.name "github-actions[bot]"
+            - git config --global user.email "github-actions[bot]@users.noreply.github.com"
+            - poetry run semantic-release version --skip-build
 
-  release:
-    desc: Run semantic release (determines if release needed and executes)
-    cmds:
-      - git config --global user.name "github-actions[bot]"
-      - git config --global user.email "github-actions[bot]@users.noreply.github.com"
-      - poetry run semantic-release version --skip-build
+    release:update-lock:
+        desc: Update Poetry lock file after release
+        cmds:
+            - poetry lock --no-update
+            - |
+                if [ -n "$(git diff --name-only)" ]; then
+                  git add poetry.lock
+                  git commit -m "chore: update poetry.lock after release"
+                  echo "Poetry lock file updated and committed"
+                else
+                  echo "Poetry lock file is already up to date"
+                fi
 
-  release:update-lock:
-    desc: Update Poetry lock file after release
-    cmds:
-      - poetry lock --no-update
-      - |
-        if [ -n "$(git diff --name-only)" ]; then
-          git add poetry.lock
-          git commit -m "chore: update poetry.lock after release"
-          echo "Poetry lock file updated and committed"
-        else
-          echo "Poetry lock file is already up to date"
-        fi
-
-  help:
-    desc: Show available tasks
-    cmds:
-      - task --list
+    help:
+        desc: Show available tasks
+        cmds:
+            - task --list

@@ -11,20 +11,23 @@ setup() {
     export TEST=true
     export PROJECT_ROOT="${TEST_TEMP_DIR}"
 
-    # Create test machines.yml file with new format
-    cat > "${TEST_TEMP_DIR}/machines.yml" <<EOF
+    # Create test machines.yaml file with new simplified format
+    cat > "${TEST_TEMP_DIR}/machines.yaml" <<EOF
 machines:
-  - host: manager.example.com
+  manager:
+    ip: 10.0.0.1
     role: manager
     ssh_user: admin1
 
-  - host: worker1.example.com
+  worker1:
+    ip: 10.0.0.2
     role: worker
     ssh_user: admin2
     labels:
       storage: ssd
 
-  - host: worker2.example.com
+  worker2:
+    ip: 10.0.0.3
     role: worker
     ssh_user: admin3
     labels:
@@ -34,11 +37,14 @@ EOF
     # Source the machines script with mocked functions
     source "${BATS_TEST_DIRNAME}/../../../scripts/machines.sh"
 
-    # Mock getent to return test IPs
+    # Mock getent to return test IPs for hostnames built from machine keys
+    export BASE_DOMAIN="example.com"
     getent() {
         case "$2" in
             "manager.example.com") echo "10.0.0.1 manager.example.com" ;;
+            "worker1.example.com") echo "10.0.0.2 worker1.example.com" ;;
             "worker2.example.com") echo "10.0.0.3 worker2.example.com" ;;
+            "node-02.diyhub.dev") echo "10.0.0.3 node-02.diyhub.dev" ;;
             *) return 1 ;;
         esac
     }
@@ -55,35 +61,35 @@ teardown() {
 }
 
 @test "machines_parse reads yaml correctly" {
-    MACHINES_FILE="${TEST_TEMP_DIR}/machines.yml"
+    MACHINES_FILE="${TEST_TEMP_DIR}/machines.yaml"
 
     run machines_parse 'manager'
     echo "output: $output"
     [ "$status" -eq 0 ]
-    [ "$output" = "manager.example.com" ]
+    [ "$output" = "manager" ]
 
     run machines_parse 'workers'
     echo "output: $output"
     [ "$status" -eq 0 ]
-    [[ "$output" =~ "worker1.example.com worker2.example.com" ]]
+    [[ "$output" =~ "worker1 worker2" ]]
 }
 
 @test "machines_parse handles missing file" {
-    MACHINES_FILE="/nonexistent/path/machines.yml"
+    MACHINES_FILE="/nonexistent/path/machines.yaml"
     run machines_parse 'manager'
     [ "$status" -eq 1 ]
-    [[ "$output" =~ "Error" ]]  # Should have error message
+    [[ "$output" =~ "ERROR" ]]  # Should have error message
 }
 
 @test "machines_parse handles invalid yaml" {
     # create invalid yaml file
-    cat > "${TEST_TEMP_DIR}/machines.yml" <<EOF
+    cat > "${TEST_TEMP_DIR}/machines.yaml" <<EOF
 machines:
   - host: manager.example.com
     role: manager
     invalid_yaml: [
 EOF
-    MACHINES_FILE="${TEST_TEMP_DIR}/machines.yml"
+    MACHINES_FILE="${TEST_TEMP_DIR}/machines.yaml"
     run machines_parse 'manager'
     echo "output: $output"
     echo "status: $status"
@@ -106,13 +112,13 @@ EOF
 @test "machines_get_host_ip handles invalid IP format" {
     run machines_get_host_ip "256.256.256.256"
     [ "$status" -eq 1 ]
-    [[ "$output" =~ "Error: Invalid IP address" ]]
+    [[ "$output" =~ "Invalid IP address" ]]
 }
 
 @test "machines_get_host_ip fails on unresolvable host" {
     run machines_get_host_ip "nonexistent.example.com"
     [ "$status" -eq 1 ]
-    [[ "$output" =~ "Error: Could not resolve IP for host" ]]
+    [[ "$output" =~ "Could not resolve IP for host" ]]
 }
 
 @test "machines_setup_ssh attempts to setup all hosts" {
@@ -141,7 +147,7 @@ EOF
     run machines_setup_ssh
     echo "output: $output" >&2
     [ "$status" -eq 0 ]
-    [[ "$output" =~ "Setting up SSH access for manager.example.com" ]]
+    [[ "$output" =~ "Setting up SSH access for manager (10.0.0.1)" ]]
 }
 
 @test "machines_setup_ssh handles ssh-copy-id failure" {
@@ -177,8 +183,8 @@ EOF
     run machines_test_connection
     echo "output: $output" >&2
     [ "$status" -eq 0 ]
-    [[ "$output" =~ "Testing connection to worker1.example.com" ]]
-    [[ "$output" =~ "✓ Successfully connected to worker1.example.com" ]]
+    [[ "$output" =~ "Testing connection to worker1 (10.0.0.2)" ]]
+    [[ "$output" =~ "✓ Successfully connected to worker1 (10.0.0.2)" ]]
 }
 
 @test "machines_test_connection shows failure for failed connections" {
@@ -196,45 +202,45 @@ EOF
     run machines_test_connection
     echo "output: $output" >&2
     [ "$status" -eq 1 ]
-    [[ "$output" =~ "Testing connection to worker1.example.com" ]]
-    [[ "$output" =~ "✗ Failed to connect to worker1.example.com" ]]
+    [[ "$output" =~ "Testing connection to worker1 (10.0.0.2)" ]]
+    [[ "$output" =~ "✗ Failed to connect to worker1 (10.0.0.2)" ]]
 }
 
-@test "machines_get_ssh_user gets user for host" {
-    MACHINES_FILE="${TEST_TEMP_DIR}/machines.yml"
+@test "machines_get_ssh_user gets user for machine key" {
+    MACHINES_FILE="${TEST_TEMP_DIR}/machines.yaml"
 
-    run machines_get_ssh_user "manager.example.com"
+    run machines_get_ssh_user "manager"
     [ "$status" -eq 0 ]
     [ "$output" = "admin1" ]
 
-    run machines_get_ssh_user "worker1.example.com"
+    run machines_get_ssh_user "worker1"
     [ "$status" -eq 0 ]
     [ "$output" = "admin2" ]
 
-    run machines_get_ssh_user "worker2.example.com"
+    run machines_get_ssh_user "worker2"
     [ "$status" -eq 0 ]
     [ "$output" = "admin3" ]
 }
 
 @test "machines_get_ssh_user handles missing user" {
-    # Create test machines.yml without SSH users
-    cat > "${TEST_TEMP_DIR}/machines.yml" <<EOF
+    # Create test machines.yaml without SSH users
+    cat > "${TEST_TEMP_DIR}/machines.yaml" <<EOF
 machines:
-  - host: manager.example.com
+  manager:
     role: manager
-  - host: worker1.example.com
+  worker1:
     role: worker
 EOF
 
-    MACHINES_FILE="${TEST_TEMP_DIR}/machines.yml"
+    MACHINES_FILE="${TEST_TEMP_DIR}/machines.yaml"
 
-    run machines_get_ssh_user "manager.example.com"
+    run machines_get_ssh_user "manager"
     [ "$status" -eq 0 ]
     [ "$output" = "null" ]  # yq returns "null" for missing fields
 }
 
 @test "machines_get_ssh_user handles invalid host" {
-    MACHINES_FILE="${TEST_TEMP_DIR}/machines.yml"
+    MACHINES_FILE="${TEST_TEMP_DIR}/machines.yaml"
 
     run machines_get_ssh_user "nonexistent"
     [ "$status" -eq 0 ]
@@ -242,11 +248,11 @@ EOF
 }
 
 @test "machines_get_ssh_user handles missing file" {
-    MACHINES_FILE="/nonexistent/path/machines.yml"
+    MACHINES_FILE="/nonexistent/path/machines.yaml"
 
     run machines_get_ssh_user "manager"
     [ "$status" -eq 1 ]
-    [[ "$output" =~ "Error" ]]
+    [[ "$output" =~ "ERROR" ]]
 }
 
 @test "machines_setup_ssh handles permissions" {
@@ -285,8 +291,8 @@ EOF
     run machines_setup_ssh
     echo "Output: $output" >&2
     [ "$status" -eq 0 ]
-    [[ "$output" =~ "Setting up SSH access for manager.example.com" ]]
-    [[ "$output" =~ "Successfully set up SSH access for manager.example.com" ]]
+    [[ "$output" =~ "Setting up SSH access for manager (10.0.0.1)" ]]
+    [[ "$output" =~ "Successfully set up SSH access for manager (10.0.0.1)" ]]
 }
 
 @test "machines_setup_ssh skips local machine" {
@@ -338,8 +344,8 @@ EOF
     echo "Output: $output" >&2
 
     [ "$status" -eq 0 ]
-    [[ "$output" =~ "Skipping SSH setup for local machine: manager.example.com" ]]
-    [[ "$output" =~ "Setting up SSH access for worker1.example.com" ]]
+    [[ "$output" =~ "Skipping SSH setup for local machine: manager (10.0.0.1)" ]]
+    [[ "$output" =~ "Setting up SSH access for worker1 (10.0.0.2)" ]]
 }
 
 @test "machines_is_ssh_configured returns true when SSH key auth works" {
@@ -380,9 +386,9 @@ EOF
     # Mock machines_is_ssh_configured to return success for worker1, failure for worker2
     machines_is_ssh_configured() {
         case "$1" in
-            "worker1.example.com") return 0 ;;  # Already configured
-            "worker2.example.com") return 1 ;;  # Needs setup
-            "manager.example.com") return 1 ;;  # Needs setup
+            "10.0.0.2") return 0 ;;  # worker1 - Already configured
+            "10.0.0.3") return 1 ;;  # worker2 - Needs setup
+            "10.0.0.1") return 1 ;;  # manager - Needs setup
             *) return 1 ;;
         esac
     }
@@ -412,9 +418,9 @@ EOF
     run machines_setup_ssh
     echo "Output: $output" >&2
     [ "$status" -eq 0 ]
-    [[ "$output" =~ "Skipping SSH setup for already configured host: worker1.example.com" ]]
-    [[ "$output" =~ "Setting up SSH access for worker2.example.com" ]]
-    [[ "$output" =~ "Setting up SSH access for manager.example.com" ]]
+    [[ "$output" =~ "Skipping SSH setup for already configured machine: worker1 (10.0.0.2)" ]]
+    [[ "$output" =~ "Setting up SSH access for worker2 (10.0.0.3)" ]]
+    [[ "$output" =~ "Setting up SSH access for manager (10.0.0.1)" ]]
 }
 
 @test "machines_is_ssh_configured should allow debug mode" {
@@ -460,4 +466,126 @@ EOF
     run machines_is_ssh_configured_no_timeout "test.example.com" "testuser"
     echo "Output: $output" >&2
     [ "$status" -eq 0 ]
+}
+
+@test "machines_build_hostname constructs hostname from machine key" {
+    BASE_DOMAIN="diyhub.dev"
+    export BASE_DOMAIN
+
+    run machines_build_hostname "manager"
+    [ "$status" -eq 0 ]
+    [ "$output" = "manager.diyhub.dev" ]
+
+    run machines_build_hostname "node-01"
+    [ "$status" -eq 0 ]
+    [ "$output" = "node-01.diyhub.dev" ]
+
+    run machines_build_hostname "nas"
+    [ "$status" -eq 0 ]
+    [ "$output" = "nas.diyhub.dev" ]
+}
+
+@test "machines_get_ip should work with simplified machine key structure" {
+    # Create simplified machines.yaml structure (no host field)
+    cat > "${TEST_TEMP_DIR}/machines.yaml" <<EOF
+machines:
+  manager:
+    ip: 192.168.1.100
+    user: admin
+  node-01:
+    ip: 192.168.1.101
+    user: deploy
+  node-02:
+    user: deploy
+    # No IP field - should fall back to hostname resolution
+EOF
+
+    MACHINES_FILE="${TEST_TEMP_DIR}/machines.yaml"
+    BASE_DOMAIN="diyhub.dev"
+    export BASE_DOMAIN
+
+    # Test IP field is used when present for machine key
+    run machines_get_ip "manager"
+    [ "$status" -eq 0 ]
+    [ "$output" = "192.168.1.100" ]
+
+    # Test IP field is used when present for machine key
+    run machines_get_ip "node-01"
+    [ "$status" -eq 0 ]
+    [ "$output" = "192.168.1.101" ]
+
+    # Test fallback to hostname resolution when IP field missing
+    # Should resolve node-02.diyhub.dev via DNS
+    run machines_get_ip "node-02"
+    [ "$status" -eq 0 ]
+    [ "$output" = "10.0.0.3" ]  # From mocked getent for constructed hostname
+}
+
+@test "machines_setup_ssh should use IP addresses not hostnames" {
+    # RED: This test should fail initially because current code uses hostnames
+    # Mock commands to verify IP addresses are used
+    ssh_password_auth() {
+        echo "SSH password auth called with: $1" >&2
+        # Verify the connection string uses IP address not hostname
+        [[ "$1" =~ ^[a-zA-Z0-9_]+@[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]
+        return 0
+    }
+
+    ssh_copy_id() {
+        echo "SSH copy ID called with: $1" >&2
+        # Verify the connection string uses IP address not hostname
+        [[ "$1" =~ ^[a-zA-Z0-9_]+@[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]
+        return 0
+    }
+
+    ssh_key_auth() {
+        local target="$1"
+        echo "SSH key auth called with: $target" >&2
+        # Verify the connection string uses IP address not hostname
+        [[ "$target" =~ ^[a-zA-Z0-9_]+@[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]
+        return 0
+    }
+
+    timeout() {
+        "${@:2}"
+    }
+
+    # Mock machines_is_ssh_configured to return "not configured" for all
+    machines_is_ssh_configured() {
+        return 1
+    }
+
+    export -f ssh_password_auth ssh_copy_id ssh_key_auth timeout machines_is_ssh_configured
+
+    # This test should verify that all SSH operations use IPs not hostnames
+    run machines_setup_ssh
+    [ "$status" -eq 0 ]
+
+    # GREEN: Verify the output mentions IP addresses, not hostnames
+    [[ "$output" =~ "Setting up SSH access for worker1 (10.0.0.2)" ]]
+    [[ "$output" =~ "Setting up SSH access for worker2 (10.0.0.3)" ]]
+    # Should NOT contain hostname references in connection attempts
+    [[ ! "$output" =~ "worker1.example.com" ]]
+    [[ ! "$output" =~ "worker2.example.com" ]]
+}
+
+@test "machines_get_ip can find machine by role" {
+    # Create a machines.yaml where the manager is not keyed by "manager"
+    cat > "${PROJECT_ROOT}/machines.yaml" <<EOF
+machines:
+  main-server:
+    ip: 10.0.0.99
+    role: manager
+  worker-bee:
+    ip: 10.0.0.2
+    role: worker
+EOF
+
+    MACHINES_FILE="${PROJECT_ROOT}/machines.yaml"
+
+    # This should fail because machines_get_ip looks for a key "manager"
+    # instead of looking for a machine with the role "manager".
+    run machines_get_ip "manager"
+    [ "$status" -eq 0 ]
+    [ "$output" = "10.0.0.99" ]
 }

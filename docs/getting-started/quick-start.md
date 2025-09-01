@@ -1,7 +1,7 @@
 # Quick Start Guide
 
 !!! tip "Goal"
-    Get your first self-hosted service running in under 5 minutes!
+    Deploy your first self-hosted services in under 10 minutes!
 
 ## Prerequisites Check
 
@@ -11,40 +11,32 @@ Before we begin, make sure you have:
 - [x] **Domain name** with Cloudflare DNS management
 - [x] **Cloudflare API credentials** (Global API Key or API Token)
 - [x] **Linux/Unix environment** (Ubuntu 20.04+, Debian 11+, or similar)
+- [x] **Network storage** (optional - for persistent data via SMB/CIFS)
 
 !!! warning "Don't have these yet?"
     Check out our [detailed installation guide](installation.md) for step-by-step setup instructions.
 
-## 🚀 5-Minute Setup
+## 🚀 Quick Deployment
 
-### Step 1: Clone the Repository
+### Step 1: Clone and Setup
 
 ```bash
 git clone https://github.com/yourusername/homelab.git
 cd homelab
+
+# Copy environment template
+cp .env.example .env
 ```
 
-### Step 2: Initialize Your Environment
+### Step 2: Configure Your Environment
 
-```bash
-./selfhosted config init
-```
-
-This command will:
-
-- Copy `.env.example` to `.env`
-- Guide you through basic configuration
-- Validate your setup
-
-### Step 3: Configure Essential Variables
-
-Edit your `.env` file with your domain and Cloudflare credentials:
+Edit your `.env` file with your domain and credentials:
 
 ```bash
 nano .env
 ```
 
-**Required Configuration:**
+**Essential Configuration:**
 
 ```bash title=".env"
 # Your domain
@@ -55,6 +47,14 @@ CF_Token=your_cloudflare_api_token          # ✅ Recommended method
 # OR
 CF_Email=your@email.com                     # Legacy method
 CF_Key=your_global_api_key                  # Legacy method
+
+# Email for SSL certificates
+ACME_EMAIL=your-email@example.com
+
+# Network storage (if you have NAS/SMB shares)
+NAS_SERVER=nas.yourdomain.com
+SMB_USERNAME=your_smb_username
+SMB_PASSWORD=your_smb_password
 ```
 
 !!! tip "Getting Cloudflare API Token"
@@ -64,93 +64,76 @@ CF_Key=your_global_api_key                  # Legacy method
     4. Add permissions: `Zone:DNS:Edit` and `Zone:Zone:Read`
     5. Include your domain in "Zone Resources"
 
-### Step 4: Explore Available Services
+### Step 3: See Available Services
 
-See what services you can deploy:
+Check what services are available to deploy:
 
 ```bash
-./selfhosted service list
+ls stacks/apps/
 ```
 
 Expected output:
 ```
-🎯 Available Services (6):
-
-📊 Finance & Budgeting:
-  ✅ actual              - Actual Budget - Personal finance and budgeting
-
-📸 Media Management:
-  ❌ photoprism          - PhotoPrism - AI-powered photo management
-
-🏠 Smart Home & Automation:
-  ❌ homeassistant       - Home Assistant - Open source home automation
-
-🔧 Development & Management:
-  ❌ portainer           - Portainer Agent - Container management interface
-
-📝 Collaboration & Productivity:
-  ❌ cryptpad            - CryptPad - Encrypted collaborative editing
-
-🌐 Core Infrastructure:
-  ✅ homepage            - Homepage Dashboard - Centralized dashboard
+actual_server  cryptpad      deluge        emby          homeassistant
+homepage       librechat     photoprism    prowlarr      qbittorrent
+radarr         sonarr
 ```
 
-### Step 5: Enable Your First Service
+All these services have Docker Compose files and will be deployed automatically!
 
-Let's start with a simple service - Homepage Dashboard:
+### Step 4: Configure Multi-Node Setup (Optional)
+
+If you have multiple machines for Docker Swarm:
 
 ```bash
-./selfhosted service enable homepage
+# Copy and edit machines configuration
+cp machines.yaml.example machines.yaml
+nano machines.yaml
 ```
 
-Or use the interactive selector:
+For single-machine setup, you can skip this step.
+
+### Step 5: Deploy Everything
+
+Deploy all available services:
 
 ```bash
-./selfhosted service interactive
+./selfhosted.sh deploy
 ```
 
-### Step 6: Generate Deployment Files
+Or deploy specific services only:
 
 ```bash
-./selfhosted service generate
+# Deploy only homepage and actual budget
+./selfhosted.sh deploy --only-apps homepage,actual_server
+
+# Deploy everything except heavy services
+./selfhosted.sh deploy --skip-apps photoprism,emby
 ```
 
-This creates:
+### Step 6: Access Your Services
 
-- `generated/deployments/docker-compose.yaml` - Docker Compose configuration
-- `generated/nginx/templates/` - Nginx reverse proxy templates
-- `generated/config/domains.env` - Domain environment variables
+Once deployment completes, access your services at:
 
-### Step 7: Deploy Your Services
+- **Homepage Dashboard**: `https://homepage.yourdomain.com`
+- **Actual Budget**: `https://budget.yourdomain.com`
+- **Home Assistant**: `https://homeassistant.yourdomain.com`
+- **And many more...**
 
-```bash
-./selfhosted deploy compose up
-```
-
-### Step 8: Access Your Services
-
-Once deployment is complete, access your services:
-
-- **Homepage Dashboard**: `https://dashboard.yourdomain.com`
+The Homepage dashboard will show all your deployed services!
 
 !!! success "🎉 Congratulations!"
-    You now have your first self-hosted service running! The Homepage Dashboard will show all your available services.
+    You now have a complete self-hosted infrastructure running on Docker Swarm with automatic SSL certificates!
 
 ## What's Next?
 
 <div class="grid cards" markdown>
 
-- :material-plus-circle: **[Add More Services](../services/index.md)**
-
-    ---
-
-    Browse our catalog of 20+ available services
-
 - :material-cog: **[Service Management](../user-guide/service-management.md)**
 
     ---
 
-    Learn advanced service configuration and management
+    Learn how to add, remove, and configure services
 
 - :material-certificate: **[SSL & Domains](../user-guide/domain-ssl.md)**
 
@@ -162,50 +145,87 @@ Once deployment is complete, access your services:
 
     ---
 
-    Set up persistent storage and backups
+    Set up persistent storage and backups with SMB/CIFS
+
+- :material-monitor-multiple: **[Multi-Node Setup](../user-guide/multi-node.md)**
+
+    ---
+
+    Scale across multiple machines with Docker Swarm
 
 </div>
 
-## Quick Commands Reference
+## Essential Commands Reference
 
 ```bash
+# Deployment Commands
+./selfhosted.sh deploy                         # Deploy all services
+./selfhosted.sh deploy --only-apps service1,service2  # Deploy specific services
+./selfhosted.sh deploy --skip-apps service3   # Deploy all except specified
+
 # Service Management
-./selfhosted service list              # List all services
-./selfhosted service enable <name>     # Enable a service
-./selfhosted service disable <name>    # Disable a service
-./selfhosted service status           # Show enabled services
+./selfhosted.sh redeploy-service <name>        # Redeploy single service
+./selfhosted.sh nuke <service-name>            # Destroy service + volumes
+./selfhosted.sh nuke                           # Destroy entire cluster
 
-# Deployment
-./selfhosted service generate         # Generate deployment files
-./selfhosted deploy compose up        # Start services
-./selfhosted deploy compose down      # Stop services
+# Check Available Services
+ls stacks/apps/                                # See all available services
+ls stacks/apps/*/docker-compose.yml           # List services with compose files
 
-# Configuration
-./selfhosted config validate          # Validate configuration
-./selfhosted help                     # Show detailed help
+# Docker Swarm Management
+docker stack ls                                # List deployed stacks
+docker stack services <stack-name>            # Show services in a stack
+docker stack ps <stack-name>                  # Show tasks/containers
+
+# Monitoring
+scripts/swarm_cluster_manager.sh monitor-cluster  # Cluster health check
 ```
 
 ## Troubleshooting Quick Fixes
 
-??? question "Service won't start?"
+??? question "Service won't start or keeps restarting?"
 
-    Check the logs:
+    Check the service logs:
     ```bash
-    docker compose logs <service-name>
+    # Find the service name first
+    docker stack services <stack-name>
+
+    # Check specific service logs
+    docker service logs <service-name> --tail 50 --follow
     ```
 
 ??? question "Domain not resolving?"
 
     Verify your DNS settings:
     ```bash
-    dig dashboard.yourdomain.com
+    # Check if domain points to your server
+    dig yourdomain.com
+
+    # Test specific service subdomain
+    dig homepage.yourdomain.com
     ```
 
 ??? question "SSL certificate issues?"
 
-    Check certificate status:
+    Check Traefik and certificate status:
     ```bash
-    docker compose exec nginx ls -la /etc/nginx/certs/
+    # Check reverse-proxy stack logs
+    docker stack services reverse-proxy
+    docker service logs reverse-proxy_traefik --tail 50
+
+    # Check if certificates are being generated
+    docker exec -it $(docker ps -q -f name=reverse-proxy_traefik) ls -la /letsencrypt/
+    ```
+
+??? question "Volume/storage issues?"
+
+    Check SMB/CIFS connection:
+    ```bash
+    # Test SMB connection manually
+    smbclient -L //${NAS_SERVER} -U ${SMB_USERNAME}
+
+    # Check volume mount status
+    docker volume ls | grep <service-name>
     ```
 
 [Need more help? See our troubleshooting guide →](../user-guide/troubleshooting.md)

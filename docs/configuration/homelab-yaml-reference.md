@@ -5,7 +5,7 @@
 
 ## Overview
 
-The `homelab.yaml` file is the single configuration file that defines your entire homelab setup. It replaces the previous multi-file approach (`services.yaml` + `machines.yml` + `volumes.yaml` + `.env`) with a simple, unified configuration.
+The `homelab.yaml` file is the single configuration file that defines your entire homelab setup. It replaces the previous multi-file approach (`services.yaml` + `machines.yaml` + `volumes.yaml` + `.env`) with a simple, unified configuration.
 
 ## Security Best Practices
 
@@ -393,9 +393,9 @@ services:
     port: 3000
 ```
 
-### From machines.yml
+### From machines.yaml
 ```yaml
-# Old machines.yml
+# Old machines.yaml
 managers:
   - hostname: homelab-driver
     ip: 192.168.1.100

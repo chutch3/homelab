@@ -1,0 +1,126 @@
+version: "3.9"
+
+services:
+  api:
+    image: ghcr.io/danny-avila/librechat-dev-api:latest
+    env_file: .env
+    environment:
+      - HOST=0.0.0.0
+      - NODE_ENV=production
+      - MONGO_URI=mongodb://mongodb:27017/LibreChat
+      - MEILI_HOST=http://meilisearch:7700
+      - RAG_PORT=${RAG_PORT:-8000}
+      - RAG_API_URL=http://rag_api:${RAG_PORT:-8000}
+    volumes:
+      - ./librechat.yaml:/app/librechat.yaml
+      - librechat_images:/app/client/public/images
+      - librechat_uploads:/app/uploads
+      - librechat_logs:/app/api/logs
+    networks:
+      - traefik-public
+    deploy:
+      labels:
+        - traefik.enable=true
+        - traefik.http.routers.librechat.rule=Host(`chat.${BASE_DOMAIN}`)
+        - traefik.http.routers.librechat.entrypoints=websecure
+        - traefik.http.routers.librechat.tls.certresolver=dns
+        - traefik.http.services.librechat.loadbalancer.server.port=3080
+        - homepage.group=AI
+        - homepage.name=LibreChat
+        - homepage.icon=chat.png
+        - homepage.href=https://chat.${BASE_DOMAIN}/
+        - homepage.description=AI Chat Interface
+        - homepage.widget.type=librechat
+        - homepage.widget.url=https://chat.${BASE_DOMAIN}/
+      replicas: 1
+
+  mongodb:
+    image: mongo
+    user: 0:100
+    volumes:
+      - librechat_mongodb:/data/db
+    networks:
+      - traefik-public
+    deploy:
+      replicas: 1
+
+  meilisearch:
+    image: getmeili/meilisearch:v1.12.3
+    env_file: .env
+    environment:
+      - MEILI_NO_ANALYTICS=true
+    volumes:
+      - librechat_meilisearch:/meili_data
+    networks:
+      - traefik-public
+    deploy:
+      replicas: 1
+
+  vectordb:
+    image: ankane/pgvector:latest
+    environment:
+      POSTGRES_DB: mydatabase
+      POSTGRES_USER: myuser
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - librechat_vectordb:/var/lib/postgresql/data
+    networks:
+      - traefik-public
+    deploy:
+      replicas: 1
+
+  rag_api:
+    image: ghcr.io/danny-avila/librechat-rag-api-dev-lite:latest
+    environment:
+      - DB_HOST=vectordb
+      - RAG_PORT=${RAG_PORT:-8000}
+    networks:
+      - traefik-public
+    deploy:
+      replicas: 1
+networks:
+  traefik-public:
+    external: true
+
+volumes:
+  librechat_mongodb:
+    driver: local
+    driver_opts:
+      type: "cifs"
+      o: "username=${SMB_USERNAME},password=${SMB_PASSWORD},domain=${SMB_DOMAIN},vers=3.0,nobrl,uid=0,gid=100,file_mode=0777,dir_mode=0777"
+      device: "//${NAS_SERVER}/librechat_mongodb"
+
+  librechat_meilisearch:
+    driver: local
+    driver_opts:
+      type: "cifs"
+      o: "username=${SMB_USERNAME},password=${SMB_PASSWORD},domain=${SMB_DOMAIN},vers=3.0,nobrl,uid=0,gid=100,file_mode=0777,dir_mode=0777"
+      device: "//${NAS_SERVER}/librechat_meilisearch"
+
+  librechat_vectordb:
+    driver: local
+    driver_opts:
+      type: "cifs"
+      o: "username=${SMB_USERNAME},password=${SMB_PASSWORD},domain=${SMB_DOMAIN},vers=3.0,nobrl,uid=0,gid=100,file_mode=0777,dir_mode=0777"
+      device: "//${NAS_SERVER}/librechat_vectordb"
+
+  librechat_logs:
+    driver: local
+    driver_opts:
+      type: "cifs"
+      o: "username=${SMB_USERNAME},password=${SMB_PASSWORD},domain=${SMB_DOMAIN},vers=3.0,nobrl,uid=0,gid=100,file_mode=0777,dir_mode=0777"
+      device: "//${NAS_SERVER}/librechat_logs"
+
+  librechat_images:
+    driver: local
+    driver_opts:
+      type: "cifs"
+      o: "username=${SMB_USERNAME},password=${SMB_PASSWORD},domain=${SMB_DOMAIN},vers=3.0,nobrl,uid=0,gid=100,file_mode=0777,dir_mode=0777"
+      device: "//${NAS_SERVER}/librechat_images"
+
+  librechat_uploads:
+    driver: local
+    driver_opts:
+      type: "cifs"
+      o: "username=${SMB_USERNAME},password=${SMB_PASSWORD},domain=${SMB_DOMAIN},vers=3.0,nobrl,uid=0,gid=100,file_mode=0777,dir_mode=0777"
+      device: "//${NAS_SERVER}/librechat_uploads"

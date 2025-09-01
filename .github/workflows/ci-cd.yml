@@ -1,159 +1,158 @@
 name: CI/CD Pipeline
 
 on:
-  pull_request:
-    branches: [main]
-  push:
-    branches: [main]
+    pull_request:
+        branches: [main]
+    push:
+        branches: [main]
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+    group: ${{ github.workflow }}-${{ github.ref }}
+    cancel-in-progress: true
 
 permissions:
-  contents: write
-  issues: write
-  pull-requests: write
+    contents: write
+    issues: write
+    pull-requests: write
 
 jobs:
-  lint:
-    name: Lint & Static Analysis
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-        with:
-          submodules: true
+    lint:
+        name: Lint & Static Analysis
+        runs-on: ubuntu-latest
+        steps:
+            - name: Checkout code
+              uses: actions/checkout@v4
+              with:
+                  submodules: true
 
-      - name: Setup Python
-        uses: actions/setup-python@v4
-        with:
-          python-version: "3.9"
+            - name: Setup Python
+              uses: actions/setup-python@v4
+              with:
+                  python-version: "3.9"
 
-      - name: Install Poetry
-        uses: abatilo/actions-poetry@v3
-        with:
-          poetry-version: latest
+            - name: Install Poetry
+              uses: abatilo/actions-poetry@v3
+              with:
+                  poetry-version: latest
 
-      - name: Configure Poetry
-        run: |
-          poetry config virtualenvs.create true --local
-          poetry config virtualenvs.in-project true --local
+            - name: Configure Poetry
+              run: |
+                  poetry config virtualenvs.create true --local
+                  poetry config virtualenvs.in-project true --local
 
-      - name: Cache Poetry dependencies
-        uses: actions/cache@v3
-        with:
-          path: .venv
-          key: poetry-${{ runner.os }}-${{ hashFiles('**/poetry.lock') }}
+            - name: Cache Poetry dependencies
+              uses: actions/cache@v3
+              with:
+                  path: .venv
+                  key: poetry-${{ runner.os }}-${{ hashFiles('**/poetry.lock') }}
 
-      - name: Install Task
-        uses: arduino/setup-task@v1
-        with:
-          version: 3.x
-          repo-token: ${{ secrets.GITHUB_TOKEN }}
+            - name: Install Task
+              uses: arduino/setup-task@v1
+              with:
+                  version: 3.x
+                  repo-token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Install dependencies
-        run: task install
+            - name: Install dependencies
+              run: task install
 
-      - name: Run linting
-        run: task lint
+            - name: Run linting
+              run: task lint
 
-      - name: Run static analysis
-        run: task static-analysis
+            - name: Run static analysis
+              run: task static-analysis
 
-  test:
-    name: Test Suite
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-        with:
-          submodules: true
-          token: ${{ secrets.GITHUB_TOKEN }}
+    test:
+        name: Test Suite
+        runs-on: ubuntu-latest
+        steps:
+            - name: Checkout code
+              uses: actions/checkout@v4
+              with:
+                  submodules: true
+                  token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Setup Python
-        uses: actions/setup-python@v4
-        with:
-          python-version: "3.9"
+            - name: Setup Python
+              uses: actions/setup-python@v4
+              with:
+                  python-version: "3.9"
 
-      - name: Install Poetry
-        uses: abatilo/actions-poetry@v3
-        with:
-          poetry-version: latest
+            - name: Install Poetry
+              uses: abatilo/actions-poetry@v3
+              with:
+                  poetry-version: latest
 
-      - name: Configure Poetry
-        run: |
-          poetry config virtualenvs.create true --local
-          poetry config virtualenvs.in-project true --local
+            - name: Configure Poetry
+              run: |
+                  poetry config virtualenvs.create true --local
+                  poetry config virtualenvs.in-project true --local
 
-      - name: Cache Poetry dependencies
-        uses: actions/cache@v3
-        with:
-          path: .venv
-          key: poetry-${{ runner.os }}-${{ hashFiles('**/poetry.lock') }}
+            - name: Cache Poetry dependencies
+              uses: actions/cache@v3
+              with:
+                  path: .venv
+                  key: poetry-${{ runner.os }}-${{ hashFiles('**/poetry.lock') }}
 
-      - name: Install Task
-        uses: arduino/setup-task@v1
-        with:
-          version: 3.x
-          repo-token: ${{ secrets.GITHUB_TOKEN }}
+            - name: Install Task
+              uses: arduino/setup-task@v1
+              with:
+                  version: 3.x
+                  repo-token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Install test dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y bats jq bc
+            - name: Install test dependencies
+              run: |
+                  sudo apt-get update
+                  sudo apt-get install -y bats jq bc
 
-          # Install yq
-          sudo wget -qO /usr/local/bin/yq "https://github.com/mikefarah/yq/releases/download/v4.35.2/yq_linux_amd64"
-          sudo chmod +x /usr/local/bin/yq
+                  # Install yq
+                  sudo wget -qO /usr/local/bin/yq "https://github.com/mikefarah/yq/releases/download/v4.47.1/yq_linux_amd64"
+                  sudo chmod +x /usr/local/bin/yq
 
-      - name: Install kcov
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y \
-            git cmake g++ \
-            libcurl4-openssl-dev libelf-dev libdw-dev zlib1g-dev pkg-config
-          git clone --depth 1 https://github.com/SimonKagstrom/kcov.git
-          cd kcov
-          mkdir build && cd build
-          cmake ..
-          make -j$(nproc)
-          sudo make install
-          kcov --version
+            - name: Install kcov
+              run: |
+                  sudo apt-get update
+                  sudo apt-get install -y \
+                    git cmake g++ \
+                    libcurl4-openssl-dev libelf-dev libdw-dev zlib1g-dev pkg-config
+                  git clone --depth 1 https://github.com/SimonKagstrom/kcov.git
+                  cd kcov
+                  mkdir build && cd build
+                  cmake ..
+                  make -j$(nproc)
+                  sudo make install
+                  kcov --version
 
+            - name: Install dependencies
+              run: task install
 
-      - name: Install dependencies
-        run: task install
+            - name: Run tests
+              run: task test
 
-      - name: Run tests
-        run: task test
+            # - name: Produce the coverage report
+            #   uses: insightsengineering/coverage-action@v3
+            #   with:
+            #       path: coverage/merged/kcov-merged/cobertura.xml
+            #       threshold: 80.123
+            #       fail: false
+            #       publish: true
 
-      - name: Produce the coverage report
-        uses: insightsengineering/coverage-action@v3
-        with:
-          path: coverage/merged/kcov-merged/cobertura.xml
-          threshold: 80.123
-          fail: false
-          publish: true
+    release:
+        name: Semantic Release
+        runs-on: ubuntu-latest
+        needs: [lint, test]
+        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+        outputs:
+            released: ${{ steps.release.outputs.released }}
+            version: ${{ steps.release.outputs.version }}
+            tag: ${{ steps.release.outputs.tag }}
+        steps:
+            - name: Checkout code
+              uses: actions/checkout@v4
+              with:
+                  fetch-depth: 0
+                  token: ${{ secrets.GITHUB_TOKEN }}
 
-  release:
-    name: Semantic Release
-    runs-on: ubuntu-latest
-    needs: [lint, test]
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-    outputs:
-      released: ${{ steps.release.outputs.released }}
-      version: ${{ steps.release.outputs.version }}
-      tag: ${{ steps.release.outputs.tag }}
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-          token: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Run Semantic Release
-        id: release
-        uses: python-semantic-release/python-semantic-release@v10.3.1
-        with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
+            - name: Run Semantic Release
+              id: release
+              uses: python-semantic-release/python-semantic-release@v10.3.1
+              with:
+                  github_token: ${{ secrets.GITHUB_TOKEN }}

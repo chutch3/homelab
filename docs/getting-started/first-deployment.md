@@ -1,728 +1,403 @@
 # First Deployment
 
-This guide walks you through your first deployment using different orchestration platforms. Choose the deployment type that best fits your needs.
+This guide walks you through your first deployment using the simplified stacks-based architecture. The homelab supports Docker Swarm deployment with Traefik reverse proxy for SSL termination and service discovery.
 
-## Choose Your Deployment Type
+## Architecture Overview
 
-<div class="grid cards" markdown>
+The homelab uses a **stacks-based architecture** where each service is defined in its own Docker Compose file:
 
-- :material-docker: **[Docker Compose](#docker-compose-deployment)**
-
-    ---
-
-    **Best for**: Single node, development, simple production setups
-
-    **Pros**: Simple, widely supported, easy to debug
-
-    **Cons**: Single point of failure, manual scaling
-
-- :material-docker: **[Docker Swarm](#docker-swarm-deployment)**
-
-    ---
-
-    **Best for**: Multi-node clusters, high availability, load balancing
-
-    **Pros**: Built-in orchestration, secrets management, rolling updates
-
-    **Cons**: More complex setup, Docker-specific
-
-- :material-kubernetes: **[Kubernetes](#kubernetes-deployment)**
-
-    ---
-
-    **Best for**: Large-scale deployments, enterprise environments
-
-    **Pros**: Industry standard, advanced features, ecosystem
-
-    **Cons**: Complex setup, resource overhead, steep learning curve
-
-</div>
+```
+homelab/
+├── .env                    # Environment configuration
+├── selfhosted.sh          # 🚀 Main deployment script
+├── machines.yaml           # Multi-node configuration
+├── scripts/                # Management and utility scripts
+│   ├── deploy.sh          # Legacy Docker Swarm deployment
+│   ├── deploy.simple.sh   # Legacy simple deployment
+│   ├── nuke.sh           # Cleanup script
+│   ├── swarm_cluster_manager.sh  # Cluster management
+│   └── configure_dns_records.sh  # DNS automation
+└── stacks/               # Service definitions
+    ├── apps/             # Application services
+    │   ├── actual_server/
+    │   ├── homeassistant/
+    │   ├── photoprism/
+    │   └── ...
+    ├── reverse-proxy/    # Traefik reverse proxy
+    ├── monitoring/       # Prometheus + Grafana
+    └── dns/             # Technitium DNS server
+```
 
 ---
 
-## Docker Compose Deployment
-
-Docker Compose is the simplest way to get started and perfect for single-node deployments.
-
-### Prerequisites
+## Prerequisites
 
 - Docker Engine 24.0+ with Docker Compose v2
-- Domain with Cloudflare DNS
-- Configured `.env` file
+- Domain with Cloudflare DNS management
+- Multi-node setup (manager + workers) for Docker Swarm
+- SSH access to all nodes
 
-### Step 1: Enable Services
+## Step 1: Configure Environment
 
-Choose which services you want to deploy:
-
-```bash
-# List available services
-./selfhosted service list
-
-# Enable specific services
-./selfhosted service enable homepage actual
-
-# Or use interactive selection
-./selfhosted service interactive
-```
-
-### Step 2: Generate Deployment Files
+### Copy and Configure .env File
 
 ```bash
-# Generate all deployment files
-./selfhosted service generate
+# Copy the example file
+cp .env.example .env
 
-# Verify generated files
-ls -la generated/deployments/
+# Edit with your configuration
+vim .env
 ```
 
-This creates:
-```
-generated/deployments/
-├── docker-compose.yaml     # Main compose file
-└── docker-compose.override.yaml  # Environment-specific overrides
-```
+**Essential configuration:**
 
-### Step 3: Review Generated Configuration
+```bash title=".env"
+# Domain Configuration
+BASE_DOMAIN=yourdomain.com
+WILDCARD_DOMAIN=*.yourdomain.com
 
-```yaml title="generated/deployments/docker-compose.yaml"
-version: '3.8'
+# Cloudflare API (for SSL certificates)
+CF_Token=your_cloudflare_api_token
 
-services:
-  homepage:
-    image: ghcr.io/gethomepage/homepage:latest
-    container_name: homepage
-    ports:
-      - "3000:3000"
-    environment:
-      - PUID=1000
-      - PGID=1000
-      - TZ=America/New_York
-    volumes:
-      - ./data/homepage:/app/config
-      - /var/run/docker.sock:/var/run/docker.sock:ro
-    restart: unless-stopped
-    networks:
-      - selfhosted
+# Email for SSL certificates
+ACME_EMAIL=your-email@domain.com
 
-  actual:
-    image: actualbudget/actual-server:latest
-    container_name: actual
-    ports:
-      - "5006:5006"
-    environment:
-      - ACTUAL_UPLOAD_FILE_SYNC_SIZE_LIMIT_MB=20
-    volumes:
-      - ./data/actual:/app/data
-    restart: unless-stopped
-    networks:
-      - selfhosted
+# User IDs for proper file permissions
+UID=1000
+GID=1000
 
-  nginx:
-    image: nginx:alpine
-    container_name: nginx
-    ports:
-      - "80:80"
-      - "443:443"
-    volumes:
-      - ./generated/nginx/templates:/etc/nginx/templates:ro
-      - ./certs:/etc/nginx/certs:ro
-      - ./nginx/conf.d:/etc/nginx/conf.d
-    environment:
-      - BASE_DOMAIN=yourdomain.com
-    depends_on:
-      - homepage
-      - actual
-    restart: unless-stopped
-    networks:
-      - selfhosted
-
-networks:
-  selfhosted:
-    external: true
+# Service passwords (generate secure values)
+DNS_ADMIN_PASSWORD=your_secure_dns_password
+DNS_SERVER_FORWARDERS=1.1.1.1,1.0.0.1
 ```
 
-### Step 4: Create Docker Network
+### Configure Multi-Node Setup
 
 ```bash
-# Create the external network
-docker network create selfhosted
+# Copy machines example
+cp machines.yaml.example machines.yaml
+
+# Edit with your server details
+vim machines.yaml
 ```
 
-### Step 5: Deploy Services
-
-```bash
-# Deploy all services
-./selfhosted deploy compose up
-
-# Or manually with docker compose
-cd generated/deployments
-docker compose up -d
-```
-
-### Step 6: Verify Deployment
-
-```bash
-# Check service status
-docker compose ps
-
-# View logs
-docker compose logs
-
-# Check specific service logs
-docker compose logs homepage
-docker compose logs actual
-```
-
-Expected output:
-```
-NAME      IMAGE                              COMMAND   SERVICE    STATUS    PORTS
-actual    actualbudget/actual-server:latest  "..."     actual     Up        0.0.0.0:5006->5006/tcp
-homepage  ghcr.io/gethomepage/homepage:latest "..."    homepage   Up        0.0.0.0:3000->3000/tcp
-nginx     nginx:alpine                       "..."     nginx      Up        0.0.0.0:80->80/tcp, 0.0.0.0:443->443/tcp
-```
-
-### Step 7: Access Your Services
-
-- **Homepage Dashboard**: `https://dashboard.yourdomain.com`
-- **Actual Budget**: `https://budget.yourdomain.com`
-
-### Management Commands
-
-```bash
-# Start services
-./selfhosted deploy compose up
-
-# Stop services
-./selfhosted deploy compose down
-
-# Restart specific service
-./selfhosted deploy compose restart actual
-
-# Update services
-./selfhosted deploy compose pull
-./selfhosted deploy compose up -d
-
-# Scale service (if supported)
-./selfhosted deploy compose scale actual=2
-
-# View resource usage
-docker stats
-```
-
----
-
-## Docker Swarm Deployment
-
-Docker Swarm provides built-in orchestration for multi-node clusters with high availability.
-
-### Prerequisites
-
-- Multiple Docker nodes (manager + workers)
-- Configured `config/machines.yml`
-- Shared storage (NFS/GlusterFS) for persistent data
-
-### Step 1: Initialize Swarm Cluster
-
-On the manager node:
-
-```bash
-# Initialize swarm
-docker swarm init --advertise-addr 192.168.1.10
-
-# Get join token for workers
-docker swarm join-token worker
-```
-
-On worker nodes:
-
-```bash
-# Join the swarm (use token from manager)
-docker swarm join --token SWMTKN-1-... 192.168.1.10:2377
-```
-
-### Step 2: Setup Machine Configuration
-
-```yaml title="config/machines.yml"
-version: "1.0"
-
-nodes:
+```yaml title="machines.yaml"
+machines:
   manager:
-    hostname: "manager.local"
-    ip: "192.168.1.10"
-    role: "manager"
-    ssh_user: "ubuntu"
-    labels:
-      - "node.type=manager"
-      - "storage.type=ssd"
-
-  worker1:
-    hostname: "worker1.local"
-    ip: "192.168.1.11"
-    role: "worker"
-    ssh_user: "ubuntu"
-    labels:
-      - "node.type=worker"
-      - "storage.type=hdd"
+    ip: 192.168.1.10
+    user: admin
+  worker-01:
+    ip: 192.168.1.11
+    user: admin
+  worker-02:
+    ip: 192.168.1.12
+    user: admin
 ```
 
-### Step 3: Configure Services for Swarm
+## Step 2: Deploy Infrastructure
 
-Enable services and generate Swarm stack:
+### Deploy Core Services
+
+The deployment script handles Docker Swarm setup and service deployment:
 
 ```bash
-# Enable services
-./selfhosted service enable homepage actual
-
-# Generate Swarm deployment
-./selfhosted service generate
-
-# Deploy to Swarm
-./selfhosted deploy swarm deploy
+# 🚀 Deploy all infrastructure with awesome ASCII art!
+./selfhosted.sh
 ```
 
-### Step 4: Review Swarm Stack
+This script will:
+1. **Initialize Docker Swarm** cluster across your machines
+2. **Create overlay network** (`traefik-public`) for service communication
+3. **Deploy core stacks**:
+   - **Traefik** reverse proxy with SSL termination
+   - **Technitium DNS** server with local DNS records
+   - **Monitoring** stack (Prometheus + Grafana)
+4. **Configure DNS records** automatically for all services
 
-```yaml title="generated/deployments/swarm-stack.yaml"
-version: '3.8'
+### What Gets Deployed
 
-services:
-  homepage:
-    image: ghcr.io/gethomepage/homepage:latest
-    ports:
-      - "3000:3000"
-    environment:
-      - PUID=1000
-      - PGID=1000
-    volumes:
-      - homepage_data:/app/config
-      - /var/run/docker.sock:/var/run/docker.sock:ro
-    deploy:
-      mode: replicated
-      replicas: 1
-      placement:
-        constraints:
-          - node.role == manager
-      restart_policy:
-        condition: on-failure
-        delay: 5s
-        max_attempts: 3
-    networks:
-      - selfhosted
-
-  actual:
-    image: actualbudget/actual-server:latest
-    ports:
-      - "5006:5006"
-    environment:
-      - ACTUAL_UPLOAD_FILE_SYNC_SIZE_LIMIT_MB=20
-    volumes:
-      - actual_data:/app/data
-    deploy:
-      mode: replicated
-      replicas: 2  # High availability
-      placement:
-        constraints:
-          - node.type == worker
-      update_config:
-        parallelism: 1
-        delay: 10s
-        failure_action: rollback
-      restart_policy:
-        condition: on-failure
-    networks:
-      - selfhosted
-
-  nginx:
-    image: nginx:alpine
-    ports:
-      - "80:80"
-      - "443:443"
-    volumes:
-      - nginx_config:/etc/nginx/templates:ro
-      - nginx_certs:/etc/nginx/certs:ro
-    deploy:
-      mode: global  # Run on all nodes
-      placement:
-        constraints:
-          - node.role == worker
-    networks:
-      - selfhosted
-
-volumes:
-  homepage_data:
-    driver: nfs
-    driver_opts:
-      share: "192.168.1.100:/volume1/homepage"
-
-  actual_data:
-    driver: nfs
-    driver_opts:
-      share: "192.168.1.100:/volume1/actual"
-
-  nginx_config:
-    driver: local
-
-  nginx_certs:
-    driver: local
-
-networks:
-  selfhosted:
-    driver: overlay
-    attachable: true
-
-secrets:
-  cf_token:
-    external: true
+**Core Infrastructure:**
+```yaml title="stacks/reverse-proxy/docker-compose.yml"
+# Traefik reverse proxy with:
+# - Automatic SSL certificates via Cloudflare DNS
+# - Service discovery for all applications
+# - Dashboard at traefik.yourdomain.com
 ```
 
-### Step 5: Deploy Stack
+```yaml title="stacks/dns/docker-compose.yml"
+# Technitium DNS server with:
+# - Web interface at dns.yourdomain.com:5380
+# - Automatic A/CNAME records for all services
+# - Custom DNS resolution for your domain
+```
+
+## Step 3: Deploy Applications
+
+### Individual Application Deployment
+
+Each application is deployed as a separate stack:
 
 ```bash
-# Create secrets
-echo "your_cf_token" | docker secret create cf_token -
+# Deploy specific applications
+docker stack deploy -c stacks/apps/homeassistant/docker-compose.yml homeassistant
+docker stack deploy -c stacks/apps/actual_server/docker-compose.yml actual
+docker stack deploy -c stacks/apps/photoprism/docker-compose.yml photoprism
 
-# Deploy the stack
-docker stack deploy -c generated/deployments/swarm-stack.yaml selfhosted
-
-# Verify deployment
-docker stack services selfhosted
-docker stack ps selfhosted
+# List available applications
+ls stacks/apps/
 ```
 
-### Step 6: Swarm Management
+### Available Applications
+
+- **actual_server** - Personal finance and budgeting
+- **homeassistant** - Smart home automation platform
+- **photoprism** - AI-powered photo management
+- **emby** - Media server and streaming
+- **librechat** - AI chat interface
+- **sonarr/radarr/prowlarr** - Media management suite
+- **qbittorrent/deluge** - Torrent clients
+- **cryptpad** - Collaborative document editing
+- **homepage** - Dashboard for all services
+
+## Step 4: Verify Deployment
+
+### Check Service Status
 
 ```bash
-# List stacks
+# List all deployed stacks
 docker stack ls
 
-# Scale service
-docker service scale selfhosted_actual=3
+# Check specific stack services
+docker stack services reverse-proxy
+docker stack services dns
+docker stack services monitoring
 
-# Update service
-docker service update --image actualbudget/actual-server:latest selfhosted_actual
+# View service logs
+docker service logs reverse-proxy_traefik
+docker service logs dns_dns-server
+```
 
-# Rolling update
-docker service update --update-parallelism 1 --update-delay 10s selfhosted_actual
+**Expected output:**
+```
+NAME                     SERVICES   ORCHESTRATOR
+reverse-proxy           1          Swarm
+dns                     1          Swarm
+monitoring              2          Swarm
+homeassistant           1          Swarm
+actual                  1          Swarm
+```
 
-# Remove stack
-docker stack rm selfhosted
+## Step 5: Access Your Services
+
+All services are automatically configured with SSL certificates and accessible via your domain:
+
+### Core Infrastructure
+- **Traefik Dashboard**: `https://traefik.yourdomain.com`
+- **DNS Server**: `http://dns.yourdomain.com:5380`
+- **Grafana Monitoring**: `https://grafana.yourdomain.com`
+- **Prometheus Metrics**: `https://prometheus.yourdomain.com`
+
+### Applications (when deployed)
+- **Home Assistant**: `https://homeassistant.yourdomain.com`
+- **Actual Budget**: `https://actual.yourdomain.com`
+- **PhotoPrism**: `https://photoprism.yourdomain.com`
+- **Homepage Dashboard**: `https://homepage.yourdomain.com`
+- **And more...**
+
+## Management Commands
+
+### Service Management
+
+```bash
+# Update a service (example: homeassistant)
+docker service update --image homeassistant/home-assistant:latest homeassistant_homeassistant
+
+# Scale a service
+docker service scale actual_actual-server=2
+
+# Remove a service stack
+docker stack rm homeassistant
+
+# View service logs
+docker service logs -f homeassistant_homeassistant
+```
+
+### Cluster Management
+
+```bash
+# Check cluster status
+docker node ls
+
+# View cluster resources
+docker system df
+docker stats
+
+# Complete infrastructure teardown
+./scripts/nuke.sh
 ```
 
 ---
 
-## Kubernetes Deployment
+## Advanced Configuration
 
-Kubernetes provides enterprise-grade orchestration with advanced features.
+### Custom Service Configuration
 
-!!! warning "Kubernetes Support"
-    Kubernetes support is currently in development. This section shows the planned implementation.
-
-### Prerequisites
-
-- Kubernetes cluster (k3s, k8s, EKS, GKE, AKS)
-- kubectl configured
-- Helm 3.x (optional)
-- Ingress controller (nginx, traefik)
-- Cert-manager for SSL
-
-### Step 1: Setup Kubernetes Cluster
-
-=== "k3s (Lightweight)"
-
-    ```bash
-    # Install k3s on master
-    curl -sfL https://get.k3s.io | sh -s - server --cluster-init
-
-    # Get node token
-    sudo cat /var/lib/rancher/k3s/server/node-token
-
-    # Join additional nodes
-    curl -sfL https://get.k3s.io | K3S_URL=https://master-ip:6443 K3S_TOKEN=token sh -
-    ```
-
-=== "kubeadm (Full Kubernetes)"
-
-    ```bash
-    # Initialize cluster
-    sudo kubeadm init --pod-network-cidr=10.244.0.0/16
-
-    # Configure kubectl
-    mkdir -p $HOME/.kube
-    sudo cp -i /etc/kubernetes/admin.conf $HOME/.kube/config
-    sudo chown $(id -u):$(id -g) $HOME/.kube/config
-
-    # Install CNI plugin
-    kubectl apply -f https://raw.githubusercontent.com/flannel-io/flannel/master/Documentation/kube-flannel.yml
-    ```
-
-### Step 2: Install Required Components
+Each service stack can be customized by editing its Docker Compose file:
 
 ```bash
-# Install cert-manager
-kubectl apply -f https://github.com/cert-manager/cert-manager/releases/download/v1.13.0/cert-manager.yaml
+# Edit a service configuration
+vim stacks/apps/homeassistant/docker-compose.yml
 
-# Install nginx ingress controller
-kubectl apply -f https://raw.githubusercontent.com/kubernetes/ingress-nginx/controller-v1.8.2/deploy/static/provider/cloud/deploy.yaml
-
-# Verify installations
-kubectl get pods -n cert-manager
-kubectl get pods -n ingress-nginx
+# Redeploy with changes
+docker stack deploy -c stacks/apps/homeassistant/docker-compose.yml homeassistant
 ```
 
-### Step 3: Generate Kubernetes Manifests
+### DNS Configuration
+
+The system automatically configures DNS records, but you can customize:
 
 ```bash
-# Enable services
-./selfhosted service enable homepage actual
+# Manual DNS configuration
+./scripts/configure_dns_records.sh
 
-# Generate Kubernetes manifests
-./selfhosted service generate --platform kubernetes
-
-# Review generated files
-ls -la generated/kubernetes/
+# Check DNS server logs
+docker service logs dns_dns-server
 ```
 
-This creates:
-```
-generated/kubernetes/
-├── namespace.yaml
-├── configmaps/
-├── secrets/
-├── deployments/
-├── services/
-├── ingresses/
-└── persistent-volumes/
-```
+### SSL Certificates
 
-### Step 4: Review Generated Manifests
+Traefik automatically obtains SSL certificates via Cloudflare DNS challenge. Certificates are stored in Docker volumes and automatically renewed.
 
-```yaml title="generated/kubernetes/deployments/actual.yaml"
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: actual
-  namespace: selfhosted
-  labels:
-    app: actual
-    component: finance
-spec:
-  replicas: 2
-  selector:
-    matchLabels:
-      app: actual
-  template:
-    metadata:
-      labels:
-        app: actual
-    spec:
-      containers:
-      - name: actual
-        image: actualbudget/actual-server:latest
-        ports:
-        - containerPort: 5006
-          name: http
-        env:
-        - name: ACTUAL_UPLOAD_FILE_SYNC_SIZE_LIMIT_MB
-          value: "20"
-        volumeMounts:
-        - name: actual-data
-          mountPath: /app/data
-        resources:
-          requests:
-            memory: "256Mi"
-            cpu: "100m"
-          limits:
-            memory: "512Mi"
-            cpu: "500m"
-        livenessProbe:
-          httpGet:
-            path: /
-            port: 5006
-          initialDelaySeconds: 30
-          periodSeconds: 10
-        readinessProbe:
-          httpGet:
-            path: /
-            port: 5006
-          initialDelaySeconds: 5
-          periodSeconds: 5
-      volumes:
-      - name: actual-data
-        persistentVolumeClaim:
-          claimName: actual-data-pvc
-```
+### Adding New Services
 
-```yaml title="generated/kubernetes/services/actual.yaml"
-apiVersion: v1
-kind: Service
-metadata:
-  name: actual
-  namespace: selfhosted
-  labels:
-    app: actual
-spec:
-  selector:
-    app: actual
-  ports:
-  - name: http
-    port: 5006
-    targetPort: 5006
-  type: ClusterIP
-```
+To add a new service:
 
-```yaml title="generated/kubernetes/ingresses/actual.yaml"
-apiVersion: networking.k8s.io/v1
-kind: Ingress
-metadata:
-  name: actual
-  namespace: selfhosted
-  annotations:
-    kubernetes.io/ingress.class: nginx
-    cert-manager.io/cluster-issuer: letsencrypt-prod
-    nginx.ingress.kubernetes.io/ssl-redirect: "true"
-spec:
-  tls:
-  - hosts:
-    - budget.yourdomain.com
-    secretName: actual-tls
-  rules:
-  - host: budget.yourdomain.com
-    http:
-      paths:
-      - path: /
-        pathType: Prefix
-        backend:
-          service:
-            name: actual
-            port:
-              number: 5006
-```
+1. **Create a new stack directory:**
+   ```bash
+   mkdir stacks/apps/newservice
+   ```
 
-### Step 5: Deploy to Kubernetes
+2. **Create docker-compose.yml:**
+   ```yaml title="stacks/apps/newservice/docker-compose.yml"
+   services:
+     newservice:
+       image: newservice/image:latest
+       environment:
+         - EXAMPLE_VAR=${EXAMPLE_VAR}
+       volumes:
+         - newservice-data:/app/data
+       networks:
+         - traefik-public
+       labels:
+         - traefik.enable=true
+         - traefik.http.routers.newservice.rule=Host(`newservice.${BASE_DOMAIN}`)
+         - traefik.http.routers.newservice.tls=true
+         - traefik.http.routers.newservice.tls.certresolver=letsencrypt
+         - traefik.http.services.newservice.loadbalancer.server.port=8080
 
-```bash
-# Deploy all manifests
-./selfhosted deploy kubernetes apply
+   volumes:
+     newservice-data:
 
-# Or manually apply
-kubectl apply -R -f generated/kubernetes/
+   networks:
+     traefik-public:
+       external: true
+   ```
 
-# Verify deployment
-kubectl get pods -n selfhosted
-kubectl get services -n selfhosted
-kubectl get ingresses -n selfhosted
-```
-
-### Step 6: Kubernetes Management
-
-```bash
-# Scale deployment
-kubectl scale deployment actual --replicas=3 -n selfhosted
-
-# Rolling update
-kubectl set image deployment/actual actual=actualbudget/actual-server:v2 -n selfhosted
-
-# Check rollout status
-kubectl rollout status deployment/actual -n selfhosted
-
-# Rollback if needed
-kubectl rollout undo deployment/actual -n selfhosted
-
-# View logs
-kubectl logs -f deployment/actual -n selfhosted
-
-# Port forward for debugging
-kubectl port-forward service/actual 5006:5006 -n selfhosted
-```
+3. **Deploy the service:**
+   ```bash
+   docker stack deploy -c stacks/apps/newservice/docker-compose.yml newservice
+   ```
 
 ---
 
 ## Troubleshooting Common Issues
 
-### Docker Compose Issues
+### Docker Swarm Issues
 
 ??? question "Services won't start?"
 
     ```bash
     # Check service logs
-    docker compose logs service-name
+    docker service logs servicename_containername
 
-    # Check Docker daemon
-    systemctl status docker
+    # Check service status
+    docker service ps servicename_containername
 
-    # Verify network
-    docker network ls
-    docker network inspect selfhosted
+    # Inspect service configuration
+    docker service inspect servicename_containername
     ```
-
-??? question "Port conflicts?"
-
-    ```bash
-    # Check what's using the port
-    sudo netstat -tulpn | grep :80
-    sudo lsof -i :80
-
-    # Stop conflicting services
-    sudo systemctl stop apache2
-    sudo systemctl stop nginx
-    ```
-
-### Docker Swarm Issues
 
 ??? question "Node won't join swarm?"
 
     ```bash
-    # Check connectivity
+    # Check connectivity between nodes
     telnet manager-ip 2377
 
-    # Regenerate join token
+    # Regenerate join token on manager
     docker swarm join-token worker
 
-    # Check firewall ports
+    # Ensure required ports are open
     sudo ufw allow 2377/tcp  # Swarm management
     sudo ufw allow 7946/tcp  # Container network discovery
-    sudo ufw allow 4789/udp  # Container ingress network
+    sudo ufw allow 4789/udp  # Container overlay network
     ```
 
-??? question "Service won't deploy?"
+### SSL Certificate Issues
+
+??? question "SSL certificates not working?"
 
     ```bash
-    # Check service logs
-    docker service logs service-name
+    # Check Traefik logs
+    docker service logs reverse-proxy_traefik
 
-    # Check placement constraints
-    docker service inspect service-name
+    # Verify Cloudflare API token
+    docker service logs reverse-proxy_traefik | grep -i cloudflare
 
-    # List available nodes
-    docker node ls
+    # Check certificate storage
+    docker volume inspect reverse-proxy_ssl_certs
     ```
 
-### Kubernetes Issues
+### DNS Issues
 
-??? question "Pods stuck in Pending?"
+??? question "DNS server not accessible?"
 
     ```bash
-    # Check events
-    kubectl describe pod pod-name -n selfhosted
+    # Check DNS service status
+    docker service ps dns_dns-server
 
-    # Check node resources
-    kubectl describe nodes
+    # Check if accessible via host IP (not localhost)
+    curl -I http://$(hostname -I | awk '{print $1}'):5380/
 
-    # Check persistent volumes
-    kubectl get pv,pvc -n selfhosted
+    # Check DNS service logs
+    docker service logs dns_dns-server
     ```
 
-??? question "Ingress not working?"
+### Network Issues
+
+??? question "Services can't communicate?"
 
     ```bash
-    # Check ingress controller
-    kubectl get pods -n ingress-nginx
+    # Verify overlay network exists
+    docker network ls | grep traefik-public
 
-    # Check ingress configuration
-    kubectl describe ingress actual -n selfhosted
+    # Check which services are on the network
+    docker network inspect traefik-public
 
-    # Check DNS resolution
-    nslookup budget.yourdomain.com
+    # Recreate network if needed
+    docker network rm traefik-public
+    docker network create --driver overlay traefik-public
     ```
 
-[Next: Learn about service management →](../user-guide/service-management.md)
+### Complete Reset
+
+If you need to start over completely:
+
+```bash
+# WARNING: This will destroy all data and services
+./scripts/nuke.sh
+
+# Redeploy from scratch with style! 🚀
+./selfhosted.sh
+```
+
+[Next: Learn about configuration options →](configuration.md)

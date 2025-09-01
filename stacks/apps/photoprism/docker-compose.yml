@@ -1,0 +1,127 @@
+version: "3.9"
+
+services:
+  photoprism:
+    image: photoprism/photoprism:latest
+    stop_grace_period: 10s
+    security_opt:
+      - seccomp:unconfined
+      - apparmor:unconfined
+    ports:
+      - "2342:2342"
+    environment:
+      PHOTOPRISM_ADMIN_USER: "admin"
+      PHOTOPRISM_ADMIN_PASSWORD: "${PHOTOPRISM_ADMIN_PASSWORD}"
+      PHOTOPRISM_AUTH_MODE: "password"
+      PHOTOPRISM_SITE_URL: "https://photo.${BASE_DOMAIN}/"
+      PHOTOPRISM_DISABLE_TLS: "false"
+      PHOTOPRISM_DEFAULT_TLS: "false"
+      PHOTOPRISM_ORIGINALS_LIMIT: 5000
+      PHOTOPRISM_HTTP_COMPRESSION: "gzip"
+      PHOTOPRISM_LOG_LEVEL: "info"
+      PHOTOPRISM_READONLY: "false"
+      PHOTOPRISM_EXPERIMENTAL: "true"
+      PHOTOPRISM_DISABLE_CHOWN: "false"
+      PHOTOPRISM_DISABLE_WEBDAV: "false"
+      PHOTOPRISM_DISABLE_SETTINGS: "false"
+      PHOTOPRISM_DISABLE_TENSORFLOW: "false"
+      PHOTOPRISM_DISABLE_FACES: "false"
+      PHOTOPRISM_DISABLE_CLASSIFICATION: "false"
+      PHOTOPRISM_DISABLE_VECTORS: "false"
+      PHOTOPRISM_DISABLE_RAW: "false"
+      PHOTOPRISM_RAW_PRESETS: "false"
+      PHOTOPRISM_JPEG_QUALITY: 85
+      PHOTOPRISM_DETECT_NSFW: "true"
+      PHOTOPRISM_UPLOAD_NSFW: "true"
+      PHOTOPRISM_DATABASE_DRIVER: "mysql"
+      PHOTOPRISM_DATABASE_SERVER: "mariadb:3306"
+      PHOTOPRISM_DATABASE_NAME: "photoprism"
+      PHOTOPRISM_DATABASE_USER: "photoprism"
+      PHOTOPRISM_DATABASE_PASSWORD: "${PHOTOPRISM_DB_PASSWORD}"
+      PHOTOPRISM_SITE_CAPTION: "AI-Powered Photos App"
+      PHOTOPRISM_SITE_DESCRIPTION: ""
+      PHOTOPRISM_SITE_AUTHOR: ""
+      PHOTOPRISM_FFMPEG_ENCODER: "nvidia"
+      NVIDIA_VISIBLE_DEVICES: "all"
+      NVIDIA_DRIVER_CAPABILITIES: "compute,video,utility"
+      PHOTOPRISM_INIT: "gpu tensorflow"
+    working_dir: "/photoprism"
+    volumes:
+      - all_data:/photoprism/originals
+      - photoprism:/photoprism/storage
+    deploy:
+      placement:
+        constraints:
+          - node.labels.gpu == true
+      replicas: 1
+    healthcheck:
+      test: [ "CMD", "curl", "-f", "http://localhost:2342/api/v1/status" ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    restart: unless-stopped
+    depends_on:
+      - mariadb
+    networks:
+      - traefik-public
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.photoprism.rule=Host(`photo.${BASE_DOMAIN}`)"
+      - "traefik.http.routers.photoprism.entrypoints=websecure"
+      - "traefik.http.routers.photoprism.tls.certresolver=dns"
+      - "traefik.http.services.photoprism.loadbalancer.server.port=2342"
+
+      - homepage.group=Media
+      - homepage.name=PhotoPrism
+      - homepage.icon=photoprism.png
+      - homepage.href=https://photo.${BASE_DOMAIN}/
+      - homepage.description=Photo Management
+      - homepage.widget.type=photoprism
+      - homepage.widget.url=https://photo.${BASE_DOMAIN}/
+      - homepage.widget.key=${PHOTOPRISM_ADMIN_PASSWORD}
+
+  mariadb:
+    image: mariadb:11
+    restart: unless-stopped
+    stop_grace_period: 5s
+    security_opt:
+      - seccomp:unconfined
+      - apparmor:unconfined
+    command: --innodb-buffer-pool-size=512M --transaction-isolation=READ-COMMITTED --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci --max-connections=512 --innodb-rollback-on-timeout=OFF --innodb-lock-wait-timeout=120
+    volumes:
+      - photoprism_database:/var/lib/mysql
+    environment:
+      MARIADB_AUTO_UPGRADE: "1"
+      MARIADB_INITDB_SKIP_TZINFO: "1"
+      MARIADB_DATABASE: "photoprism"
+      MARIADB_USER: "photoprism"
+      MARIADB_PASSWORD: "${PHOTOPRISM_DB_PASSWORD}"
+      MARIADB_ROOT_PASSWORD: "${MARIADB_ROOT_PASSWORD}"
+    networks:
+      - traefik-public
+
+networks:
+  traefik-public:
+    external: true
+
+volumes:
+  all_data:
+    driver: local
+    driver_opts:
+      type: "cifs"
+      o: "username=${SMB_USERNAME},password=${SMB_PASSWORD},domain=${SMB_DOMAIN},vers=3.0,nobrl,uid=0,gid=100,file_mode=0777,dir_mode=0777,ro"
+      device: "//${NAS_SERVER}/all_data"
+
+  photoprism:
+    driver: local
+    driver_opts:
+      type: "cifs"
+      o: "username=${SMB_USERNAME},password=${SMB_PASSWORD},domain=${SMB_DOMAIN},vers=3.0,nobrl,uid=0,gid=100,file_mode=0777,dir_mode=0777"
+      device: "//${NAS_SERVER}/photoprism"
+
+  photoprism_database:
+    driver: local
+    driver_opts:
+      type: "cifs"
+      o: "username=${SMB_USERNAME},password=${SMB_PASSWORD},domain=${SMB_DOMAIN},vers=3.0,nobrl,uid=0,gid=100,file_mode=0777,dir_mode=0777"
+      device: "//${NAS_SERVER}/photoprism_database"

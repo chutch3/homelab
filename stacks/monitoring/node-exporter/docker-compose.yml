@@ -1,0 +1,19 @@
+version: "3.9"
+
+services:
+  node-exporter:
+    image: prom/node-exporter:v1.8.2
+    command:
+      - "--path.rootfs=/host"
+    volumes:
+      - "/:/host:ro,rslave"
+    networks:
+      - monitoring-net
+    deploy:
+      mode: global
+      labels:
+        - "traefik.enable=false"
+
+networks:
+  monitoring-net:
+    external: true

@@ -1,0 +1,67 @@
+version: "3.8"
+
+services:
+  traefik:
+    image: traefik:v3.1
+    command:
+      - "--log.level=INFO"
+      # Providers
+      - "--providers.swarm.endpoint=unix:///var/run/docker.sock"
+      - "--providers.swarm.exposedbydefault=false"
+      - "--providers.swarm.refreshSeconds=15"
+
+      # Entrypoints
+      - "--entrypoints.web.address=:80"
+      - "--entrypoints.websecure.address=:443"
+      - "--entrypoints.metrics.address=:9100"
+
+      # Certificates
+      - "--certificatesresolvers.dns.acme.caServer=https://acme-v02.api.letsencrypt.org/directory"
+      - "--certificatesresolvers.dns.acme.email=${ACME_EMAIL}"
+      - "--certificatesresolvers.dns.acme.storage=/letsencrypt/acme.json"
+      - "--certificatesresolvers.dns.acme.dnschallenge=true"
+      - "--certificatesresolvers.dns.acme.dnschallenge.provider=cloudflare"
+
+      # Metrics (Prometheus)
+      - "--metrics.prometheus=true"
+      - "--metrics.prometheus.addEntryPointsLabels=true"
+      - "--metrics.prometheus.addServicesLabels=true"
+      - "--metrics.prometheus.entryPoint=metrics"
+
+      # Dashboard
+      - "--api.dashboard=true"
+    entrypoint: [ "/entrypoint.sh" ]
+    environment:
+      - CF_Token=${CF_Token}
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ssl_certs:/letsencrypt
+    deploy:
+      placement:
+        constraints:
+          - node.role == manager
+    networks:
+      - traefik-public
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.traefik.rule=Host(`traefik.${BASE_DOMAIN}`)"
+      - "traefik.http.routers.traefik.entrypoints=websecure"
+      - "traefik.http.routers.traefik.tls.certresolver=dns"
+      - "traefik.http.routers.traefik.service=api@internal"
+      - "traefik.http.services.traefik.loadbalancer.server.port=8080"
+
+volumes:
+  ssl_certs:
+    name: ssl_certs
+    driver: local
+    driver_opts:
+      type: "cifs"
+      o: "username=${SMB_USERNAME},password=${SMB_PASSWORD},domain=${SMB_DOMAIN},vers=3.0,file_mode=0600,dir_mode=0770"
+      device: "//${NAS_SERVER}/ssl_certs"
+
+networks:
+  traefik-public:
+    external: true

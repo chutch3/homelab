@@ -32,168 +32,180 @@
 
 ## What is Selfhosted?
 
-A modern, unified self-hosted platform that makes deploying and managing services incredibly simple. Define your services once in YAML, and automatically generate deployment files for Docker Compose, Docker Swarm, or Kubernetes.
+A Docker Swarm-based homelab deployment platform that simplifies running multiple self-hosted services. With pre-configured compose files for 12+ popular services, automatic SSL certificates via Traefik, and network storage integration, you can have a complete homelab infrastructure running in minutes.
 
 !!! tip "What is self-hosting?"
     Self-hosting is the practice of running and maintaining your own services instead of relying on third-party providers, giving you control over your data and infrastructure. For more information, see [r/selfhosted](https://www.reddit.com/r/selfhosted/wiki/index).
 
-## 🚀 Why Selfhosted?
+## 🚀 Why This Homelab Platform?
 
 <div class="grid cards" markdown>
 
-- :dart: **Single Source of Truth**
+- :package: **Pre-Configured Services**
 
     ---
 
-    Define services once in `config/services.yaml`
+    12+ ready-to-deploy services with Docker Compose files
 
-- :zap: **Auto-Generation**
-
-    ---
-
-    Automatically creates docker-compose, nginx configs, and domain files
-
-- :wrench: **Intuitive CLI**
+- :shield: **Automatic SSL**
 
     ---
 
-    Modern command structure (`./selfhosted service list`)
+    Traefik reverse proxy with Let's Encrypt + Cloudflare DNS
 
-- :shield: **Security-First**
+- :network-wired: **Network Storage**
 
     ---
 
-    Environment variables, SSL automation, and best practices built-in
+    Built-in SMB/CIFS support for persistent data on NAS
 
-- :package: **Production-Ready**
+- :material-kubernetes: **Docker Swarm Ready**
+
+    ---
+
+    Multi-node orchestration and high availability
+
+- :material-test-tube: **Battle-Tested**
 
     ---
 
     152 tests, pre-commit hooks, and comprehensive validation
 
-- :earth_americas: **Multi-Platform**
+- :material-rocket-launch-outline: **One-Command Deploy**
 
     ---
 
-    Support for Docker Compose, Docker Swarm, and future Kubernetes
+    Deploy everything with `./selfhosted.sh deploy`
 
 </div>
 
 ## ✨ Key Features
 
-### :material-file-code: Unified Configuration
-Single YAML file defines all services with metadata, eliminating duplicate configuration across multiple files.
+### :material-file-code: Environment-Based Configuration
+Single `.env` file contains all configuration - domains, credentials, storage paths, and API keys.
 
-### :material-auto-fix: Automatic File Generation
-Creates deployment files, nginx templates, and domain variables automatically from your service definitions.
+### :material-package: Pre-Built Service Stack
+12+ popular services with production-ready Docker Compose configurations including Traefik labels.
 
-### :material-console: Enhanced CLI Interface
-Intuitive commands with helpful error messages and emojis make service management a breeze.
+### :material-console: Simple Deployment Interface
+One command deploys everything: `./selfhosted.sh deploy` with options to include/exclude specific services.
 
 ### :material-certificate: SSL Certificate Automation
-Cloudflare DNS + acme.sh integration provides automatic SSL certificate management.
+Traefik reverse proxy with Let's Encrypt certificates via Cloudflare DNS challenge - fully automated.
 
-### :material-dns: Reverse Proxy Management
-Dynamic nginx configuration with SSL termination and automatic upstream configuration.
+### :material-dns: Reverse Proxy Integration
+Every service pre-configured with Traefik labels for automatic routing and SSL termination.
 
-### :material-kubernetes: Multi-Infrastructure Support
-Deploy to Docker Compose, Docker Swarm, or Kubernetes (future) from the same configuration.
+### :material-kubernetes: Docker Swarm Orchestration
+Multi-node deployment with automatic service placement, health checks, and rolling updates.
 
 ## 📋 Available Services
 
-Our unified configuration includes a growing collection of production-ready services:
+Pre-configured Docker Compose stacks ready for deployment:
 
 === "📊 Finance & Budgeting"
 
-    - **[Actual Budget](services/index.md#actual-budget)** - Personal finance and budgeting application
+    - **[Actual Budget](https://actualbudget.org/)** - Personal finance and budgeting application
 
-=== "📸 Media Management"
+=== "📸 Media & Entertainment"
 
-    - **[PhotoPrism](services/index.md#photoprism)** - AI-powered photo management and organization
+    - **[PhotoPrism](https://photoprism.app/)** - AI-powered photo management and organization
+    - **[Emby](https://emby.media/)** - Media server for streaming movies and TV shows
 
 === "🏠 Smart Home & Automation"
 
-    - **[Home Assistant](services/index.md#home-assistant)** - Open source home automation platform
-
-=== "🔧 Development & Management"
-
-    - **[Portainer Agent](services/index.md#portainer)** - Container management interface
+    - **[Home Assistant](https://www.home-assistant.io/)** - Open source home automation platform
 
 === "📝 Collaboration & Productivity"
 
-    - **[CryptPad](services/index.md#cryptpad)** - Encrypted collaborative document editing
+    - **[CryptPad](https://cryptpad.fr/)** - Encrypted collaborative document editing
+    - **[LibreChat](https://librechat.ai/)** - AI chat interface supporting multiple LLM providers
 
 === "🌐 Core Infrastructure"
 
-    - **[Homepage Dashboard](services/index.md#homepage)** - Centralized dashboard for all services
+    - **[Homepage](https://gethomepage.dev/)** - Centralized dashboard for all services
+    - **[Traefik](https://traefik.io/)** - Reverse proxy with automatic SSL certificates
+    - **[Technitium DNS](https://technitium.com/dns/)** - Local DNS server for internal service resolution
 
-[See all available services →](services/index.md){ .md-button .md-button--primary }
+=== "🎬 Media Automation"
+
+    - **[Sonarr](https://sonarr.tv/)** - TV series management and automation
+    - **[Radarr](https://radarr.video/)** - Movie management and automation
+    - **[Prowlarr](https://prowlarr.com/)** - Indexer manager for media automation
+    - **[qBittorrent](https://www.qbittorrent.org/)** - BitTorrent client with web UI
+    - **[Deluge](https://deluge-torrent.org/)** - Alternative BitTorrent client
+
+**Total: 13 pre-configured services** with more being added regularly!
 
 ## 🎯 Quick Example
 
-Adding a new service is incredibly simple:
-
-```yaml title="config/services.yaml"
-myservice:
-  name: "My Amazing Service"
-  description: "Does incredible things"
-  category: productivity
-  domain: "myapp"
-  port: 3000
-  compose:
-    image: "myapp:latest"
-    ports: ["3000:3000"]
-    environment:
-      - "ADMIN_EMAIL=${ADMIN_EMAIL}"
-  nginx:
-    upstream: "myservice:3000"
-    additional_config: |
-      location / {
-          proxy_pass http://myservice:3000;
-          proxy_set_header Host $host;
-      }
-```
-
-Then generate and deploy:
+Deploy your entire homelab with just a few commands:
 
 ```bash
-./selfhosted service generate  # Auto-generates all deployment files
-./selfhosted deploy compose up # Deploy instantly
+# 1. Clone and setup
+git clone https://github.com/yourusername/homelab.git
+cd homelab
+
+# 2. Configure your environment
+cp .env.example .env
+nano .env  # Set your domain, Cloudflare credentials, etc.
+
+# 3. Deploy everything
+./selfhosted.sh deploy
 ```
 
-That's it! The system automatically creates docker-compose.yaml, nginx templates, domain variables, and SSL configuration.
+**That's it!** All 13 services deploy automatically with:
+- ✅ Automatic SSL certificates via Let's Encrypt + Cloudflare
+- ✅ Traefik reverse proxy routing
+- ✅ SMB/CIFS network storage integration
+- ✅ Docker Swarm orchestration across multiple nodes
+- ✅ Homepage dashboard showing all services
+
+Or deploy specific services only:
+```bash
+# Deploy only essential services
+./selfhosted.sh deploy --only-apps homepage,actual_server,homeassistant
+
+# Deploy everything except heavy media services
+./selfhosted.sh deploy --skip-apps photoprism,emby
+```
 
 ## 🏗️ Architecture Overview
 
 ```mermaid
 graph TB
-    subgraph "🎯 Modern Selfhosted System"
-        CONFIG["📄 config/services.yaml<br/>🏆 SINGLE SOURCE OF TRUTH"]
-        CLI["🖥️ Enhanced CLI Interface"]
-        GENERATOR["🔧 Generation Engine"]
+    subgraph "🎯 Docker Swarm Homelab Platform"
+        ENV["📄 .env<br/>🔑 Configuration & Credentials"]
+        MACHINES["⚙️ machines.yaml<br/>🏠 Multi-Node Setup"]
+        STACKS["📦 stacks/<br/>📁 Service Compose Files"]
 
-        subgraph "🏗️ Generated Structure"
-            DEPLOYMENTS["📦 Deployments<br/>• docker-compose.yaml<br/>• swarm-stack.yaml"]
-            NGINX["🌐 Nginx Templates"]
-            DOMAINS["🔗 Domain Variables"]
+        subgraph "🏗️ Infrastructure Stack"
+            DNS["🌐 Technitium DNS<br/>Internal Resolution"]
+            TRAEFIK["🚪 Traefik Proxy<br/>SSL + Routing"]
+            MONITORING["📊 Prometheus/Grafana<br/>System Monitoring"]
         end
 
-        subgraph "🚀 Deployment Targets"
-            COMPOSE["🐳 Docker Compose"]
-            SWARM["🐝 Docker Swarm"]
-            K8S["☸️ Kubernetes"]
+        subgraph "📱 Application Services"
+            APPS["🏠 Homepage Dashboard<br/>💰 Actual Budget<br/>🎬 Media Services<br/>🏡 Home Assistant<br/>📝 Collaboration Tools"]
+        end
+
+        subgraph "💾 Storage Layer"
+            CIFS["🗂️ SMB/CIFS Volumes<br/>Network Storage"]
+            LOCAL["💽 Local Docker Volumes<br/>Node Storage"]
         end
     end
 
-    CONFIG --> GENERATOR
-    CLI --> GENERATOR
-    GENERATOR --> DEPLOYMENTS
-    GENERATOR --> NGINX
-    GENERATOR --> DOMAINS
+    ENV --> STACKS
+    MACHINES --> STACKS
+    STACKS --> DNS
+    STACKS --> TRAEFIK
+    STACKS --> MONITORING
+    STACKS --> APPS
 
-    DEPLOYMENTS --> COMPOSE
-    DEPLOYMENTS --> SWARM
-    DEPLOYMENTS --> K8S
+    DNS --> APPS
+    TRAEFIK --> APPS
+    APPS --> CIFS
+    APPS --> LOCAL
 ```
 
 ## 🚀 Getting Started

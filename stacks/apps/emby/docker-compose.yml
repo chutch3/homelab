@@ -1,0 +1,50 @@
+version: "3.9"
+
+services:
+  emby:
+    image: emby/embyserver:4.9.0.4
+    container_name: embyserver
+    environment:
+      - UID=1000
+      - GID=100
+      - GIDLIST=100
+    volumes:
+      - emby:/config
+      - all_data:/mnt/external
+    restart: on-failure
+    networks:
+      - traefik-public
+    deploy:
+      labels:
+        - "traefik.enable=true"
+        - "traefik.http.routers.emby.rule=Host(`emby.${BASE_DOMAIN}`)"
+        - "traefik.http.routers.emby.entrypoints=websecure"
+        - "traefik.http.routers.emby.tls.certresolver=dns"
+        - "traefik.http.services.emby.loadbalancer.server.port=8096"
+
+        - homepage.group=Media
+        - homepage.name=Emby
+        - homepage.icon=emby.png
+        - homepage.href=https://emby.${BASE_DOMAIN}/
+        - homepage.description=Media Server
+        - homepage.widget.type=emby
+        - homepage.widget.url=https://emby.${BASE_DOMAIN}/
+        - homepage.widget.key=${EMBY_API_KEY}
+
+networks:
+  traefik-public:
+    external: true
+
+volumes:
+  all_data:
+    driver: local
+    driver_opts:
+      type: "cifs"
+      o: "username=${SMB_USERNAME},password=${SMB_PASSWORD},domain=${SMB_DOMAIN},vers=3.0,file_mode=0600,dir_mode=0770"
+      device: "//${NAS_SERVER}/all_data"
+  emby:
+    driver: local
+    driver_opts:
+      type: "cifs"
+      o: "username=${SMB_USERNAME},password=${SMB_PASSWORD},domain=${SMB_DOMAIN},vers=3.0,file_mode=0600,dir_mode=0770"
+      device: "//${NAS_SERVER}/emby"

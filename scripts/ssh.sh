@@ -6,6 +6,13 @@ SSH_TIMEOUT="${SSH_TIMEOUT:-5}"
 export SSH_KEY_FILE
 export SSH_TIMEOUT
 
+# check if ssh is installed and working
+if ! command -v ssh &> /dev/null; then
+  echo "Error: ssh could not be found"
+  exit 1
+fi
+
+
 # SSH wrapper that uses the SSH key file. It's
 # a bit more opinionated than the default ssh command.
 # Args:

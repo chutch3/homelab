@@ -1,0 +1,45 @@
+version: "3.9"
+
+services:
+  homeassistant:
+    container_name: homeassistant
+    image: "ghcr.io/home-assistant/home-assistant:stable"
+    volumes:
+      - homeassistant:/config
+      - /etc/localtime:/etc/localtime:ro
+    restart: unless-stopped
+    privileged: true
+    healthcheck:
+      test: 'curl -m 90 -sLf http://0.0.0.0:8123 || date >> /config/healthcheck'
+      interval: 90s
+      timeout: 60s
+      retries: 2
+    networks:
+      - traefik-public
+    deploy:
+      labels:
+        - "traefik.enable=true"
+        - "traefik.http.routers.homeassistant.rule=Host(`ha.${BASE_DOMAIN}`)"
+        - "traefik.http.routers.homeassistant.entrypoints=websecure"
+        - "traefik.http.routers.homeassistant.tls.certresolver=dns"
+        - "traefik.http.services.homeassistant.loadbalancer.server.port=8123"
+        - homepage.group=Home
+        - homepage.name=Home Assistant
+        - homepage.icon=home-assistant.png
+        - homepage.href=https://ha.${BASE_DOMAIN}
+        - homepage.description=Home Automation
+        - homepage.widget.type=homeassistant
+        - homepage.widget.url=https://ha.${BASE_DOMAIN}
+        - homepage.widget.key=${HASS_TOKEN}
+
+networks:
+  traefik-public:
+    external: true
+
+volumes:
+  homeassistant:
+    driver: local
+    driver_opts:
+      type: "cifs"
+      o: "username=${SMB_USERNAME},password=${SMB_PASSWORD},domain=${SMB_DOMAIN},vers=3.0,file_mode=0600,dir_mode=0770"
+      device: "//${NAS_SERVER}/homeassistant"
