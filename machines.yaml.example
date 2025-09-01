@@ -1,0 +1,36 @@
+# Example machine configuration
+# Copy to machines.yaml and customize for your infrastructure
+
+machines:
+  manager:                              # Machine key becomes subdomain: manager.{BASE_DOMAIN}
+    ip: 192.168.1.10                   # Optional: Use IP for faster DNS-free resolution
+    user: admin
+  worker-01:                            # Becomes: worker-01.{BASE_DOMAIN}
+    user: deploy
+    # No IP field - will use DNS resolution of constructed hostname
+  worker-02:                            # Becomes: worker-02.{BASE_DOMAIN}
+    ip: 192.168.1.12                   # IP field overrides DNS resolution
+    user: deploy
+  backup:                               # Becomes: backup.{BASE_DOMAIN}
+    user: backupuser
+
+  # Example for a Raspberry Pi node:
+  pi-node:                              # Becomes: pi-node.{BASE_DOMAIN}
+    ip: 192.168.1.42
+    user: pi
+
+  # Example for a cloud VM:
+  cloud-vm:                             # Becomes: cloud-vm.{BASE_DOMAIN}
+    ip: 203.0.113.10
+    user: cloudadmin
+
+  # Example NAS server:
+  nas:                                  # Becomes: nas.{BASE_DOMAIN}
+    ip: 192.168.1.50                   # Direct IP for volume mounts
+    user: admin
+
+# Configuration is now DRY - no duplication between key and hostname!
+# Set BASE_DOMAIN in .env and all hostnames are constructed automatically.
+# Add more nodes as needed, following the structure above.
+# Each node key becomes a subdomain of your BASE_DOMAIN automatically.
+# Optional 'ip' field provides DNS-free bootstrap resolution.

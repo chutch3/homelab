@@ -90,7 +90,13 @@ docker_node_update_label() {
     local action="$1"
     local label="$2"
     local node="$3"
-    docker node update "$action" "$label" "$node"
+
+    # Check if we're in test mode with a mock function available
+    if command -v mock_docker_node_update_label >/dev/null 2>&1; then
+        mock_docker_node_update_label "$action" "$label" "$node"
+    else
+        docker node update "$action" "$label" "$node"
+    fi
 }
 
 # List docker services
