@@ -187,9 +187,10 @@ UNUSED_LEGACY_CODE_ANALYSIS.md
 # Environment-specific configuration files
 homelab.yaml
 plan.md
-machines.yml
+machines.yaml
 .swarm_token
 bin/
 plan.md
 plan-*.md
 coverage/
+homeassistant/.storage/auth

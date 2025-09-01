@@ -1,0 +1,51 @@
+version: "3.9"
+
+services:
+  deluge:
+    image: lscr.io/linuxserver/deluge:latest
+    container_name: deluge
+    volumes:
+      - deluge:/config
+      - torrents:/data/torrents
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - UMASK=002
+      - DELUGE_LOGLEVEL=info
+    restart: unless-stopped
+    networks:
+      - traefik-public
+    deploy:
+      labels:
+        - "traefik.enable=true"
+        - "traefik.http.routers.deluge.rule=Host(`deluge.${BASE_DOMAIN}`)"
+        - "traefik.http.routers.deluge.entrypoints=websecure"
+        - "traefik.http.routers.deluge.tls.certresolver=dns"
+        - "traefik.http.services.deluge.loadbalancer.server.port=8112"
+        - homepage.group=Downloads
+        - homepage.name=Deluge
+        - homepage.icon=deluge.png
+        - homepage.href=https://deluge.${BASE_DOMAIN}/
+        - homepage.description=Torrent Client
+        - homepage.widget.type=deluge
+        - homepage.widget.url=https://deluge.${BASE_DOMAIN}/
+        - homepage.widget.key=${DELUGE_PASSWORD}
+
+networks:
+  traefik-public:
+    external: true
+
+volumes:
+  deluge:
+    driver: local
+    driver_opts:
+      type: "cifs"
+      o: "username=${SMB_USERNAME},password=${SMB_PASSWORD},domain=${SMB_DOMAIN},vers=3.0,file_mode=0600,dir_mode=0770"
+      device: "//${NAS_SERVER}/deluge"
+
+  torrents:
+    driver: local
+    driver_opts:
+      type: "cifs"
+      o: "username=${SMB_USERNAME},password=${SMB_PASSWORD},domain=${SMB_DOMAIN},vers=3.0,file_mode=0600,dir_mode=0770"
+      device: "//${NAS_SERVER}/torrents"

@@ -1,0 +1,50 @@
+version: "3.9"
+
+services:
+  actual_server:
+    image: docker.io/actualbudget/actual-server:latest
+    environment:
+      - ACTUAL_UPLOAD_FILE_SYNC_SIZE_LIMIT_MB=20
+      - ACTUAL_UPLOAD_SYNC_ENCRYPTED_FILE_SYNC_SIZE_LIMIT_MB=50
+      - ACTUAL_UPLOAD_FILE_SIZE_LIMIT_MB=20
+      - DEBUG=actual:config
+    volumes:
+      - budget:/data
+      - ssl_certs:/certs
+    restart: unless-stopped
+    networks:
+      - traefik-public
+    user: 0:100
+    deploy:
+      labels:
+        - "traefik.enable=true"
+        - "traefik.http.routers.actual.rule=Host(`budget.${BASE_DOMAIN}`)"
+        - "traefik.http.routers.actual.entrypoints=websecure"
+        - "traefik.http.routers.actual.tls.certresolver=dns"
+        - "traefik.http.services.actual.loadbalancer.server.port=5006"
+
+        - homepage.group=Finance
+        - homepage.name=Actual Budget
+        - homepage.icon=actual.png
+        - homepage.href=https://budget.${BASE_DOMAIN}/
+        - homepage.description=Budgeting Application
+
+networks:
+  traefik-public:
+    external: true
+
+volumes:
+  budget:
+    driver: local
+    driver_opts:
+      type: "cifs"
+      o: "username=${SMB_USERNAME},password=${SMB_PASSWORD},vers=3.0,nobrl,uid=0,gid=100,file_mode=0777,dir_mode=0777"
+      device: "//${NAS_SERVER}/budget"
+
+  ssl_certs:
+    name: ssl_certs
+    driver: local
+    driver_opts:
+      type: "cifs"
+      o: "username=${SMB_USERNAME},password=${SMB_PASSWORD},domain=${SMB_DOMAIN},vers=3.0,file_mode=0600,dir_mode=0770"
+      device: "//${NAS_SERVER}/ssl_certs"

@@ -1,6 +1,6 @@
 # Migration Guide: Legacy Configuration to homelab.yaml
 
-**Purpose**: Guide for migrating from legacy multi-file configuration (`services.yaml` + `machines.yml` + `volumes.yaml` + `.env`) to the unified `homelab.yaml` format.
+**Purpose**: Guide for migrating from legacy multi-file configuration (`services.yaml` + `machines.yaml` + `volumes.yaml` + `.env`) to the unified `homelab.yaml` format.
 
 ## Overview
 
@@ -10,7 +10,7 @@ The migration tool automatically converts your existing configuration files to t
 
 ### Input Files (Legacy Format)
 - **`config/services.yaml`** - Service definitions, container configs, and deployment settings
-- **`machines.yml`** - Multi-node infrastructure definitions (managers/workers)
+- **`machines.yaml`** - Multi-node infrastructure definitions (managers/workers)
 - **`config/volumes.yaml`** - Storage and volume configurations
 - **`.env`** - Environment variables and secrets
 
@@ -42,7 +42,7 @@ The migration tool automatically converts your existing configuration files to t
 | `--force` | Overwrite existing output file | `--force` |
 | `--validate` | Validate output after migration | `--validate` |
 | `--services FILE` | Custom services file | `--services custom-services.yaml` |
-| `--machines FILE` | Custom machines file | `--machines custom-machines.yml` |
+| `--machines FILE` | Custom machines file | `--machines custom-machines.yaml` |
 
 ### Advanced Migration
 
@@ -50,7 +50,7 @@ The migration tool automatically converts your existing configuration files to t
 # Custom input files with validation
 ./scripts/migrate_to_homelab_yaml.sh \
   --services config/my-services.yaml \
-  --machines my-machines.yml \
+  --machines my-machines.yaml \
   --output production-homelab.yaml \
   --deployment docker_swarm \
   --validate \
@@ -79,7 +79,7 @@ services:
       environment:
         - DEBUG=actual:config
       volumes:
-        - /media/external/budget:/data
+        - /mnt/app_data/budget:/data
     nginx:
       upstream: actual_server:5006
     enabled: true
@@ -97,12 +97,12 @@ services:
     overrides:
       docker_compose:
         volumes:
-          - "/media/external/budget:/data"
+          - "/mnt/app_data/budget:/data"
 ```
 
 ### Machine Configuration
 
-#### Legacy Format (`machines.yml`)
+#### Legacy Format (`machines.yaml`)
 ```yaml
 managers:
   - hostname: "manager1.local"
@@ -179,7 +179,7 @@ environment:
 ```bash
 [INFO] Starting migration from legacy configuration to homelab.yaml
 [INFO] Target deployment type: docker_compose
-[INFO] Processing machines configuration from machines.yml
+[INFO] Processing machines configuration from machines.yaml
 [INFO] Processing environment variables from .env
 [INFO] Processing services configuration from config/services.yaml
 [INFO] Processing service: actual
@@ -204,7 +204,7 @@ Next steps:
 ```bash
 # Validate original files
 yq . config/services.yaml
-yq . machines.yml
+yq . machines.yaml
 yq . config/volumes.yaml
 ```
 
@@ -284,7 +284,7 @@ mkdir -p backups/legacy-config-$(date +%Y%m%d)
 
 # Backup original files
 cp config/services.yaml backups/legacy-config-$(date +%Y%m%d)/
-cp machines.yml backups/legacy-config-$(date +%Y%m%d)/ 2>/dev/null || true
+cp machines.yaml backups/legacy-config-$(date +%Y%m%d)/ 2>/dev/null || true
 cp config/volumes.yaml backups/legacy-config-$(date +%Y%m%d)/
 cp .env backups/legacy-config-$(date +%Y%m%d)/ 2>/dev/null || true
 ```
@@ -301,7 +301,7 @@ cp .env backups/legacy-config-$(date +%Y%m%d)/ 2>/dev/null || true
 
 ### Example 2: Multi-Node Docker Compose
 ```bash
-# Legacy: services.yaml + machines.yml
+# Legacy: services.yaml + machines.yaml
 ./scripts/migrate_to_homelab_yaml.sh \
   --deployment docker_compose \
   --validate
