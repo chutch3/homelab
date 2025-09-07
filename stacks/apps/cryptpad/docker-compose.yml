@@ -48,7 +48,7 @@ services:
         # Define multiple ports on the same service
         - "traefik.http.services.cryptpad-http.loadbalancer.server.port=3000"
         - "traefik.http.services.cryptpad-websocket.loadbalancer.server.port=3003"
-        - "traefik.docker.network=traefik-public"
+        - "traefik.swarm.network=traefik-public"
         # Middlewares for proxy headers and body size
         - "traefik.http.middlewares.cryptpad-headers.headers.customrequestheaders.X-Real-IP={{.RealIP}}"
         - "traefik.http.middlewares.cryptpad-headers.headers.customrequestheaders.X-Forwarded-For={{.RemoteAddr}}"
