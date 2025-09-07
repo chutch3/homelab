@@ -18,11 +18,13 @@ machines:
     ip: 10.0.0.1
     role: manager
     ssh_user: admin1
+    swarm_node: true
 
   worker1:
     ip: 10.0.0.2
     role: worker
     ssh_user: admin2
+    swarm_node: true
     labels:
       storage: ssd
 
@@ -30,8 +32,14 @@ machines:
     ip: 10.0.0.3
     role: worker
     ssh_user: admin3
+    swarm_node: true
     labels:
       storage: hdd
+
+  nas:
+    ip: 10.0.0.50
+    ssh_user: nasuser
+    swarm_node: false
 EOF
 
     # Source the machines script with mocked functions
@@ -72,6 +80,66 @@ teardown() {
     echo "output: $output"
     [ "$status" -eq 0 ]
     [[ "$output" =~ "worker1 worker2" ]]
+
+    # Test new 'swarm' key - should only return swarm nodes
+    run machines_parse 'swarm'
+    echo "swarm output: $output"
+    [ "$status" -eq 0 ]
+    [[ "$output" =~ "manager" ]]
+    [[ "$output" =~ "worker1" ]]
+    [[ "$output" =~ "worker2" ]]
+    [[ "$output" != *"nas"* ]]
+
+    # Test 'all' key - should return all machines including nas
+    run machines_parse 'all'
+    echo "all output: $output"
+    [ "$status" -eq 0 ]
+    [[ "$output" =~ "manager" ]]
+    [[ "$output" =~ "worker1" ]]
+    [[ "$output" =~ "worker2" ]]
+    [[ "$output" =~ "nas" ]]
+}
+
+@test "machines_parse should default swarm_node to true for backward compatibility" {
+    # Create test machines.yaml without swarm_node field
+    cat > "${TEST_TEMP_DIR}/backward_compat.yaml" <<EOF
+machines:
+  manager:
+    ip: 192.168.1.100
+    user: admin
+    role: manager
+    # No swarm_node field - should default to true
+  worker:
+    ip: 192.168.1.101
+    user: deploy
+    role: worker
+    # No swarm_node field - should default to true
+EOF
+
+    MACHINES_FILE="${TEST_TEMP_DIR}/backward_compat.yaml"
+
+    # Should include all machines since swarm_node defaults to true
+    run machines_parse "manager"
+    [ "$status" -eq 0 ]
+    [ "$output" = "manager" ]
+
+    run machines_parse "workers"
+    [ "$status" -eq 0 ]
+    [ "$output" = "worker" ]
+
+    run machines_parse "swarm"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"manager"* ]]
+    [[ "$output" == *"worker"* ]]
+}
+
+@test "machines_parse handles invalid key" {
+    MACHINES_FILE="${TEST_TEMP_DIR}/machines.yaml"
+
+    run machines_parse 'invalid_key'
+    [ "$status" -eq 1 ]
+    [[ "$output" =~ "Invalid key 'invalid_key'" ]]
+    [[ "$output" =~ "swarm" ]]  # Should mention swarm in valid options
 }
 
 @test "machines_parse handles missing file" {

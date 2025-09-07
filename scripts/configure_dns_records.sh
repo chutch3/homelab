@@ -76,6 +76,7 @@ get_dns_token() {
 # Check if DNS record exists via Technitium API
 check_record_exists() {
     local name="$1"
+    local record_type="${2:-A}"
     local domain="${BASE_DOMAIN:-diyhub.dev}"
 
     local response
@@ -83,13 +84,18 @@ check_record_exists() {
         -H "Content-Type: application/x-www-form-urlencoded" \
         -d "token=${DNS_TOKEN}" \
         -d "domain=${domain}" \
-        -d "name=${name}")
+        -d "zone=${domain}")
 
-    if [[ "$response" == *'"status":"ok"'* ]] && [[ "$response" == *'"records":['* ]] && [[ "$response" != *'"records":[]'* ]]; then
-        return 0  # Record exists
-    else
-        return 1  # Record does not exist
+    # Check if we got a successful response with records
+    if [[ "$response" == *'"status":"ok"'* ]]; then
+        # Look for the specific record name.domain and type in the response
+        local full_name="${name}.${domain}"
+        if [[ "$response" == *"\"name\":\"${full_name}\""* ]] && [[ "$response" == *"\"type\":\"${record_type}\""* ]]; then
+            return 0  # Record exists
+        fi
     fi
+
+    return 1  # Record does not exist
 }
 
 # Add DNS A record via Technitium API
@@ -99,21 +105,26 @@ add_a_record() {
     local domain="${BASE_DOMAIN:-diyhub.dev}"
 
     # Check if record already exists
-    if check_record_exists "$name"; then
+    if check_record_exists "$name" "A"; then
         log "A record already exists: ${name}.${domain}"
         return 0
     fi
 
     local response
-    if response=$(curl -s -X POST "${DNS_SERVER_URL}/api/zones/records/add" \
+    response=$(curl -s -X POST "${DNS_SERVER_URL}/api/zones/records/add" \
         -H "Content-Type: application/x-www-form-urlencoded" \
         -d "token=${DNS_TOKEN}" \
-        -d "domain=${domain}" \
-        -d "name=${name}" \
+        -d "domain=${name}.${domain}" \
+        -d "zone=${domain}" \
         -d "type=A" \
         -d "ipAddress=${ip}" \
-        -d "ttl=3600") && [[ "$response" == *'"status":"ok"'* ]]; then
+        -d "ttl=3600")
+
+    if [[ "$response" == *'"status":"ok"'* ]]; then
         log "✓ Added A record: ${name}.${domain} -> ${ip}"
+        return 0
+    elif [[ "$response" == *"record already exists"* ]]; then
+        log "A record already exists: ${name}.${domain}"
         return 0
     else
         log_warn "Failed to add A record: ${name}.${domain}"
@@ -128,22 +139,22 @@ add_cname_record() {
     local target="$2"
     local domain="${BASE_DOMAIN:-diyhub.dev}"
 
-    # Check if record already exists
-    if check_record_exists "$name"; then
-        log "CNAME record already exists: ${name}.${domain}"
-        return 0
-    fi
-
     local response
-    if response=$(curl -s -X POST "${DNS_SERVER_URL}/api/zones/records/add" \
+    response=$(curl -s -X POST "${DNS_SERVER_URL}/api/zones/records/add" \
         -H "Content-Type: application/x-www-form-urlencoded" \
         -d "token=${DNS_TOKEN}" \
-        -d "domain=${domain}" \
-        -d "name=${name}" \
+        -d "domain=${name}.${domain}" \
+        -d "zone=${domain}" \
         -d "type=CNAME" \
+        -d "overwrite=true" \
         -d "cname=${target}" \
-        -d "ttl=3600") && [[ "$response" == *'"status":"ok"'* ]]; then
+        -d "ttl=3600")
+
+    if [[ "$response" == *'"status":"ok"'* ]]; then
         log "✓ Added CNAME record: ${name}.${domain} -> ${target}"
+        return 0
+    elif [[ "$response" == *"record already exists"* ]]; then
+        log "CNAME record already exists: ${name}.${domain}"
         return 0
     else
         log_warn "Failed to add CNAME record: ${name}.${domain}"
@@ -175,6 +186,31 @@ create_dns_zone() {
     fi
 }
 
+# Function to create _acme-challenge conditional forwarder for Let's Encrypt
+create_acme_challenge_forwarder() {
+    local domain="${BASE_DOMAIN:-diyhub.dev}"
+    local acme_zone="_acme-challenge.${domain}"
+
+    log "Creating _acme-challenge forwarder: $acme_zone"
+
+    local response
+    response=$(curl -s -X POST "$DNS_SERVER_URL/api/zones/create" \
+        -H "Content-Type: application/x-www-form-urlencoded" \
+        -d "token=${DNS_TOKEN}" \
+        -d "zone=${acme_zone}" \
+        -d "type=Forwarder" \
+        -d "forwarder=dan.ns.cloudflare.com")
+
+    if [[ "$response" == *'"status":"ok"'* ]]; then
+        log "✓ Created _acme-challenge forwarder for Let's Encrypt DNS validation"
+    elif [[ "$response" == *"already exists"* ]]; then
+        log "_acme-challenge forwarder already exists: $acme_zone"
+    else
+        log_warn "Failed to create _acme-challenge forwarder: $acme_zone"
+        log_warn "Response: $response"
+    fi
+}
+
 # Wait for DNS server to be ready
 wait_for_dns_server() {
     local retries=30
@@ -196,6 +232,29 @@ wait_for_dns_server() {
     return 1
 }
 
+# Get IP address of machine with specific role
+get_manager_ip() {
+    local target_role="${1:-manager}"
+    local machines_file="${MACHINES_FILE:-$PROJECT_ROOT/machines.yaml}"
+
+    # Get all machine keys from machines.yaml
+    local machine_keys
+    mapfile -t machine_keys < <(yq '.machines | keys | .[]' "$machines_file" | tr -d '"')
+
+    for machine_key in "${machine_keys[@]}"; do
+        local machine_role
+        machine_role=$(yq ".machines.\"${machine_key}\".role" "$machines_file" | tr -d '"')
+
+        if [ "$machine_role" = "$target_role" ]; then
+            # Found machine with target role, get its IP
+            yq ".machines.\"${machine_key}\".ip" "$machines_file" | tr -d '"'
+            return 0
+        fi
+    done
+
+    return 1  # No machine found with target role
+}
+
 # Register machine hostnames to their IPs as A records
 register_machine_dns_records() {
     log "Registering machine A records..."
@@ -215,35 +274,73 @@ register_machine_dns_records() {
     done
 }
 
+# Register DNS server A record pointing to manager IP
+register_dns_server_record() {
+    log "Registering DNS server A record..."
+
+    # Get manager machine IP
+    local manager_ip
+    if ! manager_ip=$(machines_get_ip "manager"); then
+        log_error "Could not resolve IP for manager machine"
+        return 1
+    fi
+
+    add_a_record "dns" "$manager_ip"
+}
+
+# Discover domain names from Traefik labels in docker-compose files
+discover_traefik_domains() {
+    local domains=()
+    local stacks_dir="${STACKS_DIR:-$PROJECT_ROOT/stacks}"
+
+    # Search all docker-compose.yml files in stacks directory
+    while IFS= read -r -d '' compose_file; do
+        # Extract Host() rules from Traefik router labels (handle complex rules)
+        while IFS= read -r line; do
+            # Find all Host(`...`) patterns in the line, including complex rules
+            while [[ "$line" =~ Host\(\`([^\`]+)\`\) ]]; do
+                local host_rule="${BASH_REMATCH[1]}"
+                local matched_pattern="${BASH_REMATCH[0]}"
+                # Remove ${BASE_DOMAIN} variable and extract subdomain
+                local domain="${host_rule%.\${BASE_DOMAIN\}}"
+                if [ -n "$domain" ] && [[ ! " ${domains[*]} " =~ \ ${domain}\  ]]; then
+                    domains+=("$domain")
+                fi
+                # Remove the matched part and continue searching
+                line="${line/${matched_pattern}/}"
+            done
+        done < "$compose_file"
+    done < <(find "$stacks_dir" -name "docker-compose.yml" -print0 2>/dev/null || true)
+
+    printf '%s\n' "${domains[@]}"
+}
+
 # Register service hostnames as CNAME records pointing to manager
 register_service_cnames() {
     log "Registering service CNAME records..."
 
-    # Define services that should point to manager (where reverse proxy runs)
-    local services=("dns" "actual" "homeassistant" "cryptpad" "homepage" "photoprism"
-                   "emby" "librechat" "monitoring" "traefik")
-
-    # Get manager hostname
-    local manager_hostname="manager.${BASE_DOMAIN:-diyhub.dev}"
-
-    for service in "${services[@]}"; do
-        add_cname_record "$service" "$manager_hostname"
-    done
-
-    # Scan apps directory for additional services
-    if [ -d "$STACKS_DIR/apps" ]; then
-        for app_path in "$STACKS_DIR/apps"/*; do
-            if [ -d "$app_path" ]; then
-                local app_name
-                app_name=$(basename "$app_path")
-
-                # Skip if already added above
-                if [[ ! " ${services[*]} " =~ \ ${app_name}\  ]]; then
-                    add_cname_record "$app_name" "$manager_hostname"
-                fi
-            fi
-        done
+    # Get actual manager machine hostname using existing functions
+    local manager_machine_key
+    if ! manager_machine_key=$(machines_parse "manager"); then
+        log_error "Could not find manager machine in machines.yaml"
+        return 1
     fi
+
+    local manager_hostname
+    manager_hostname=$(machines_build_hostname "$manager_machine_key")
+
+    # Discover domains from Traefik labels in docker-compose files
+    local discovered_domains
+    mapfile -t discovered_domains < <(discover_traefik_domains)
+
+    log "Discovered ${#discovered_domains[@]} domains from Traefik configurations"
+
+    for domain in "${discovered_domains[@]}"; do
+        # Skip dns domain (conflicts with DNS server A record)
+        if [[ "$domain" != "dns" ]]; then
+            add_cname_record "$domain" "$manager_hostname"
+        fi
+    done
 }
 
 # Main configuration function
@@ -255,8 +352,8 @@ configure_dns_records() {
 
     log "Registering DNS records as per simplified flow:"
     log "  - Machine hostnames → their IPs"
+    log "  - DNS server hostname → manager IP"
     log "  - Service hostnames → manager IP (where reverse proxy runs)"
-    log "  - NAS hostname → NAS IP"
 
     # Get authentication token
     log "Getting DNS authentication token..."
@@ -269,8 +366,14 @@ configure_dns_records() {
     # Create base zone (after we have the token)
     create_dns_zone
 
+    # Create _acme-challenge forwarder for Let's Encrypt DNS validation
+    create_acme_challenge_forwarder
+
     # Register machine hostnames to their IPs
     register_machine_dns_records
+
+    # Register DNS server A record pointing to manager
+    register_dns_server_record
 
     # Register service hostnames to manager (via CNAME)
     register_service_cnames

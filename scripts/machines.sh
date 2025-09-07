@@ -45,10 +45,13 @@ machines_parse() {
         yq_query='.machines | to_entries[] | select(.value.role == "manager") | .key'
     elif [ "$key" = "workers" ]; then
         yq_query='.machines | to_entries[] | select(.value.role == "worker") | .key'
+    elif [ "$key" = "swarm" ]; then
+        # All machines that should be part of swarm (default true for backward compatibility)
+        yq_query='.machines | to_entries[] | select(.value.swarm_node == true or (.value.swarm_node == null and true)) | .key'
     elif [ "$key" = "all" ]; then
         yq_query='.machines | keys | .[]'
     else
-        log_error "Invalid key '$key'. Use 'manager', 'workers', or 'all'"
+        log_error "Invalid key '$key'. Use 'manager', 'workers', 'swarm', or 'all'"
         return 1
     fi
 
@@ -409,6 +412,9 @@ machines_test_connection() {
 
 
 machines_check_cifs_utils() {
+    # Set longer SSH timeout for package installation
+    export SSH_TIMEOUT=120
+
     local current_machine_ip
     current_machine_ip=$(machines_my_ip)
     local machine_keys
@@ -428,10 +434,33 @@ machines_check_cifs_utils() {
             # Running locally - check silently
             if ! which mount.cifs >/dev/null 2>&1; then
                 log "Installing cifs-utils on $machine_key..."
-                if sudo apt-get update && sudo apt-get install -y cifs-utils >/dev/null 2>&1; then
+                log "DEBUG: Running local sudo command: sudo -n apt-get update && sudo -n apt-get install -y cifs-utils"
+
+                # Run install command with timeout and enhanced error capture
+                local local_install_output local_install_exit
+                local_install_output=$(timeout 60 bash -c 'sudo -n apt-get update 2>&1 && sudo -n apt-get install -y cifs-utils 2>&1' 2>&1)
+                local_install_exit=$?
+
+                log "DEBUG: Local install exit code: $local_install_exit"
+                log "DEBUG: Local install output: $local_install_output"
+
+                # Test individual commands if failed
+                if [ $local_install_exit -ne 0 ]; then
+                    log "DEBUG: Testing local individual commands..."
+                    local local_update_test
+                    local_update_test=$(timeout 30 sudo -n apt-get update 2>&1)
+                    log "DEBUG: Local apt-get update result: $local_update_test"
+
+                    local local_install_test
+                    local_install_test=$(timeout 30 sudo -n apt-get install -y cifs-utils 2>&1)
+                    log "DEBUG: Local apt-get install result: $local_install_test"
+                fi
+
+                if [ $local_install_exit -eq 0 ]; then
                     log_success "cifs-utils installed on $machine_key"
                 else
                     log_error "Failed to install cifs-utils on $machine_key"
+                    log_error "Local install error: $local_install_output"
                     return 1
                 fi
             fi
@@ -443,7 +472,7 @@ machines_check_cifs_utils() {
         ssh_user="$(machines_get_ssh_user "$machine_key")"
         if ! ssh_key_auth "$ssh_user@$machine_ip" "which mount.cifs >/dev/null 2>&1"; then
             log "Installing cifs-utils on $display_name..."
-            if ssh_key_auth "$ssh_user@$machine_ip" "sudo apt-get update && sudo apt-get install -y cifs-utils" >/dev/null 2>&1; then
+            if ssh_key_auth "$ssh_user@$machine_ip" "sudo -n apt-get update >/dev/null 2>&1 && sudo -n apt-get install -y cifs-utils >/dev/null 2>&1"; then
                 log_success "cifs-utils installed on $display_name"
             else
                 log_error "Failed to install cifs-utils on $display_name"

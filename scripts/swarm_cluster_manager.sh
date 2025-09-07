@@ -314,9 +314,9 @@ validate_ssh_connectivity() {
 
     log "Validating SSH connectivity to all machines..."
 
-    # Get all machines from config
+    # Get swarm machines from config (excludes storage-only machines)
     local machines
-    machines=$(MACHINES_FILE="$config_file" machines_parse all)
+    machines=$(MACHINES_FILE="$config_file" machines_parse swarm)
 
     for machine in $machines; do
         local user_host
@@ -350,9 +350,9 @@ validate_docker_availability() {
 
     log "Validating Docker availability on all machines..."
 
-    # Get all machines from config
+    # Get swarm machines from config (excludes storage-only machines)
     local machines
-    machines=$(MACHINES_FILE="$config_file" machines_parse all)
+    machines=$(MACHINES_FILE="$config_file" machines_parse swarm)
 
     for machine in $machines; do
         local user_host
@@ -424,9 +424,9 @@ get_manager_machine() {
 get_worker_machines() {
     local config_file="${1:-machines.yaml}"
 
-    # Get all machines and exclude the manager (first machine)
+    # Get swarm machines and exclude the manager (first machine)
     local machine_keys
-    machine_keys="$(MACHINES_FILE="$config_file" machines_parse all)"
+    machine_keys="$(MACHINES_FILE="$config_file" machines_parse swarm)"
     # Convert to array and skip first element (manager)
     local -a machines_array
     read -ra machines_array <<< "$machine_keys"

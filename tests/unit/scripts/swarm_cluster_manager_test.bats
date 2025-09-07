@@ -62,6 +62,10 @@ machines:
     role: worker
     labels:
       storage: ssd
+  nas:
+    ip: 192.168.1.50
+    ssh_user: admin
+    swarm_node: false
 
 services:
   nginx:
@@ -154,29 +158,37 @@ EOF
     [[ "$output" == *"manager"* ]]
 }
 
-@test "get_worker_machines lists worker nodes" {
+@test "get_worker_machines lists only swarm worker nodes" {
     source "$PROJECT_ROOT/scripts/swarm_cluster_manager.sh"
 
-    # Create machines.yaml with workers
+    # Create machines.yaml with workers and NAS
     cat > "$TEST_DIR/machines.yaml" << EOF
 machines:
   manager:
     ip: 192.168.1.10
     user: admin
+    swarm_node: true
   worker-01:
     ip: 192.168.1.11
     user: admin
+    swarm_node: true
   worker-02:
     ip: 192.168.1.12
     user: admin
+    swarm_node: true
+  nas:
+    ip: 192.168.1.50
+    user: admin
+    swarm_node: false
 EOF
 
-    # Should return worker nodes
+    # Should return only swarm worker nodes, excluding manager and NAS
     run get_worker_machines "$TEST_DIR/machines.yaml"
     [ "$status" -eq 0 ]
     [[ "$output" == *"worker-01"* ]]
     [[ "$output" == *"worker-02"* ]]
     [[ "$output" != *"manager"* ]]
+    [[ "$output" != *"nas"* ]]    # Should NOT include NAS
 }
 
 @test "get_manager_machine identifies manager from configuration" {
@@ -943,7 +955,7 @@ EOF
     [[ "$output" == *"not found"* ]]
 }
 
-@test "validate_ssh_connectivity checks all machines" {
+@test "validate_ssh_connectivity checks only swarm machines" {
     source "$PROJECT_ROOT/scripts/swarm_cluster_manager.sh"
 
     # Mock ssh_test_connection
@@ -956,10 +968,13 @@ EOF
 
     run validate_ssh_connectivity "$TEST_CONFIG"
     [ "$status" -eq 0 ]
-    [[ "$output" == *"SSH connectivity check"* ]]
+    [[ "$output" == *"ubuntu@192.168.1.100"* ]]  # Should check driver
+    [[ "$output" == *"ubuntu@192.168.1.101"* ]]  # Should check node-01
+    [[ "$output" == *"ubuntu@192.168.1.102"* ]]  # Should check node-02
+    [[ "$output" != *"admin@192.168.1.50"* ]]    # Should NOT check nas
 }
 
-@test "validate_docker_availability checks Docker on all machines" {
+@test "validate_docker_availability checks Docker only on swarm machines" {
     source "$PROJECT_ROOT/scripts/swarm_cluster_manager.sh"
 
     # Mock ssh_check_docker
@@ -972,7 +987,10 @@ EOF
 
     run validate_docker_availability "$TEST_CONFIG"
     [ "$status" -eq 0 ]
-    [[ "$output" == *"Docker check"* ]]
+    [[ "$output" == *"ubuntu@192.168.1.100"* ]]  # Should check driver
+    [[ "$output" == *"ubuntu@192.168.1.101"* ]]  # Should check node-01
+    [[ "$output" == *"ubuntu@192.168.1.102"* ]]  # Should check node-02
+    [[ "$output" != *"admin@192.168.1.50"* ]]    # Should NOT check nas
 }
 
 @test "run_preflight_checks validates all requirements" {

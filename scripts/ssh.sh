@@ -45,11 +45,10 @@ ssh_password_auth() {
 # SSH wrapper that uses ssh-copy-id to copy the SSH key to the remote machine
 # Args:
 #   $1: SSH user@hostname
-#   $2: Command to run
 # Returns:
 #   None
 ssh_copy_id() {
-    ssh-copy-id -o PasswordAuthentication=yes "$1"
+    ssh-copy-id -i "$SSH_KEY_FILE" -o PasswordAuthentication=yes "$1"
 }
 
 # Execute command on remote host using SSH key authentication
