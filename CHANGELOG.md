@@ -2,6 +2,92 @@
 
 <!-- version list -->
 
+## v1.4.0 (2025-09-07)
+
+### Bug Fixes
+
+- Dns and ssl issues ([#52](https://github.com/chutch3/selfhosted.sh/pull/52),
+  [`ad4f2eb`](https://github.com/chutch3/selfhosted.sh/commit/ad4f2eb0ef8fda97d0bef3de2e502e9144496dec))
+
+- Final cleanup
+  ([`0073048`](https://github.com/chutch3/selfhosted.sh/commit/0073048407322be33a2ba4fb4154c277b71abe9f))
+
+- Idempotency with dns api calls
+  ([`0073048`](https://github.com/chutch3/selfhosted.sh/commit/0073048407322be33a2ba4fb4154c277b71abe9f))
+
+- Includes some test and app fixes
+  ([`0073048`](https://github.com/chutch3/selfhosted.sh/commit/0073048407322be33a2ba4fb4154c277b71abe9f))
+
+- Set TEST=1 in test setup to skip Docker validation
+  ([`0073048`](https://github.com/chutch3/selfhosted.sh/commit/0073048407322be33a2ba4fb4154c277b71abe9f))
+
+### Chores
+
+- Fix pipeline linter errors
+  ([`0073048`](https://github.com/chutch3/selfhosted.sh/commit/0073048407322be33a2ba4fb4154c277b71abe9f))
+
+- Fixed logging
+  ([`0073048`](https://github.com/chutch3/selfhosted.sh/commit/0073048407322be33a2ba4fb4154c277b71abe9f))
+
+- Remove Superseded Analysis Files and Configurations
+  ([#50](https://github.com/chutch3/selfhosted.sh/pull/50),
+  [`9028ea0`](https://github.com/chutch3/selfhosted.sh/commit/9028ea07a0b21d7d4936f3eedbd65c745e4d2cb6))
+
+- Update all logging
+  ([`0073048`](https://github.com/chutch3/selfhosted.sh/commit/0073048407322be33a2ba4fb4154c277b71abe9f))
+
+### Continuous Integration
+
+- Added code coverage ([#49](https://github.com/chutch3/selfhosted.sh/pull/49),
+  [`b8edea3`](https://github.com/chutch3/selfhosted.sh/commit/b8edea3a10114a4666578939b9d62526e11b64b1))
+
+- Fixed the test setup
+  ([`0073048`](https://github.com/chutch3/selfhosted.sh/commit/0073048407322be33a2ba4fb4154c277b71abe9f))
+
+- Temp removed the code coverage publishing
+  ([`0073048`](https://github.com/chutch3/selfhosted.sh/commit/0073048407322be33a2ba4fb4154c277b71abe9f))
+
+### Documentation
+
+- Removed test count
+  ([`0073048`](https://github.com/chutch3/selfhosted.sh/commit/0073048407322be33a2ba4fb4154c277b71abe9f))
+
+- Updated the documentation
+  ([`0073048`](https://github.com/chutch3/selfhosted.sh/commit/0073048407322be33a2ba4fb4154c277b71abe9f))
+
+### Features
+
+- Add comprehensive pre-flight validation checks
+  ([`0073048`](https://github.com/chutch3/selfhosted.sh/commit/0073048407322be33a2ba4fb4154c277b71abe9f))
+
+- Add idempotent overlay network creation functions
+  ([`0073048`](https://github.com/chutch3/selfhosted.sh/commit/0073048407322be33a2ba4fb4154c277b71abe9f))
+
+- Add node label existence checking and idempotent labeling
+  ([`0073048`](https://github.com/chutch3/selfhosted.sh/commit/0073048407322be33a2ba4fb4154c277b71abe9f))
+
+- Add worker node swarm membership checking functions
+  ([`0073048`](https://github.com/chutch3/selfhosted.sh/commit/0073048407322be33a2ba4fb4154c277b71abe9f))
+
+- Docker Swarm Cluster Management - Complete Implementation [closes #39]
+  ([#48](https://github.com/chutch3/selfhosted.sh/pull/48),
+  [`659acaa`](https://github.com/chutch3/selfhosted.sh/commit/659acaa9939a382c65b492ba60fd5d9e2e583b5b))
+
+- Implement idempotent swarm initialization logic
+  ([`0073048`](https://github.com/chutch3/selfhosted.sh/commit/0073048407322be33a2ba4fb4154c277b71abe9f))
+
+- Implement idempotent worker node joining logic
+  ([`0073048`](https://github.com/chutch3/selfhosted.sh/commit/0073048407322be33a2ba4fb4154c277b71abe9f))
+
+- Improve .env security support and add configuration guidance [GREEN]
+  ([`2ad185e`](https://github.com/chutch3/selfhosted.sh/commit/2ad185e5a127aa7f3d4a99cbb22c94769a126fbc))
+
+### Refactoring
+
+- Removed dead code
+  ([`0073048`](https://github.com/chutch3/selfhosted.sh/commit/0073048407322be33a2ba4fb4154c277b71abe9f))
+
+
 ## v1.3.0 (2025-08-11)
 
 ### Features
