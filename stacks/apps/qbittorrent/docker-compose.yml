@@ -22,16 +22,15 @@ services:
         - "traefik.http.routers.qbittorrent.entrypoints=websecure"
         - "traefik.http.routers.qbittorrent.tls.certresolver=dns"
         - "traefik.http.services.qbittorrent.loadbalancer.server.port=8080"
-    labels:
-      - homepage.group=Downloads
-      - homepage.name=qBittorrent
-      - homepage.icon=qbittorrent.png
-      - homepage.href=https://qbittorrent.${BASE_DOMAIN}/
-      - homepage.description=Torrent Client
-      - homepage.widget.type=qbittorrent
-      - homepage.widget.url=https://qbittorrent.${BASE_DOMAIN}/
-      - homepage.widget.username=${QBIT_USERNAME}
-      - homepage.widget.password=${QBIT_PASSWORD}
+        - homepage.group=Downloads
+        - homepage.name=qBittorrent
+        - homepage.icon=qbittorrent.png
+        - homepage.href=https://qbittorrent.${BASE_DOMAIN}/
+        - homepage.description=Torrent Client
+        - homepage.widget.type=qbittorrent
+        - homepage.widget.url=https://qbittorrent.${BASE_DOMAIN}/
+        - homepage.widget.username=${QBIT_USERNAME}
+        - homepage.widget.password=${QBIT_PASSWORD}
 
 networks:
   traefik-public:

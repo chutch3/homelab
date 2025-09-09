@@ -1,51 +1,51 @@
 services:
-  dns-server:
-    image: technitium/dns-server:latest
-    container_name: dns-server
-    hostname: dns-server
-    ports:
-      - "53:53/udp" # DNS UDP
-      - "53:53/tcp" # DNS TCP
-      - "5380:5380/tcp" # Web API
-    deploy:
-      replicas: 1
-      placement:
-        constraints:
-          - node.role == manager
-    environment:
-      - DNS_SERVER_DOMAIN=dns.${BASE_DOMAIN}
-      - DNS_SERVER_ADMIN_PASSWORD=${DNS_ADMIN_PASSWORD:-admin}
-      - DNS_SERVER_PREFER_IPV6=false
-      - DNS_SERVER_WEB_SERVICE_LOCAL_ADDRESSES=*
-      - DNS_SERVER_RECURSION=AllowOnlyForPrivateNetworks
-      - DNS_SERVER_ENABLE_BLOCKING=true
-      - DNS_SERVER_FORWARDERS=${DNS_SERVER_FORWARDERS}
-      - DNS_SERVER_LOG_QUERIES=false
-      - DNS_SERVER_WEB_SERVICE_HTTP_PORT=5380
-      - ASPNETCORE_HTTP_PORTS=5380
-    volumes:
-      - dns-config:/etc/dns
-    restart: unless-stopped
-    sysctls:
-      - net.ipv4.ip_local_port_range=1024 65000
-    networks:
-      - traefik-public
-    labels:
-      - traefik.enable=true
-      - traefik.http.routers.dns.rule=Host(`dns.${BASE_DOMAIN}`)
-      - traefik.http.routers.dns.tls=true
-      - traefik.http.routers.dns.tls.certresolver=letsencrypt
-      - traefik.http.services.dns.loadbalancer.server.port=5380
-      - homepage.group=Infrastructure
-      - homepage.name=DNS Server
-      - homepage.icon=technitium-dns.png
-      - homepage.href=https://dns.${BASE_DOMAIN}/
-      - homepage.description=Local DNS Management
+    dns-server:
+        image: technitium/dns-server:latest
+        container_name: dns-server
+        hostname: dns-server
+        ports:
+            - "53:53/udp" # DNS UDP
+            - "53:53/tcp" # DNS TCP
+            - "5380:5380/tcp" # Web API
+        deploy:
+            replicas: 1
+            placement:
+                constraints:
+                    - node.role == manager
+            labels:
+                - traefik.enable=true
+                - traefik.http.routers.dns.rule=Host(`dns.${BASE_DOMAIN}`)
+                - traefik.http.routers.dns.tls=true
+                - traefik.http.routers.dns.tls.certresolver=dns
+                - traefik.http.services.dns.loadbalancer.server.port=5380
+
+                - homepage.group=Infrastructure
+                - homepage.name=DNS Server
+                - homepage.icon=technitium-dns.png
+                - homepage.href=https://dns.${BASE_DOMAIN}/
+                - homepage.description=Local DNS Management
+        environment:
+            - DNS_SERVER_DOMAIN=dns.${BASE_DOMAIN}
+            - DNS_SERVER_ADMIN_PASSWORD=${DNS_ADMIN_PASSWORD:-admin}
+            - DNS_SERVER_PREFER_IPV6=false
+            - DNS_SERVER_WEB_SERVICE_LOCAL_ADDRESSES=172.17.0.1,127.0.0.1
+            - DNS_SERVER_RECURSION=AllowOnlyForPrivateNetworks
+            - DNS_SERVER_ENABLE_BLOCKING=true
+            - DNS_SERVER_FORWARDERS=${DNS_SERVER_FORWARDERS}
+            - DNS_SERVER_LOG_QUERIES=false
+            - DNS_SERVER_WEB_SERVICE_HTTP_PORT=5380
+            - ASPNETCORE_HTTP_PORTS=5380
+        volumes:
+            - dns-config:/etc/dns
+        restart: unless-stopped
+        sysctls:
+            - net.ipv4.ip_local_port_range=1024 65000
+        networks:
+            - traefik-public
 
 volumes:
-  dns-config:
-
+    dns-config:
 
 networks:
-  traefik-public:
-    external: true
+    traefik-public:
+        external: true

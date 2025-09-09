@@ -23,15 +23,14 @@ services:
         - "traefik.http.routers.sonarr.entrypoints=websecure"
         - "traefik.http.routers.sonarr.tls.certresolver=dns"
         - "traefik.http.services.sonarr.loadbalancer.server.port=8989"
-    labels:
-      - homepage.group=Downloads
-      - homepage.name=Sonarr
-      - homepage.icon=sonarr.png
-      - homepage.href=https://sonarr.${BASE_DOMAIN}/
-      - homepage.description=TV Show Management
-      - homepage.widget.type=sonarr
-      - homepage.widget.url=https://sonarr.${BASE_DOMAIN}/
-      - homepage.widget.key=${SONARR_API_KEY}
+        - homepage.group=Downloads
+        - homepage.name=Sonarr
+        - homepage.icon=sonarr.png
+        - homepage.href=https://sonarr.${BASE_DOMAIN}/
+        - homepage.description=TV Show Management
+        - homepage.widget.type=sonarr
+        - homepage.widget.url=https://sonarr.${BASE_DOMAIN}/
+        - homepage.widget.key=${SONARR_API_KEY}
 
 networks:
   traefik-public:

@@ -34,8 +34,6 @@ services:
         environment:
             - CLOUDFLARE_EMAIL=${CLOUDFLARE_EMAIL}
             - CLOUDFLARE_API_KEY=${CLOUDFLARE_API_TOKEN}
-            # - CLOUDFLARE_DNS_API_TOKEN=${CLOUDFLARE_DNS_API_TOKEN}
-            # - CLOUDFLARE_ZONE_API_TOKEN=${CLOUDFLARE_DNS_API_TOKEN}
         ports:
             - "80:80"
             - "443:443"
