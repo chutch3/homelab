@@ -54,6 +54,21 @@ services:
         constraints:
           - node.labels.gpu == true
       replicas: 1
+      labels:
+        - "traefik.enable=true"
+        - "traefik.http.routers.photoprism.rule=Host(`photo.${BASE_DOMAIN}`)"
+        - "traefik.http.routers.photoprism.entrypoints=websecure"
+        - "traefik.http.routers.photoprism.tls.certresolver=dns"
+        - "traefik.http.services.photoprism.loadbalancer.server.port=2342"
+
+        - homepage.group=Media
+        - homepage.name=PhotoPrism
+        - homepage.icon=photoprism.png
+        - homepage.href=https://photo.${BASE_DOMAIN}/
+        - homepage.description=Photo Management
+        - homepage.widget.type=photoprism
+        - homepage.widget.url=https://photo.${BASE_DOMAIN}/
+        - homepage.widget.key=${PHOTOPRISM_ADMIN_PASSWORD}
     healthcheck:
       test: [ "CMD", "curl", "-f", "http://localhost:2342/api/v1/status" ]
       interval: 30s
@@ -64,21 +79,6 @@ services:
       - mariadb
     networks:
       - traefik-public
-    labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.photoprism.rule=Host(`photo.${BASE_DOMAIN}`)"
-      - "traefik.http.routers.photoprism.entrypoints=websecure"
-      - "traefik.http.routers.photoprism.tls.certresolver=dns"
-      - "traefik.http.services.photoprism.loadbalancer.server.port=2342"
-
-      - homepage.group=Media
-      - homepage.name=PhotoPrism
-      - homepage.icon=photoprism.png
-      - homepage.href=https://photo.${BASE_DOMAIN}/
-      - homepage.description=Photo Management
-      - homepage.widget.type=photoprism
-      - homepage.widget.url=https://photo.${BASE_DOMAIN}/
-      - homepage.widget.key=${PHOTOPRISM_ADMIN_PASSWORD}
 
   mariadb:
     image: mariadb:11

@@ -22,15 +22,14 @@ services:
         - "traefik.http.routers.radarr.entrypoints=websecure"
         - "traefik.http.routers.radarr.tls.certresolver=dns"
         - "traefik.http.services.radarr.loadbalancer.server.port=7878"
-    labels:
-      - homepage.group=Downloads
-      - homepage.name=Radarr
-      - homepage.icon=radarr.png
-      - homepage.href=https://radarr.${BASE_DOMAIN}/
-      - homepage.description=Movie Management
-      - homepage.widget.type=radarr
-      - homepage.widget.url=https://radarr.${BASE_DOMAIN}/
-      - homepage.widget.key=${RADARR_API_KEY}
+        - homepage.group=Downloads
+        - homepage.name=Radarr
+        - homepage.icon=radarr.png
+        - homepage.href=https://radarr.${BASE_DOMAIN}/
+        - homepage.description=Movie Management
+        - homepage.widget.type=radarr
+        - homepage.widget.url=https://radarr.${BASE_DOMAIN}/
+        - homepage.widget.key=${RADARR_API_KEY}
 
 networks:
   traefik-public:
