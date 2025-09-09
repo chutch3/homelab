@@ -2,6 +2,32 @@
 
 <!-- version list -->
 
+## v1.4.1 (2025-09-09)
+
+### Bug Fixes
+
+- Broken labeling and formatting ([#56](https://github.com/chutch3/selfhosted.sh/pull/56),
+  [`6c787d4`](https://github.com/chutch3/selfhosted.sh/commit/6c787d42ad1ac517ae738235b70501d342804839))
+
+- Dns now works correctly ([#56](https://github.com/chutch3/selfhosted.sh/pull/56),
+  [`6c787d4`](https://github.com/chutch3/selfhosted.sh/commit/6c787d42ad1ac517ae738235b70501d342804839))
+
+- DNS setup and registration and deployment labeling
+  ([#56](https://github.com/chutch3/selfhosted.sh/pull/56),
+  [`6c787d4`](https://github.com/chutch3/selfhosted.sh/commit/6c787d42ad1ac517ae738235b70501d342804839))
+
+- Fixed all remaining ssl and dns issues ([#56](https://github.com/chutch3/selfhosted.sh/pull/56),
+  [`6c787d4`](https://github.com/chutch3/selfhosted.sh/commit/6c787d42ad1ac517ae738235b70501d342804839))
+
+### Chores
+
+- Cleanup bad rebase ([#56](https://github.com/chutch3/selfhosted.sh/pull/56),
+  [`6c787d4`](https://github.com/chutch3/selfhosted.sh/commit/6c787d42ad1ac517ae738235b70501d342804839))
+
+- Renamed dns test file ([#56](https://github.com/chutch3/selfhosted.sh/pull/56),
+  [`6c787d4`](https://github.com/chutch3/selfhosted.sh/commit/6c787d42ad1ac517ae738235b70501d342804839))
+
+
 ## v1.4.0 (2025-09-07)
 
 ### Bug Fixes
