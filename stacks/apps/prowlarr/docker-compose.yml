@@ -20,15 +20,14 @@ services:
         - "traefik.http.routers.prowlarr.entrypoints=websecure"
         - "traefik.http.routers.prowlarr.tls.certresolver=dns"
         - "traefik.http.services.prowlarr.loadbalancer.server.port=9696"
-    labels:
-      - homepage.group=Downloads
-      - homepage.name=Prowlarr
-      - homepage.icon=prowlarr.png
-      - homepage.href=https://prowlarr.${BASE_DOMAIN}/
-      - homepage.description=Indexer Manager
-      - homepage.widget.type=prowlarr
-      - homepage.widget.url=https://prowlarr.${BASE_DOMAIN}/
-      - homepage.widget.key=${PROWLARR_API_KEY}
+        - homepage.group=Downloads
+        - homepage.name=Prowlarr
+        - homepage.icon=prowlarr.png
+        - homepage.href=https://prowlarr.${BASE_DOMAIN}/
+        - homepage.description=Indexer Manager
+        - homepage.widget.type=prowlarr
+        - homepage.widget.url=https://prowlarr.${BASE_DOMAIN}/
+        - homepage.widget.key=${PROWLARR_API_KEY}
 
 networks:
   traefik-public:
