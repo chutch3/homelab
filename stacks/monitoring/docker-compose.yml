@@ -1,53 +1,49 @@
 version: "3.9"
 
 services:
-  prometheus:
-    image: prom/prometheus:v2.55.0
-    networks:
-      - traefik-public
-      - monitoring-net
-    volumes:
-      - prometheus_data:/prometheus
-      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
-    deploy:
-      labels:
-        - "traefik.enable=true"
-        - "traefik.http.routers.prometheus.rule=Host(`prometheus.${BASE_DOMAIN}`)"
-        - "traefik.http.routers.prometheus.entrypoints=websecure"
-        - "traefik.http.routers.prometheus.tls.certresolver=dns"
-        - "traefik.http.services.prometheus.loadbalancer.server.port=9090"
+    prometheus:
+        image: prom/prometheus:v2.55.0
+        networks:
+            - traefik-public
+        volumes:
+            - prometheus_data:/prometheus
+            - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+        deploy:
+            labels:
+                - "traefik.enable=true"
+                - "traefik.http.routers.prometheus.rule=Host(`prometheus.${BASE_DOMAIN}`)"
+                - "traefik.http.routers.prometheus.entrypoints=websecure"
+                - "traefik.http.routers.prometheus.tls.certresolver=dns"
+                - "traefik.http.services.prometheus.loadbalancer.server.port=9090"
 
-  grafana:
-    image: grafana/grafana:11.1.4
-    networks:
-      - traefik-public
-      - monitoring-net
-    volumes:
-      - grafana_data:/var/lib/grafana
-      - grafana_dashboards:/etc/grafana/provisioning/dashboards
-    environment:
-      - GF_SECURITY_ADMIN_USER=admin
-      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD}
-    deploy:
-      labels:
-        - "traefik.enable=true"
-        - "traefik.http.routers.grafana.rule=Host(`grafana.${BASE_DOMAIN}`)"
-        - "traefik.http.routers.grafana.entrypoints=websecure"
-        - "traefik.http.routers.grafana.tls.certresolver=dns"
-        - "traefik.http.services.grafana.loadbalancer.server.port=3000"
+    grafana:
+        image: grafana/grafana:11.1.4
+        networks:
+            - traefik-public
+        volumes:
+            - grafana_data:/var/lib/grafana
+            - grafana_dashboards:/etc/grafana/provisioning/dashboards
+        environment:
+            - GF_SECURITY_ADMIN_USER=admin
+            - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD}
+        deploy:
+            labels:
+                - "traefik.enable=true"
+                - "traefik.http.routers.grafana.rule=Host(`grafana.${BASE_DOMAIN}`)"
+                - "traefik.http.routers.grafana.entrypoints=websecure"
+                - "traefik.http.routers.grafana.tls.certresolver=dns"
+                - "traefik.http.services.grafana.loadbalancer.server.port=3000"
 
 networks:
-  traefik-public:
-    external: true
-  monitoring-net:
-
+    traefik-public:
+        external: true
 
 volumes:
-  prometheus_data:
-  grafana_data:
-  grafana_dashboards:
-    driver: local
-    driver_opts:
-      type: "cifs"
-      o: "username=${SMB_USERNAME},password=${SMB_PASSWORD},domain=${SMB_DOMAIN},vers=3.0,file_mode=0600,dir_mode=0770"
-      device: "//${NAS_SERVER}/grafana_dashboards"
+    prometheus_data:
+    grafana_data:
+    grafana_dashboards:
+        driver: local
+        driver_opts:
+            type: "cifs"
+            o: "username=${SMB_USERNAME},password=${SMB_PASSWORD},domain=${SMB_DOMAIN},vers=3.0,file_mode=0600,dir_mode=0770,soft,actimeo=30"
+            device: "//${NAS_SERVER}/grafana_dashboards"

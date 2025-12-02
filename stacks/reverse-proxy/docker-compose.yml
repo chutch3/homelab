@@ -3,8 +3,11 @@ version: "3.8"
 services:
     traefik:
         image: traefik:v3.5.1
+
         command:
-            - "--log.level=INFO"
+            # Logging
+            - "--log.level=DEBUG"
+
             # Providers
             - "--providers.swarm.endpoint=unix:///var/run/docker.sock"
             - "--providers.swarm.exposedbydefault=false"
@@ -15,12 +18,11 @@ services:
             - "--entrypoints.websecure.address=:443"
             - "--entrypoints.metrics.address=:9100"
 
-            # Certificates (using production)
+            # ACME / Let's Encrypt (DNS-01 via Cloudflare)
             - "--certificatesresolvers.dns.acme.caServer=https://acme-v02.api.letsencrypt.org/directory"
-            - "--certificatesresolvers.dns.acme.email=${CLOUDFLARE_EMAIL}"
             - "--certificatesresolvers.dns.acme.storage=/letsencrypt/acme.json"
-            - "--certificatesresolvers.dns.acme.dnschallenge=true"
             - "--certificatesresolvers.dns.acme.dnschallenge.provider=cloudflare"
+            - "--certificatesresolvers.dns.acme.dnschallenge.propagation.delayBeforeChecks=10"
 
             # Metrics (Prometheus)
             - "--metrics.prometheus=true"
@@ -30,27 +32,56 @@ services:
 
             # Dashboard
             - "--api.dashboard=true"
-        entrypoint: ["/entrypoint.sh"]
+
+            # Health check endpoint
+            - "--ping=true"
+
         environment:
-            - CLOUDFLARE_EMAIL=${CLOUDFLARE_EMAIL}
-            - CLOUDFLARE_API_KEY=${CLOUDFLARE_API_TOKEN}
+            # Cloudflare API token (Zone → DNS → Edit)
+            - CF_DNS_API_TOKEN=${CLOUDFLARE_DNS_API_TOKEN}
+
         ports:
             - "80:80"
             - "443:443"
+
+        healthcheck:
+            test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8080/ping"]
+            interval: 10s
+            timeout: 5s
+            retries: 3
+            start_period: 30s
+
         volumes:
             - /var/run/docker.sock:/var/run/docker.sock:ro
             - ssl_certs:/letsencrypt
+
         deploy:
+            replicas: 1
             placement:
                 constraints:
                     - node.role == manager
+                    - node.labels.traefik == true
+                preferences:
+                    - spread: node.id
+            restart_policy:
+                condition: any
+                delay: 5s
+                max_attempts: 3
+                window: 120s
+            update_config:
+                parallelism: 1
+                delay: 10s
+                order: start-first
             labels:
                 - "traefik.enable=true"
+
+                # Traefik Dashboard
                 - "traefik.http.routers.traefik.rule=Host(`traefik.${BASE_DOMAIN}`)"
                 - "traefik.http.routers.traefik.entrypoints=websecure"
                 - "traefik.http.routers.traefik.tls.certresolver=dns"
                 - "traefik.http.routers.traefik.service=api@internal"
                 - "traefik.http.services.traefik.loadbalancer.server.port=8080"
+
         networks:
             - traefik-public
 
@@ -60,7 +91,7 @@ volumes:
         driver: local
         driver_opts:
             type: "cifs"
-            o: "username=${SMB_USERNAME},password=${SMB_PASSWORD},domain=${SMB_DOMAIN},vers=3.0,file_mode=0600,dir_mode=0770"
+            o: "username=${SMB_USERNAME},password=${SMB_PASSWORD},domain=${SMB_DOMAIN},vers=3.0,file_mode=0600,dir_mode=0770,soft,actimeo=30"
             device: "//${NAS_SERVER}/ssl_certs"
 
 networks:

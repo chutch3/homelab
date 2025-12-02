@@ -14,11 +14,16 @@ homelab/
 ├── machines.yaml              # Multi-node Docker Swarm configuration
 ├── machines.yaml.example      # Template for machines setup
 ├── scripts/                   # Management and utility scripts
-│   ├── deploy.sh             # Legacy Docker Swarm deployment
-│   ├── deploy.simple.sh      # Legacy simple deployment
-│   ├── nuke.sh              # Complete cleanup script
-│   ├── swarm_cluster_manager.sh  # Cluster management
-│   └── configure_dns_records.sh  # DNS automation
+│   ├── cli.sh                # Main CLI entry point
+│   ├── common/               # Shared utilities
+│   │   ├── ssh.sh           # SSH operations
+│   │   ├── machine.sh       # Machine management
+│   │   └── dns.sh           # DNS automation
+│   └── docker_swarm/         # Docker Swarm implementation
+│       ├── cli.sh           # Swarm command handler
+│       ├── cluster.sh       # Cluster management
+│       ├── deploy.sh        # Deployment logic
+│       └── teardown.sh      # Cleanup and teardown
 └── stacks/                    # Service definitions
     ├── apps/                 # Individual applications
     ├── reverse-proxy/        # Traefik reverse proxy
@@ -268,9 +273,10 @@ SMB_PASSWORD=storage_password
 ./selfhosted.sh
 
 # Available commands:
-./selfhosted.sh deploy    # Full deployment (default)
-./selfhosted.sh nuke      # Complete cleanup
-./selfhosted.sh redeploy-service <service>  # Redeploy specific service
+./selfhosted.sh deploy          # Full deployment (default)
+./selfhosted.sh cluster init    # Initialize cluster
+./selfhosted.sh cluster status  # Check cluster status
+./selfhosted.sh teardown        # Complete cleanup
 ```
 
 This script handles:
@@ -279,18 +285,11 @@ This script handles:
 - Core service deployment
 - DNS configuration
 
-### DNS Configuration
-
-```bash
-# Configure DNS records manually
-./scripts/configure_dns_records.sh --auto
-```
-
 ### Complete Cleanup
 
 ```bash
 # WARNING: Removes all services and data
-./scripts/nuke.sh
+./selfhosted.sh teardown
 ```
 
 ## Configuration Examples

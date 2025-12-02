@@ -132,8 +132,7 @@ Pre-configured Docker Compose stacks ready for deployment:
     - **[Sonarr](https://sonarr.tv/)** - TV series management and automation
     - **[Radarr](https://radarr.video/)** - Movie management and automation
     - **[Prowlarr](https://prowlarr.com/)** - Indexer manager for media automation
-    - **[qBittorrent](https://www.qbittorrent.org/)** - BitTorrent client with web UI
-    - **[Deluge](https://deluge-torrent.org/)** - Alternative BitTorrent client
+    - **Downloads Stack** - Unified qBittorrent, Deluge, and VPN setup with SOCKS5 proxy
 
 **Total: 13 pre-configured services** with more being added regularly!
 
@@ -226,11 +225,11 @@ Ready to start your self-hosting journey? Choose your path:
 
     Complete setup with all configuration options
 
-- :material-account-group: **[Contributing →](development/contributing.md)**
+- :material-account-group: **[Contributing →](https://github.com/chutch3/selfhosted.sh/issues)**
 
     ---
 
-    Help improve the platform for everyone
+    Help improve the platform - report issues or contribute code
 
 </div>
 

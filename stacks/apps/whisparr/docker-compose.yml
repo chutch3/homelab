@@ -1,15 +1,16 @@
 version: "3.9"
 
 services:
-    radarr:
-        image: lscr.io/linuxserver/radarr:latest
-        container_name: radarr
+    whisparr:
+        image: ghcr.io/hotio/whisparr:latest
+        container_name: whisparr
         environment:
             - PUID=1000
             - PGID=1000
+            - UMASK=002
             - TZ=${TZ}
         volumes:
-            - radarr:/config
+            - whisparr:/config
             - torrents:/data/torrents
             - usenet:/data/usenet
         restart: unless-stopped
@@ -18,30 +19,30 @@ services:
         deploy:
             labels:
                 - "traefik.enable=true"
-                - "traefik.http.routers.radarr.rule=Host(`radarr.${BASE_DOMAIN}`)"
-                - "traefik.http.routers.radarr.entrypoints=websecure"
-                - "traefik.http.routers.radarr.tls.certresolver=dns"
-                - "traefik.http.services.radarr.loadbalancer.server.port=7878"
+                - "traefik.http.routers.whisparr.rule=Host(`whisparr.${BASE_DOMAIN}`)"
+                - "traefik.http.routers.whisparr.entrypoints=websecure"
+                - "traefik.http.routers.whisparr.tls.certresolver=dns"
+                - "traefik.http.services.whisparr.loadbalancer.server.port=6969"
                 - homepage.group=Downloads
-                - homepage.name=Radarr
-                - homepage.icon=radarr.png
-                - homepage.href=https://radarr.${BASE_DOMAIN}/
-                - homepage.description=Movie Management
-                - homepage.widget.type=radarr
-                - homepage.widget.url=https://radarr.${BASE_DOMAIN}/
-                - homepage.widget.key=${RADARR_API_KEY}
+                - homepage.name=Whisparr
+                - homepage.icon=whisparr.png
+                - homepage.href=https://whisparr.${BASE_DOMAIN}/
+                - homepage.description=Adult Content Management
+                - homepage.widget.type=whisparr
+                - homepage.widget.url=https://whisparr.${BASE_DOMAIN}/
+                - homepage.widget.key=${WHISPARR_API_KEY}
 
 networks:
     traefik-public:
         external: true
 
 volumes:
-    radarr:
+    whisparr:
         driver: local
         driver_opts:
             type: "cifs"
-            o: "username=${SMB_USERNAME},password=${SMB_PASSWORD},domain=${SMB_DOMAIN},vers=3.0,file_mode=0770,dir_mode=0770,uid=1000,gid=1000,soft,actimeo=30"
-            device: "//${NAS_SERVER}/radarr"
+            o: "username=${SMB_USERNAME},password=${SMB_PASSWORD},domain=${SMB_DOMAIN},vers=3.0,nobrl,file_mode=0770,dir_mode=0770,uid=1000,gid=1000,soft,actimeo=30"
+            device: "//${NAS_SERVER}/whisparr"
 
     torrents:
         driver: local

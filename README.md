@@ -56,22 +56,36 @@ Access your services at `https://homepage.yourdomain.com`
 
 ```bash
 # Deploy all services
-./selfhosted.sh deploy
+./selfhosted.sh deploy                    # Full deployment (infrastructure + apps)
+./selfhosted.sh deploy --skip-infra       # Quick app updates (skip infrastructure)
 
-# Deploy specific services only
-./selfhosted.sh deploy --only-apps homepage,actual_server
+# Deployment options
+./selfhosted.sh deploy --skip-infra --only-apps homepage  # Update single app
+./selfhosted.sh deploy --skip-apps photoprism             # Skip specific apps
+./selfhosted.sh deploy --only-apps sonarr,radarr          # Deploy only specific apps
 
-# Skip heavy services
-./selfhosted.sh deploy --skip-apps photoprism,emby
+# Cluster management
+./selfhosted.sh cluster init              # Initialize Swarm cluster
+./selfhosted.sh cluster status            # Check cluster status
+./selfhosted.sh cluster join <node>       # Join worker node to cluster
 
-# Redeploy single service
-./selfhosted.sh redeploy-service homepage
+# Volume management
+./selfhosted.sh volume ls                 # List all Docker volumes
+./selfhosted.sh volume ls photoprism      # List volumes for specific service
+./selfhosted.sh volume inspect photoprism # Inspect volume configuration
+./selfhosted.sh volume diff photoprism    # Compare current vs compose file config
+./selfhosted.sh volume recreate photoprism --backup  # Recreate with backup
+./selfhosted.sh volume recreate photoprism --force   # Skip confirmation
 
-# Remove service and data
-./selfhosted.sh nuke servicename
+# Cleanup
+./selfhosted.sh teardown                  # Complete cleanup
 
-# Check cluster status
-./scripts/swarm_cluster_manager.sh monitor-cluster
+# Advanced: Direct CLI usage
+./scripts/cli.sh deploy                   # Deploy via CLI
+./scripts/cli.sh deploy --skip-infra      # Quick updates via CLI
+./scripts/cli.sh cluster init -c machines.yaml
+./scripts/cli.sh cluster status
+./scripts/cli.sh teardown
 ```
 
 ## ⚙️ Configuration
