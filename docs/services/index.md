@@ -80,28 +80,7 @@ Browse our comprehensive catalog of self-hosted services. Each service is pre-co
 
 #### Quick Deploy
 ```bash
-./selfhosted service enable actual
-./selfhosted service generate
-./selfhosted deploy compose up
-```
-
-#### Configuration
-```yaml
-actual:
-  name: "Actual Budget"
-  description: "Personal finance and budgeting application"
-  category: finance
-  domain: "budget"
-  port: 5006
-  enabled: true
-
-  compose:
-    image: "actualbudget/actual-server:latest"
-    ports: ["5006:5006"]
-    environment:
-      - "ACTUAL_UPLOAD_FILE_SYNC_SIZE_LIMIT_MB=20"
-    volumes:
-      - "./data/actual:/app/data"
+./selfhosted.sh deploy --only-apps actual_server
 ```
 
 [Learn more about Actual Budget →](https://actualbudget.org/)
@@ -136,9 +115,7 @@ actual:
 
 #### Quick Deploy
 ```bash
-./selfhosted service enable photoprism
-./selfhosted service generate
-./selfhosted deploy compose up
+./selfhosted.sh deploy --only-apps photoprism
 ```
 
 [Learn more about PhotoPrism →](https://photoprism.app/)
@@ -194,9 +171,7 @@ This service is planned for the next release. Want to help implement it?
 
 #### Quick Deploy
 ```bash
-./selfhosted service enable homeassistant
-./selfhosted service generate
-./selfhosted deploy compose up
+./selfhosted.sh deploy --only-apps homeassistant
 ```
 
 [Learn more about Home Assistant →](https://www.home-assistant.io/)
@@ -227,9 +202,7 @@ This service is planned for the next release. Want to help implement it?
 
 #### Quick Deploy
 ```bash
-./selfhosted service enable portainer
-./selfhosted service generate
-./selfhosted deploy compose up
+./selfhosted.sh deploy --only-apps portainer
 ```
 
 [Learn more about Portainer →](https://www.portainer.io/)
@@ -260,9 +233,7 @@ This service is planned for the next release. Want to help implement it?
 
 #### Quick Deploy
 ```bash
-./selfhosted service enable cryptpad
-./selfhosted service generate
-./selfhosted deploy compose up
+./selfhosted.sh deploy --only-apps cryptpad
 ```
 
 [Learn more about CryptPad →](https://cryptpad.fr/)
@@ -293,9 +264,7 @@ This service is planned for the next release. Want to help implement it?
 
 #### Quick Deploy
 ```bash
-./selfhosted service enable homepage
-./selfhosted service generate
-./selfhosted deploy compose up
+./selfhosted.sh deploy --only-apps homepage
 ```
 
 [Learn more about Homepage →](https://gethomepage.dev/)
@@ -308,44 +277,54 @@ This service is planned for the next release. Want to help implement it?
 
 Want to add a new service? It's easy!
 
-### 1. Add Service Definition
+### 1. Create Service Stack
 
-Add your service to `config/services.yaml`:
-
-```yaml
-myservice:
-  name: "My Service"
-  description: "What it does"
-  category: productivity
-  domain: "myapp"
-  port: 3000
-  enabled: false
-
-  compose:
-    image: "myapp:latest"
-    ports: ["3000:3000"]
-    environment:
-      - "ENV_VAR=value"
-    volumes:
-      - "./data/myapp:/app/data"
-
-  nginx:
-    upstream: "myservice:3000"
-```
-
-### 2. Enable and Deploy
+Create a new directory and Docker Compose file:
 
 ```bash
-./selfhosted service enable myservice
-./selfhosted service generate
-./selfhosted deploy compose up
+mkdir stacks/apps/myservice
+nano stacks/apps/myservice/docker-compose.yml
 ```
 
-### 3. Contribute Back
+### 2. Define Your Service
+
+```yaml
+services:
+  myservice:
+    image: myapp:latest
+    environment:
+      - ENV_VAR=${ENV_VAR}
+    volumes:
+      - myservice_data:/data
+    networks:
+      - traefik-public
+    deploy:
+      labels:
+        - traefik.enable=true
+        - traefik.http.routers.myservice.rule=Host(`myapp.${BASE_DOMAIN}`)
+        - traefik.http.routers.myservice.tls=true
+        - traefik.http.routers.myservice.tls.certresolver=letsencrypt
+        - traefik.http.services.myservice.loadbalancer.server.port=3000
+
+networks:
+  traefik-public:
+    external: true
+
+volumes:
+  myservice_data:
+```
+
+### 3. Deploy Your Service
+
+```bash
+./selfhosted.sh deploy --only-apps myservice
+```
+
+### 4. Contribute Back
 
 Consider contributing your service definition to help others!
 
-[Learn how to contribute →](../development/contributing.md)
+[Learn how to contribute →](https://github.com/chutch3/selfhosted.sh/issues)
 
 ---
 
@@ -370,4 +349,4 @@ New to selfhosted? Start here:
 3. **[Service Management](../user-guide/service-management.md)** - Learn the CLI
 4. **[First Deployment](../getting-started/first-deployment.md)** - Deploy your services
 
-[Next: Learn about adding services →](adding-services.md)
+**Want to add a new service?** Check the example services in `stacks/apps/` directory for reference.

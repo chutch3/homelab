@@ -1,59 +1,59 @@
 version: "3.9"
 
 services:
-  sonarr:
-    image: lscr.io/linuxserver/sonarr:latest
-    container_name: sonarr
-    environment:
-      - PUID=1000
-      - PGID=1000
-      - UMASK=002
-      - TZ=${TZ}
-    volumes:
-      - sonarr:/config
-      - torrents:/data/torrents
-      - usenet:/data/usenet
-    restart: unless-stopped
-    networks:
-      - traefik-public
-    deploy:
-      labels:
-        - "traefik.enable=true"
-        - "traefik.http.routers.sonarr.rule=Host(`sonarr.${BASE_DOMAIN}`)"
-        - "traefik.http.routers.sonarr.entrypoints=websecure"
-        - "traefik.http.routers.sonarr.tls.certresolver=dns"
-        - "traefik.http.services.sonarr.loadbalancer.server.port=8989"
-        - homepage.group=Downloads
-        - homepage.name=Sonarr
-        - homepage.icon=sonarr.png
-        - homepage.href=https://sonarr.${BASE_DOMAIN}/
-        - homepage.description=TV Show Management
-        - homepage.widget.type=sonarr
-        - homepage.widget.url=https://sonarr.${BASE_DOMAIN}/
-        - homepage.widget.key=${SONARR_API_KEY}
+    sonarr:
+        image: lscr.io/linuxserver/sonarr:latest
+        container_name: sonarr
+        environment:
+            - PUID=1000
+            - PGID=1000
+            - UMASK=002
+            - TZ=${TZ}
+        volumes:
+            - sonarr:/config
+            - torrents:/data/torrents
+            - usenet:/data/usenet
+        restart: unless-stopped
+        networks:
+            - traefik-public
+        deploy:
+            labels:
+                - "traefik.enable=true"
+                - "traefik.http.routers.sonarr.rule=Host(`sonarr.${BASE_DOMAIN}`)"
+                - "traefik.http.routers.sonarr.entrypoints=websecure"
+                - "traefik.http.routers.sonarr.tls.certresolver=dns"
+                - "traefik.http.services.sonarr.loadbalancer.server.port=8989"
+                - homepage.group=Downloads
+                - homepage.name=Sonarr
+                - homepage.icon=sonarr.png
+                - homepage.href=https://sonarr.${BASE_DOMAIN}/
+                - homepage.description=TV Show Management
+                - homepage.widget.type=sonarr
+                - homepage.widget.url=https://sonarr.${BASE_DOMAIN}/
+                - homepage.widget.key=${SONARR_API_KEY}
 
 networks:
-  traefik-public:
-    external: true
+    traefik-public:
+        external: true
 
 volumes:
-  torrents:
-    driver: local
-    driver_opts:
-      type: "cifs"
-      o: "username=${SMB_USERNAME},password=${SMB_PASSWORD},domain=${SMB_DOMAIN},vers=3.0,file_mode=0600,dir_mode=0770"
-      device: "//${NAS_SERVER}/torrents"
+    torrents:
+        driver: local
+        driver_opts:
+            type: "cifs"
+            o: "username=${SMB_USERNAME},password=${SMB_PASSWORD},domain=${SMB_DOMAIN},vers=3.0,file_mode=0770,dir_mode=0770,uid=1000,gid=1000,soft,actimeo=30"
+            device: "//${NAS_SERVER}/torrents"
 
-  usenet:
-    driver: local
-    driver_opts:
-      type: "cifs"
-      o: "username=${SMB_USERNAME},password=${SMB_PASSWORD},domain=${SMB_DOMAIN},vers=3.0,file_mode=0600,dir_mode=0770"
-      device: "//${NAS_SERVER}/usenet"
+    usenet:
+        driver: local
+        driver_opts:
+            type: "cifs"
+            o: "username=${SMB_USERNAME},password=${SMB_PASSWORD},domain=${SMB_DOMAIN},vers=3.0,file_mode=0770,dir_mode=0770,uid=1000,gid=1000,soft,actimeo=30"
+            device: "//${NAS_SERVER}/usenet"
 
-  sonarr:
-    driver: local
-    driver_opts:
-      type: "cifs"
-      o: "username=${SMB_USERNAME},password=${SMB_PASSWORD},domain=${SMB_DOMAIN},vers=3.0,file_mode=0600,dir_mode=0770"
-      device: "//${NAS_SERVER}/sonarr"
+    sonarr:
+        driver: local
+        driver_opts:
+            type: "cifs"
+            o: "username=${SMB_USERNAME},password=${SMB_PASSWORD},domain=${SMB_DOMAIN},vers=3.0,file_mode=0770,dir_mode=0770,uid=1000,gid=1000,soft,actimeo=30"
+            device: "//${NAS_SERVER}/sonarr"

@@ -2,3 +2,8 @@ extends: relaxed
 rules:
   line-length:
     max: 120
+yaml-tags:
+  - "!!python/name:material.extensions.emoji.to_svg"
+  - "!!python/name:material.extensions.emoji.twemoji"
+  - "!!python/name:pymdownx.superfences.fence_code_format"
+  - "!!python/object/apply:pymdownx.slugs.slugify"

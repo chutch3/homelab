@@ -1,66 +1,138 @@
 # Installation Guide
 
-## Requirements
+This guide walks through installing the homelab platform.
 
-- **Linux server** (Ubuntu 20.04+ recommended)
-- **Docker** with Docker Compose v2
-- **Domain name** managed by Cloudflare
-- **Cloudflare API token**
+!!! info "Prerequisites Required"
+    Before installing, complete the [Prerequisites](prerequisites.md) guide to set up:
 
-## Install Docker
+    - Docker with sudoless access
+    - Cloudflare domain and API token
+    - Network storage (optional)
+    - SSH keys between nodes
 
-```bash
-# Ubuntu/Debian
-curl -fsSL https://get.docker.com | sh
-sudo usermod -aG docker $USER
-newgrp docker
+## Quick Requirements Check
 
-# Test Docker works
-docker --version
-docker compose version
-```
+Verify you have:
 
-## Get Cloudflare API Token
-
-1. Go to [Cloudflare API Tokens](https://dash.cloudflare.com/profile/api-tokens)
-2. Click "Create Token" → "Custom token"
-3. Add permissions: `Zone:DNS:Edit` and `Zone:Zone:Read`
-4. Include your domain in "Zone Resources"
-5. Copy the token
-
-## Setup DNS
-
-Point your domain to your server:
-
-```
-Type: A
-Name: *
-Content: YOUR_SERVER_IP
-```
-
-Set "Proxy status" to **DNS only** (gray cloud).
+- [ ] Docker installed on all nodes
+- [ ] User in `docker` group (sudoless access)
+- [ ] Cloudflare domain with wildcard DNS record
+- [ ] Cloudflare API token with DNS permissions
+- [ ] SSH access configured between nodes
+- [ ] (Optional) NAS/OMV with CIFS share
 
 ## Install Platform
 
-```bash
-# Clone repository
-git clone https://github.com/yourusername/homelab.git
-cd homelab
+### 1. Clone Repository
 
-# Copy and edit configuration
+```bash
+git clone https://github.com/chutch3/selfhosted.sh.git
+cd selfhosted.sh
+```
+
+### 2. Configure machines.yaml
+
+Create your cluster configuration:
+
+```bash
+cp machines.yaml.example machines.yaml
+nano machines.yaml
+```
+
+Example configuration:
+
+```yaml
+machines:
+  manager:
+    ip: 192.168.1.100
+    ssh_user: ubuntu
+    role: manager
+    labels:
+      storage: true
+
+  worker-01:
+    ip: 192.168.1.101
+    ssh_user: ubuntu
+    role: worker
+    labels:
+      gpu: true
+```
+
+### 3. Configure Environment
+
+Create your `.env` file:
+
+```bash
 cp .env.example .env
 nano .env
+```
 
-# Add your domain and Cloudflare token
+Essential configuration:
+
+```bash
+# Domain Configuration
 BASE_DOMAIN=yourdomain.com
-CF_Token=your_cloudflare_token_here
+CF_Token=your_cloudflare_api_token_here
 ACME_EMAIL=admin@yourdomain.com
 
-# Deploy everything
+# Network Storage (if using NAS)
+NAS_SERVER=192.168.1.50
+SMB_USERNAME=homelab
+SMB_PASSWORD=your_nas_password
+
+# Service Credentials
+DNS_ADMIN_PASSWORD=secure_dns_password
+GRAFANA_ADMIN_PASSWORD=secure_grafana_password
+```
+
+See [Configuration Guide](configuration.md) for all available options.
+
+### 4. Deploy
+
+Initialize the cluster and deploy services:
+
+```bash
+# Initialize Docker Swarm cluster
+./selfhosted.sh cluster init
+
+# Deploy all services
 ./selfhosted.sh deploy
 ```
 
-That's it! Access your services at `https://homepage.yourdomain.com`
+The deployment will:
+
+1. Initialize Docker Swarm across your nodes
+2. Create overlay networks
+3. Deploy core infrastructure (Traefik, DNS, Monitoring)
+4. Deploy application services
+5. Configure SSL certificates automatically
+
+### 5. Verify Deployment
+
+Check that services are running:
+
+```bash
+# Check cluster status
+./selfhosted.sh cluster status
+
+# List deployed stacks
+docker stack ls
+
+# Check specific service
+docker service logs reverse-proxy_traefik --tail 50
+```
+
+### 6. Access Services
+
+Access your services via their domains:
+
+- **Homepage Dashboard**: `https://homepage.yourdomain.com`
+- **Traefik Dashboard**: `https://traefik.yourdomain.com`
+- **Grafana Monitoring**: `https://grafana.yourdomain.com`
+- **DNS Server**: `http://yourdomain.com:5380`
+
+!!! success "Installation Complete!"
+    Your homelab is now running! Check the [Service Management](../user-guide/service-management.md) guide to learn how to manage your services.
 
 ## Troubleshooting
 

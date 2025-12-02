@@ -131,7 +131,7 @@ We welcome contributions! Here's how you can help:
 4. **Documentation** - User guides and tutorials
 5. **Testing** - End-to-end integration tests
 
-[Get started contributing →](development/contributing.md)
+[Get started contributing →](https://github.com/chutch3/selfhosted.sh/issues)
 
 ## 💡 Have Ideas?
 

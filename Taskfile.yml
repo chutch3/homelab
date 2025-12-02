@@ -16,7 +16,8 @@ tasks:
         cmds:
             - echo "🧪 Running unit tests with coverage..."
             - mkdir -p coverage
-            - kcov --bash-method=DEBUG --include-pattern=scripts --exclude-pattern=/usr,/tmp,/var coverage/unit bats tests/unit/scripts/*.bats
+            - rm -rf /tmp/bats-run-* 2>/dev/null || true
+            - kcov --bash-method=DEBUG --include-pattern=scripts --exclude-pattern=/usr,/tmp,/var coverage/unit bats --jobs 1 tests/unit/scripts/**/*.bats tests/unit/scripts/*.bats
             - echo "🧪 Unit tests completed successfully"
             - echo "📊 Merging coverage reports..."
             - kcov --merge coverage/merged coverage/unit
@@ -26,7 +27,7 @@ tasks:
         desc: Run core tests with faster execution
         cmds:
             - echo "🧪 Running unit tests..."
-            - bats --tap tests/unit/scripts/*.bats
+            - bats --tap tests/unit/scripts/**/*.bats tests/unit/scripts/*.bats
             - echo "🔍 Running schema validation tests..."
             - bats --tap tests/integration/schema_validation_test.bats
 
@@ -55,7 +56,7 @@ tasks:
     lint:shell:
         desc: Run shellcheck on shell scripts
         cmds:
-            - poetry run shellcheck -x --source-path=scripts scripts/*.sh scripts/wrappers/*.sh
+            - poetry run shellcheck -x --source-path=scripts scripts/*.sh
 
     lint:yaml:
         desc: Run yamllint on YAML files
@@ -109,7 +110,7 @@ tasks:
     docs:serve:
         desc: Serve documentation locally with live reload
         cmds:
-            - poetry run mkdocs serve --dev-addr=127.0.0.1:8000
+            - poetry run mkdocs serve --dev-addr=0.0.0.0:8000
 
     docs:validate:
         desc: Validate documentation build and check for issues

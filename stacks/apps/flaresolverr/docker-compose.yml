@@ -1,0 +1,38 @@
+version: "3.9"
+
+services:
+    flaresolverr:
+        image: ghcr.io/flaresolverr/flaresolverr:latest
+        container_name: flaresolverr
+        environment:
+            - PUID=1000
+            - PGID=1000
+            - TZ=${TZ}
+            - LOG_LEVEL=${FLARESOLVERR_LOG_LEVEL:-info}
+            - HEADLESS=true
+        volumes:
+            - flaresolverr:/config
+        restart: unless-stopped
+        networks:
+            - traefik-public
+        expose:
+            - "8191"
+        deploy:
+            labels:
+                - homepage.group=Downloads
+                - homepage.name=FlareSolverr
+                - homepage.icon=flaresolverr.png
+                - homepage.href=http://flaresolverr:8191
+                - homepage.description=Cloudflare Bypass Proxy
+
+networks:
+    traefik-public:
+        external: true
+
+volumes:
+    flaresolverr:
+        driver: local
+        driver_opts:
+            type: "cifs"
+            o: "username=${SMB_USERNAME},password=${SMB_PASSWORD},domain=${SMB_DOMAIN},vers=3.0,file_mode=0770,dir_mode=0770,uid=1000,gid=1000,soft,actimeo=30"
+            device: "//${NAS_SERVER}/flaresolverr"

@@ -1,127 +1,208 @@
 version: "3.9"
 
 services:
-  photoprism:
-    image: photoprism/photoprism:latest
-    stop_grace_period: 10s
-    security_opt:
-      - seccomp:unconfined
-      - apparmor:unconfined
-    ports:
-      - "2342:2342"
-    environment:
-      PHOTOPRISM_ADMIN_USER: "admin"
-      PHOTOPRISM_ADMIN_PASSWORD: "${PHOTOPRISM_ADMIN_PASSWORD}"
-      PHOTOPRISM_AUTH_MODE: "password"
-      PHOTOPRISM_SITE_URL: "https://photo.${BASE_DOMAIN}/"
-      PHOTOPRISM_DISABLE_TLS: "false"
-      PHOTOPRISM_DEFAULT_TLS: "false"
-      PHOTOPRISM_ORIGINALS_LIMIT: 5000
-      PHOTOPRISM_HTTP_COMPRESSION: "gzip"
-      PHOTOPRISM_LOG_LEVEL: "info"
-      PHOTOPRISM_READONLY: "false"
-      PHOTOPRISM_EXPERIMENTAL: "true"
-      PHOTOPRISM_DISABLE_CHOWN: "false"
-      PHOTOPRISM_DISABLE_WEBDAV: "false"
-      PHOTOPRISM_DISABLE_SETTINGS: "false"
-      PHOTOPRISM_DISABLE_TENSORFLOW: "false"
-      PHOTOPRISM_DISABLE_FACES: "false"
-      PHOTOPRISM_DISABLE_CLASSIFICATION: "false"
-      PHOTOPRISM_DISABLE_VECTORS: "false"
-      PHOTOPRISM_DISABLE_RAW: "false"
-      PHOTOPRISM_RAW_PRESETS: "false"
-      PHOTOPRISM_JPEG_QUALITY: 85
-      PHOTOPRISM_DETECT_NSFW: "true"
-      PHOTOPRISM_UPLOAD_NSFW: "true"
-      PHOTOPRISM_DATABASE_DRIVER: "mysql"
-      PHOTOPRISM_DATABASE_SERVER: "mariadb:3306"
-      PHOTOPRISM_DATABASE_NAME: "photoprism"
-      PHOTOPRISM_DATABASE_USER: "photoprism"
-      PHOTOPRISM_DATABASE_PASSWORD: "${PHOTOPRISM_DB_PASSWORD}"
-      PHOTOPRISM_SITE_CAPTION: "AI-Powered Photos App"
-      PHOTOPRISM_SITE_DESCRIPTION: ""
-      PHOTOPRISM_SITE_AUTHOR: ""
-      PHOTOPRISM_FFMPEG_ENCODER: "nvidia"
-      NVIDIA_VISIBLE_DEVICES: "all"
-      NVIDIA_DRIVER_CAPABILITIES: "compute,video,utility"
-      PHOTOPRISM_INIT: "gpu tensorflow"
-    working_dir: "/photoprism"
-    volumes:
-      - all_data:/photoprism/originals
-      - photoprism:/photoprism/storage
-    deploy:
-      placement:
-        constraints:
-          - node.labels.gpu == true
-      replicas: 1
-      labels:
-        - "traefik.enable=true"
-        - "traefik.http.routers.photoprism.rule=Host(`photo.${BASE_DOMAIN}`)"
-        - "traefik.http.routers.photoprism.entrypoints=websecure"
-        - "traefik.http.routers.photoprism.tls.certresolver=dns"
-        - "traefik.http.services.photoprism.loadbalancer.server.port=2342"
+    photoprism:
+        image: photoprism/photoprism:latest
+        stop_grace_period: 10s
+        security_opt:
+            - seccomp:unconfined
+            - apparmor:unconfined
+        # ports:
+        #     - "2342:2342"
+        environment:
+            PHOTOPRISM_ADMIN_USER: "admin"
+            PHOTOPRISM_ADMIN_PASSWORD: "${PHOTOPRISM_ADMIN_PASSWORD}"
+            PHOTOPRISM_AUTH_MODE: "password"
+            PHOTOPRISM_SITE_URL: "https://photo.${BASE_DOMAIN}/"
+            PHOTOPRISM_DISABLE_TLS: "true"
+            PHOTOPRISM_DEFAULT_TLS: "true"
+            PHOTOPRISM_ORIGINALS_LIMIT: 5000
+            PHOTOPRISM_HTTP_COMPRESSION: "gzip"
+            PHOTOPRISM_LOG_LEVEL: "info"
+            PHOTOPRISM_READONLY: "false"
+            PHOTOPRISM_EXPERIMENTAL: "true"
+            PHOTOPRISM_DISABLE_CHOWN: "false"
+            PHOTOPRISM_DISABLE_WEBDAV: "false"
+            PHOTOPRISM_DISABLE_SETTINGS: "false"
+            PHOTOPRISM_DISABLE_TENSORFLOW: "false"
+            PHOTOPRISM_DISABLE_FACES: "false"
+            PHOTOPRISM_DISABLE_CLASSIFICATION: "false"
+            PHOTOPRISM_DISABLE_VECTORS: "false"
+            PHOTOPRISM_DISABLE_RAW: "false"
+            PHOTOPRISM_RAW_PRESETS: "false"
+            PHOTOPRISM_JPEG_QUALITY: 85
+            PHOTOPRISM_DETECT_NSFW: "true"
+            PHOTOPRISM_UPLOAD_NSFW: "true"
+            PHOTOPRISM_DATABASE_DRIVER: "mysql"
+            PHOTOPRISM_DATABASE_SERVER: "mariadb:3306"
+            PHOTOPRISM_DATABASE_NAME: "photoprism"
+            PHOTOPRISM_DATABASE_USER: "photoprism"
+            PHOTOPRISM_DATABASE_PASSWORD: "${PHOTOPRISM_DB_PASSWORD}"
+            PHOTOPRISM_SITE_CAPTION: "AI-Powered Photos App"
+            PHOTOPRISM_SITE_DESCRIPTION: ""
+            PHOTOPRISM_SITE_AUTHOR: ""
+            PHOTOPRISM_FFMPEG_ENCODER: "nvidia"
+            NVIDIA_VISIBLE_DEVICES: "all"
+            NVIDIA_DRIVER_CAPABILITIES: "all"
+            PHOTOPRISM_INIT: "tensorflow-gpu"
+        working_dir: "/photoprism"
+        volumes:
+            - all_data:/photoprism/originals
+            - photoprism_storage:/photoprism/storage
+        deploy:
+            placement:
+                constraints:
+                    - node.labels.gpu == true
+            replicas: 1
+            labels:
+                - "traefik.enable=true"
+                - "traefik.http.routers.photoprism.rule=Host(`photo.${BASE_DOMAIN}`)"
+                - "traefik.http.routers.photoprism.entrypoints=websecure"
+                - "traefik.http.routers.photoprism.tls.certresolver=dns"
+                - "traefik.http.services.photoprism.loadbalancer.server.port=2342"
+                - "traefik.http.services.photoprism.loadbalancer.server.scheme=http"
 
-        - homepage.group=Media
-        - homepage.name=PhotoPrism
-        - homepage.icon=photoprism.png
-        - homepage.href=https://photo.${BASE_DOMAIN}/
-        - homepage.description=Photo Management
-        - homepage.widget.type=photoprism
-        - homepage.widget.url=https://photo.${BASE_DOMAIN}/
-        - homepage.widget.key=${PHOTOPRISM_ADMIN_PASSWORD}
-    healthcheck:
-      test: [ "CMD", "curl", "-f", "http://localhost:2342/api/v1/status" ]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-    restart: unless-stopped
-    depends_on:
-      - mariadb
-    networks:
-      - traefik-public
+                - homepage.group=Media
+                - homepage.name=PhotoPrism
+                - homepage.icon=photoprism.png
+                - homepage.href=https://photo.${BASE_DOMAIN}/
+                - homepage.description=Photo Management
+                - homepage.widget.type=photoprism
+                - homepage.widget.url=https://photo.${BASE_DOMAIN}/
+                - homepage.widget.key=${PHOTOPRISM_ADMIN_PASSWORD}
+        healthcheck:
+            test: ["CMD", "curl", "-f", "http://localhost:2342/api/v1/status"]
+            interval: 30s
+            timeout: 10s
+            retries: 3
+        restart: unless-stopped
+        depends_on:
+            - mariadb
+        networks:
+            - traefik-public
+            ## MariaDB Database Server (recommended)
+            ## see https://docs.photoprism.app/getting-started/faq/#should-i-use-sqlite-mariadb-or-mysql
+    mariadb:
+        image: mariadb:11
+        ## If MariaDB gets stuck in a restart loop, this points to a memory or filesystem issue:
+        ## https://docs.photoprism.app/getting-started/troubleshooting/#fatal-server-errors
+        restart: unless-stopped
+        stop_grace_period: 15s
+        security_opt: # see https://github.com/MariaDB/mariadb-docker/issues/434#issuecomment-1136151239
+            - seccomp:unconfined
+            - apparmor:unconfined
+        command: --innodb-buffer-pool-size=512M --transaction-isolation=READ-COMMITTED --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci --max-connections=512 --innodb-rollback-on-timeout=OFF --innodb-lock-wait-timeout=120
+        ## Never store database files on an unreliable device such as a USB flash drive, an SD card, or a shared network folder:
+        volumes:
+            - photoprism_database:/var/lib/mysql
+        ## See https://link.photoprism.app/mariadb-enviconment-variables:
+        environment:
+            MARIADB_AUTO_UPGRADE: "1"
+            MARIADB_INITDB_SKIP_TZINFO: "1"
+            MARIADB_DATABASE: "photoprism"
+            MARIADB_USER: "photoprism"
+            MARIADB_PASSWORD: "${PHOTOPRISM_DB_PASSWORD}"
+            MARIADB_ROOT_PASSWORD: "${MARIADB_ROOT_PASSWORD}"
+            ## When specified, the container will connect to this host and replicate from it (for advanced users only):
+            # MARIADB_MASTER_HOST: ""
+            # MARIADB_REPLICATION_USER: ""
+            # MARIADB_REPLICATION_PASSWORD: ""
+        deploy:
+            replicas: 1
+            placement:
+                constraints:
+                    # Centralized database node for all databases
+                    - node.labels.database == true
+        networks:
+            - traefik-public
 
-  mariadb:
-    image: mariadb:11
-    restart: unless-stopped
-    stop_grace_period: 5s
-    security_opt:
-      - seccomp:unconfined
-      - apparmor:unconfined
-    command: --innodb-buffer-pool-size=512M --transaction-isolation=READ-COMMITTED --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci --max-connections=512 --innodb-rollback-on-timeout=OFF --innodb-lock-wait-timeout=120
-    volumes:
-      - photoprism_database:/var/lib/mysql
-    environment:
-      MARIADB_AUTO_UPGRADE: "1"
-      MARIADB_INITDB_SKIP_TZINFO: "1"
-      MARIADB_DATABASE: "photoprism"
-      MARIADB_USER: "photoprism"
-      MARIADB_PASSWORD: "${PHOTOPRISM_DB_PASSWORD}"
-      MARIADB_ROOT_PASSWORD: "${MARIADB_ROOT_PASSWORD}"
-    networks:
-      - traefik-public
+    ## Ollama Large-Language Model Runner (optional)
+    ## Run "ollama pull [name]:[version]" to download a vision model
+    ## listed at <https://ollama.com/search?c=vision>, for example:
+    ## docker compose exec ollama ollama pull gemma3:latest
+    ollama:
+        image: ollama/ollama:latest
+        restart: unless-stopped
+        stop_grace_period: 15s
+        ## Only starts this service if the "ollama" profile is specified::
+        ## docker compose --profile ollama up -d
+        ## Insecurely exposes the Ollama service on port 11434
+        ## without authentication (for private networks only):
+        # ports:
+        #  - "11434:11434"
+        environment:
+            ## Ollama Configuration Options:
+            OLLAMA_HOST: "0.0.0.0:11434"
+            OLLAMA_MODELS: "/root/.ollama" # model storage path (see volumes section below)
+            OLLAMA_MAX_QUEUE: "100" # maximum number of queued requests
+            OLLAMA_NUM_PARALLEL: "1" # maximum number of parallel requests
+            OLLAMA_MAX_LOADED_MODELS: "1" # maximum number of loaded models per GPU
+            OLLAMA_LOAD_TIMEOUT: "5m" # maximum time for loading models (default "5m")
+            OLLAMA_KEEP_ALIVE: "5m" # duration that models stay loaded in memory (default "5m")
+            OLLAMA_CONTEXT_LENGTH: "4096" # maximum input context length
+            OLLAMA_MULTIUSER_CACHE: "false" # optimize prompt caching for multi-user scenarios
+            OLLAMA_NOPRUNE: "false" # disables pruning of model blobs at startup
+            OLLAMA_NOHISTORY: "true" # disables readline history
+            OLLAMA_FLASH_ATTENTION: "false" # enables the experimental flash attention feature
+            OLLAMA_KV_CACHE_TYPE: "f16" # cache quantization (f16, q8_0, or q4_0)
+            OLLAMA_SCHED_SPREAD: "false" # allows scheduling models across all GPUs.
+            OLLAMA_NEW_ENGINE: "true" # enables the new Ollama engine
+            # OLLAMA_DEBUG: "true"             # shows additional debug information
+            # OLLAMA_INTEL_GPU: "true"         # enables experimental Intel GPU detection
+            ## NVIDIA GPU Hardware Acceleration (see https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/latest/install-guide.html):
+            NVIDIA_VISIBLE_DEVICES: "all"
+            NVIDIA_DRIVER_CAPABILITIES: "compute,utility"
+        volumes:
+            - photoprism_ollama:/root/.ollama
+        # NVIDIA GPU Hardware Acceleration (see https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/latest/install-guide.html):
+        deploy:
+            placement:
+                constraints:
+                    - node.labels.gpu == true
+        networks:
+            - traefik-public
+
+    ## Watchtower upgrades services automatically (optional)
+    ## see https://docs.photoprism.app/getting-started/updates/#watchtower
+    ## activate via "COMPOSE_PROFILES=update docker compose up -d"
+    watchtower:
+        image: containrrr/watchtower
+        restart: unless-stopped
+        environment:
+            WATCHTOWER_CLEANUP: "true"
+            WATCHTOWER_POLL_INTERVAL: 7200 # checks for updates every 2 hours
+        volumes:
+            - "/var/run/docker.sock:/var/run/docker.sock"
+            # Docker config removed - not needed for public images
+            # Add back if Docker Hub authentication needed: - "~/.docker/config.json:/config.json"
+        networks:
+            - traefik-public
 
 networks:
-  traefik-public:
-    external: true
+    traefik-public:
+        external: true
 
 volumes:
-  all_data:
-    driver: local
-    driver_opts:
-      type: "cifs"
-      o: "username=${SMB_USERNAME},password=${SMB_PASSWORD},domain=${SMB_DOMAIN},vers=3.0,nobrl,uid=0,gid=100,file_mode=0777,dir_mode=0777,ro"
-      device: "//${NAS_SERVER}/all_data"
-
-  photoprism:
-    driver: local
-    driver_opts:
-      type: "cifs"
-      o: "username=${SMB_USERNAME},password=${SMB_PASSWORD},domain=${SMB_DOMAIN},vers=3.0,nobrl,uid=0,gid=100,file_mode=0777,dir_mode=0777"
-      device: "//${NAS_SERVER}/photoprism"
-
-  photoprism_database:
-    driver: local
-    driver_opts:
-      type: "cifs"
-      o: "username=${SMB_USERNAME},password=${SMB_PASSWORD},domain=${SMB_DOMAIN},vers=3.0,nobrl,uid=0,gid=100,file_mode=0777,dir_mode=0777"
-      device: "//${NAS_SERVER}/photoprism_database"
+    all_data:
+        driver: local
+        driver_opts:
+            type: "cifs"
+            o: "username=${SMB_USERNAME},password=${SMB_PASSWORD},domain=${SMB_DOMAIN},vers=3.0,nobrl,uid=0,gid=100,file_mode=0777,dir_mode=0777,ro,soft,actimeo=30"
+            device: "//${NAS_SERVER}/all_data"
+    photoprism_database:
+        driver: local
+        # CRITICAL: Database volumes MUST be on local storage for performance
+        # Network storage (CIFS/NFS) causes severe performance degradation and timeouts
+        # This volume will be created on the node where mariadb is deployed
+    photoprism_storage:
+        driver: local
+        driver_opts:
+            type: "cifs"
+            o: "username=${SMB_USERNAME},password=${SMB_PASSWORD},domain=${SMB_DOMAIN},vers=3.0,nobrl,uid=${PUID},gid=${PGID},file_mode=0644,dir_mode=0770,soft,actimeo=30"
+            device: "//${NAS_SERVER}/photoprism_storage"
+    photoprism_ollama:
+        driver: local
+        driver_opts:
+            type: "cifs"
+            o: "username=${SMB_USERNAME},password=${SMB_PASSWORD},domain=${SMB_DOMAIN},vers=3.0,nobrl,uid=${PUID},gid=${PGID},file_mode=0644,dir_mode=0770,soft,actimeo=30"
+            device: "//${NAS_SERVER}/photoprism_ollama"

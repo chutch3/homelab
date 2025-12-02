@@ -1,44 +1,44 @@
 version: "3.9"
 
 services:
-  homepage:
-    image: ghcr.io/gethomepage/homepage:latest
-    container_name: homepage
-    user: "root"
-    volumes:
-      - homepage:/app/config
-      - /var/run/docker.sock:/var/run/docker.sock:ro
-    restart: unless-stopped
-    networks:
-      - traefik-public
-    environment:
-      - HOMEPAGE_ALLOWED_HOSTS=homepage.${BASE_DOMAIN}
-    deploy:
-      replicas: 1
-      placement:
-        constraints:
-          - node.role == manager
-      labels:
-        - "traefik.enable=true"
-        - "traefik.http.routers.homepage.rule=Host(`homepage.${BASE_DOMAIN}`)"
-        - "traefik.http.routers.homepage.entrypoints=websecure"
-        - "traefik.http.routers.homepage.tls.certresolver=dns"
-        - "traefik.http.services.homepage.loadbalancer.server.port=3000"
+    homepage:
+        image: ghcr.io/gethomepage/homepage:latest
+        container_name: homepage
+        user: "root"
+        volumes:
+            - homepage:/app/config
+            - /var/run/docker.sock:/var/run/docker.sock:ro
+        restart: unless-stopped
+        networks:
+            - traefik-public
+        environment:
+            - HOMEPAGE_ALLOWED_HOSTS=homepage.${BASE_DOMAIN}
+        deploy:
+            replicas: 1
+            placement:
+                constraints:
+                    - node.role == manager
+            labels:
+                - "traefik.enable=true"
+                - "traefik.http.routers.homepage.rule=Host(`homepage.${BASE_DOMAIN}`)"
+                - "traefik.http.routers.homepage.entrypoints=websecure"
+                - "traefik.http.routers.homepage.tls.certresolver=dns"
+                - "traefik.http.services.homepage.loadbalancer.server.port=3000"
 
-        - homepage.group=System
-        - homepage.name=Homepage
-        - homepage.icon=homepage.png
-        - homepage.href=https://homepage.${BASE_DOMAIN}/
-        - homepage.description=Dashboard
+                - homepage.group=System
+                - homepage.name=Homepage
+                - homepage.icon=homepage.png
+                - homepage.href=https://homepage.${BASE_DOMAIN}/
+                - homepage.description=Dashboard
 
 networks:
-  traefik-public:
-    external: true
+    traefik-public:
+        external: true
 
 volumes:
-  homepage:
-    driver: local
-    driver_opts:
-      type: "cifs"
-      o: "username=${SMB_USERNAME},password=${SMB_PASSWORD},domain=${SMB_DOMAIN},vers=3.0,file_mode=0600,dir_mode=0770"
-      device: "//${NAS_SERVER}/homepage"
+    homepage:
+        driver: local
+        driver_opts:
+            type: "cifs"
+            o: "username=${SMB_USERNAME},password=${SMB_PASSWORD},domain=${SMB_DOMAIN},vers=3.0,file_mode=0600,dir_mode=0770,soft,actimeo=30"
+            device: "//${NAS_SERVER}/homepage"

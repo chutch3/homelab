@@ -12,11 +12,16 @@ homelab/
 ├── selfhosted.sh          # 🚀 Main deployment script
 ├── machines.yaml           # Multi-node configuration
 ├── scripts/                # Management and utility scripts
-│   ├── deploy.sh          # Legacy Docker Swarm deployment
-│   ├── deploy.simple.sh   # Legacy simple deployment
-│   ├── nuke.sh           # Cleanup script
-│   ├── swarm_cluster_manager.sh  # Cluster management
-│   └── configure_dns_records.sh  # DNS automation
+│   ├── cli.sh             # Main CLI entry point
+│   ├── common/            # Shared utilities
+│   │   ├── ssh.sh         # SSH operations
+│   │   ├── machine.sh     # Machine management
+│   │   └── dns.sh         # DNS automation
+│   └── docker_swarm/      # Docker Swarm implementation
+│       ├── cli.sh         # Swarm command handler
+│       ├── cluster.sh     # Cluster management
+│       ├── deploy.sh      # Deployment logic
+│       └── teardown.sh    # Cleanup and teardown
 └── stacks/               # Service definitions
     ├── apps/             # Application services
     │   ├── actual_server/
@@ -155,7 +160,7 @@ ls stacks/apps/
 - **emby** - Media server and streaming
 - **librechat** - AI chat interface
 - **sonarr/radarr/prowlarr** - Media management suite
-- **qbittorrent/deluge** - Torrent clients
+- **downloads** - Unified torrent stack with qBittorrent, Deluge, and VPN
 - **cryptpad** - Collaborative document editing
 - **homepage** - Dashboard for all services
 
@@ -226,14 +231,18 @@ docker service logs -f homeassistant_homeassistant
 
 ```bash
 # Check cluster status
-docker node ls
+./selfhosted.sh cluster status
+# Or directly:
+./scripts/cli.sh cluster status
 
 # View cluster resources
 docker system df
 docker stats
 
 # Complete infrastructure teardown
-./scripts/nuke.sh
+./selfhosted.sh teardown
+# Or directly:
+./scripts/cli.sh teardown
 ```
 
 ---
@@ -254,12 +263,9 @@ docker stack deploy -c stacks/apps/homeassistant/docker-compose.yml homeassistan
 
 ### DNS Configuration
 
-The system automatically configures DNS records, but you can customize:
+The system automatically configures DNS records during deployment.
 
 ```bash
-# Manual DNS configuration
-./scripts/configure_dns_records.sh
-
 # Check DNS server logs
 docker service logs dns_dns-server
 ```
@@ -394,10 +400,10 @@ If you need to start over completely:
 
 ```bash
 # WARNING: This will destroy all data and services
-./scripts/nuke.sh
+./selfhosted.sh teardown
 
 # Redeploy from scratch with style! 🚀
-./selfhosted.sh
+./selfhosted.sh deploy
 ```
 
 [Next: Learn about configuration options →](configuration.md)

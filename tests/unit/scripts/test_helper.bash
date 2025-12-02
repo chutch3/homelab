@@ -6,6 +6,9 @@ temp_make() {
 }
 
 # Helper function to delete temporary directory
+# More robust version that handles edge cases
 temp_del() {
-    rm -rf "$1"
+    if [[ -n "$1" && -d "$1" ]]; then
+        rm -rf "$1" 2>/dev/null || true
+    fi
 }
