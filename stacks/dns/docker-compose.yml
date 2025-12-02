@@ -1,17 +1,19 @@
 services:
     dns-server:
-        image: technitium/dns-server:latest
-        container_name: dns-server
-        hostname: dns-server
+        image: technitium/dns-server:14.0.1
+        hostname: "dns-server"
         ports:
-            - "53:53/udp" # DNS UDP
-            - "53:53/tcp" # DNS TCP
-            - "5380:5380/tcp" # Web API
+            # Ingress mode - accessible via any swarm node through routing mesh
+            - "53:53/udp"
+            - "53:53/tcp"
+            - "5380:5380"
         deploy:
             replicas: 1
             placement:
                 constraints:
-                    - node.role == manager
+                    # Runs on any node with dns=true label
+                    # If node fails, Swarm reschedules to another labeled node
+                    - node.labels.dns == true
             labels:
                 - traefik.enable=true
                 - traefik.http.routers.dns.rule=Host(`dns.${BASE_DOMAIN}`)
@@ -20,15 +22,15 @@ services:
                 - traefik.http.services.dns.loadbalancer.server.port=5380
 
                 - homepage.group=Infrastructure
-                - homepage.name=DNS Server
+                - homepage.name=DNS
                 - homepage.icon=technitium-dns.png
                 - homepage.href=https://dns.${BASE_DOMAIN}/
-                - homepage.description=Local DNS Management
+                - homepage.description=DNS Server (Swarm failover enabled)
         environment:
             - DNS_SERVER_DOMAIN=dns.${BASE_DOMAIN}
             - DNS_SERVER_ADMIN_PASSWORD=${DNS_ADMIN_PASSWORD:-admin}
             - DNS_SERVER_PREFER_IPV6=false
-            - DNS_SERVER_WEB_SERVICE_LOCAL_ADDRESSES=172.17.0.1,127.0.0.1
+            - DNS_SERVER_WEB_SERVICE_LOCAL_ADDRESSES=0.0.0.0
             - DNS_SERVER_RECURSION=AllowOnlyForPrivateNetworks
             - DNS_SERVER_ENABLE_BLOCKING=true
             - DNS_SERVER_FORWARDERS=${DNS_SERVER_FORWARDERS}
@@ -36,8 +38,8 @@ services:
             - DNS_SERVER_WEB_SERVICE_HTTP_PORT=5380
             - ASPNETCORE_HTTP_PORTS=5380
         volumes:
+            # CIFS volume ensures data persists across node failover
             - dns-config:/etc/dns
-        restart: unless-stopped
         sysctls:
             - net.ipv4.ip_local_port_range=1024 65000
         networks:
@@ -45,6 +47,11 @@ services:
 
 volumes:
     dns-config:
+        driver: local
+        driver_opts:
+            type: "cifs"
+            o: "username=${SMB_USERNAME},password=${SMB_PASSWORD},vers=3.0,nobrl,uid=0,gid=100,file_mode=0777,dir_mode=0777,soft,actimeo=30"
+            device: "//${NAS_SERVER}/dns"
 
 networks:
     traefik-public:

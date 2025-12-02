@@ -41,11 +41,15 @@ docker service logs homepage_homepage --tail 50 --follow
 ## Manage Individual Services
 
 ```bash
-# Redeploy a service (keeps data)
-./selfhosted.sh redeploy-service homepage
+# Update a service (redeploy with latest configuration)
+docker stack deploy -c stacks/apps/homepage/docker-compose.yml homepage
 
-# Remove a service and its data
-./selfhosted.sh nuke actual_server
+# Remove a service stack
+docker stack rm homepage
+
+# Remove a service and its data volumes
+docker stack rm homepage
+docker volume rm homepage_data  # Manually remove associated volumes
 ```
 
 ## Add a New Service
@@ -91,14 +95,23 @@ docker service logs homepage_homepage --tail 50 --follow
 
 ## Remove a Service
 
-1. **Delete the compose file**:
+1. **Remove from Docker Swarm**:
    ```bash
-   rm -rf stacks/apps/servicename/
+   docker stack rm servicename
    ```
 
-2. **Clean up data** (optional):
+2. **Clean up data volumes** (optional - destroys all data):
    ```bash
-   ./selfhosted.sh nuke servicename
+   # List volumes for the service
+   docker volume ls | grep servicename
+
+   # Remove specific volume
+   docker volume rm servicename_data
+   ```
+
+3. **Delete the compose file** (optional):
+   ```bash
+   rm -rf stacks/apps/servicename/
    ```
 
 ## Environment Variables
@@ -130,16 +143,33 @@ volumes:
 
 **Service won't start?**
 ```bash
+# Check service logs
 docker service logs stackname_servicename --tail 50
+
+# Check service status
+docker service ps stackname_servicename
 ```
 
-**Need to restart a service?**
+**Need to restart/update a service?**
 ```bash
-./selfhosted.sh redeploy-service servicename
+# Redeploy with same configuration
+docker stack deploy -c stacks/apps/servicename/docker-compose.yml servicename
+
+# Force update (pulls latest image)
+docker service update --image newimage:tag stackname_servicename
 ```
 
 **Want to see what's running?**
 ```bash
+# List all stacks
+docker stack ls
+
+# List services in a stack
+docker stack services stackname
+
+# List all running services
 docker service ls
+
+# See tasks/containers for a stack
 docker stack ps stackname
 ```

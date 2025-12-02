@@ -74,9 +74,9 @@ ls stacks/apps/
 
 Expected output:
 ```
-actual_server  cryptpad      deluge        emby          homeassistant
-homepage       librechat     photoprism    prowlarr      qbittorrent
-radarr         sonarr
+actual_server  cryptpad      downloads     emby          homeassistant
+homepage       librechat     photoprism    prowlarr      radarr
+sonarr
 ```
 
 All these services have Docker Compose files and will be deployed automatically!
@@ -135,19 +135,19 @@ The Homepage dashboard will show all your deployed services!
 
     Learn how to add, remove, and configure services
 
-- :material-certificate: **[SSL & Domains](../user-guide/domain-ssl.md)**
+- :material-certificate: **SSL & Domains** - Automatic SSL via Traefik + Cloudflare
 
     ---
 
     Configure automatic SSL certificates and custom domains
 
-- :material-harddisk: **[Volume Management](../user-guide/volume-management.md)**
+- :material-harddisk: **Volume Management** - Network storage with NAS/OMV
 
     ---
 
     Set up persistent storage and backups with SMB/CIFS
 
-- :material-monitor-multiple: **[Multi-Node Setup](../user-guide/multi-node.md)**
+- :material-monitor-multiple: **Multi-Node Setup** - Docker Swarm cluster configuration
 
     ---
 
@@ -163,10 +163,10 @@ The Homepage dashboard will show all your deployed services!
 ./selfhosted.sh deploy --only-apps service1,service2  # Deploy specific services
 ./selfhosted.sh deploy --skip-apps service3   # Deploy all except specified
 
-# Service Management
-./selfhosted.sh redeploy-service <name>        # Redeploy single service
-./selfhosted.sh nuke <service-name>            # Destroy service + volumes
-./selfhosted.sh nuke                           # Destroy entire cluster
+# Cluster Management
+./selfhosted.sh cluster init                   # Initialize Docker Swarm
+./selfhosted.sh cluster status                 # Check cluster status
+./selfhosted.sh teardown                       # Destroy entire cluster
 
 # Check Available Services
 ls stacks/apps/                                # See all available services
@@ -178,7 +178,7 @@ docker stack services <stack-name>            # Show services in a stack
 docker stack ps <stack-name>                  # Show tasks/containers
 
 # Monitoring
-scripts/swarm_cluster_manager.sh monitor-cluster  # Cluster health check
+./selfhosted.sh cluster status                     # Cluster health check
 ```
 
 ## Troubleshooting Quick Fixes
@@ -228,4 +228,4 @@ scripts/swarm_cluster_manager.sh monitor-cluster  # Cluster health check
     docker volume ls | grep <service-name>
     ```
 
-[Need more help? See our troubleshooting guide →](../user-guide/troubleshooting.md)
+Need more help? Check the [First Deployment](first-deployment.md) guide for detailed troubleshooting.

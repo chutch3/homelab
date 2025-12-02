@@ -1,74 +1,74 @@
 version: "3.9"
 
 services:
-  cryptpad:
-    image: "cryptpad/cryptpad:version-2024.12.0"
-    hostname: cryptpad
-    environment:
-      - CPAD_MAIN_DOMAIN=https://cryptpad.${BASE_DOMAIN}
-      - CPAD_SANDBOX_DOMAIN=https://cryptpad-sandbox.${BASE_DOMAIN}
-      - CPAD_CONF=/cryptpad/app_data/config/config.js
-      - CPAD_INSTALL_ONLYOFFICE=yes
-    user: "4001:4001"
-    volumes:
-      - cryptpad:/cryptpad/app_data
-    ulimits:
-      nofile:
-        soft: 1000000
-        hard: 1000000
-    healthcheck:
-      test: 'curl -sLf http://0.0.0.0:3000'
-      interval: 30s
-      timeout: 10s
-      retries: 2
-    restart: unless-stopped
-    dns:
-      - 192.168.86.1
-    networks:
-      - traefik-public
-    deploy:
-      labels:
-        - "traefik.enable=true"
-        # HTTP router (excludes websocket path)
-        - "traefik.http.routers.cryptpad-http.rule=(Host(`cryptpad.${BASE_DOMAIN}`) || Host(`cryptpad-sandbox.${BASE_DOMAIN}`)) && !PathPrefix(`/cryptpad_websocket`)"
-        - "traefik.http.routers.cryptpad-http.entrypoints=websecure"
-        - "traefik.http.routers.cryptpad-http.tls.certresolver=dns"
-        - "traefik.http.routers.cryptpad-http.tls.domains[0].main=cryptpad.${BASE_DOMAIN}"
-        - "traefik.http.routers.cryptpad-http.tls.domains[0].sans=cryptpad-sandbox.${BASE_DOMAIN}"
-        - "traefik.http.routers.cryptpad-http.middlewares=cryptpad-headers,cryptpad-body-size"
-        - "traefik.http.routers.cryptpad-http.service=cryptpad-http@swarm"
-        # WebSocket router (only websocket path)
-        - "traefik.http.routers.cryptpad-websocket.rule=(Host(`cryptpad.${BASE_DOMAIN}`) || Host(`cryptpad-sandbox.${BASE_DOMAIN}`)) && PathPrefix(`/cryptpad_websocket`)"
-        - "traefik.http.routers.cryptpad-websocket.entrypoints=websecure"
-        - "traefik.http.routers.cryptpad-websocket.tls.certresolver=dns"
-        - "traefik.http.routers.cryptpad-websocket.tls.domains[0].main=cryptpad.${BASE_DOMAIN}"
-        - "traefik.http.routers.cryptpad-websocket.tls.domains[0].sans=cryptpad-sandbox.${BASE_DOMAIN}"
-        - "traefik.http.routers.cryptpad-websocket.middlewares=cryptpad-headers"
-        - "traefik.http.routers.cryptpad-websocket.service=cryptpad-websocket@swarm"
-        # Define multiple ports on the same service
-        - "traefik.http.services.cryptpad-http.loadbalancer.server.port=3000"
-        - "traefik.http.services.cryptpad-websocket.loadbalancer.server.port=3003"
-        - "traefik.swarm.network=traefik-public"
-        # Middlewares for proxy headers and body size
-        - "traefik.http.middlewares.cryptpad-headers.headers.customrequestheaders.X-Real-IP={{.RealIP}}"
-        - "traefik.http.middlewares.cryptpad-headers.headers.customrequestheaders.X-Forwarded-For={{.RemoteAddr}}"
-        - "traefik.http.middlewares.cryptpad-headers.headers.customrequestheaders.X-Forwarded-Proto=https"
-        - "traefik.http.middlewares.cryptpad-body-size.buffering.maxRequestBodyBytes=157286400"
-        # Homepage integration
-        - homepage.group=Productivity
-        - homepage.name=CryptPad
-        - homepage.icon=cryptpad.png
-        - homepage.href=https://cryptpad.${BASE_DOMAIN}/
-        - homepage.description=Collaborative Documents
+    cryptpad:
+        image: "cryptpad/cryptpad:version-2024.12.0"
+        hostname: cryptpad
+        environment:
+            - CPAD_MAIN_DOMAIN=https://cryptpad.${BASE_DOMAIN}
+            - CPAD_SANDBOX_DOMAIN=https://cryptpad-sandbox.${BASE_DOMAIN}
+            - CPAD_CONF=/cryptpad/app_data/config/config.js
+            - CPAD_INSTALL_ONLYOFFICE=yes
+        user: "4001:4001"
+        volumes:
+            - cryptpad:/cryptpad/app_data
+        ulimits:
+            nofile:
+                soft: 1000000
+                hard: 1000000
+        healthcheck:
+            test: "curl -sLf http://0.0.0.0:3000"
+            interval: 30s
+            timeout: 10s
+            retries: 2
+        restart: unless-stopped
+        dns:
+            - 10.0.1.2
+        networks:
+            - traefik-public
+        deploy:
+            labels:
+                - "traefik.enable=true"
+                # HTTP router (excludes websocket path)
+                - "traefik.http.routers.cryptpad-http.rule=(Host(`cryptpad.${BASE_DOMAIN}`) || Host(`cryptpad-sandbox.${BASE_DOMAIN}`)) && !PathPrefix(`/cryptpad_websocket`)"
+                - "traefik.http.routers.cryptpad-http.entrypoints=websecure"
+                - "traefik.http.routers.cryptpad-http.tls.certresolver=dns"
+                - "traefik.http.routers.cryptpad-http.tls.domains[0].main=cryptpad.${BASE_DOMAIN}"
+                - "traefik.http.routers.cryptpad-http.tls.domains[0].sans=cryptpad-sandbox.${BASE_DOMAIN}"
+                - "traefik.http.routers.cryptpad-http.middlewares=cryptpad-headers,cryptpad-body-size"
+                - "traefik.http.routers.cryptpad-http.service=cryptpad-http@swarm"
+                # WebSocket router (only websocket path)
+                - "traefik.http.routers.cryptpad-websocket.rule=(Host(`cryptpad.${BASE_DOMAIN}`) || Host(`cryptpad-sandbox.${BASE_DOMAIN}`)) && PathPrefix(`/cryptpad_websocket`)"
+                - "traefik.http.routers.cryptpad-websocket.entrypoints=websecure"
+                - "traefik.http.routers.cryptpad-websocket.tls.certresolver=dns"
+                - "traefik.http.routers.cryptpad-websocket.tls.domains[0].main=cryptpad.${BASE_DOMAIN}"
+                - "traefik.http.routers.cryptpad-websocket.tls.domains[0].sans=cryptpad-sandbox.${BASE_DOMAIN}"
+                - "traefik.http.routers.cryptpad-websocket.middlewares=cryptpad-headers"
+                - "traefik.http.routers.cryptpad-websocket.service=cryptpad-websocket@swarm"
+                # Define multiple ports on the same service
+                - "traefik.http.services.cryptpad-http.loadbalancer.server.port=3000"
+                - "traefik.http.services.cryptpad-websocket.loadbalancer.server.port=3003"
+                - "traefik.swarm.network=traefik-public"
+                # Middlewares for proxy headers and body size
+                - "traefik.http.middlewares.cryptpad-headers.headers.customrequestheaders.X-Real-IP={{.RealIP}}"
+                - "traefik.http.middlewares.cryptpad-headers.headers.customrequestheaders.X-Forwarded-For={{.RemoteAddr}}"
+                - "traefik.http.middlewares.cryptpad-headers.headers.customrequestheaders.X-Forwarded-Proto=https"
+                - "traefik.http.middlewares.cryptpad-body-size.buffering.maxRequestBodyBytes=157286400"
+                # Homepage integration
+                - homepage.group=Productivity
+                - homepage.name=CryptPad
+                - homepage.icon=cryptpad.png
+                - homepage.href=https://cryptpad.${BASE_DOMAIN}/
+                - homepage.description=Collaborative Documents
 
 networks:
-  traefik-public:
-    external: true
+    traefik-public:
+        external: true
 
 volumes:
-  cryptpad:
-    driver: local
-    driver_opts:
-      type: "cifs"
-      o: "username=${SMB_USERNAME},password=${SMB_PASSWORD},vers=3.0,nobrl,uid=0,gid=100,file_mode=0777,dir_mode=0777"
-      device: "//${NAS_SERVER}/cryptpad"
+    cryptpad:
+        driver: local
+        driver_opts:
+            type: "cifs"
+            o: "username=${SMB_USERNAME},password=${SMB_PASSWORD},vers=3.0,nobrl,uid=0,gid=100,file_mode=0777,dir_mode=0777,soft,actimeo=30"
+            device: "//${NAS_SERVER}/cryptpad"
