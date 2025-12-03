@@ -2,6 +2,18 @@
 
 <!-- version list -->
 
+## v2.0.0 (2025-12-03)
+
+### Features
+
+- Refactor and addressing issues ([#58](https://github.com/chutch3/selfhosted.sh/pull/58),
+  [`027820e`](https://github.com/chutch3/selfhosted.sh/commit/027820e4a85b289c8b485fb63310b79a27a8cb8b))
+
+### Breaking Changes
+
+- Cli completely changed
+
+
 ## v1.4.1 (2025-09-09)
 
 ### Bug Fixes
