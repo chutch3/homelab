@@ -5,7 +5,7 @@
 ![License](https://img.shields.io/badge/license-MIT-blue.svg)
 ![Docker](https://img.shields.io/badge/docker-%230db7ed.svg?logo=docker&logoColor=white)
 
-A Docker Swarm homelab platform with 13+ pre-configured services, automatic SSL certificates via Traefik, and network storage integration. Deploy your entire self-hosted infrastructure with one command.
+A Docker Swarm homelab platform with 14+ pre-configured services, automatic SSL certificates via Traefik, and network storage integration. Deploy your entire self-hosted infrastructure with one command.
 
 ## 🚀 Quick Start
 
@@ -44,6 +44,7 @@ Access your services at `https://homepage.yourdomain.com`
 - 🎬 **Emby** - Media server
 - 📝 **CryptPad** - Collaborative documents
 - 🤖 **LibreChat** - AI chat interface
+- 📚 **Kiwix** - Offline Wikipedia & knowledge archive
 
 **Media Automation:**
 - 📺 **Sonarr** - TV series management

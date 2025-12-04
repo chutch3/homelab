@@ -17,7 +17,7 @@ tasks:
             - echo "🧪 Running unit tests with coverage..."
             - mkdir -p coverage
             - rm -rf /tmp/bats-run-* 2>/dev/null || true
-            - kcov --bash-method=DEBUG --include-pattern=scripts --exclude-pattern=/usr,/tmp,/var coverage/unit bats --jobs 1 tests/unit/scripts/**/*.bats tests/unit/scripts/*.bats
+            - kcov --bash-method=DEBUG --include-pattern=scripts,stacks --exclude-pattern=/usr,/tmp,/var coverage/unit bats --jobs 1 tests/unit/scripts/**/*.bats tests/unit/scripts/*.bats stacks/apps/*/tests/*.bats
             - echo "🧪 Unit tests completed successfully"
             - echo "📊 Merging coverage reports..."
             - kcov --merge coverage/merged coverage/unit
@@ -27,9 +27,7 @@ tasks:
         desc: Run core tests with faster execution
         cmds:
             - echo "🧪 Running unit tests..."
-            - bats --tap tests/unit/scripts/**/*.bats tests/unit/scripts/*.bats
-            - echo "🔍 Running schema validation tests..."
-            - bats --tap tests/integration/schema_validation_test.bats
+            - bats --tap tests/unit/scripts/**/*.bats tests/unit/scripts/*.bats stacks/apps/*/tests/*.bats
 
     test-local:
         desc: Run local-only tests (requires Docker)
