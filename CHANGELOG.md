@@ -2,6 +2,25 @@
 
 <!-- version list -->
 
+## v2.1.0 (2025-12-04)
+
+### Chores
+
+- Version bump emby
+  ([`3683ab1`](https://github.com/chutch3/selfhosted.sh/commit/3683ab16ed67e18d90f6ce130e66ac6cd1ae54f1))
+
+### Documentation
+
+- Updated roadmap
+  ([`9b39978`](https://github.com/chutch3/selfhosted.sh/commit/9b39978976e406074bc5f70b9d109d776be0b218))
+
+### Features
+
+- Add Kiwix offline Wikipedia service with permission fix
+  ([#59](https://github.com/chutch3/selfhosted.sh/pull/59),
+  [`abc24c4`](https://github.com/chutch3/selfhosted.sh/commit/abc24c4e81f311d913910a0d941fa2ca2863f04c))
+
+
 ## v2.0.0 (2025-12-03)
 
 ### Features
