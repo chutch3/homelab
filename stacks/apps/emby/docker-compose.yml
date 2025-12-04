@@ -2,7 +2,7 @@ version: "3.9"
 
 services:
     emby:
-        image: emby/embyserver:4.9.0.4
+        image: emby/embyserver:4.9.2.7
         container_name: embyserver
         environment:
             - UID=0
