@@ -1,0 +1,42 @@
+version: "3.9"
+
+services:
+  kiwix:
+    image: ghcr.io/kiwix/kiwix-serve:latest
+    environment:
+      - TZ=${TZ:-UTC}
+    volumes:
+      - kiwix_data:/data:ro          # Read-only ZIM files
+    command: "*.zim"                  # Serve all ZIM files in /data
+    networks:
+      - traefik-public
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: any
+      labels:
+        # Traefik routing and SSL
+        - "traefik.enable=true"
+        - "traefik.http.routers.kiwix.rule=Host(`kiwix.${BASE_DOMAIN}`)"
+        - "traefik.http.routers.kiwix.entrypoints=websecure"
+        - "traefik.http.routers.kiwix.tls.certresolver=dns"
+        - "traefik.http.services.kiwix.loadbalancer.server.port=8080"
+
+        # Homepage dashboard
+        - "homepage.group=Knowledge"
+        - "homepage.name=Kiwix"
+        - "homepage.icon=wikipedia.png"
+        - "homepage.href=https://kiwix.${BASE_DOMAIN}/"
+        - "homepage.description=Offline Wikipedia & Knowledge Archive"
+
+networks:
+  traefik-public:
+    external: true
+
+volumes:
+  kiwix_data:
+    driver: local
+    driver_opts:
+      type: "cifs"
+      o: "username=${SMB_USERNAME},password=${SMB_PASSWORD},domain=${SMB_DOMAIN},vers=3.0,file_mode=0770,dir_mode=0770,uid=1001,gid=1001,ro,soft,actimeo=30"
+      device: "//${NAS_SERVER}/kiwix_data"
