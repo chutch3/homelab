@@ -168,3 +168,46 @@ teardown() {
     run grep "monitor_swarm_cluster" "$deploy_script"
     [ "$status" -eq 0 ]
 }
+
+@test "deploy_cluster should source monitoring.sh at top of script" {
+    # Test: Verify deploy.sh sources monitoring.sh with other utilities
+    local deploy_script="${BATS_TEST_DIRNAME}/../../../../scripts/docker_swarm/deploy.sh"
+
+    # Check that monitoring.sh is sourced in the first 30 lines
+    run head -n 30 "$deploy_script"
+    [ "$status" -eq 0 ]
+    [[ "$output" =~ "source".*"monitoring.sh" ]] || [[ "$output" =~ ".".*"monitoring.sh" ]]
+}
+
+@test "deploy_cluster should configure Docker daemon metrics during infrastructure setup" {
+    # Test: Verify Docker daemon metrics are configured before deploying services
+    local deploy_script="${BATS_TEST_DIRNAME}/../../../../scripts/docker_swarm/deploy.sh"
+
+    # Check that configure_all_nodes is called in PHASE 1 or PHASE 2
+    run grep -A50 "PHASE 1: MACHINE & SWARM SETUP" "$deploy_script"
+    [ "$status" -eq 0 ]
+    [[ "$output" =~ "configure_all_nodes" ]] || {
+        # If not in PHASE 1, check PHASE 2
+        run grep -A30 "PHASE 2: CORE INFRASTRUCTURE" "$deploy_script"
+        [ "$status" -eq 0 ]
+        [[ "$output" =~ "configure_all_nodes" ]]
+    }
+}
+
+@test "deploy_cluster should skip monitoring configuration when --skip-infra is used" {
+    # Test: Verify monitoring configuration is inside skip_infra conditional
+    local deploy_script="${BATS_TEST_DIRNAME}/../../../../scripts/docker_swarm/deploy.sh"
+
+    # Find the line with configure_all_nodes
+    local config_line
+    config_line=$(grep -n "configure_all_nodes" "$deploy_script" | head -1 | cut -d: -f1)
+
+    # Verify line number was found
+    [ -n "$config_line" ]
+
+    # Check that there's a skip_infra conditional before configure_all_nodes
+    run grep -B20 "configure_all_nodes" "$deploy_script"
+    assert_success
+    # Match either == "false" or other skip_infra checks
+    [[ "$output" =~ skip_infra.*false ]] || [[ "$output" =~ 'if'.*skip_infra ]]
+}

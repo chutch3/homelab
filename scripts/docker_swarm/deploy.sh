@@ -25,6 +25,8 @@ source "$_DEPLOY_SCRIPT_DIR/../common/dns.sh"
 SCRIPT_DIR="$_DEPLOY_SCRIPT_DIR"  # Restore deploy.sh's SCRIPT_DIR
 # shellcheck source=cluster.sh
 source "$SCRIPT_DIR/cluster.sh"
+# shellcheck source=monitoring.sh
+source "$SCRIPT_DIR/monitoring.sh"
 
 # Colors
 COLOR_RESET='\033[0m'
@@ -309,6 +311,13 @@ deploy_cluster() {
     machines_check_cifs_utils
 
     initialize_swarm_cluster "$MACHINES_FILE"
+
+    log "Configuring Docker daemon metrics on all nodes..."
+    if configure_all_nodes "$MACHINES_FILE"; then
+      log_success "Docker daemon metrics configured on all nodes"
+    else
+      log_warn "Failed to configure metrics on some nodes, but deployment continues"
+    fi
 
     log_header "PHASE 2: CORE INFRASTRUCTURE"
     log "Ensuring overlay network '${COLOR_YELLOW}${NETWORK_NAME}${COLOR_RESET}' exists..."

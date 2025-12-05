@@ -1,17 +1,93 @@
 global:
   scrape_interval: 15s
+  evaluation_interval: 15s
 
 scrape_configs:
+  # Prometheus itself
   - job_name: "prometheus"
     static_configs:
       - targets: ["localhost:9090"]
 
-  - job_name: "node"
-    dns_sd_configs:
-      - names: ["tasks.node-exporter"]
-        type: A
-        port: 9100
+  # Docker daemon metrics
+  - job_name: "docker"
+    dockerswarm_sd_configs:
+      - host: unix:///var/run/docker.sock
+        role: nodes
+    relabel_configs:
+      # Use node address with Docker metrics port
+      - source_labels: [__meta_dockerswarm_node_address]
+        target_label: __address__
+        replacement: $1:9323
+      # Use node hostname as instance label
+      - source_labels: [__meta_dockerswarm_node_hostname]
+        target_label: instance
+      # Add node ID label
+      - source_labels: [__meta_dockerswarm_node_id]
+        target_label: node_id
+      # Add node role label
+      - source_labels: [__meta_dockerswarm_node_role]
+        target_label: node_role
 
+  # Node Exporter (host metrics)
+  - job_name: "node-exporter"
+    dockerswarm_sd_configs:
+      - host: unix:///var/run/docker.sock
+        role: nodes
+    relabel_configs:
+      # Use node address with Node Exporter port
+      - source_labels: [__meta_dockerswarm_node_address]
+        target_label: __address__
+        replacement: $1:9100
+      # Use node hostname as instance label
+      - source_labels: [__meta_dockerswarm_node_hostname]
+        target_label: instance
+      # Add node ID label
+      - source_labels: [__meta_dockerswarm_node_id]
+        target_label: node_id
+
+  # cAdvisor (container metrics)
+  - job_name: "cadvisor"
+    dockerswarm_sd_configs:
+      - host: unix:///var/run/docker.sock
+        role: nodes
+    relabel_configs:
+      # Use node address with cAdvisor port
+      - source_labels: [__meta_dockerswarm_node_address]
+        target_label: __address__
+        replacement: $1:8080
+      # Use node hostname as instance label
+      - source_labels: [__meta_dockerswarm_node_hostname]
+        target_label: instance
+      # Add node ID label
+      - source_labels: [__meta_dockerswarm_node_id]
+        target_label: node_id
+
+  # Docker Swarm tasks (containers)
+  - job_name: "swarm-tasks"
+    dockerswarm_sd_configs:
+      - host: unix:///var/run/docker.sock
+        role: tasks
+    relabel_configs:
+      # Only keep running tasks
+      - source_labels: [__meta_dockerswarm_task_desired_state]
+        regex: running
+        action: keep
+      # Use task port if available
+      - source_labels: [__meta_dockerswarm_task_port_publish_mode]
+        regex: .+
+        action: keep
+      # Set instance from service name and task slot
+      - source_labels: [__meta_dockerswarm_service_name, __meta_dockerswarm_task_slot]
+        separator: "_"
+        target_label: instance
+      # Add service name label
+      - source_labels: [__meta_dockerswarm_service_name]
+        target_label: service
+      # Add node hostname label
+      - source_labels: [__meta_dockerswarm_node_hostname]
+        target_label: node
+
+  # Traefik metrics
   - job_name: "traefik"
     static_configs:
       - targets: ["traefik:9100"]

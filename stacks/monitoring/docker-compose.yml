@@ -3,12 +3,17 @@ version: "3.9"
 services:
     prometheus:
         image: prom/prometheus:v2.55.0
+        user: "65534:998"
         networks:
             - traefik-public
         volumes:
             - prometheus_data:/prometheus
             - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+            - /var/run/docker.sock:/var/run/docker.sock:ro
         deploy:
+            placement:
+                constraints:
+                    - node.role == manager
             labels:
                 - "traefik.enable=true"
                 - "traefik.http.routers.prometheus.rule=Host(`prometheus.${BASE_DOMAIN}`)"
@@ -18,21 +23,72 @@ services:
 
     grafana:
         image: grafana/grafana:11.1.4
+        user: "1000:1000"
         networks:
             - traefik-public
         volumes:
             - grafana_data:/var/lib/grafana
             - grafana_dashboards:/etc/grafana/provisioning/dashboards
+            - ./dashboards/dashboards.yml:/etc/grafana/provisioning/dashboards/dashboards.yml:ro
+            - ./dashboards/local:/etc/grafana/provisioning/dashboards/local:ro
+            - ./datasources:/etc/grafana/provisioning/datasources:ro
         environment:
             - GF_SECURITY_ADMIN_USER=admin
             - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD}
         deploy:
+            placement:
+                constraints:
+                    - node.role == manager
             labels:
                 - "traefik.enable=true"
                 - "traefik.http.routers.grafana.rule=Host(`grafana.${BASE_DOMAIN}`)"
                 - "traefik.http.routers.grafana.entrypoints=websecure"
                 - "traefik.http.routers.grafana.tls.certresolver=dns"
                 - "traefik.http.services.grafana.loadbalancer.server.port=3000"
+
+    cadvisor:
+        image: gcr.io/cadvisor/cadvisor:v0.49.1
+        ports:
+            - target: 8080
+              published: 8080
+              mode: host
+        networks:
+            - traefik-public
+        volumes:
+            - /:/rootfs:ro
+            - /var/run:/var/run:ro
+            - /sys:/sys:ro
+            - /var/lib/docker/:/var/lib/docker:ro
+            - /dev/disk/:/dev/disk:ro
+        deploy:
+            mode: global
+            labels:
+                - "traefik.enable=false"
+        command:
+            - '--docker_only=true'
+            - '--housekeeping_interval=30s'
+
+    node-exporter:
+        image: prom/node-exporter:v1.8.2
+        ports:
+            - target: 9100
+              published: 9100
+              mode: host
+        networks:
+            - traefik-public
+        volumes:
+            - /proc:/host/proc:ro
+            - /sys:/host/sys:ro
+            - /:/rootfs:ro
+        command:
+            - '--path.procfs=/host/proc'
+            - '--path.sysfs=/host/sys'
+            - '--path.rootfs=/rootfs'
+            - '--collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($$$$|/)'
+        deploy:
+            mode: global
+            labels:
+                - "traefik.enable=false"
 
 networks:
     traefik-public:
@@ -45,5 +101,5 @@ volumes:
         driver: local
         driver_opts:
             type: "cifs"
-            o: "username=${SMB_USERNAME},password=${SMB_PASSWORD},domain=${SMB_DOMAIN},vers=3.0,file_mode=0600,dir_mode=0770,soft,actimeo=30"
+            o: "username=${SMB_USERNAME},password=${SMB_PASSWORD},domain=${SMB_DOMAIN},vers=3.0,uid=1000,gid=1000,file_mode=0644,dir_mode=0755,soft,actimeo=30"
             device: "//${NAS_SERVER}/grafana_dashboards"
