@@ -2,6 +2,14 @@
 
 <!-- version list -->
 
+## v2.1.1 (2025-12-05)
+
+### Bug Fixes
+
+- Make monitoring test executable and fix shellcheck warnings
+  ([`c81a8bf`](https://github.com/chutch3/selfhosted.sh/commit/c81a8bf871f777c2d8a047f404a714dccec82445))
+
+
 ## v2.1.0 (2025-12-04)
 
 ### Chores
