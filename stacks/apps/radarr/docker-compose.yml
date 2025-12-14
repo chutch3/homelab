@@ -2,7 +2,7 @@ version: "3.9"
 
 services:
     radarr:
-        image: lscr.io/linuxserver/radarr:latest
+        image: lscr.io/linuxserver/radarr:version-5.14.0.9383
         container_name: radarr
         environment:
             - PUID=1000
@@ -38,10 +38,7 @@ networks:
 volumes:
     radarr:
         driver: local
-        driver_opts:
-            type: "cifs"
-            o: "username=${SMB_USERNAME},password=${SMB_PASSWORD},domain=${SMB_DOMAIN},vers=3.0,file_mode=0770,dir_mode=0770,uid=1000,gid=1000,soft,actimeo=30"
-            device: "//${NAS_SERVER}/radarr"
+        # Using local storage for SQLite database (CIFS causes corruption)
 
     torrents:
         driver: local
