@@ -31,7 +31,11 @@ services:
             - grafana_dashboards:/etc/grafana/provisioning/dashboards
             - ./dashboards/dashboards.yml:/etc/grafana/provisioning/dashboards/dashboards.yml:ro
             - ./dashboards/local:/etc/grafana/provisioning/dashboards/local:ro
-            - ./datasources:/etc/grafana/provisioning/datasources:ro
+        configs:
+            - source: prometheus_datasource
+              target: /etc/grafana/provisioning/datasources/prometheus.yml
+            - source: loki_datasource
+              target: /etc/grafana/provisioning/datasources/loki.yml
         environment:
             - GF_SECURITY_ADMIN_USER=admin
             - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD}
@@ -90,6 +94,43 @@ services:
             labels:
                 - "traefik.enable=false"
 
+    loki:
+        image: grafana/loki:3.0.0
+        command: -config.file=/etc/loki/config.yml
+        ports:
+            - target: 3100
+              published: 3100
+              mode: host
+        networks:
+            - traefik-public
+        volumes:
+            - loki_data:/loki
+        configs:
+            - source: loki_config
+              target: /etc/loki/config.yml
+        deploy:
+            placement:
+                constraints:
+                    - node.role == manager
+            labels:
+                - "traefik.enable=false"
+
+    promtail:
+        image: grafana/promtail:3.0.0
+        command: -config.file=/etc/promtail/config.yml
+        volumes:
+            - /var/lib/docker/containers:/var/lib/docker/containers:ro
+            - /var/run/docker.sock:/var/run/docker.sock:ro
+        configs:
+            - source: promtail_config
+              target: /etc/promtail/config.yml
+        networks:
+            - traefik-public
+        deploy:
+            mode: global
+            labels:
+                - "traefik.enable=false"
+
 networks:
     traefik-public:
         external: true
@@ -97,9 +138,20 @@ networks:
 volumes:
     prometheus_data:
     grafana_data:
+    loki_data:
     grafana_dashboards:
         driver: local
         driver_opts:
             type: "cifs"
             o: "username=${SMB_USERNAME},password=${SMB_PASSWORD},domain=${SMB_DOMAIN},vers=3.0,uid=1000,gid=1000,file_mode=0644,dir_mode=0755,soft,actimeo=30"
             device: "//${NAS_SERVER}/grafana_dashboards"
+
+configs:
+    prometheus_datasource:
+        file: ./datasources/prometheus.yml
+    loki_datasource:
+        file: ./datasources/loki.yml
+    loki_config:
+        file: ./loki-config.yml
+    promtail_config:
+        file: ./promtail-config.yml

@@ -1,0 +1,62 @@
+auth_enabled: false
+
+server:
+  http_listen_port: 3100
+  grpc_listen_port: 9096
+
+common:
+  instance_addr: 127.0.0.1
+  path_prefix: /loki
+  storage:
+    filesystem:
+      chunks_directory: /loki/chunks
+      rules_directory: /loki/rules
+  replication_factor: 1
+  ring:
+    kvstore:
+      store: inmemory
+
+query_range:
+  results_cache:
+    cache:
+      embedded_cache:
+        enabled: true
+        max_size_mb: 100
+
+schema_config:
+  configs:
+    - from: 2020-10-24
+      store: tsdb
+      object_store: filesystem
+      schema: v13
+      index:
+        prefix: index_
+        period: 24h
+
+ruler:
+  alertmanager_url: http://localhost:9093
+
+# Increase limits to handle more log volume
+limits_config:
+  # Ingestion rate limits (per user/tenant)
+  ingestion_rate_mb: 16  # Increased from default 4MB
+  ingestion_burst_size_mb: 32  # Increased from default 6MB
+
+  # Per-stream rate limits
+  per_stream_rate_limit: 10MB  # Increased from default 3MB
+  per_stream_rate_limit_burst: 20MB  # Increased from default 15MB
+
+  # Query limits
+  max_query_series: 5000
+  max_query_parallelism: 32
+
+  # Retention
+  retention_period: 168h  # Keep logs for 7 days
+
+  # Accept slightly older logs (1 hour window)
+  reject_old_samples: true
+  reject_old_samples_max_age: 1h
+
+  # Cardinality limits
+  max_streams_per_user: 10000
+  max_global_streams_per_user: 50000

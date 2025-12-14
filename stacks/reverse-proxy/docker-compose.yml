@@ -8,6 +8,11 @@ services:
             # Logging
             - "--log.level=DEBUG"
 
+            # Access Logs
+            - "--accesslog=true"
+            - "--accesslog.format=json"
+            - "--accesslog.bufferingsize=100"
+
             # Providers
             - "--providers.swarm.endpoint=unix:///var/run/docker.sock"
             - "--providers.swarm.exposedbydefault=false"

@@ -1,0 +1,71 @@
+server:
+  http_listen_port: 9080
+  grpc_listen_port: 0
+
+positions:
+  filename: /tmp/positions.yaml
+
+clients:
+  - url: http://loki:3100/loki/api/v1/push
+
+scrape_configs:
+  # Scrape Docker container logs (filter for Traefik only)
+  - job_name: traefik
+    docker_sd_configs:
+      - host: unix:///var/run/docker.sock
+        refresh_interval: 5s
+        filters:
+          - name: label
+            values: ["com.docker.swarm.service.name=reverse-proxy_traefik"]
+    relabel_configs:
+      - source_labels: ['__meta_docker_container_name']
+        regex: '/(.*)'
+        target_label: 'container'
+      - source_labels: ['__meta_docker_container_log_stream']
+        target_label: 'stream'
+      - source_labels: ['__meta_docker_container_label_com_docker_swarm_service_name']
+        target_label: 'service'
+      - source_labels: ['__meta_docker_container_label_com_docker_stack_namespace']
+        target_label: 'stack'
+    pipeline_stages:
+      # Only process JSON logs (access logs), skip debug logs
+      - match:
+          selector: '{service="reverse-proxy_traefik"}'
+          stages:
+            # Parse JSON access logs from Traefik
+            - json:
+                expressions:
+                  ClientAddr: ClientAddr
+                  ClientHost: ClientHost
+                  ClientPort: ClientPort
+                  DownstreamStatus: DownstreamStatus
+                  Duration: Duration
+                  OriginStatus: OriginStatus
+                  RequestAddr: RequestAddr
+                  RequestHost: RequestHost
+                  RequestMethod: RequestMethod
+                  RequestPath: RequestPath
+                  RequestProtocol: RequestProtocol
+                  RouterName: RouterName
+                  ServiceName: ServiceName
+                  level: level
+                  msg: msg
+                  time: time
+            # Only keep logs that have RequestMethod (i.e., access logs)
+            - match:
+                selector: '{service="reverse-proxy_traefik"}'
+                pipeline_name: "access_logs"
+                stages:
+                  # Drop logs without RequestMethod (debug logs)
+                  - drop:
+                      source: "RequestMethod"
+                      expression: "^$"
+                  # Add labels from parsed JSON
+                  - labels:
+                      RequestMethod:
+                      RequestHost:
+                      DownstreamStatus:
+                  # Parse timestamp
+                  - timestamp:
+                      source: time
+                      format: RFC3339
