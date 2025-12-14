@@ -1,0 +1,238 @@
+version: "3.9"
+
+services:
+  vpn:
+    image: qmcgaw/gluetun:latest
+    container_name: downloads-vpn
+    cap_add:
+      - NET_ADMIN
+    devices:
+      - /dev/net/tun:/dev/net/tun
+    entrypoint: ["/bin/sh", "/scripts/init-vpn.sh"]
+    configs:
+      - source: vpn_init_script
+        target: /scripts/init-vpn.sh
+        mode: 0755
+    environment:
+      - VPN_SERVICE_PROVIDER=nordvpn
+      - VPN_TYPE=openvpn
+      - OPENVPN_USER=${NORDVPN_USER}
+      - OPENVPN_PASSWORD=${NORDVPN_PASS}
+      - SERVER_COUNTRIES=United States
+      - SERVER_CATEGORIES=P2P
+      - SERVER_CITIES=New York,Los Angeles,Chicago,Dallas,Miami
+      - FIREWALL_OUTBOUND_SUBNETS=${LOCAL_SUBNET},10.0.0.0/8
+      - DNS_ADDRESS=192.168.86.1
+      - HTTPPROXY=on
+      - HTTPPROXY_LISTENING_ADDRESS=:8888
+      - TZ=${TZ}
+    ports:
+      - "1080:1080"   # dante SOCKS5 proxy port (TCP + UDP)
+      - "8888:8888"   # HTTP proxy port
+    networks:
+      - traefik-public
+      - downloads-internal
+    restart: unless-stopped
+    deploy:
+      placement:
+        constraints:
+          - node.labels.downloads == true
+
+  qbittorrent:
+    image: lscr.io/linuxserver/qbittorrent:latest
+    container_name: qbittorrent
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=${TZ}
+      - WEBUI_PORT=8080
+    volumes:
+      - qbittorrent:/config
+      - torrents:/data/torrents
+    networks:
+      - traefik-public
+      - downloads-internal
+    expose:
+      - "8080"
+    restart: unless-stopped
+    depends_on:
+      - vpn
+    deploy:
+      placement:
+        constraints:
+          - node.labels.downloads == true
+      labels:
+        - "traefik.enable=true"
+        - "traefik.docker.network=traefik-public"
+        - "traefik.http.routers.qbittorrent.rule=Host(`qbittorrent.${BASE_DOMAIN}`)"
+        - "traefik.http.routers.qbittorrent.entrypoints=websecure"
+        - "traefik.http.routers.qbittorrent.tls.certresolver=dns"
+        - "traefik.http.services.qbittorrent.loadbalancer.server.port=8080"
+        - homepage.group=Downloads
+        - homepage.name=qBittorrent
+        - homepage.icon=qbittorrent.png
+        - homepage.href=https://qbittorrent.${BASE_DOMAIN}/
+        - homepage.description=qBittorrent Torrent Client
+        - homepage.widget.type=qbittorrent
+        - homepage.widget.url=http://qbittorrent:8080
+        - homepage.widget.username=${QBIT_USERNAME}
+        - homepage.widget.password=${QBIT_PASSWORD}
+
+  deluge:
+    image: lscr.io/linuxserver/deluge:latest
+    container_name: deluge
+    volumes:
+      - deluge:/config
+      - torrents:/data/torrents
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - UMASK=002
+      - DELUGE_LOGLEVEL=info
+    networks:
+      - traefik-public
+      - downloads-internal
+    expose:
+      - "8112"
+      - "58846"
+    restart: unless-stopped
+    depends_on:
+      - vpn
+    deploy:
+      placement:
+        constraints:
+          - node.labels.downloads == true
+      labels:
+        - "traefik.enable=true"
+        - "traefik.docker.network=traefik-public"
+        - "traefik.http.routers.deluge.rule=Host(`deluge.${BASE_DOMAIN}`)"
+        - "traefik.http.routers.deluge.entrypoints=websecure"
+        - "traefik.http.routers.deluge.tls.certresolver=dns"
+        - "traefik.http.services.deluge.loadbalancer.server.port=8112"
+        - homepage.group=Downloads
+        - homepage.name=Deluge
+        - homepage.icon=deluge.png
+        - homepage.href=https://deluge.${BASE_DOMAIN}/
+        - homepage.description=Deluge Torrent Client
+        - homepage.widget.type=deluge
+        - homepage.widget.url=http://deluge:8112
+        - homepage.widget.key=${DELUGE_PASSWORD}
+
+  sabnzbd:
+    image: lscr.io/linuxserver/sabnzbd:latest
+    container_name: sabnzbd
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=${TZ}
+    volumes:
+      - sabnzbd:/config
+      - usenet:/data/usenet
+    networks:
+      - traefik-public
+      - downloads-internal
+    expose:
+      - "8080"
+    restart: unless-stopped
+    depends_on:
+      - vpn
+    deploy:
+      placement:
+        constraints:
+          - node.labels.downloads == true
+      labels:
+        - "traefik.enable=true"
+        - "traefik.docker.network=traefik-public"
+        - "traefik.http.routers.sabnzbd.rule=Host(`sabnzbd.${BASE_DOMAIN}`)"
+        - "traefik.http.routers.sabnzbd.entrypoints=websecure"
+        - "traefik.http.routers.sabnzbd.tls.certresolver=dns"
+        - "traefik.http.services.sabnzbd.loadbalancer.server.port=8080"
+        - homepage.group=Downloads
+        - homepage.name=SABnzbd
+        - homepage.icon=sabnzbd.png
+        - homepage.href=https://sabnzbd.${BASE_DOMAIN}/
+        - homepage.description=SABnzbd Usenet Client
+        - homepage.widget.type=sabnzbd
+        - homepage.widget.url=http://sabnzbd:8080
+        - homepage.widget.key=${SABNZBD_API_KEY}
+
+  nzbget:
+    image: lscr.io/linuxserver/nzbget:latest
+    container_name: nzbget
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=${TZ}
+    volumes:
+      - nzbget:/config
+      - usenet:/data/usenet
+    networks:
+      - traefik-public
+      - downloads-internal
+    expose:
+      - "6789"
+    restart: unless-stopped
+    depends_on:
+      - vpn
+    deploy:
+      placement:
+        constraints:
+          - node.labels.downloads == true
+      labels:
+        - "traefik.enable=true"
+        - "traefik.docker.network=traefik-public"
+        - "traefik.http.routers.nzbget.rule=Host(`nzbget.${BASE_DOMAIN}`)"
+        - "traefik.http.routers.nzbget.entrypoints=websecure"
+        - "traefik.http.routers.nzbget.tls.certresolver=dns"
+        - "traefik.http.services.nzbget.loadbalancer.server.port=6789"
+        - homepage.group=Downloads
+        - homepage.name=NZBGet
+        - homepage.icon=nzbget.png
+        - homepage.href=https://nzbget.${BASE_DOMAIN}/
+        - homepage.description=NZBGet Usenet Client
+        - homepage.widget.type=nzbget
+        - homepage.widget.url=http://nzbget:6789
+        - homepage.widget.username=${NZBGET_USERNAME}
+        - homepage.widget.password=${NZBGET_PASSWORD}
+
+configs:
+  vpn_init_script:
+    file: ./scripts/init-vpn.sh
+
+networks:
+  traefik-public:
+    external: true
+  downloads-internal:
+    driver: overlay
+    attachable: true
+
+volumes:
+  torrents:
+    driver: local
+    driver_opts:
+      type: "cifs"
+      o: "username=${SMB_USERNAME},password=${SMB_PASSWORD},domain=${SMB_DOMAIN},vers=3.0,file_mode=0770,dir_mode=0770,uid=1000,gid=1000,soft,actimeo=30,nobrl"
+      device: "//${NAS_SERVER}/torrents"
+
+  usenet:
+    driver: local
+    driver_opts:
+      type: "cifs"
+      o: "username=${SMB_USERNAME},password=${SMB_PASSWORD},domain=${SMB_DOMAIN},vers=3.0,file_mode=0770,dir_mode=0770,uid=1000,gid=1000,soft,actimeo=30,nobrl"
+      device: "//${NAS_SERVER}/usenet"
+
+  qbittorrent:
+    driver: local
+    # Using local storage (CIFS causes hanging and stale file handles)
+
+  deluge:
+    driver: local
+    # Using local storage (CIFS causes hanging and stale file handles)
+
+  sabnzbd:
+    driver: local
+    # Using local storage
+
+  nzbget:
+    driver: local
+    # Using local storage
