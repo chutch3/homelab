@@ -2,6 +2,23 @@
 
 <!-- version list -->
 
+## v2.2.0 (2025-12-14)
+
+### Features
+
+- Added immich for comparsion to photoprism
+  ([`e0e8aaa`](https://github.com/chutch3/selfhosted.sh/commit/e0e8aaaa895fbd84f462a0da0cc4fcccd8a22962))
+
+- Added loki and access logging for debugging traefik issues
+  ([`18246f9`](https://github.com/chutch3/selfhosted.sh/commit/18246f9c4bf7f77866c3010ff69079daf8643c20))
+
+### Refactoring
+
+- Merged all download clients into one stack, added vpn container, updated *arr to be local
+  (excluding sonarr)
+  ([`15ff0f6`](https://github.com/chutch3/selfhosted.sh/commit/15ff0f6ccbfd6ae6ced70e19f44588ff9550ce97))
+
+
 ## v2.1.1 (2025-12-05)
 
 ### Bug Fixes
