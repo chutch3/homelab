@@ -39,10 +39,7 @@ networks:
 volumes:
     whisparr:
         driver: local
-        driver_opts:
-            type: "cifs"
-            o: "username=${SMB_USERNAME},password=${SMB_PASSWORD},domain=${SMB_DOMAIN},vers=3.0,nobrl,file_mode=0770,dir_mode=0770,uid=1000,gid=1000,soft,actimeo=30"
-            device: "//${NAS_SERVER}/whisparr"
+        # Using local storage for SQLite database (CIFS causes corruption)
 
     torrents:
         driver: local
