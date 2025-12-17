@@ -1,0 +1,62 @@
+version: '3.8'
+
+services:
+  nas-cert:
+    image: neilpang/acme.sh
+    environment:
+      - CF_Token=${CLOUDFLARE_DNS_API_TOKEN}
+      - NAS_HOST=nas.${BASE_DOMAIN:-diyhub.dev}
+      - CERT_DOMAIN=nas.${BASE_DOMAIN:-diyhub.dev}
+      - TZ=${TZ:-America/New_York}
+    volumes:
+      # Mount acme.sh certificate storage
+      - acme_certs:/acme.sh
+      # Mount sync script directly from stack directory
+      - ./sync-nas-cert.sh:/scripts/sync-nas-cert.sh:ro
+      # Mount common scripts from project root
+      - ../../../scripts/common:/scripts/common:ro
+    secrets:
+      # Mount SSH key from Docker secret
+      - source: cert_sync_ssh_key
+        target: /ssh-key/id_rsa
+        mode: 0400
+    command: >
+      sh -c "
+      apk add --no-cache openssh-client bash &&
+      mkdir -p ~/.ssh &&
+      if [ -f /ssh-key/id_rsa ]; then
+        cp /ssh-key/id_rsa ~/.ssh/id_rsa &&
+        chmod 600 ~/.ssh/id_rsa;
+      fi &&
+      echo 'Issuing certificate for nas.${BASE_DOMAIN:-diyhub.dev}...' &&
+      (acme.sh --issue --dns dns_cf -d nas.${BASE_DOMAIN:-diyhub.dev} --server letsencrypt --force || echo 'Certificate already exists, skipping...') &&
+      echo 'Running initial sync to NAS...' &&
+      /scripts/sync-nas-cert.sh || exit 1 &&
+      echo 'Installing crontab for weekly renewal and sync...' &&
+      echo '0 3 * * 0 acme.sh --renew -d nas.${BASE_DOMAIN:-diyhub.dev} && /scripts/sync-nas-cert.sh >> /var/log/cert-sync.log 2>&1 || exit 1' > /etc/crontabs/root &&
+      echo 'Starting cron daemon...' &&
+      crond -f
+      "
+    networks:
+      - cert-sync
+    deploy:
+      replicas: 1
+      placement:
+        constraints:
+          # Run on manager node
+          - node.role == manager
+      restart_policy:
+        condition: any
+        delay: 5s
+
+volumes:
+  acme_certs:
+    driver: local
+
+secrets:
+  cert_sync_ssh_key:
+    external: true
+
+networks:
+  cert-sync:
+    driver: overlay
