@@ -2,6 +2,14 @@
 
 <!-- version list -->
 
+## v2.3.0 (2025-12-17)
+
+### Features
+
+- **cert-sync-nas**: Add automated Let's Encrypt certificate provisioning and sync to OMV
+  ([`f786c7c`](https://github.com/chutch3/selfhosted.sh/commit/f786c7c797b11d3c66b92b4417963dce3becbbd3))
+
+
 ## v2.2.0 (2025-12-14)
 
 ### Features
