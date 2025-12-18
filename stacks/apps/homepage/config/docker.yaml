@@ -1,0 +1,6 @@
+---
+# Docker integration for service discovery
+
+my-docker:
+  socket: /var/run/docker.sock
+  swarm: true

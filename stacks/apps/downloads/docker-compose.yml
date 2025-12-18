@@ -73,10 +73,6 @@ services:
         - homepage.icon=qbittorrent.png
         - homepage.href=https://qbittorrent.${BASE_DOMAIN}/
         - homepage.description=qBittorrent Torrent Client
-        - homepage.widget.type=qbittorrent
-        - homepage.widget.url=http://qbittorrent:8080
-        - homepage.widget.username=${QBIT_USERNAME}
-        - homepage.widget.password=${QBIT_PASSWORD}
 
   deluge:
     image: lscr.io/linuxserver/deluge:latest
@@ -114,9 +110,6 @@ services:
         - homepage.icon=deluge.png
         - homepage.href=https://deluge.${BASE_DOMAIN}/
         - homepage.description=Deluge Torrent Client
-        - homepage.widget.type=deluge
-        - homepage.widget.url=http://deluge:8112
-        - homepage.widget.key=${DELUGE_PASSWORD}
 
   sabnzbd:
     image: lscr.io/linuxserver/sabnzbd:latest
@@ -152,9 +145,6 @@ services:
         - homepage.icon=sabnzbd.png
         - homepage.href=https://sabnzbd.${BASE_DOMAIN}/
         - homepage.description=SABnzbd Usenet Client
-        - homepage.widget.type=sabnzbd
-        - homepage.widget.url=http://sabnzbd:8080
-        - homepage.widget.key=${SABNZBD_API_KEY}
 
   nzbget:
     image: lscr.io/linuxserver/nzbget:latest
@@ -190,10 +180,6 @@ services:
         - homepage.icon=nzbget.png
         - homepage.href=https://nzbget.${BASE_DOMAIN}/
         - homepage.description=NZBGet Usenet Client
-        - homepage.widget.type=nzbget
-        - homepage.widget.url=http://nzbget:6789
-        - homepage.widget.username=${NZBGET_USERNAME}
-        - homepage.widget.password=${NZBGET_PASSWORD}
 
 configs:
   vpn_init_script:

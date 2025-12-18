@@ -27,9 +27,6 @@ services:
                 - homepage.icon=emby.png
                 - homepage.href=https://emby.${BASE_DOMAIN}/
                 - homepage.description=Media Server
-                - homepage.widget.type=emby
-                - homepage.widget.url=https://emby.${BASE_DOMAIN}/
-                - homepage.widget.key=${EMBY_API_KEY}
 
 networks:
     traefik-public:
