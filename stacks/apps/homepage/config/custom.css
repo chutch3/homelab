@@ -1,0 +1,63 @@
+/* Custom Homepage Styling */
+
+/* Smooth animations */
+* {
+  transition: all 0.2s ease-in-out;
+}
+
+/* Custom header gradient */
+header {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+}
+
+/* Service card hover effects */
+.service {
+  border-radius: 12px !important;
+  overflow: hidden;
+}
+
+.service:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.4) !important;
+}
+
+/* Widget styling */
+.information-widget {
+  border-radius: 12px !important;
+  backdrop-filter: blur(10px);
+}
+
+/* Bookmark styling */
+.bookmark {
+  border-radius: 8px !important;
+}
+
+.bookmark:hover {
+  transform: scale(1.05);
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 10px;
+}
+
+::-webkit-scrollbar-track {
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: 10px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  border-radius: 10px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(135deg, #764ba2 0%, #667eea 100%);
+}
+
+/* Search bar enhancement */
+.search-container input {
+  border-radius: 20px !important;
+  padding: 12px 20px !important;
+}

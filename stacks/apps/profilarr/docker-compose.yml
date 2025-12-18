@@ -29,9 +29,6 @@ services:
                 - "homepage.icon=profilarr.png"
                 - "homepage.href=https://profilarr.${BASE_DOMAIN}/"
                 - "homepage.description=Profile Management for Arr Services"
-                - "homepage.widget.type=profilarr"
-                - "homepage.widget.url=https://profilarr.${BASE_DOMAIN}/"
-                - "homepage.widget.key=${PROFILARR_API_KEY}"
 
     # 2. THE BACKUP SIDECAR
     profilarr-backup:

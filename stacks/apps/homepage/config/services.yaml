@@ -1,0 +1,3 @@
+---
+# Services are auto-discovered from Docker labels
+# No manual service definitions needed

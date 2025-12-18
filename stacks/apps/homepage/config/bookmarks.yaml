@@ -1,0 +1,46 @@
+---
+# Quick access bookmarks organized by category
+
+- Development:
+    - GitHub:
+        - icon: github.png
+          href: https://github.com
+          description: Source code hosting
+    - Docker Hub:
+        - icon: docker.png
+          href: https://hub.docker.com
+          description: Container images
+
+- Documentation:
+    - Homepage Docs:
+        - icon: homepage.png
+          href: https://gethomepage.dev
+          description: Homepage documentation
+    - Docker Docs:
+        - icon: docker.png
+          href: https://docs.docker.com
+          description: Docker documentation
+    - Traefik Docs:
+        - icon: traefik.png
+          href: https://doc.traefik.io/traefik/
+          description: Traefik reverse proxy docs
+
+- Homelab Resources:
+    - Portainer (if installed):
+        - icon: portainer.png
+          href: https://portainer.diyhub.dev
+          description: Docker management UI
+    - Self-Hosted Awesome:
+        - icon: si-awesome-#FC60A8
+          href: https://github.com/awesome-selfhosted/awesome-selfhosted
+          description: Self-hosted software list
+
+- Entertainment:
+    - YouTube:
+        - icon: youtube.png
+          href: https://youtube.com
+          description: Video streaming
+    - Reddit:
+        - icon: reddit.png
+          href: https://reddit.com
+          description: Social news

@@ -28,9 +28,6 @@ services:
                 - homepage.icon=home-assistant.png
                 - homepage.href=https://ha.${BASE_DOMAIN}
                 - homepage.description=Home Automation
-                - homepage.widget.type=homeassistant
-                - homepage.widget.url=https://ha.${BASE_DOMAIN}
-                - homepage.widget.key=${HASS_TOKEN}
 
 networks:
     traefik-public:

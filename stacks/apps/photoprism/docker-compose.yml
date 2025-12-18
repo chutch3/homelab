@@ -67,9 +67,6 @@ services:
                 - homepage.icon=photoprism.png
                 - homepage.href=https://photo.${BASE_DOMAIN}/
                 - homepage.description=Photo Management
-                - homepage.widget.type=photoprism
-                - homepage.widget.url=https://photo.${BASE_DOMAIN}/
-                - homepage.widget.key=${PHOTOPRISM_ADMIN_PASSWORD}
         healthcheck:
             test: ["CMD", "curl", "-f", "http://localhost:2342/api/v1/status"]
             interval: 30s

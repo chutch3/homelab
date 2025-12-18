@@ -28,9 +28,6 @@ services:
                 - homepage.icon=whisparr.png
                 - homepage.href=https://whisparr.${BASE_DOMAIN}/
                 - homepage.description=Adult Content Management
-                - homepage.widget.type=whisparr
-                - homepage.widget.url=https://whisparr.${BASE_DOMAIN}/
-                - homepage.widget.key=${WHISPARR_API_KEY}
 
 networks:
     traefik-public:
