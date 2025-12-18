@@ -1,0 +1,42 @@
+---
+title: Homelab Dashboard
+favicon: https://raw.githubusercontent.com/walkxcode/dashboard-icons/main/png/homepage.png
+headerStyle: boxed
+statusStyle: dot
+hideVersion: true
+theme: dark
+color: slate
+
+layout:
+  Media:
+    style: row
+    columns: 3
+  Downloads:
+    style: row
+    columns: 4
+  Monitoring:
+    style: row
+    columns: 2
+  System:
+    style: row
+    columns: 3
+  Productivity:
+    style: row
+    columns: 2
+  Finance:
+    style: row
+    columns: 2
+  Knowledge:
+    style: row
+    columns: 2
+  AI:
+    style: row
+    columns: 2
+  Home:
+    style: row
+    columns: 2
+
+quicklaunch:
+  searchDescriptions: true
+  hideInternetSearch: false
+  hideVisitURL: false

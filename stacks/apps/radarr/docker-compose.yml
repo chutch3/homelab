@@ -27,9 +27,6 @@ services:
                 - homepage.icon=radarr.png
                 - homepage.href=https://radarr.${BASE_DOMAIN}/
                 - homepage.description=Movie Management
-                - homepage.widget.type=radarr
-                - homepage.widget.url=https://radarr.${BASE_DOMAIN}/
-                - homepage.widget.key=${RADARR_API_KEY}
 
 networks:
     traefik-public:

@@ -1,0 +1,35 @@
+---
+# Info widgets displayed at the top of the homepage
+
+- logo:
+    icon: https://raw.githubusercontent.com/walkxcode/dashboard-icons/main/png/homepage.png
+
+- greeting:
+    text_size: xl
+    text: "Welcome to your homelab!"
+
+- datetime:
+    text_size: l
+    format:
+      dateStyle: long
+      timeStyle: short
+      hourCycle: h23
+
+- openmeteo:
+    label: Local Weather
+    latitude: 33.7490
+    longitude: -84.3880
+    units: imperial
+    cache: 5
+
+- resources:
+    label: System Resources
+    cpu: true
+    memory: true
+    disk: /
+    expanded: true
+
+- search:
+    provider: duckduckgo
+    target: _blank
+    focus: false

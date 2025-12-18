@@ -28,9 +28,6 @@ services:
                 - homepage.icon=sonarr.png
                 - homepage.href=https://sonarr.${BASE_DOMAIN}/
                 - homepage.description=TV Show Management
-                - homepage.widget.type=sonarr
-                - homepage.widget.url=https://sonarr.${BASE_DOMAIN}/
-                - homepage.widget.key=${SONARR_API_KEY}
 
 networks:
     traefik-public:
