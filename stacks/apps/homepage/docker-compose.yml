@@ -6,8 +6,20 @@ services:
         container_name: homepage
         user: "root"
         volumes:
-            - homepage:/app/config
             - /var/run/docker.sock:/var/run/docker.sock:ro
+        configs:
+            - source: homepage_settings
+              target: /app/config/settings.yaml
+            - source: homepage_widgets
+              target: /app/config/widgets.yaml
+            - source: homepage_bookmarks
+              target: /app/config/bookmarks.yaml
+            - source: homepage_services
+              target: /app/config/services.yaml
+            - source: homepage_docker
+              target: /app/config/docker.yaml
+            - source: homepage_custom_css
+              target: /app/config/custom.css
         restart: unless-stopped
         networks:
             - traefik-public
@@ -35,10 +47,16 @@ networks:
     traefik-public:
         external: true
 
-volumes:
-    homepage:
-        driver: local
-        driver_opts:
-            type: "cifs"
-            o: "username=${SMB_USERNAME},password=${SMB_PASSWORD},domain=${SMB_DOMAIN},vers=3.0,file_mode=0600,dir_mode=0770,soft,actimeo=30"
-            device: "//${NAS_SERVER}/homepage"
+configs:
+    homepage_settings:
+        file: ./config/settings.yaml
+    homepage_widgets:
+        file: ./config/widgets.yaml
+    homepage_bookmarks:
+        file: ./config/bookmarks.yaml
+    homepage_services:
+        file: ./config/services.yaml
+    homepage_docker:
+        file: ./config/docker.yaml
+    homepage_custom_css:
+        file: ./config/custom.css

@@ -32,8 +32,6 @@ services:
                 - homepage.icon=chat.png
                 - homepage.href=https://chat.${BASE_DOMAIN}/
                 - homepage.description=AI Chat Interface
-                - homepage.widget.type=librechat
-                - homepage.widget.url=https://chat.${BASE_DOMAIN}/
             replicas: 1
         depends_on:
             - mongodb
