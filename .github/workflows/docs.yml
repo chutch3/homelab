@@ -1,158 +1,158 @@
 name: 📚 Documentation
 
 on:
-  push:
-    branches:
-      - main
-    paths:
-      - 'docs/**'
-      - 'mkdocs.yml'
-      - '.github/workflows/docs.yml'
-  pull_request:
-    branches:
-      - main
-    paths:
-      - 'docs/**'
-      - 'mkdocs.yml'
-      - '.github/workflows/docs.yml'
-  workflow_dispatch:
-    inputs:
-      deploy:
-        description: 'Deploy to GitHub Pages (only works on main branch)'
-        required: false
-        default: 'true'
-        type: boolean
-      environment:
-        description: 'Target environment'
-        required: false
-        default: 'github-pages'
-        type: choice
-        options:
-          - github-pages
+    push:
+        branches:
+            - main
+        paths:
+            - "docs/**"
+            - "mkdocs.yml"
+            - ".github/workflows/docs.yml"
+    pull_request:
+        branches:
+            - main
+        paths:
+            - "docs/**"
+            - "mkdocs.yml"
+            - ".github/workflows/docs.yml"
+    workflow_dispatch:
+        inputs:
+            deploy:
+                description: "Deploy to GitHub Pages (only works on main branch)"
+                required: false
+                default: true
+                type: boolean
+            environment:
+                description: "Target environment"
+                required: false
+                default: "github-pages"
+                type: choice
+                options:
+                    - github-pages
 
 permissions:
-  contents: read
-  pages: write
-  id-token: write
+    contents: read
+    pages: write
+    id-token: write
 
 concurrency:
-  group: "pages"
-  cancel-in-progress: false
+    group: "pages"
+    cancel-in-progress: false
 
 jobs:
-  # Validate documentation on PRs and pushes (non-strict mode)
-  validate:
-    name: 🔍 Validate Documentation
-    runs-on: ubuntu-latest
-    steps:
-      - name: 📥 Checkout
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
+    # Validate documentation on PRs and pushes (non-strict mode)
+    validate:
+        name: 🔍 Validate Documentation
+        runs-on: ubuntu-latest
+        steps:
+            - name: Checkout
+              uses: actions/checkout@v4
+              with:
+                  fetch-depth: 0
 
-      - name: 🐍 Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
+            - name: Set up Python
+              uses: actions/setup-python@v5
+              with:
+                  python-version: "3.11"
 
-      - name: 📦 Install Poetry
-        uses: snok/install-poetry@v1
-        with:
-          version: latest
-          virtualenvs-create: true
-          virtualenvs-in-project: true
+            - name: Install Poetry
+              uses: snok/install-poetry@v1
+              with:
+                  version: latest
+                  virtualenvs-create: true
+                  virtualenvs-in-project: true
 
-      - name: 📥 Load cached dependencies
-        id: cached-poetry-dependencies
-        uses: actions/cache@v4
-        with:
-          path: .venv
-          key: venv-${{ runner.os }}-${{ steps.setup-python.outputs.python-version }}-${{ hashFiles('**/poetry.lock') }}
+            - name: Load cached dependencies
+              id: cached-poetry-dependencies
+              uses: actions/cache@v4
+              with:
+                  path: .venv
+                  key: venv-${{ runner.os }}-${{ steps.setup-python.outputs.python-version }}-${{ hashFiles('**/poetry.lock') }}
 
-      - name: 🔧 Install Task
-        uses: arduino/setup-task@v1
-        with:
-          version: 3.x
-          repo-token: ${{ secrets.GITHUB_TOKEN }}
+            - name: Install Task
+              uses: arduino/setup-task@v1
+              with:
+                  version: 3.x
+                  repo-token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: 🔧 Install dependencies
-        if: steps.cached-poetry-dependencies.outputs.cache-hit != 'true'
-        run: task install
+            - name: Install dependencies
+              if: steps.cached-poetry-dependencies.outputs.cache-hit != 'true'
+              run: task install
 
-      - name: 🔍 Validate documentation build
-        run: task docs:validate
+            - name: Validate documentation build
+              run: task docs:validate
 
-      - name: 📤 Upload documentation artifact (for PRs)
-        if: github.event_name == 'pull_request'
-        uses: actions/upload-artifact@v4
-        with:
-          name: documentation-pr-${{ github.event.number }}
-          path: ./site
-          retention-days: 7
+            - name: Upload documentation artifact (for PRs)
+              if: github.event_name == 'pull_request'
+              uses: actions/upload-artifact@v4
+              with:
+                  name: documentation-pr-${{ github.event.number }}
+                  path: ./site
+                  retention-days: 7
 
-      - name: 📤 Upload documentation artifact (for manual runs)
-        if: github.event_name == 'workflow_dispatch'
-        uses: actions/upload-artifact@v4
-        with:
-          name: documentation-manual-${{ github.run_number }}
-          path: ./site
-          retention-days: 7
+            - name: Upload documentation artifact (for manual runs)
+              if: github.event_name == 'workflow_dispatch'
+              uses: actions/upload-artifact@v4
+              with:
+                  name: documentation-manual-${{ github.run_number }}
+                  path: ./site
+                  retention-days: 7
 
-  # Build and deploy documentation on main branch pushes or manual triggers
-  build-and-deploy:
-    name: 🏗️ Build & Deploy Documentation
-    if: >-
-      github.ref == 'refs/heads/main' &&
-      (github.event_name == 'push' ||
-       (github.event_name == 'workflow_dispatch' && inputs.deploy == true))
-    needs: validate
-    runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-    steps:
-      - name: 📥 Checkout
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
+    # Build and deploy documentation on main branch pushes or manual triggers
+    build-and-deploy:
+        name: 🏗️ Build & Deploy Documentation
+        if: >-
+            github.ref == 'refs/heads/main' &&
+            (github.event_name == 'push' ||
+             (github.event_name == 'workflow_dispatch' && inputs.deploy == true))
+        needs: validate
+        runs-on: ubuntu-latest
+        environment:
+            name: github-pages
+            url: ${{ steps.deployment.outputs.page_url }}
+        steps:
+            - name: Checkout
+              uses: actions/checkout@v4
+              with:
+                  fetch-depth: 0
 
-      - name: 🐍 Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
+            - name: Set up Python
+              uses: actions/setup-python@v5
+              with:
+                  python-version: "3.11"
 
-      - name: 📦 Install Poetry
-        uses: snok/install-poetry@v1
-        with:
-          version: latest
-          virtualenvs-create: true
-          virtualenvs-in-project: true
+            - name: Install Poetry
+              uses: snok/install-poetry@v1
+              with:
+                  version: latest
+                  virtualenvs-create: true
+                  virtualenvs-in-project: true
 
-      - name: 📥 Load cached dependencies
-        id: cached-poetry-dependencies
-        uses: actions/cache@v4
-        with:
-          path: .venv
-          key: venv-${{ runner.os }}-${{ steps.setup-python.outputs.python-version }}-${{ hashFiles('**/poetry.lock') }}
+            - name: Load cached dependencies
+              id: cached-poetry-dependencies
+              uses: actions/cache@v4
+              with:
+                  path: .venv
+                  key: venv-${{ runner.os }}-${{ steps.setup-python.outputs.python-version }}-${{ hashFiles('**/poetry.lock') }}
 
-      - name: 🔧 Install Task
-        uses: arduino/setup-task@v1
-        with:
-          version: 3.x
-          repo-token: ${{ secrets.GITHUB_TOKEN }}
+            - name: Install Task
+              uses: arduino/setup-task@v1
+              with:
+                  version: 3.x
+                  repo-token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: 🔧 Install dependencies
-        if: steps.cached-poetry-dependencies.outputs.cache-hit != 'true'
-        run: task install
+            - name: Install dependencies
+              if: steps.cached-poetry-dependencies.outputs.cache-hit != 'true'
+              run: task install
 
-      - name: 📚 Build documentation (non-strict for deployment)
-        run: task docs:validate
+            - name: Build documentation (non-strict for deployment)
+              run: task docs:validate
 
-      - name: 📤 Upload documentation artifacts
-        uses: actions/upload-pages-artifact@v3
-        with:
-          path: ./site
+            - name: Upload documentation artifacts
+              uses: actions/upload-pages-artifact@v3
+              with:
+                  path: ./site
 
-      - name: 🚀 Deploy to GitHub Pages
-        id: deployment
-        uses: actions/deploy-pages@v4
+            - name: Deploy to GitHub Pages
+              id: deployment
+              uses: actions/deploy-pages@v4
