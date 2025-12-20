@@ -27,7 +27,7 @@ services:
             - "--certificatesresolvers.dns.acme.caServer=https://acme-v02.api.letsencrypt.org/directory"
             - "--certificatesresolvers.dns.acme.storage=/letsencrypt/acme.json"
             - "--certificatesresolvers.dns.acme.dnschallenge.provider=cloudflare"
-            - "--certificatesresolvers.dns.acme.dnschallenge.propagation.delayBeforeChecks=10"
+            - "--certificatesresolvers.dns.acme.dnschallenge.propagation.delayBeforeChecks=120"
 
             # Metrics (Prometheus)
             - "--metrics.prometheus=true"
