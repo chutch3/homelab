@@ -2,6 +2,19 @@
 
 <!-- version list -->
 
+## v2.3.1 (2025-12-20)
+
+### Bug Fixes
+
+- Traefik network specification, dns web access and bump dns propagtion check delay
+  ([`edb7658`](https://github.com/chutch3/selfhosted.sh/commit/edb76584bab1fa422a44c5e702fdc48683c194cb))
+
+### Refactoring
+
+- **homepage**: Clean up homepage and all the widgets related to it
+  ([`85570da`](https://github.com/chutch3/selfhosted.sh/commit/85570dadc99a5df9041887609f7d9434686ecf51))
+
+
 ## v2.3.0 (2025-12-17)
 
 ### Features
