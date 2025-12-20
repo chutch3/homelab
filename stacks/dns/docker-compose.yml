@@ -16,7 +16,9 @@ services:
                     - node.labels.dns == true
             labels:
                 - traefik.enable=true
+                - traefik.swarm.network=traefik-public
                 - traefik.http.routers.dns.rule=Host(`dns.${BASE_DOMAIN}`)
+                - traefik.http.routers.dns.entrypoints=websecure
                 - traefik.http.routers.dns.tls=true
                 - traefik.http.routers.dns.tls.certresolver=dns
                 - traefik.http.services.dns.loadbalancer.server.port=5380
