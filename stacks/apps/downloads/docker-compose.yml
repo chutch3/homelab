@@ -63,7 +63,7 @@ services:
           - node.labels.downloads == true
       labels:
         - "traefik.enable=true"
-        - "traefik.docker.network=traefik-public"
+        - "traefik.swarm.network=traefik-public"
         - "traefik.http.routers.qbittorrent.rule=Host(`qbittorrent.${BASE_DOMAIN}`)"
         - "traefik.http.routers.qbittorrent.entrypoints=websecure"
         - "traefik.http.routers.qbittorrent.tls.certresolver=dns"
@@ -100,7 +100,7 @@ services:
           - node.labels.downloads == true
       labels:
         - "traefik.enable=true"
-        - "traefik.docker.network=traefik-public"
+        - "traefik.swarm.network=traefik-public"
         - "traefik.http.routers.deluge.rule=Host(`deluge.${BASE_DOMAIN}`)"
         - "traefik.http.routers.deluge.entrypoints=websecure"
         - "traefik.http.routers.deluge.tls.certresolver=dns"
@@ -135,7 +135,7 @@ services:
           - node.labels.downloads == true
       labels:
         - "traefik.enable=true"
-        - "traefik.docker.network=traefik-public"
+        - "traefik.swarm.network=traefik-public"
         - "traefik.http.routers.sabnzbd.rule=Host(`sabnzbd.${BASE_DOMAIN}`)"
         - "traefik.http.routers.sabnzbd.entrypoints=websecure"
         - "traefik.http.routers.sabnzbd.tls.certresolver=dns"
@@ -170,7 +170,7 @@ services:
           - node.labels.downloads == true
       labels:
         - "traefik.enable=true"
-        - "traefik.docker.network=traefik-public"
+        - "traefik.swarm.network=traefik-public"
         - "traefik.http.routers.nzbget.rule=Host(`nzbget.${BASE_DOMAIN}`)"
         - "traefik.http.routers.nzbget.entrypoints=websecure"
         - "traefik.http.routers.nzbget.tls.certresolver=dns"
