@@ -1,0 +1,14 @@
+---
+extends: relaxed
+
+rules:
+  line-length:
+    max: 160
+    level: warning
+  empty-lines:
+    max: 2
+  comments:
+    min-spaces-from-content: 1
+  octal-values:
+    forbid-implicit-octal: true
+    forbid-explicit-octal: true

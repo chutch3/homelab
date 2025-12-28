@@ -30,32 +30,34 @@ git clone https://github.com/chutch3/selfhosted.sh.git
 cd selfhosted.sh
 ```
 
-### 2. Configure machines.yaml
+### 2. Configure Host Inventory
 
-Create your cluster configuration:
+Create your cluster configuration in the Ansible inventory:
 
 ```bash
-cp machines.yaml.example machines.yaml
-nano machines.yaml
+cp ansible/inventory/03-hosts.yml.example ansible/inventory/02-hosts.yml
+nano ansible/inventory/02-hosts.yml
 ```
 
 Example configuration:
 
 ```yaml
-machines:
-  manager:
-    ip: 192.168.1.100
-    ssh_user: ubuntu
-    role: manager
-    labels:
-      storage: true
-
-  worker-01:
-    ip: 192.168.1.101
-    ssh_user: ubuntu
-    role: worker
-    labels:
-      gpu: true
+all:
+  children:
+    managers:
+      hosts:
+        manager-01:
+          ansible_host: 192.168.1.100
+          ansible_user: ubuntu
+          node_labels:
+            storage: true
+    workers:
+      hosts:
+        worker-01:
+          ansible_host: 192.168.1.101
+          ansible_user: ubuntu
+          node_labels:
+            gpu: true
 ```
 
 ### 3. Configure Environment
@@ -89,23 +91,30 @@ See [Configuration Guide](configuration.md) for all available options.
 
 ### 4. Deploy
 
-Initialize the cluster and deploy services:
+Initialize the cluster and deploy services using Ansible:
 
 ```bash
-# Initialize Docker Swarm cluster
-./selfhosted.sh cluster init
+# Install Ansible and dependencies
+task ansible:install
+
+# Bootstrap all nodes
+task ansible:bootstrap
+
+# Initialize the Docker Swarm cluster
+task ansible:cluster:init
 
 # Deploy all services
-./selfhosted.sh deploy
+task ansible:deploy:full
 ```
 
 The deployment will:
 
-1. Initialize Docker Swarm across your nodes
-2. Create overlay networks
-3. Deploy core infrastructure (Traefik, DNS, Monitoring)
-4. Deploy application services
-5. Configure SSL certificates automatically
+1. Bootstrap each node with Docker and other dependencies.
+2. Initialize Docker Swarm on the manager node.
+3. Create overlay networks.
+4. Deploy core infrastructure (Traefik, DNS, Monitoring).
+5. Deploy application services.
+6. Configure SSL certificates automatically.
 
 ### 5. Verify Deployment
 
@@ -113,7 +122,7 @@ Check that services are running:
 
 ```bash
 # Check cluster status
-./selfhosted.sh cluster status
+task ansible:cluster:status
 
 # List deployed stacks
 docker stack ls

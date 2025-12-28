@@ -1,0 +1,45 @@
+# ansible/playbooks/cluster/status.yml
+---
+- name: Get Docker Swarm cluster status
+  hosts: managers
+  become: yes
+  vars:
+    ansible_python_interpreter: /usr/bin/python3
+
+  tasks:
+    - name: Check if node is a swarm manager
+      command: docker info --format '{{ "{{" }}.Swarm.LocalNodeState{{ "}}" }}'
+      register: swarm_state
+      changed_when: false
+      failed_when: swarm_state.rc != 0 and "This node is not a swarm manager" not in swarm_state.stderr
+
+    - name: Display Swarm node status
+      command: docker node ls
+      register: node_status
+      when: swarm_state.stdout == "active"
+
+    - name: Display Swarm service status
+      command: docker service ls
+      register: service_status
+      when: swarm_state.stdout == "active"
+
+    - name: Display Swarm network status
+      command: docker network ls --filter driver=overlay
+      register: network_status
+      when: swarm_state.stdout == "active"
+
+    - name: Show cluster status
+      debug:
+        msg: |
+          Swarm State: {{ swarm_state.stdout }}
+          {% if swarm_state.stdout == "active" %}
+          --- Node Status ---
+          {{ node_status.stdout }}
+          --- Service Status ---
+          {{ service_status.stdout }}
+          --- Network Status ---
+          {{ network_status.stdout }}
+          {% else %}
+          Node is not an active swarm manager. Cannot display cluster status.
+          {% endif %}
+      changed_when: false

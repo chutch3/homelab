@@ -9,28 +9,20 @@ The homelab uses a **stacks-based architecture** where each service is defined i
 ```
 homelab/
 ├── .env                    # Environment configuration
-├── selfhosted.sh          # 🚀 Main deployment script
-├── machines.yaml           # Multi-node configuration
-├── scripts/                # Management and utility scripts
-│   ├── cli.sh             # Main CLI entry point
-│   ├── common/            # Shared utilities
-│   │   ├── ssh.sh         # SSH operations
-│   │   ├── machine.sh     # Machine management
-│   │   └── dns.sh         # DNS automation
-│   └── docker_swarm/      # Docker Swarm implementation
-│       ├── cli.sh         # Swarm command handler
-│       ├── cluster.sh     # Cluster management
-│       ├── deploy.sh      # Deployment logic
-│       └── teardown.sh    # Cleanup and teardown
-└── stacks/               # Service definitions
-    ├── apps/             # Application services
+├── ansible/                # Ansible configuration and playbooks
+│   ├── inventory/          # Host inventory and variables
+│   ├── playbooks/          # Ansible playbooks for all actions
+│   └── roles/              # Reusable Ansible roles
+├── Taskfile.yml            # 🚀 Main command interface
+└── stacks/                 # Service definitions
+    ├── apps/               # Application services
     │   ├── actual_server/
     │   ├── homeassistant/
     │   ├── photoprism/
     │   └── ...
-    ├── reverse-proxy/    # Traefik reverse proxy
-    ├── monitoring/       # Prometheus + Grafana
-    └── dns/             # Technitium DNS server
+    ├── reverse-proxy/      # Traefik reverse proxy
+    ├── monitoring/         # Prometheus + Grafana
+    └── dns/                # Technitium DNS server
 ```
 
 ---
@@ -38,6 +30,7 @@ homelab/
 ## Prerequisites
 
 - Docker Engine 24.0+ with Docker Compose v2
+- Ansible installed on your control machine
 - Domain with Cloudflare DNS management
 - Multi-node setup (manager + workers) for Docker Swarm
 - SSH access to all nodes
@@ -80,44 +73,50 @@ DNS_SERVER_FORWARDERS=1.1.1.1,1.0.0.1
 
 ```bash
 # Copy machines example
-cp machines.yaml.example machines.yaml
+cp ansible/inventory/03-hosts.yml.example ansible/inventory/02-hosts.yml
 
 # Edit with your server details
-vim machines.yaml
+vim ansible/inventory/02-hosts.yml
 ```
 
-```yaml title="machines.yaml"
-machines:
-  manager:
-    ip: 192.168.1.10
-    user: admin
-  worker-01:
-    ip: 192.168.1.11
-    user: admin
-  worker-02:
-    ip: 192.168.1.12
-    user: admin
+```yaml title="ansible/inventory/02-hosts.yml"
+all:
+  children:
+    managers:
+      hosts:
+        manager:
+          ansible_host: 192.168.1.10
+          ansible_user: admin
+    workers:
+      hosts:
+        worker-01:
+          ansible_host: 192.168.1.11
+          ansible_user: admin
 ```
 
 ## Step 2: Deploy Infrastructure
 
 ### Deploy Core Services
 
-The deployment script handles Docker Swarm setup and service deployment:
+The Ansible playbooks handle Docker Swarm setup and service deployment:
 
 ```bash
-# 🚀 Deploy all infrastructure with awesome ASCII art!
-./selfhosted.sh
+# 🚀 Deploy all infrastructure
+task ansible:bootstrap
+task ansible:cluster:init
+task ansible:deploy:full
 ```
 
-This script will:
-1. **Initialize Docker Swarm** cluster across your machines
-2. **Create overlay network** (`traefik-public`) for service communication
-3. **Deploy core stacks**:
+This will:
+1. **Bootstrap all nodes** with Docker and other dependencies.
+2. **Initialize Docker Swarm** cluster on the manager.
+3. **Create overlay network** (`traefik-public`) for service communication.
+4. **Deploy all stacks**:
    - **Traefik** reverse proxy with SSL termination
    - **Technitium DNS** server with local DNS records
    - **Monitoring** stack (Prometheus + Grafana)
-4. **Configure DNS records** automatically for all services
+   - All application services
+5. **Configure DNS records** automatically for all services.
 
 ### What Gets Deployed
 
@@ -144,9 +143,8 @@ Each application is deployed as a separate stack:
 
 ```bash
 # Deploy specific applications
-docker stack deploy -c stacks/apps/homeassistant/docker-compose.yml homeassistant
-docker stack deploy -c stacks/apps/actual_server/docker-compose.yml actual
-docker stack deploy -c stacks/apps/photoprism/docker-compose.yml photoprism
+task ansible:deploy:stack -- -e "stack_name=homeassistant"
+task ansible:deploy:stack -- -e "stack_name=actual"
 
 # List available applications
 ls stacks/apps/
@@ -221,7 +219,7 @@ docker service update --image homeassistant/home-assistant:latest homeassistant_
 docker service scale actual_actual-server=2
 
 # Remove a service stack
-docker stack rm homeassistant
+task ansible:teardown:stack -- -e "stack_name=homeassistant"
 
 # View service logs
 docker service logs -f homeassistant_homeassistant
@@ -231,18 +229,14 @@ docker service logs -f homeassistant_homeassistant
 
 ```bash
 # Check cluster status
-./selfhosted.sh cluster status
-# Or directly:
-./scripts/cli.sh cluster status
+task ansible:cluster:status
 
 # View cluster resources
 docker system df
 docker stats
 
 # Complete infrastructure teardown
-./selfhosted.sh teardown
-# Or directly:
-./scripts/cli.sh teardown
+task ansible:teardown:full
 ```
 
 ---
@@ -258,7 +252,7 @@ Each service stack can be customized by editing its Docker Compose file:
 vim stacks/apps/homeassistant/docker-compose.yml
 
 # Redeploy with changes
-docker stack deploy -c stacks/apps/homeassistant/docker-compose.yml homeassistant
+task ansible:deploy:stack -- -e "stack_name=homeassistant"
 ```
 
 ### DNS Configuration
@@ -311,7 +305,7 @@ To add a new service:
 
 3. **Deploy the service:**
    ```bash
-   docker stack deploy -c stacks/apps/newservice/docker-compose.yml newservice
+   task ansible:deploy:stack -- -e "stack_name=newservice"
    ```
 
 ---
@@ -400,10 +394,12 @@ If you need to start over completely:
 
 ```bash
 # WARNING: This will destroy all data and services
-./selfhosted.sh teardown
+task ansible:teardown:full
 
 # Redeploy from scratch with style! 🚀
-./selfhosted.sh deploy
+task ansible:bootstrap
+task ansible:cluster:init
+task ansible:deploy:full
 ```
 
 [Next: Learn about configuration options →](configuration.md)
