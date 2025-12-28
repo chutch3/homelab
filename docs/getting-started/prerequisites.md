@@ -340,4 +340,4 @@ Once all prerequisites are complete:
 
 ---
 
-**Need help?** Open an issue on [GitHub](https://github.com/chutch3/selfhosted.sh/issues).
+**Need help?** Open an issue on [GitHub](https://github.com/chutch3/homelab/issues).

@@ -108,8 +108,8 @@ ssh admin@nas.local 'ls -lh /srv/kiwix_data/*.zim'
 Once at least one ZIM file has been downloaded, deploy the Kiwix Docker service:
 
 ```bash
-cd /path/to/selfhosted.sh
-./selfhosted.sh deploy --skip-infra --only-apps kiwix
+cd /path/to/homelab
+./homelab deploy --skip-infra --only-apps kiwix
 ```
 
 ### Step 4: Verify Deployment

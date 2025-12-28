@@ -39,7 +39,7 @@ See [Storage Architecture](storage.md) for detailed information about:
 
 ## Deployment Process
 
-When you run `./selfhosted.sh deploy`:
+When you run `./homelab deploy`:
 
 1. Sets up Docker Swarm cluster across your machines
 2. Deploys infrastructure (DNS, Traefik proxy, monitoring)
@@ -52,13 +52,13 @@ To add a new service:
 
 1. Create `stacks/apps/myservice/docker-compose.yml`
 2. Include Traefik labels for routing
-3. Run `./selfhosted.sh deploy` to deploy it
+3. Run `./homelab deploy` to deploy it
 
 ## Removing Services
 
 To remove a service:
 
 1. Delete the `stacks/apps/servicename/` folder
-2. Run `./selfhosted.sh nuke servicename` to clean up data
+2. Run `./homelab nuke servicename` to clean up data
 
 That's it! The system handles the rest automatically.

@@ -325,7 +325,7 @@ cmd_setup() {
     echo "  2. Create SMB share in OpenMediaVault:"
     echo "     - Storage → Shared Folders → Add shared folder for: $ZIM_DATA_DIR"
     echo "     - Services → SMB/CIFS → Shares → Add share named: kiwix_data"
-    echo "  3. Deploy Kiwix service: ./selfhosted.sh deploy --skip-infra --only-apps kiwix"
+    echo "  3. Deploy Kiwix service: task ansible:deploy:stack STACK=kiwix"
     echo "  4. Access at: https://kiwix.\${BASE_DOMAIN}/"
     echo
     echo "Manual operations:"
