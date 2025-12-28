@@ -26,8 +26,8 @@ Verify you have:
 ### 1. Clone Repository
 
 ```bash
-git clone https://github.com/chutch3/selfhosted.sh.git
-cd selfhosted.sh
+git clone https://github.com/chutch3/homelab.git
+cd homelab
 ```
 
 ### 2. Configure Host Inventory
