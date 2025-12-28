@@ -96,10 +96,10 @@ NAS_SERVER=nas.your-domain.com
 
 ```bash
 # Deploy only Immich
-./selfhosted.sh deploy --only-apps immich
+./homelab deploy --only-apps immich
 
 # Or deploy with infrastructure
-./selfhosted.sh deploy
+./homelab deploy
 ```
 
 ### Step 4: Initial Setup
@@ -142,21 +142,21 @@ Configure mobile app:
 ### Option 1: Run Both PhotoPrism and Immich
 ```bash
 # Deploy both services
-./selfhosted.sh deploy --only-apps photoprism,immich
+./homelab deploy --only-apps photoprism,immich
 ```
 **Use case:** Evaluate both, choose later
 
 ### Option 2: Immich Only
 ```bash
 # Deploy only Immich
-./selfhosted.sh deploy --only-apps immich
+./homelab deploy --only-apps immich
 ```
 **Use case:** New installation or committed to Immich
 
 ### Option 3: PhotoPrism Only
 ```bash
 # Skip Immich deployment
-./selfhosted.sh deploy --skip-apps immich
+./homelab deploy --skip-apps immich
 ```
 **Use case:** Committed to PhotoPrism
 
@@ -213,7 +213,7 @@ Update to latest version:
 IMMICH_VERSION=v1.xxx.x
 
 # Redeploy
-./selfhosted.sh deploy --only-apps immich
+./homelab deploy --only-apps immich
 ```
 
 ### Database Backup
@@ -332,7 +332,7 @@ This stack deploys four services:
 
 1. **Stop PhotoPrism:**
    ```bash
-   ./selfhosted.sh teardown --only-apps photoprism
+   ./homelab teardown --only-apps photoprism
    ```
 
 2. **Update Immich mounts** to use `all_data` as main library:
@@ -343,7 +343,7 @@ This stack deploys four services:
 
 3. **Redeploy Immich:**
    ```bash
-   ./selfhosted.sh deploy --only-apps immich
+   ./homelab deploy --only-apps immich
    ```
 
 4. **Scan library** in Immich UI
@@ -359,7 +359,7 @@ This stack deploys four services:
 
 3. **Stop Immich:**
    ```bash
-   ./selfhosted.sh teardown --only-apps immich
+   ./homelab teardown --only-apps immich
    ```
 
 ## Resources
