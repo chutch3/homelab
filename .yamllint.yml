@@ -1,7 +1,21 @@
 extends: relaxed
+
+ignore: |
+  .venv/
+  .git/
+  site/
+  coverage/
+  .facts/
+  node_modules/
+  *.egg-info/
+
 rules:
   line-length:
-    max: 120
+    max: 160
+    level: warning
+  comments:
+    min-spaces-from-content: 1
+
 yaml-tags:
   - "!!python/name:material.extensions.emoji.to_svg"
   - "!!python/name:material.extensions.emoji.twemoji"
