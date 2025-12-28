@@ -12,7 +12,7 @@ These playbooks are designed to be tested incrementally, one step at a time, to 
    ```bash
    task ansible:deploy:stack -- -e "stack_name=dns"
    # or via existing deployment
-   ./selfhosted.sh deploy --only-apps dns
+   ./homelab deploy --only-apps dns
    ```
 
 2. **Set environment variables:**

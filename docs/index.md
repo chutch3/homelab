@@ -234,7 +234,7 @@ Ready to start your self-hosting journey? Choose your path:
 
     Complete setup with all configuration options
 
-- :material-account-group: **[Contributing →](https://github.com/chutch3/selfhosted.sh/issues)**
+- :material-account-group: **[Contributing →](https://github.com/chutch3/homelab/issues)**
 
     ---
 

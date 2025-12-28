@@ -42,7 +42,7 @@ document.addEventListener('DOMContentLoaded', function() {
     // Add external link indicators
     // Only apply to links that are truly external (not to this site or GitHub repo)
     const siteUrl = window.location.hostname;
-    const repoUrl = 'github.com/chutch3/selfhosted.sh';
+    const repoUrl = 'github.com/chutch3/homelab';
 
     const externalLinks = document.querySelectorAll('a[href^="http"]');
     externalLinks.forEach(function(link) {

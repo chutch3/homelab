@@ -1,6 +1,6 @@
 # System Architecture
 
-This document describes the modern architecture of the selfhosted system after completing all 5 phases of modernization.
+This document describes the modern architecture of the homelab system after completing all 5 phases of modernization.
 
 ## Architecture Overview
 
@@ -14,7 +14,7 @@ graph TB
         end
 
         subgraph "🎮 Modern CLI Interface"
-            CLI["🖥️ ./selfhosted.sh service<br/>✅ list - Browse available services<br/>✅ enable/disable - Control services<br/>✅ status - View enabled services<br/>✅ interactive - GUI selection<br/>✅ generate - Create legacy files<br/>✅ generate-consolidated - Clean structure<br/>✅ info - Service details<br/>✅ validate - Check configuration"]
+            CLI["🖥️ ./homelab service<br/>✅ list - Browse available services<br/>✅ enable/disable - Control services<br/>✅ status - View enabled services<br/>✅ interactive - GUI selection<br/>✅ generate - Create legacy files<br/>✅ generate-consolidated - Clean structure<br/>✅ info - Service details<br/>✅ validate - Check configuration"]
         end
 
         subgraph "⚙️ Generation Engine"
@@ -85,21 +85,21 @@ The entire system revolves around a single configuration file that defines:
 
 ### 2. Modern CLI Interface
 
-The `./selfhosted.sh service` command provides a comprehensive interface:
+The `./homelab service` command provides a comprehensive interface:
 
 ```bash
 # Service Management
-./selfhosted.sh service list                    # Browse all services
-./selfhosted.sh service enable actual homepage  # Enable services
-./selfhosted.sh service disable cryptpad        # Disable services
-./selfhosted.sh service status                  # View enabled services
-./selfhosted.sh service interactive             # Interactive selection
+./homelab service list                    # Browse all services
+./homelab service enable actual homepage  # Enable services
+./homelab service disable cryptpad        # Disable services
+./homelab service status                  # View enabled services
+./homelab service interactive             # Interactive selection
 
 # Generation & Validation
-./selfhosted.sh service generate                # Generate legacy structure
-./selfhosted.sh service generate-consolidated   # Generate clean structure
-./selfhosted.sh service validate                # Check configuration
-./selfhosted.sh service info actual             # Service details
+./homelab service generate                # Generate legacy structure
+./homelab service generate-consolidated   # Generate clean structure
+./homelab service validate                # Check configuration
+./homelab service info actual             # Service details
 ```
 
 ### 3. Generation Engine

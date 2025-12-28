@@ -36,7 +36,7 @@ Edit `custom.css` to customize colors, animations, and styling.
 
 After making changes, redeploy the homepage stack:
 ```bash
-./selfhosted.sh deploy --skip-infra --only-apps homepage
+./homelab deploy --skip-infra --only-apps homepage
 ```
 
 Or directly:

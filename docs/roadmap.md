@@ -8,7 +8,7 @@ Our mission is to create the ultimate self-hosting platform that makes running y
 
 ## Mission Statement
 
-The mission of selfhosted is to:
+The mission of homelab is to:
 
 - :material-server: **Use existing hardware** - Make the most of what you already have
 - :material-rocket-launch: **Get up and running fast** - Deploy services in minutes, not hours
@@ -148,16 +148,16 @@ The mission of selfhosted is to:
 
 | Service | Priority | Description | Status |
 |---------|----------|-------------|--------|
-| **Kiwix** | High | Offline Wikipedia, Stack Exchange, medical guides | 🔄 [Issue #13](https://github.com/chutch3/selfhosted.sh/issues/13) |
-| **OpenStreetMap Tile Server** | High | Local map server for offline navigation | 🔄 [Issue #13](https://github.com/chutch3/selfhosted.sh/issues/13) |
-| **Ollama** | High | Local LLM inference for offline AI assistance | 🔄 [Issue #13](https://github.com/chutch3/selfhosted.sh/issues/13) |
+| **Kiwix** | High | Offline Wikipedia, Stack Exchange, medical guides | 🔄 [Issue #13](https://github.com/chutch3/homelab/issues/13) |
+| **OpenStreetMap Tile Server** | High | Local map server for offline navigation | 🔄 [Issue #13](https://github.com/chutch3/homelab/issues/13) |
+| **Ollama** | High | Local LLM inference for offline AI assistance | 🔄 [Issue #13](https://github.com/chutch3/homelab/issues/13) |
 | **LocalAI** | Medium | Alternative local AI inference platform | 🔄 Planned |
 | **Calibre-Web** | Medium | Ebook library management and reader | 🔄 Planned |
 | **Project Gutenberg Mirror** | Low | 70,000+ free ebooks for offline access | 🔄 Planned |
 | **ArchiveBox** | Medium | Self-hosted web archive for important pages | 🔄 Planned |
 | **FreshRSS** | Low | RSS reader for decentralized news aggregation | 🔄 Planned |
 
-**Key Questions for Prepper Services ([Issue #13](https://github.com/chutch3/selfhosted.sh/issues/13)):**
+**Key Questions for Prepper Services ([Issue #13](https://github.com/chutch3/homelab/issues/13)):**
 - Source and licensing for offline data archives
 - Automated init and update processes for large datasets
 - Storage strategy for knowledge vs personal backups
@@ -183,7 +183,7 @@ The mission of selfhosted is to:
 | **Dozzle** | Low | Real-time log viewer for Docker |
 | **Watchtower** | Low | Automated container updates |
 
-[View complete roadmap →](https://github.com/chutch3/selfhosted.sh/issues?q=is%3Aissue+is%3Aopen+label%3Aenhancement)
+[View complete roadmap →](https://github.com/chutch3/homelab/issues?q=is%3Aissue+is%3Aopen+label%3Aenhancement)
 
 ## 🤝 How to Contribute
 
@@ -236,14 +236,14 @@ We welcome contributions! Here's how you can help:
 - **Media**: Alternative servers (Jellyfin, Immich), codec optimization
 - **Security**: SSO implementation, network security hardening
 
-[Get started contributing →](https://github.com/chutch3/selfhosted.sh/issues)
+[Get started contributing →](https://github.com/chutch3/homelab/issues)
 
 ## 💡 Have Ideas?
 
 Share your suggestions:
 
-- **Feature Requests**: [Open an issue](https://github.com/chutch3/selfhosted.sh/issues/new)
-- **Discussions**: [Join our discussions](https://github.com/chutch3/selfhosted.sh/discussions)
+- **Feature Requests**: [Open an issue](https://github.com/chutch3/homelab/issues/new)
+- **Discussions**: [Join our discussions](https://github.com/chutch3/homelab/discussions)
 - **Community**: [r/selfhosted](https://reddit.com/r/selfhosted)
 
 Together, we're building the future of self-hosting! 🚀

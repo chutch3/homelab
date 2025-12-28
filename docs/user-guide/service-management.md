@@ -16,13 +16,13 @@ ls stacks/apps/*/docker-compose.yml
 
 ```bash
 # Deploy all services
-./selfhosted.sh deploy
+./homelab deploy
 
 # Deploy only specific services
-./selfhosted.sh deploy --only-apps homepage,actual_server,homeassistant
+./homelab deploy --only-apps homepage,actual_server,homeassistant
 
 # Deploy everything except heavy services
-./selfhosted.sh deploy --skip-apps photoprism,emby
+./homelab deploy --skip-apps photoprism,emby
 ```
 
 ## Check Service Status
@@ -90,7 +90,7 @@ docker volume rm homepage_data  # Manually remove associated volumes
 
 3. **Deploy it**:
    ```bash
-   ./selfhosted.sh deploy --only-apps myservice
+   ./homelab deploy --only-apps myservice
    ```
 
 ## Remove a Service

@@ -80,7 +80,7 @@ Browse our comprehensive catalog of self-hosted services. Each service is pre-co
 
 #### Quick Deploy
 ```bash
-./selfhosted.sh deploy --only-apps actual_server
+./homelab deploy --only-apps actual_server
 ```
 
 [Learn more about Actual Budget →](https://actualbudget.org/)
@@ -115,7 +115,7 @@ Browse our comprehensive catalog of self-hosted services. Each service is pre-co
 
 #### Quick Deploy
 ```bash
-./selfhosted.sh deploy --only-apps photoprism
+./homelab deploy --only-apps photoprism
 ```
 
 [Learn more about PhotoPrism →](https://photoprism.app/)
@@ -143,7 +143,7 @@ Browse our comprehensive catalog of self-hosted services. Each service is pre-co
 #### Coming Soon
 This service is planned for the next release. Want to help implement it?
 
-[Contribute to Jellyfin integration →](https://github.com/chutch3/selfhosted.sh/issues)
+[Contribute to Jellyfin integration →](https://github.com/chutch3/homelab/issues)
 
 </div>
 
@@ -171,7 +171,7 @@ This service is planned for the next release. Want to help implement it?
 
 #### Quick Deploy
 ```bash
-./selfhosted.sh deploy --only-apps homeassistant
+./homelab deploy --only-apps homeassistant
 ```
 
 [Learn more about Home Assistant →](https://www.home-assistant.io/)
@@ -202,7 +202,7 @@ This service is planned for the next release. Want to help implement it?
 
 #### Quick Deploy
 ```bash
-./selfhosted.sh deploy --only-apps portainer
+./homelab deploy --only-apps portainer
 ```
 
 [Learn more about Portainer →](https://www.portainer.io/)
@@ -233,7 +233,7 @@ This service is planned for the next release. Want to help implement it?
 
 #### Quick Deploy
 ```bash
-./selfhosted.sh deploy --only-apps cryptpad
+./homelab deploy --only-apps cryptpad
 ```
 
 [Learn more about CryptPad →](https://cryptpad.fr/)
@@ -264,7 +264,7 @@ This service is planned for the next release. Want to help implement it?
 
 #### Quick Deploy
 ```bash
-./selfhosted.sh deploy --only-apps homepage
+./homelab deploy --only-apps homepage
 ```
 
 [Learn more about Homepage →](https://gethomepage.dev/)
@@ -317,14 +317,14 @@ volumes:
 ### 3. Deploy Your Service
 
 ```bash
-./selfhosted.sh deploy --only-apps myservice
+./homelab deploy --only-apps myservice
 ```
 
 ### 4. Contribute Back
 
 Consider contributing your service definition to help others!
 
-[Learn how to contribute →](https://github.com/chutch3/selfhosted.sh/issues)
+[Learn how to contribute →](https://github.com/chutch3/homelab/issues)
 
 ---
 
@@ -342,7 +342,7 @@ Consider contributing your service definition to help others!
 
 ## Quick Start Guide
 
-New to selfhosted? Start here:
+New to self-hosting? Start here:
 
 1. **[Quick Start](../getting-started/quick-start.md)** - Get running in 5 minutes
 2. **[Installation Guide](../getting-started/installation.md)** - Complete setup

@@ -1,6 +1,6 @@
 site_name: Homelab
-site_url: https://chutch3.github.io/selfhosted.sh/
-repo_url: https://github.com/chutch3/selfhosted.sh
+site_url: https://chutch3.github.io/homelab/
+repo_url: https://github.com/chutch3/homelab
 edit_uri: edit/main/docs/
 site_description: "A Docker Swarm homelab platform with 14+ pre-configured services, automatic SSL certificates via Traefik, and network storage integration."
 site_author: "Cody Hutchens"

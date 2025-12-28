@@ -28,7 +28,7 @@ The setup script automatically creates the Docker secret from your existing SSH 
 ./stacks/apps/cert-sync-nas/init-secrets.sh
 
 # Deploy the stack
-./selfhosted.sh deploy --only-apps cert-sync-nas
+./homelab deploy --only-apps cert-sync-nas
 ```
 
 **Note:** The init script reuses your existing `~/.ssh/selfhosted_rsa` key (from machines.yaml setup), so no additional SSH configuration is needed!
