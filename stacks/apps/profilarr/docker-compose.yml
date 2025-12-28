@@ -9,7 +9,7 @@ services:
             - PGID=1000
             - TZ=${TZ}
         volumes:
-            - profilarr_local_data:/config
+            - profilarr_config:/config
         networks:
             - traefik-public
         deploy:
@@ -37,7 +37,7 @@ services:
         environment:
             - TZ=${TZ}
         volumes:
-            - profilarr_local_data:/source:ro
+            - profilarr_config:/source:ro
             - profilarr_nas_backup:/dest
             - ./backup.sh:/backup.sh:ro
         command: ["/bin/sh", "/backup.sh"]
@@ -52,7 +52,13 @@ networks:
         external: true
 
 volumes:
-    profilarr_local_data:
+    profilarr_config:
+        driver: local
+        driver_opts:
+            type: "none"
+            o: "bind"
+            device: "/mnt/iscsi/media-apps/profilarr"
+
     profilarr_nas_backup:
         driver: local
         driver_opts:

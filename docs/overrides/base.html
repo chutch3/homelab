@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ page.title }} - {{ config.site_name }}</title>
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+    <link rel="stylesheet" href="{{ 'stylesheets/ascii-theme.css' | url }}">
+    {{ mkdocs_head_meta }}
+</head>
+<body>
+    <header class="ascii-header">
+        <pre class="ascii-logo">
+  ██╗  ██╗ ██████╗ ███╗   ███╗███████╗██╗      █████╗ ██████╗
+  ██║  ██║██╔═══██╗████╗ ████║██╔════╝██║     ██╔══██╗██╔══██╗
+  ███████║██║   ██║██╔████╔██║█████╗  ██║     ███████║██████╔╝
+  ██╔══██║██║   ██║██║╚██╔╝██║██╔══╝  ██║     ██╔══██║██╔══██╗
+  ██║  ██║╚██████╔╝██║ ╚═╝ ██║███████╗███████╗██║  ██║██████╔╝
+  ╚═╝  ╚═╝ ╚═════╝ ╚═╝     ╚═╝╚══════╝╚══════╝╚═╝  ╚═╝╚═════╝
+</pre>
+        <div class="header-links">
+            <a href="{{ nav.homepage.url | url }}">Home</a>
+            <a href="{{ config.repo_url }}">Repository</a>
+        </div>
+    </header>
+
+    <div class="ascii-container">
+        <nav class="ascii-nav">
+            <ul>
+                {% for nav_item in nav %}
+                    <li class="{% if nav_item.active %}active{% endif %}">
+                        {% if nav_item.url %}
+                            <a href="{{ nav_item.url | url }}">{{ nav_item.title }}</a>
+                        {% else %}
+                            <span class="nav-section">{{ nav_item.title }}</span>
+                        {% endif %}
+                        {% if nav_item.children %}
+                            <ul>
+                                {% for child in nav_item.children %}
+                                    <li class="{% if child.active %}active{% endif %}">
+                                        <a href="{{ child.url | url }}">- {{ child.title }}</a>
+                                    </li>
+                                {% endfor %}
+                            </ul>
+                        {% endif %}
+                    </li>
+                {% endfor %}
+            </ul>
+        </nav>
+
+        <main class="ascii-content">
+            <h1>{{ page.title }}</h1>
+            {{ page.content }}
+        </main>
+    </div>
+
+    <footer class="ascii-footer">
+        <p>Documentation generated with <a href="https://www.mkdocs.org/">MkDocs</a>.</p>
+    </footer>
+
+    {{ mkdocs_script_tag }}
+</body>
+</html>

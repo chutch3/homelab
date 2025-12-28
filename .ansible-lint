@@ -1,0 +1,41 @@
+---
+# Ansible-lint configuration
+profile: basic
+
+# Exclude non-Ansible directories
+exclude_paths:
+  - .github/
+  - .venv/
+  - stacks/
+  - tests/
+  - docs/
+  - coverage/
+  - site/
+  - .git/
+  - ansible/inventory/
+  - '*.md'
+  - Taskfile.yml
+  - mkdocs.yml
+  - docker-compose.yml
+  - docker-compose.yaml
+  - temp_shell_test.yml
+  - fix-docker-repo.yml
+
+# Only lint actual Ansible content
+kinds:
+  - playbook: "ansible/playbooks/**/*.yml"
+  - playbook: "ansible/playbooks/**/*.yaml"
+  - role: "ansible/roles/*/"
+  - tasks: "ansible/roles/*/tasks/*.yml"
+  - handlers: "ansible/roles/*/handlers/*.yml"
+
+# Skip specific rules that have false positives or minor issues
+skip_list:
+  - yaml[line-length]  # We use yamllint for this with 160 char limit
+  - name[casing]  # Allow lowercase handler names
+  - command-instead-of-module  # Some valid use cases for shell commands
+  - command-instead-of-shell  # Some valid use cases
+  - role-name[path]  # We need relative paths for ansible-lint to find roles
+
+# Enable offline mode to avoid external calls
+offline: true

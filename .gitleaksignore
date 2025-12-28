@@ -1,0 +1,5 @@
+# Ignore Ansible secrets files (should be encrypted with ansible-vault)
+ansible/inventory/group_vars/secrets.yml
+
+# Ignore DNS README with example secrets
+ansible/playbooks/dns/README.md

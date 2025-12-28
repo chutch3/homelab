@@ -22,7 +22,20 @@ The platform deploys Docker containers using Docker Swarm across one or more mac
 - **`stacks/dns/`** - Local DNS server for internal resolution
 
 ### Storage
-Services store data on your NAS via SMB/CIFS network shares (configured in `.env`).
+
+The platform uses a **hybrid storage architecture**:
+
+- **OCFS2 (cluster filesystem on iSCSI)** - For application databases and configuration
+- **CIFS/SMB network shares** - For large media files
+- **Local Docker volumes** - For temporary and cache data
+
+**Important:** SQLite databases (used by Sonarr, Radarr, Prowlarr, etc.) **must** use OCFS2 storage, not CIFS, to prevent database corruption.
+
+See [Storage Architecture](storage.md) for detailed information about:
+- How iSCSI + OCFS2 works
+- Volume configuration patterns
+- Why different storage types for different use cases
+- Performance considerations and troubleshooting
 
 ## Deployment Process
 

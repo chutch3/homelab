@@ -2,7 +2,7 @@
 # See https://pre-commit.com/hooks.html for more hooks
 repos:
   - repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: v4.5.0
+    rev: v6.0.0
     hooks:
       - id: trailing-whitespace
       - id: end-of-file-fixer
@@ -15,36 +15,51 @@ repos:
       - id: mixed-line-ending
         args: [--fix=lf]
 
-  - repo: https://github.com/shellcheck-py/shellcheck-py
-    rev: v0.9.0.6
-    hooks:
-      - id: shellcheck
-        args: ["-x", "-P", "scripts/common", "-P", "scripts/docker_swarm"]  # Follow source statements
-        exclude: ^tests/
-
   - repo: https://github.com/adrienverge/yamllint.git
-    rev: v1.33.0
+    rev: v1.37.1
     hooks:
       - id: yamllint
-        args: ["-d", "{extends: relaxed, rules: {line-length: {max: 120}}}"]
 
   - repo: https://github.com/hadolint/hadolint
-    rev: v2.12.0
+    rev: v2.14.0
     hooks:
       - id: hadolint
         args: ['--ignore', 'DL3008', '--ignore', 'DL3013']  # Ignore version pinning rules
 
   - repo: https://github.com/zricethezav/gitleaks
-    rev: v8.18.1
+    rev: v8.30.0
     hooks:
       - id: gitleaks
 
+  - repo: https://github.com/ansible/ansible-lint
+    rev: v24.9.2
+    hooks:
+      - id: ansible-lint
+        files: ^ansible/(playbooks|roles)/.*\.(ya?ml|ansible)$
+        args:
+          - "--profile=basic"
+        exclude: ^(stacks/|tests/|\.github/|docker-compose|Taskfile|mkdocs|\.pre-commit)
+        additional_dependencies:
+          - ansible-core>=2.13.3
+
+  # Ansible syntax validation
   - repo: local
     hooks:
-      - id: bats-test
-        name: Run BATS tests
-        entry: bats
+      - id: ansible-syntax-check
+        name: Ansible Syntax Check
+        entry: bash -c 'export ANSIBLE_CONFIG=ansible/ansible.cfg; for file in "$@"; do ansible-playbook --syntax-check "$file" || exit 1; done' --
         language: system
-        files: ^tests/.*\.bats$
+        files: ^ansible/playbooks/.*\.ya?ml$
+        pass_filenames: true
+
+      - id: ansible-vault-check
+        name: Check for unencrypted Ansible secrets
+        entry: >-
+          bash -c 'for f in ansible/inventory/group_vars/*.yml; do
+          [[ "$f" == *"secrets.yml" ]] && continue;
+          if grep -qE "^[^#]*(_token|_password):\s*\"[^{]" "$f" 2>/dev/null; then
+          if ! grep -q "lookup\|env\|default" "$f"; then
+          echo "ERROR: $f may have unencrypted secrets!"; exit 1;
+          fi; fi; done'
+        language: system
         pass_filenames: false
-        args: [tests/]

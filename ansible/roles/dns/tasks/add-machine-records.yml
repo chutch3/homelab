@@ -1,0 +1,23 @@
+# ansible/roles/dns/tasks/add-machine-records.yml
+---
+- name: Add A record for each machine
+  uri:
+    url: "{{ dns_api_url }}/zones/records/add"
+    method: POST
+    body_format: form-urlencoded
+    body:
+      token: "{{ dns_api_token }}"
+      domain: "{{ item }}.{{ base_domain }}"
+      zone: "{{ base_domain }}"
+      type: "A"
+      ipAddress: "{{ hostvars[item].ansible_host }}"
+      ttl: "3600"
+    status_code: 200
+  loop: "{{ groups['all'] }}"
+  register: add_a_record_result
+  ignore_errors: yes
+
+- name: Display A record addition status
+  debug:
+    msg: "A record for {{ item.item }}.{{ base_domain }} ({{ hostvars[item.item].ansible_host }}) added/updated. Response: {{ item.json }}"
+  loop: "{{ add_a_record_result.results }}"

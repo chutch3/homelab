@@ -23,8 +23,17 @@ cd homelab
 cp .env.example .env
 nano .env  # Add your domain and Cloudflare token
 
+# Configure hosts
+cp ansible/inventory/03-hosts.yml.example ansible/inventory/02-hosts.yml
+nano ansible/inventory/02-hosts.yml # Add your hosts and their roles
+
+# Install Ansible and dependencies
+task ansible:install
+
 # Deploy all services
-./selfhosted.sh deploy
+task ansible:bootstrap
+task ansible:cluster:init
+task ansible:deploy:full
 ```
 
 Access your services at `https://homepage.yourdomain.com`
@@ -55,38 +64,81 @@ Access your services at `https://homepage.yourdomain.com`
 
 ## 🛠️ Management Commands
 
+All commands are run through `task`.
+
+### Node Management
 ```bash
-# Deploy all services
-./selfhosted.sh deploy                    # Full deployment (infrastructure + apps)
-./selfhosted.sh deploy --skip-infra       # Quick app updates (skip infrastructure)
+# Bootstrap all nodes (installs Docker, common packages, etc.)
+task ansible:bootstrap
 
-# Deployment options
-./selfhosted.sh deploy --skip-infra --only-apps homepage  # Update single app
-./selfhosted.sh deploy --skip-apps photoprism             # Skip specific apps
-./selfhosted.sh deploy --only-apps sonarr,radarr          # Deploy only specific apps
+# Bootstrap a single node
+task ansible:bootstrap:node -- worker-01
 
-# Cluster management
-./selfhosted.sh cluster init              # Initialize Swarm cluster
-./selfhosted.sh cluster status            # Check cluster status
-./selfhosted.sh cluster join <node>       # Join worker node to cluster
+# Run a dry-run of the bootstrap process
+task ansible:bootstrap:check
+```
 
-# Volume management
-./selfhosted.sh volume ls                 # List all Docker volumes
-./selfhosted.sh volume ls photoprism      # List volumes for specific service
-./selfhosted.sh volume inspect photoprism # Inspect volume configuration
-./selfhosted.sh volume diff photoprism    # Compare current vs compose file config
-./selfhosted.sh volume recreate photoprism --backup  # Recreate with backup
-./selfhosted.sh volume recreate photoprism --force   # Skip confirmation
+### Cluster Management
+```bash
+# Initialize the Docker Swarm cluster
+task ansible:cluster:init
 
-# Cleanup
-./selfhosted.sh teardown                  # Complete cleanup
+# Join worker nodes to the cluster
+task ansible:cluster:join -- -e "manager_ip=... manager_token=..."
 
-# Advanced: Direct CLI usage
-./scripts/cli.sh deploy                   # Deploy via CLI
-./scripts/cli.sh deploy --skip-infra      # Quick updates via CLI
-./scripts/cli.sh cluster init -c machines.yaml
-./scripts/cli.sh cluster status
-./scripts/cli.sh teardown
+# Check the status of the cluster
+task ansible:cluster:status
+```
+
+### Application Deployment
+```bash
+# Deploy all infrastructure and applications
+task ansible:deploy:full
+
+# Deploy only applications (skip infrastructure)
+task ansible:deploy:quick
+
+# Deploy a single stack
+task ansible:deploy:stack -- -e "stack_name=sonarr"
+```
+
+### DNS Management
+```bash
+# Configure all DNS records (zone, A records, CNAMEs)
+task ansible:dns:configure
+
+# Create the primary DNS zone
+task ansible:dns:create-zone
+
+# Add A records for all machines
+task ansible:dns:add-machines
+
+# Add CNAME records for all services
+task ansible:dns:add-services
+```
+
+### Volume Management
+```bash
+# List all Docker volumes
+task ansible:volume:ls
+
+# Inspect volumes for a specific service
+task ansible:volume:inspect -- -e "service_name=sonarr"
+```
+
+### Teardown
+```bash
+# Tear down a single stack
+task ansible:teardown:stack -- -e "stack_name=sonarr"
+
+# Tear down a single stack and its volumes
+task ansible:teardown:stack -- -e "stack_name=sonarr remove_volumes=true"
+
+# Tear down all stacks (preserve volumes)
+task ansible:teardown
+
+# Complete teardown (stacks, volumes, and leave swarm)
+task ansible:teardown:full
 ```
 
 ## ⚙️ Configuration
@@ -109,19 +161,25 @@ GRAFANA_ADMIN_PASSWORD=secure_password
 # ... more service passwords
 ```
 
-### Multi-Node Setup (machines.yaml)
+### Host Inventory (ansible/inventory/02-hosts.yml)
 
 ```yaml
-machines:
-  manager:
-    ip: 192.168.1.10
-    role: manager
-    ssh_user: admin
-
-  worker:
-    ip: 192.168.1.11
-    role: worker
-    ssh_user: admin
+all:
+  children:
+    managers:
+      hosts:
+        manager-01:
+          ansible_host: 192.168.1.10
+          ansible_user: admin
+          node_labels:
+            storage: true
+    workers:
+      hosts:
+        worker-01:
+          ansible_host: 192.168.1.11
+          ansible_user: admin
+          node_labels:
+            gpu: true
 ```
 
 ## 📁 Adding Services
@@ -153,25 +211,25 @@ machines:
 
 3. **Deploy:**
    ```bash
-   ./selfhosted.sh deploy --only-apps myservice
+   task ansible:deploy:stack -- -e "stack_name=myservice"
    ```
 
 ## 🏗️ How It Works
 
 ```
-.env config → Docker Swarm → Traefik SSL → Running Services
+.env & ansible/inventory -> Ansible -> Docker Swarm → Traefik SSL → Running Services
 ```
 
 **Deployment Process:**
-1. Sets up Docker Swarm cluster
-2. Deploys DNS and Traefik infrastructure
-3. Deploys application services in parallel
-4. Traefik automatically gets SSL certificates
+1. **`ansible:bootstrap`**: Prepares each node with Docker and other dependencies.
+2. **`ansible:cluster:init`**: Initializes the Docker Swarm on the manager.
+3. **`ansible:deploy:full`**: Deploys all services as Docker Swarm stacks.
+4. Traefik automatically gets SSL certificates for services with the correct labels.
 
 **Storage:**
-- Data persists on NAS via SMB/CIFS network shares
-- Configuration in environment variables
-- Services auto-configured with Traefik routing
+- Data persists on NAS via SMB/CIFS network shares.
+- Configuration in environment variables.
+- Services auto-configured with Traefik routing.
 
 ## 🔧 Development
 

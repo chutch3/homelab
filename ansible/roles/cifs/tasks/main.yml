@@ -1,0 +1,22 @@
+# ansible/roles/cifs/tasks/main.yml
+---
+- name: Install CIFS utilities
+  apt:
+    name: "{{ cifs_packages }}"
+    state: present
+    update_cache: yes
+
+- name: Create mount points directory
+  file:
+    path: /mnt/shares
+    state: directory
+    mode: '0755'
+
+- name: Verify CIFS installation
+  command: mount.cifs --version
+  changed_when: false
+  register: cifs_version
+
+- name: Display CIFS version
+  debug:
+    msg: "CIFS version: {{ cifs_version.stdout_lines[0] }}"

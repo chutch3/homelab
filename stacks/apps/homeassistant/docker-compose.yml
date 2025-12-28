@@ -2,7 +2,6 @@ version: "3.9"
 
 services:
     homeassistant:
-        container_name: homeassistant
         image: "ghcr.io/home-assistant/home-assistant:stable"
         volumes:
             - homeassistant:/config
@@ -28,6 +27,11 @@ services:
                 - homepage.icon=home-assistant.png
                 - homepage.href=https://ha.${BASE_DOMAIN}
                 - homepage.description=Home Automation
+                - "traefik.http.routers.homeassistant-hubitat-events.rule=Host(`ha.${BASE_DOMAIN}`)"
+                - "traefik.http.routers.homeassistant-hubitat-events.entrypoints=hubitat"
+                - "traefik.http.routers.homeassistant-hubitat-events.tls=true" # Assuming TLS is desired for 8181
+                - "traefik.http.routers.homeassistant-hubitat-events.tls.certresolver=dns"
+                - "traefik.http.services.homeassistant-hubitat-events.loadbalancer.server.port=8181"
 
 networks:
     traefik-public:

@@ -1,0 +1,77 @@
+# ansible/playbooks/deploy/stacks.yml
+---
+- name: Deploy all Docker Swarm stacks
+  hosts: managers
+  vars:
+    # If set, only deploy these specific apps (comma-separated list)
+    only_apps: ""
+    # If set, skip these specific apps (comma-separated list)
+    skip_apps: ""
+    # If true, skip infrastructure stacks (monitoring, reverse-proxy, dns)
+    skip_infrastructure: false
+    # Path to the base directory containing app stacks
+    stacks_base_path: "stacks"
+
+  tasks:
+    - name: Get list of stack directories
+      find:
+        paths: "{{ stacks_base_path }}/apps"
+        file_type: directory
+      register: app_stack_dirs
+
+    - name: Get list of infrastructure stack directories
+      find:
+        paths: "{{ stacks_base_path }}"
+        file_type: directory
+        patterns: ["monitoring", "reverse-proxy", "dns"]
+      register: infra_stack_dirs
+
+    - name: Prepare list of stacks to deploy
+      set_fact:
+        all_stacks: "{{ (infra_stack_dirs.files | map(attribute='path') | list) + (app_stack_dirs.files | map(attribute='path') | list) }}"
+
+    - name: Filter stacks based on only_apps
+      ansible.builtin.set_fact:
+        filtered_stacks: "{{ all_stacks }}"
+      when: only_apps is not defined or only_apps == ''
+
+    - name: Filter to only specified apps
+      ansible.builtin.set_fact:
+        filtered_stacks: >-
+          {{ all_stacks | select('match', '.*/' + item + '$') | list }}
+      loop: "{{ only_apps.split(',') }}"
+      when: only_apps is defined and only_apps != ''
+
+    - name: Exclude skipped apps
+      ansible.builtin.set_fact:
+        filtered_stacks: >-
+          {{ filtered_stacks | reject('match', '.*/' + item + '$') | list }}
+      loop: "{{ skip_apps.split(',') }}"
+      when: skip_apps is defined and skip_apps != ''
+
+    - name: Exclude infrastructure stacks if requested
+      ansible.builtin.set_fact:
+        filtered_stacks: >-
+          {{ filtered_stacks |
+             reject('match', '.*/monitoring$') |
+             reject('match', '.*/reverse-proxy$') |
+             reject('match', '.*/dns$') | list }}
+      when: skip_infrastructure | default(false) | bool
+
+    - name: Deploy Docker stack
+      community.docker.docker_stack:
+        state: present
+        name: "{{ item.split('/')[-1] }}" # Stack name is the directory name
+        compose:
+          - "{{ item }}/docker-compose.yml"
+      loop: "{{ filtered_stacks }}"
+      loop_control:
+        loop_var: item
+      register: deploy_results
+
+    - name: Report deployment status
+      debug:
+        msg: "Stack {{ item.item.split('/')[-1] }} deployment {{ 'succeeded' if item.changed or item.failed == false else 'failed' }}"
+      loop: "{{ deploy_results.results }}"
+      loop_control:
+        loop_var: item

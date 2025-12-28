@@ -69,13 +69,13 @@ A Docker Swarm-based homelab deployment platform that simplifies running multipl
 
     ---
 
-    152 tests, pre-commit hooks, and comprehensive validation
+    Comprehensive linting, static analysis, and validation playbooks
 
 - :material-rocket-launch-outline: **One-Command Deploy**
 
     ---
 
-    Deploy everything with `./selfhosted.sh deploy`
+    Deploy everything with `task ansible:deploy:full` after a one-time setup.
 
 </div>
 
@@ -88,7 +88,7 @@ Single `.env` file contains all configuration - domains, credentials, storage pa
 12+ popular services with production-ready Docker Compose configurations including Traefik labels.
 
 ### :material-console: Simple Deployment Interface
-One command deploys everything: `./selfhosted.sh deploy` with options to include/exclude specific services.
+A simple `Taskfile.yml` provides a clean and consistent interface for all management commands, powered by Ansible.
 
 ### :material-certificate: SSL Certificate Automation
 Traefik reverse proxy with Let's Encrypt certificates via Cloudflare DNS challenge - fully automated.
@@ -149,11 +149,20 @@ cd homelab
 cp .env.example .env
 nano .env  # Set your domain, Cloudflare credentials, etc.
 
-# 3. Deploy everything
-./selfhosted.sh deploy
+# 3. Configure your hosts
+cp ansible/inventory/03-hosts.yml.example ansible/inventory/02-hosts.yml
+nano ansible/inventory/02-hosts.yml # Add your hosts and their roles
+
+# 4. Install Ansible and dependencies
+task ansible:install
+
+# 5. Deploy everything
+task ansible:bootstrap
+task ansible:cluster:init
+task ansible:deploy:full
 ```
 
-**That's it!** All 13 services deploy automatically with:
+**That's it!** All services deploy automatically with:
 - ✅ Automatic SSL certificates via Let's Encrypt + Cloudflare
 - ✅ Traefik reverse proxy routing
 - ✅ SMB/CIFS network storage integration
@@ -163,10 +172,10 @@ nano .env  # Set your domain, Cloudflare credentials, etc.
 Or deploy specific services only:
 ```bash
 # Deploy only essential services
-./selfhosted.sh deploy --only-apps homepage,actual_server,homeassistant
+task ansible:deploy -- -e "only_apps=homepage,actual"
 
 # Deploy everything except heavy media services
-./selfhosted.sh deploy --skip-apps photoprism,emby
+task ansible:deploy -- -e "skip_apps=photoprism,emby"
 ```
 
 ## 🏗️ Architecture Overview
@@ -175,7 +184,7 @@ Or deploy specific services only:
 graph TB
     subgraph "🎯 Docker Swarm Homelab Platform"
         ENV["📄 .env<br/>🔑 Configuration & Credentials"]
-        MACHINES["⚙️ machines.yaml<br/>🏠 Multi-Node Setup"]
+        INVENTORY["⚙️ ansible/inventory/<br/>🏠 Multi-Node Setup"]
         STACKS["📦 stacks/<br/>📁 Service Compose Files"]
 
         subgraph "🏗️ Infrastructure Stack"
@@ -195,7 +204,7 @@ graph TB
     end
 
     ENV --> STACKS
-    MACHINES --> STACKS
+    INVENTORY --> STACKS
     STACKS --> DNS
     STACKS --> TRAEFIK
     STACKS --> MONITORING

@@ -1,0 +1,38 @@
+# ansible/playbooks/volumes/list.yml
+---
+- name: List Docker volumes
+  hosts: all
+
+  vars:
+    # Optional: Filter volumes by service name (e.g., "sonarr")
+    service_filter: ""
+
+  tasks:
+    - name: List all Docker volumes
+      command: 'docker volume ls --format ''{% raw %}{{ .Name }}{% endraw %}'''
+      register: all_volumes
+      changed_when: false
+
+    - name: Filter volumes if service_filter is provided
+      set_fact:
+        filtered_volume_names: "{{ all_volumes.stdout_lines | select('search', service_filter) | list if service_filter else all_volumes.stdout_lines }}"
+
+    - name: Get detailed info for each filtered volume
+      command: 'docker volume inspect {{ item }} --format ''{% raw %}{{ .Name }}: Driver={{ .Driver }} Mountpoint={{ .Mountpoint }}{% endraw %}'''
+      loop: "{{ filtered_volume_names }}"
+      register: detailed_volumes_output
+      changed_when: false
+      when: filtered_volume_names | length > 0
+      ignore_errors: yes
+
+    - name: Display volume summary
+      debug:
+        msg: |
+          {% if filtered_volume_names | length > 0 %}
+          Docker Volumes (filtered by '{{ service_filter }}'):
+          {% for item in detailed_volumes_output.results %}
+            - {{ item.stdout }}
+          {% endfor %}
+          {% else %}
+          No Docker volumes found {% if service_filter %} matching '{{ service_filter }}'{% endif %}.
+          {% endif %}
