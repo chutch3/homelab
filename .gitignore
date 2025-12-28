@@ -169,6 +169,21 @@ cython_debug/
 .enabled-services
 certs/
 
+# Ansible private inventory
+ansible/inventory/02-hosts.yml
+ansible/inventory/*-private.yml
+
+# Ansible secrets
+ansible/inventory/*.secret.yml
+ansible/inventory/secrets.yml
+ansible/.vault_pass
+ansible/*.vault.yml
+
+# Ansible runtime
+ansible/*.retry
+ansible/.facts/
+ansible/*.log
+
 # Generated files - auto-generated from config/services.yaml
 generated/
 generated-docker-compose.yaml
@@ -195,3 +210,4 @@ plan.md
 plan-*.md
 coverage/
 homeassistant/.storage/auth
+ansible/inventory/group_vars/secrets.yml

@@ -1,0 +1,35 @@
+# ansible/playbooks/volumes/inspect.yml
+---
+- name: Inspect a specific Docker volume
+  hosts: all
+
+  vars:
+    # Mandatory: Name of the service whose volumes to inspect
+    service_name: ""
+
+  tasks:
+    - name: Ensure service_name is defined
+      ansible.builtin.fail:
+        msg: "The 'service_name' variable must be defined (e.g., -e service_name=sonarr)."
+      when: service_name == ""
+
+    - name: Get volumes associated with the service
+      command: 'docker volume ls --filter label=com.docker.stack.namespace={{ service_name }} --format ''{% raw %}{{ .Name }}{% endraw %}'''
+      register: service_volumes
+      changed_when: false
+
+    - name: Fail if no volumes found for service
+      ansible.builtin.fail:
+        msg: "No Docker volumes found for service '{{ service_name }}'."
+      when: service_volumes.stdout_lines | length == 0
+
+    - name: Inspect each volume
+      command: docker volume inspect {{ item }}
+      loop: "{{ service_volumes.stdout_lines }}"
+      register: inspected_volumes
+      changed_when: false
+
+    - name: Display inspected volume details
+      debug:
+        msg: "{{ item.stdout | from_json }}"
+      loop: "{{ inspected_volumes.results }}"

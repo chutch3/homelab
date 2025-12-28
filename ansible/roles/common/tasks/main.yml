@@ -1,0 +1,306 @@
+# ansible/roles/common/tasks/main.yml
+---
+- name: Update apt cache
+  apt:
+      update_cache: yes
+      cache_valid_time: 3600
+  changed_when: false
+
+- name: Install common packages
+  apt:
+      name:
+          - apt-transport-https
+          - ca-certificates
+          - curl
+          - gnupg
+          - lsb-release
+          - software-properties-common
+          - python3
+          - python3-pip
+          - jq
+          - wget
+          - git
+          - vim
+          - htop
+          - net-tools
+      state: present
+
+- name: Set timezone
+  community.general.timezone:
+      name: "{{ timezone | default('UTC') }}"
+  notify: restart cron
+
+- name: Ensure required directories exist
+  file:
+      path: "{{ item }}"
+      state: directory
+      mode: "0755"
+  loop:
+      - /opt/homelab
+      - /var/log/homelab
+      - "{{ bootstrap_state_dir }}"
+
+# iSCSI initiator setup for shared block storage
+- name: Install open-iscsi package
+  apt:
+      name: open-iscsi
+      state: present
+  when: iscsi_enabled | default(false)
+  tags: iscsi
+
+- name: Ensure iscsid service is running
+  systemd:
+      name: iscsid
+      state: started
+      enabled: yes
+  when: iscsi_enabled | default(false)
+  tags: iscsi
+
+- name: Ensure open-iscsi service is running
+  systemd:
+      name: open-iscsi
+      state: started
+      enabled: yes
+  when: iscsi_enabled | default(false)
+  tags: iscsi
+
+- name: Discover iSCSI targets from NAS
+  command: "iscsiadm -m discovery -t st -p {{ iscsi_target_ip }}:{{ iscsi_target_port }}"
+  register: iscsi_discovery
+  changed_when: iscsi_discovery.rc == 0
+  when:
+      - iscsi_enabled | default(false)
+      - iscsi_target_ip is defined
+  tags: iscsi
+
+- name: Login to iSCSI target
+  command: "iscsiadm -m node --targetname {{ iscsi_target_iqn }} --portal {{ iscsi_target_ip }}:{{ iscsi_target_port }} --login"
+  register: iscsi_login
+  changed_when: "'successful' in iscsi_login.stdout"
+  failed_when:
+      - iscsi_login.rc != 0
+      - "'already exists' not in iscsi_login.stderr"
+      - "'already present' not in iscsi_login.stderr"
+  when:
+      - iscsi_enabled | default(false)
+      - iscsi_target_iqn is defined
+  tags: iscsi
+
+- name: Enable automatic login on boot
+  command: "iscsiadm -m node --targetname {{ iscsi_target_iqn }} --portal {{ iscsi_target_ip }}:{{ iscsi_target_port }} --op update -n node.startup -v automatic"
+  when:
+      - iscsi_enabled | default(false)
+      - iscsi_target_iqn is defined
+  tags: iscsi
+
+- name: Wait for iSCSI block device to appear
+  wait_for:
+      path: "/dev/disk/by-path/ip-{{ iscsi_target_ip }}:{{ iscsi_target_port }}-iscsi-{{ iscsi_target_iqn }}-lun-1"
+      timeout: 30
+  when:
+      - iscsi_enabled | default(false)
+      - iscsi_target_iqn is defined
+  ignore_errors: yes
+  tags: iscsi
+
+- name: Install OCFS2 cluster filesystem tools
+  apt:
+      name:
+          - ocfs2-tools
+      state: present
+      update_cache: yes
+  when: iscsi_enabled | default(false)
+  tags: iscsi
+
+- name: Check if iSCSI is currently mounted
+  shell: "mount | grep {{ iscsi_mount_path }}"
+  register: iscsi_current_mount
+  failed_when: false
+  changed_when: false
+  when: iscsi_enabled | default(false)
+  tags: iscsi
+
+- name: Check if iSCSI device has filesystem
+  command: "blkid -o value -s TYPE /dev/disk/by-path/ip-{{ iscsi_target_ip }}:{{ iscsi_target_port }}-iscsi-{{ iscsi_target_iqn }}-lun-1"
+  register: current_fstype
+  failed_when: false
+  changed_when: false
+  when:
+      - iscsi_enabled | default(false)
+      - iscsi_target_iqn is defined
+  tags: iscsi
+
+- name: Unmount existing ext4 ISCSI mount
+  ansible.posix.mount:
+      path: "{{ iscsi_mount_path }}"
+      state: unmounted
+  when:
+      - iscsi_enabled | default(false)
+      - iscsi_current_mount.rc == 0
+      - current_fstype.stdout == "ext4"
+  tags: iscsi
+
+- name: Remove old ext4 fstab entry
+  lineinfile:
+      path: /etc/fstab
+      regexp: ".*{{ iscsi_mount_path }}.*ext4.*"
+      state: absent
+  when:
+      - iscsi_enabled | default(false)
+      - current_fstype.stdout == "ext4"
+  tags: iscsi
+
+- name: Configure O2CB cluster configuration file
+  template:
+      src: cluster.conf.j2
+      dest: /etc/ocfs2/cluster.conf
+      mode: "0644"
+  when: iscsi_enabled | default(false)
+  notify: reload o2cb
+  tags: iscsi
+
+- name: Configure O2CB defaults
+  lineinfile:
+      path: /etc/default/o2cb
+      regexp: "^{{ item.key }}="
+      line: "{{ item.key }}={{ item.value }}"
+      create: yes
+  loop:
+      - { key: "O2CB_ENABLED", value: "true" }
+      - { key: "O2CB_BOOTCLUSTER", value: "homelab" }
+  when: iscsi_enabled | default(false)
+  tags: iscsi
+
+- name: Enable and start O2CB cluster service
+  systemd:
+      name: o2cb
+      state: started
+      enabled: yes
+  when: iscsi_enabled | default(false)
+  tags: iscsi
+
+- name: Load O2CB cluster configuration
+  command: /usr/sbin/o2cb load
+  register: o2cb_load
+  failed_when: false
+  changed_when: o2cb_load.rc == 0
+  when: iscsi_enabled | default(false)
+  tags: iscsi
+
+- name: Configure O2CB cluster online
+  command: /usr/sbin/o2cb online homelab
+  register: o2cb_online
+  failed_when: false
+  changed_when: o2cb_online.rc == 0
+  when: iscsi_enabled | default(false)
+  tags: iscsi
+
+- name: Restart O2CB to ensure cluster is fully initialized
+  systemd:
+      name: o2cb
+      state: restarted
+  when: iscsi_enabled | default(false)
+  tags: iscsi
+
+- name: Wait for O2CB cluster to be ready
+  pause:
+      seconds: 3
+  when: iscsi_enabled | default(false)
+  tags: iscsi
+
+- name: Create OCFS2 filesystem on iSCSI device (only if not already OCFS2)
+  shell: "echo y | mkfs.ocfs2 -F --cluster-stack=o2cb --cluster-name=homelab -L media-apps -N 4 /dev/disk/by-path/ip-{{ iscsi_target_ip }}:{{ iscsi_target_port }}-iscsi-{{ iscsi_target_iqn }}-lun-1"
+  when:
+      - iscsi_enabled | default(false)
+      - iscsi_target_iqn is defined
+      - current_fstype.stdout != "ocfs2"
+  run_once: true
+  delegate_to: "{{ groups['managers'][0] }}"
+  tags: iscsi
+
+- name: Create iSCSI mount point
+  file:
+      path: "{{ iscsi_mount_path }}"
+      state: directory
+      mode: "0755"
+  when:
+      - iscsi_enabled | default(false)
+      - iscsi_mount_path is defined
+  tags: iscsi
+
+- name: Add OCFS2 device to /etc/fstab
+  lineinfile:
+      path: /etc/fstab
+      line: "/dev/disk/by-path/ip-{{ iscsi_target_ip }}:{{ iscsi_target_port }}-iscsi-{{ iscsi_target_iqn }}-lun-1 {{ iscsi_mount_path }} ocfs2 _netdev,heartbeat=local 0 0"
+      state: present
+  when:
+      - iscsi_enabled | default(false)
+      - iscsi_target_iqn is defined
+  tags: iscsi
+
+- name: Mount OCFS2 filesystem
+  ansible.posix.mount:
+      path: "{{ iscsi_mount_path }}"
+      src: "/dev/disk/by-path/ip-{{ iscsi_target_ip }}:{{ iscsi_target_port }}-iscsi-{{ iscsi_target_iqn }}-lun-1"
+      fstype: ocfs2
+      opts: _netdev,heartbeat=local
+      state: mounted
+  when:
+      - iscsi_enabled | default(false)
+      - iscsi_mount_path is defined
+  tags: iscsi
+
+# OCFS2 Cluster Test
+- name: Create test file on manager to verify cluster
+  copy:
+      content: "OCFS2 cluster test from {{ inventory_hostname }} at {{ ansible_date_time.iso8601 }}"
+      dest: "{{ iscsi_mount_path }}/.cluster-test-{{ inventory_hostname }}.txt"
+      mode: '0644'
+  when:
+      - iscsi_enabled | default(false)
+      - iscsi_mount_path is defined
+  run_once: true
+  delegate_to: "{{ groups['managers'][0] }}"
+  tags: iscsi
+
+- name: Wait for filesystem sync
+  pause:
+      seconds: 2
+  when: iscsi_enabled | default(false)
+  tags: iscsi
+
+- name: Verify test file is visible on all nodes
+  stat:
+      path: "{{ iscsi_mount_path }}/.cluster-test-{{ groups['managers'][0] }}.txt"
+  register: cluster_test_file
+  when:
+      - iscsi_enabled | default(false)
+      - iscsi_mount_path is defined
+  tags: iscsi
+
+- name: Display cluster test results
+  debug:
+      msg: "✓ OCFS2 cluster working! File from {{ groups['managers'][0] }} is visible on {{ inventory_hostname }}"
+  when:
+      - iscsi_enabled | default(false)
+      - cluster_test_file.stat.exists
+  tags: iscsi
+
+- name: Fail if cluster test file not visible
+  fail:
+      msg: "✗ OCFS2 cluster NOT working! File from {{ groups['managers'][0] }} is NOT visible on {{ inventory_hostname }}"
+  when:
+      - iscsi_enabled | default(false)
+      - not cluster_test_file.stat.exists
+  tags: iscsi
+
+- name: Clean up test file
+  file:
+      path: "{{ iscsi_mount_path }}/.cluster-test-{{ groups['managers'][0] }}.txt"
+      state: absent
+  when:
+      - iscsi_enabled | default(false)
+      - iscsi_mount_path is defined
+  run_once: true
+  delegate_to: "{{ groups['managers'][0] }}"
+  tags: iscsi

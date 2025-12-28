@@ -10,21 +10,14 @@ The homelab uses a minimal configuration approach:
 homelab/
 ├── .env                        # Environment variables (your copy)
 ├── .env.example               # Template with all options
-├── selfhosted.sh              # 🚀 Main deployment script
-├── machines.yaml              # Multi-node Docker Swarm configuration
-├── machines.yaml.example      # Template for machines setup
-├── scripts/                   # Management and utility scripts
-│   ├── cli.sh                # Main CLI entry point
-│   ├── common/               # Shared utilities
-│   │   ├── ssh.sh           # SSH operations
-│   │   ├── machine.sh       # Machine management
-│   │   └── dns.sh           # DNS automation
-│   └── docker_swarm/         # Docker Swarm implementation
-│       ├── cli.sh           # Swarm command handler
-│       ├── cluster.sh       # Cluster management
-│       ├── deploy.sh        # Deployment logic
-│       └── teardown.sh      # Cleanup and teardown
-└── stacks/                    # Service definitions
+├── ansible/                    # Ansible configuration and playbooks
+│   ├── inventory/              # Host inventory and variables
+│   │   ├── 02-hosts.yml        # Your host definitions
+│   │   └── group_vars/         # Variables for groups of hosts
+│   ├── playbooks/              # Ansible playbooks for all actions
+│   └── roles/                  # Reusable Ansible roles
+├── Taskfile.yml                # 🚀 Main command interface
+└── stacks/                     # Service definitions
     ├── apps/                 # Individual applications
     ├── reverse-proxy/        # Traefik reverse proxy
     ├── monitoring/           # Prometheus + Grafana
@@ -120,59 +113,47 @@ GROQ_API_KEY=your_groq_api_key
 OPENROUTER_KEY=your_openrouter_key
 ```
 
-## Multi-Node Configuration (`machines.yaml`)
+## Multi-Node Configuration (Full Example: `ansible/inventory/02-hosts.yml`)
 
-For multi-node Docker Swarm deployments, configure your infrastructure in `machines.yaml`:
+For multi-node Docker Swarm deployments, configure your infrastructure in the Ansible inventory. You should copy this example to `ansible/inventory/02-hosts.yml` and customize it with your actual infrastructure details.
 
 ```bash
-cp machines.yaml.example machines.yaml
-vim machines.yaml
+cp ansible/inventory/03-hosts.yml.example ansible/inventory/02-hosts.yml
+vim ansible/inventory/02-hosts.yml
 ```
 
-### Basic Configuration
+```yaml title="ansible/inventory/02-hosts.yml"
+all:
+  children:
+    managers:
+      hosts:
+        manager:
+          ansible_host: 192.168.1.100   # Example IP
+          ansible_user: ubuntu           # Example user
+          node_labels:
+            storage: true
 
-```yaml title="machines.yaml"
-machines:
-  # Manager node (required)
-  manager:
-    ip: 192.168.1.10
-    user: admin
+    workers:
+      hosts:
+        worker-01:
+          ansible_host: 192.168.1.101
+          ansible_user: ubuntu
+          node_labels:
+            gpu: true
+            gpu_model: "NVIDIA RTX 3090"
 
-  # Worker nodes (optional)
-  worker-01:
-    ip: 192.168.1.11
-    user: admin
+        worker-02:
+          ansible_host: 192.168.1.102
+          ansible_user: ubuntu
+          node_labels:
+            storage: true
 
-  worker-02:
-    ip: 192.168.1.12
-    user: admin
+    gpu_nodes:
+      hosts:
+        worker-01:
 ```
 
-### Advanced Configuration
-
-The `machines.yaml` file supports additional SSH and deployment options:
-
-```yaml title="machines.yaml (Advanced)"
-machines:
-  manager:
-    ip: 192.168.1.10
-    user: admin
-    # Optional: SSH key file (defaults to ~/.ssh/id_rsa)
-    # ssh_key: ~/.ssh/homelab_rsa
-
-  worker-01:
-    ip: 192.168.1.11
-    user: deploy
-    # Different user per machine
-
-  nas:
-    ip: 192.168.1.100
-    user: admin
-    # NAS server for network storage
-
-# Configuration is DRY - machine names become subdomains
-# manager.yourdomain.com, worker-01.yourdomain.com, etc.
-```
+The Ansible inventory supports a wide range of variables for host and group configuration. See the [Ansible documentation](https://docs.ansible.com/ansible/latest/user_guide/intro_inventory.html) for more information.
 
 ## Service Configuration
 
@@ -264,32 +245,27 @@ SMB_USERNAME=storage_user
 SMB_PASSWORD=storage_password
 ```
 
-## Deployment Scripts
+## Deployment Commands
 
 ### Main Deployment
 
 ```bash
-# 🚀 Selfhosted Homelab Deployment Script
-./selfhosted.sh
-
-# Available commands:
-./selfhosted.sh deploy          # Full deployment (default)
-./selfhosted.sh cluster init    # Initialize cluster
-./selfhosted.sh cluster status  # Check cluster status
-./selfhosted.sh teardown        # Complete cleanup
+# 🚀 Homelab Deployment with Ansible
+task ansible:bootstrap
+task ansible:cluster:init
+task ansible:deploy:full
 ```
 
-This script handles:
-- Docker Swarm cluster initialization
-- Network creation
-- Core service deployment
-- DNS configuration
+This sequence will:
+- Bootstrap all nodes
+- Initialize the Docker Swarm cluster
+- Deploy all services
 
 ### Complete Cleanup
 
 ```bash
 # WARNING: Removes all services and data
-./selfhosted.sh teardown
+task ansible:teardown:full
 ```
 
 ## Configuration Examples
@@ -321,17 +297,22 @@ GRAFANA_ADMIN_PASSWORD=another_secure_password
 PHOTOPRISM_ADMIN_PASSWORD=yet_another_secure_password
 ```
 
-```yaml title="machines.yaml (Production)"
-machines:
-  manager:
-    ip: 10.0.1.10
-    user: admin
-  worker-01:
-    ip: 10.0.1.11
-    user: admin
-  worker-02:
-    ip: 10.0.1.12
-    user: admin
+```yaml title="ansible/inventory/02-hosts.yml (Production)"
+all:
+  children:
+    managers:
+      hosts:
+        manager:
+          ansible_host: 10.0.1.10
+          ansible_user: admin
+    workers:
+      hosts:
+        worker-01:
+          ansible_host: 10.0.1.11
+          ansible_user: admin
+        worker-02:
+          ansible_host: 10.0.1.12
+          ansible_user: admin
 ```
 
 [Next: Deploy your homelab →](first-deployment.md)

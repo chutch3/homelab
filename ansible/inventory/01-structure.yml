@@ -1,0 +1,26 @@
+# ansible/inventory/01-structure.yml
+# Defines group structure and variables
+# No actual hosts defined here - they go in 02-hosts.yml
+
+all:
+    children:
+        # Define groups
+        managers:
+            vars:
+                swarm_role: manager
+                # firewall_additional_ports: # Excluded for now
+                #   - { port: 2376, proto: tcp, comment: 'Docker TLS' }
+
+        workers:
+            vars:
+                swarm_role: worker
+
+        # GPU nodes group (hosts added in 02-hosts.yml)
+        gpu_nodes:
+            vars:
+                gpu_install_drivers: false # Assume drivers pre-installed
+
+    vars:
+        # Global settings (no secrets!)
+        ansible_python_interpreter: /usr/bin/python3
+        bootstrap_version: "1.0.0"

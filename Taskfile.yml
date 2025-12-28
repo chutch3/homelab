@@ -4,6 +4,11 @@ vars:
     PROJECT_NAME: homelab
     PYTHON_VERSION: "3.9"
 
+dotenv: [".env"]
+
+includes:
+    ansible: ansible/Taskfile.yml
+
 tasks:
     install:
         desc: Install project dependencies
@@ -17,7 +22,7 @@ tasks:
             - echo "🧪 Running unit tests with coverage..."
             - mkdir -p coverage
             - rm -rf /tmp/bats-run-* 2>/dev/null || true
-            - kcov --bash-method=DEBUG --include-pattern=scripts,stacks --exclude-pattern=/usr,/tmp,/var coverage/unit bats --jobs 1 tests/unit/scripts/**/*.bats tests/unit/scripts/*.bats stacks/apps/*/tests/*.bats
+            - kcov --bash-method=DEBUG --include-pattern=scripts,stacks --exclude-pattern=/usr,/tmp,/var coverage/unit bats --jobs 1 stacks/apps/*/tests/*.bats
             - echo "🧪 Unit tests completed successfully"
             - echo "📊 Merging coverage reports..."
             - kcov --merge coverage/merged coverage/unit
@@ -27,7 +32,7 @@ tasks:
         desc: Run core tests with faster execution
         cmds:
             - echo "🧪 Running unit tests..."
-            - bats --tap tests/unit/scripts/**/*.bats tests/unit/scripts/*.bats stacks/apps/*/tests/*.bats
+            - bats --tap stacks/apps/*/tests/*.bats
 
     test-local:
         desc: Run local-only tests (requires Docker)
@@ -54,7 +59,7 @@ tasks:
     lint:shell:
         desc: Run shellcheck on shell scripts
         cmds:
-            - poetry run shellcheck -x --source-path=scripts scripts/*.sh
+            - find scripts -name "*.sh" -type f -exec poetry run shellcheck -x --source-path=scripts {} +
 
     lint:yaml:
         desc: Run yamllint on YAML files
@@ -159,3 +164,10 @@ tasks:
         desc: Show available tasks
         cmds:
             - task --list
+
+    # Combined: Full deployment
+    deploy:full:
+        desc: Full deployment (bootstrap + deploy apps)
+        cmds:
+            - task: ansible:bootstrap
+            - task: ansible:deploy

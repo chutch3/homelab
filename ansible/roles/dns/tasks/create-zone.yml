@@ -1,0 +1,38 @@
+# ansible/roles/dns/tasks/create-zone.yml
+---
+- name: Get existing zones to check if base_domain already exists
+  uri:
+    url: "{{ dns_api_url }}/zones/primary"
+    method: GET
+    headers:
+      Authorization: "Bearer {{ dns_api_token }}"
+    status_code: 200
+    return_content: yes
+  register: existing_zones
+
+- name: Check if zone already exists
+  set_fact:
+    zone_exists: "{{ base_domain in existing_zones.json }}"
+
+- name: Create primary DNS zone
+  uri:
+    url: "{{ dns_api_url }}/zones/create"
+    method: POST
+    body_format: form-urlencoded
+    body:
+      token: "{{ dns_api_token }}"
+      zone: "{{ base_domain }}"
+      type: "Primary"
+    status_code: 200
+  when: not zone_exists
+  register: create_zone_result
+
+- name: Display zone creation status
+  debug:
+    msg: |
+      {% if not zone_exists %}
+      Zone '{{ base_domain }}' created successfully.
+      Response: {{ create_zone_result.json }}
+      {% else %}
+      Zone '{{ base_domain }}' already exists.
+      {% endif %}

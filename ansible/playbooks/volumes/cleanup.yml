@@ -1,0 +1,65 @@
+# ansible/playbooks/volumes/cleanup.yml
+---
+- name: Clean up stale CIFS volumes for a stack
+  hosts: all
+
+  vars:
+    # Mandatory: Name of the stack to clean up
+    stack_name: ""
+
+  tasks:
+    - name: Ensure stack_name is defined
+      ansible.builtin.fail:
+        msg: "The 'stack_name' variable must be defined (e.g., -e stack_name=sonarr)."
+      when: stack_name == ""
+
+    - name: Remove Docker stack/service
+      community.docker.docker_stack:
+        name: "{{ stack_name }}"
+        state: absent
+      run_once: true
+      delegate_to: "{{ groups['managers'][0] }}"
+      ignore_errors: yes
+
+    - name: Wait for Docker to clean up containers
+      pause:
+        seconds: 5
+
+    - name: Get volumes associated with the stack
+      command: 'docker volume ls --filter label=com.docker.stack.namespace={{ stack_name }} --format ''{% raw %}{{ .Name }}{% endraw %}'''
+      register: stack_volumes
+      changed_when: false
+      failed_when: false
+
+    - name: Inspect each volume to identify CIFS volumes
+      command: "docker volume inspect {{ item }}"
+      loop: "{{ stack_volumes.stdout_lines }}"
+      register: volume_inspections
+      changed_when: false
+      failed_when: false
+      when: stack_volumes.stdout_lines | length > 0
+
+    - name: Build list of orphaned CIFS volumes
+      set_fact:
+        orphaned_cifs_volumes: "{{ orphaned_cifs_volumes | default([]) + [item.item] }}"
+      loop: "{{ volume_inspections.results }}"
+      when:
+        - volume_inspections.results is defined
+        - item.stdout is defined
+        - (item.stdout | from_json)[0].Options is defined
+        - (item.stdout | from_json)[0].Options.type is defined
+        - (item.stdout | from_json)[0].Options.type == 'cifs'
+
+    - name: Remove orphaned CIFS volumes
+      command: "docker volume rm {{ item }}"
+      loop: "{{ orphaned_cifs_volumes | default([]) }}"
+      register: volume_removal
+      failed_when: false
+      changed_when: volume_removal.rc == 0
+
+    - name: Display cleanup summary
+      debug:
+        msg: |
+          Cleanup completed for stack '{{ stack_name }}' on {{ inventory_hostname }}:
+          - Found {{ stack_volumes.stdout_lines | length }} total volume(s)
+          - Removed {{ orphaned_cifs_volumes | default([]) | length }} orphaned CIFS volume(s)

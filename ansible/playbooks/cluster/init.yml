@@ -1,0 +1,59 @@
+# ansible/playbooks/cluster/init.yml
+---
+- name: Initialize Docker Swarm
+  hosts: managers
+  become: yes
+  vars:
+    ansible_python_interpreter: /usr/bin/python3
+
+  tasks:
+    - name: Check if already in swarm
+      command: docker info --format '{{ "{{" }}.Swarm.LocalNodeState{{ "}}" }}'
+      register: swarm_state
+      changed_when: false
+
+    - name: Initialize swarm if not already active
+      command: docker swarm init --advertise-addr {{ ansible_host }}
+      register: swarm_init_result
+      when: swarm_state.stdout != "active"
+
+    - name: Create traefik-public overlay network
+      community.docker.docker_network:
+        name: traefik-public
+        driver: overlay
+        attachable: yes
+        state: present
+      when: swarm_state.stdout != "active"
+
+    - name: Get worker join token
+      command: docker swarm join-token worker -q
+      register: worker_token
+      when: swarm_state.stdout != "active"
+
+    - name: Get manager join token
+      command: docker swarm join-token manager -q
+      register: manager_token
+      when: swarm_state.stdout != "active"
+
+    - name: Set fact for worker token
+      set_fact:
+        swarm_worker_join_token: "{{ worker_token.stdout }}"
+      when: swarm_state.stdout != "active"
+
+    - name: Set fact for manager token
+      set_fact:
+        swarm_manager_join_token: "{{ manager_token.stdout }}"
+      when: swarm_state.stdout != "active"
+
+    - name: Display swarm init results
+      debug:
+        msg: |
+          Docker Swarm initialized on {{ inventory_hostname }}.
+          Worker Join Token: {{ swarm_worker_join_token | default('N/A') }}
+          Manager Join Token: {{ swarm_manager_join_token | default('N/A') }}
+      when: swarm_state.stdout != "active"
+
+    - name: Display existing swarm info if already active
+      debug:
+        msg: "Node {{ inventory_hostname }} is already an active Docker Swarm manager."
+      when: swarm_state.stdout == "active"
