@@ -1,0 +1,30 @@
+# ansible/playbooks/cluster/join.yml
+---
+- name: Join worker nodes to Docker Swarm
+  hosts: workers
+  become: yes
+  vars:
+    ansible_python_interpreter: /usr/bin/python3
+    # This variable should be passed dynamically or obtained from a fact
+    # e.g., --extra-vars "manager_ip=192.168.1.100 manager_token=SWMTKN-1-..."
+
+  tasks:
+    - name: Ensure manager_ip and manager_token are defined
+      ansible.builtin.fail:
+        msg: "manager_ip and manager_token must be defined to join workers."
+      when: manager_ip is not defined or manager_token is not defined
+
+    - name: Check if already in swarm
+      command: docker info --format '{{ "{{" }}.Swarm.LocalNodeState{{ "}}" }}'
+      register: swarm_state
+      changed_when: false
+
+    - name: Join swarm if not already active
+      command: docker swarm join --token {{ manager_token }} {{ manager_ip }}:2377
+      when: swarm_state.stdout != "active"
+
+    - name: Apply node labels if defined
+      community.docker.docker_node:
+        hostname: "{{ inventory_hostname }}"
+        labels: "{{ node_labels }}"
+      when: swarm_state.stdout == "active" and node_labels is defined

@@ -10,6 +10,36 @@ source "${SCRIPT_DIR}/../cert.sh"
 # shellcheck disable=SC1091
 source "${SCRIPT_DIR}/../ssh.sh"
 
+# Get dirty modules from OMV dirty modules file
+# Args:
+#   $1: Path to dirtymodules.json file (default: /var/lib/openmediavault/dirtymodules.json)
+# Returns:
+#   JSON array of dirty modules or empty array
+omv_get_dirty_modules() {
+    local dirty_file="${1:-/var/lib/openmediavault/dirtymodules.json}"
+
+    if [ -f "$dirty_file" ]; then
+        jq -c '.' < "$dirty_file"
+    else
+        echo "[]"
+    fi
+}
+
+# Apply OMV configuration changes for dirty modules
+# Args:
+#   $1: JSON array of modules to apply (e.g., '["certificates","nginx"]')
+# Returns:
+#   0 on success, 1 on failure
+omv_apply_changes() {
+    local modules_json="$1"
+
+    if [ "$modules_json" != "[]" ]; then
+        omv-rpc -u admin "Config" "applyChanges" "{\"modules\":${modules_json},\"force\":false}"
+    else
+        echo "No pending changes to apply."
+    fi
+}
+
 # Generate OMV RPC command for certificate installation
 # Args:
 #   $1: Path to certificate file
@@ -173,11 +203,19 @@ omv_cert_install() {
             fi
         fi
 
-        # TODO: Refactor to extract SSH heredoc logic for better testability
-        # See https://github.com/chutch3/selfhosted.sh/issues/72
-        # Apply pending configuration changes in OMV UI
+        # Apply pending configuration changes for all dirty modules
         echo "Applying OMV configuration changes..."
-        omv-rpc -u admin "Config" "applyChanges" '{"modules":["certificates"],"force":false}'
+        MODULES_JSON=$(if [ -f /var/lib/openmediavault/dirtymodules.json ]; then \
+            cat /var/lib/openmediavault/dirtymodules.json | jq -c '.'; \
+        else \
+            echo "[]"; \
+        fi)
+
+        if [ "$MODULES_JSON" != "[]" ]; then
+            omv-rpc -u admin "Config" "applyChanges" "{\"modules\":${MODULES_JSON},\"force\":false}"
+        else
+            echo "No pending changes to apply."
+        fi
 
         # Write certificate files to disk
         omv-salt deploy run certificates
@@ -202,6 +240,8 @@ ENDSSH
 }
 
 # Export functions
+export -f omv_get_dirty_modules
+export -f omv_apply_changes
 export -f omv_cert_generate_rpc_command
 export -f omv_cert_copy_files
 export -f omv_cert_install

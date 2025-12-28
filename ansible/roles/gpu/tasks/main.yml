@@ -1,0 +1,66 @@
+# ansible/roles/gpu/tasks/main.yml
+---
+- name: Check for NVIDIA GPU
+  shell: lspci | grep -i nvidia
+  register: nvidia_check
+  changed_when: false
+  failed_when: false
+
+- name: Set GPU present fact
+  set_fact:
+    gpu_present: "{{ nvidia_check.rc == 0 }}"
+
+- name: Display GPU detection result
+  debug:
+    msg: "NVIDIA GPU {{ 'detected' if gpu_present else 'not detected' }}"
+
+- name: Skip GPU setup if no GPU present
+  meta: end_play
+  when: not gpu_present
+
+- name: Add NVIDIA Container Toolkit GPG key
+  get_url:
+    url: https://nvidia.github.io/libnvidia-container/gpgkey
+    dest: /tmp/nvidia-container-toolkit-keyring.gpg
+    mode: '0644'
+
+- name: Install NVIDIA GPG key
+  shell: |
+    gpg --dearmor -o /usr/share/keyrings/nvidia-container-toolkit-keyring.gpg \
+      /tmp/nvidia-container-toolkit-keyring.gpg
+  args:
+    creates: /usr/share/keyrings/nvidia-container-toolkit-keyring.gpg
+
+- name: Add NVIDIA Container Toolkit repository
+  shell: |
+    curl -s -L https://nvidia.github.io/libnvidia-container/stable/deb/nvidia-container-toolkit.list | \
+    sed 's#deb https://#deb [signed-by=/usr/share/keyrings/nvidia-container-toolkit-keyring.gpg] https://#g' | \
+    tee /etc/apt/sources.list.d/nvidia-container-toolkit.list
+  args:
+    creates: /etc/apt/sources.list.d/nvidia-container-toolkit.list
+
+- name: Install NVIDIA Container Toolkit
+  apt:
+    name: nvidia-container-toolkit
+    state: present
+    update_cache: yes
+
+- name: Configure Docker for NVIDIA runtime
+  command: nvidia-ctk runtime configure --runtime=docker
+  notify: restart docker
+
+- name: Flush handlers to restart Docker
+  meta: flush_handlers
+
+- name: Test GPU in container
+  command: >
+    docker run --rm --gpus all
+    nvidia/cuda:12.0.0-base-ubuntu22.04
+    nvidia-smi
+  changed_when: false
+  register: gpu_test
+
+- name: Display GPU test result
+  debug:
+    msg: "GPU test successful"
+  when: gpu_test.rc == 0

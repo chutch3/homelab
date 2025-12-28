@@ -1,0 +1,31 @@
+# ansible/playbooks/dns.yml
+---
+- name: Manage Technitium DNS
+  hosts: managers
+  vars:
+    base_domain: "{{ lookup('env', 'BASE_DOMAIN') }}"
+
+  pre_tasks:
+    - name: Authenticate with DNS API to get token
+      uri:
+        url: "{{ dns_api_url }}/user/login"
+        method: POST
+        body_format: form-urlencoded
+        body:
+          user: "{{ dns_admin_username }}"
+          pass: "{{ lookup('env', 'DNS_ADMIN_PASSWORD') }}"
+        status_code: 200
+        return_content: yes
+      register: auth_response
+
+    - name: Fail if authentication failed
+      fail:
+        msg: "Failed to obtain API token from Technitium DNS server. Response: {{ auth_response.json }}"
+      when: auth_response.json.token is not defined
+
+    - name: Set DNS API token for this playbook run
+      set_fact:
+        dns_api_token: "{{ auth_response.json.token }}"
+
+  roles:
+    - role: dns

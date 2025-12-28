@@ -1,0 +1,56 @@
+# ansible/playbooks/validate.yml
+---
+- name: Validate node bootstrap
+  hosts: all
+  become: yes
+  gather_facts: yes
+
+  tasks:
+    - name: Check Docker is running
+      service:
+        name: docker
+        state: started
+      check_mode: yes
+      register: docker_service
+
+    - name: Verify Docker works
+      command: docker ps
+      changed_when: false
+      register: docker_ps
+
+    - name: Check disk space
+      shell: df -h / | awk 'NR==2 {print $5}' | tr -d '%'
+      register: disk_usage
+      changed_when: false
+
+    - name: Warn if disk usage high
+      debug:
+        msg: "WARNING: Disk usage is {{ disk_usage.stdout }}%"
+      when: disk_usage.stdout | int > 80
+
+    - name: Check memory
+      debug:
+        msg: "Total memory: {{ ansible_memtotal_mb }}MB, Free: {{ ansible_memfree_mb }}MB"
+
+    - name: Verify internet connectivity
+      wait_for:
+        host: 8.8.8.8
+        port: 53
+        timeout: 5
+
+    - name: Read bootstrap state
+      slurp:
+        src: "{{ bootstrap_state_dir }}/bootstrap-state.json"
+      register: state_file
+
+    - name: Parse and display state
+      debug:
+        msg: "{{ state_file.content | b64decode | from_json }}"
+
+    - name: Validation summary
+      debug:
+        msg: |
+          ✓ Docker running: {{ docker_service.changed == false }}
+          ✓ Disk usage: {{ disk_usage.stdout }}%
+          ✓ Memory: {{ ansible_memtotal_mb }}MB
+          ✓ Bootstrap version: {{ (state_file.content | b64decode | from_json).version }}

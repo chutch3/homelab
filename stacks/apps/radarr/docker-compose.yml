@@ -9,7 +9,7 @@ services:
             - PGID=1000
             - TZ=${TZ}
         volumes:
-            - radarr:/config
+            - radarr_config:/config
             - torrents:/data/torrents
             - usenet:/data/usenet
         restart: unless-stopped
@@ -33,9 +33,12 @@ networks:
         external: true
 
 volumes:
-    radarr:
+    radarr_config:
         driver: local
-        # Using local storage for SQLite database (CIFS causes corruption)
+        driver_opts:
+            type: "none"
+            o: "bind"
+            device: "/mnt/iscsi/media-apps/radarr"
 
     torrents:
         driver: local

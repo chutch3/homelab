@@ -1,0 +1,60 @@
+# ansible/playbooks/deploy/stack.yml
+---
+- name: Deploy a single Docker Swarm stack
+  hosts: managers
+  vars:
+      # Mandatory: Name of the stack to deploy
+      stack_name: ""
+
+  tasks:
+      - name: Ensure stack_name is defined
+        ansible.builtin.fail:
+            msg: "The 'stack_name' variable must be defined (e.g., -e stack_name=my_app)."
+        when: stack_name == ""
+
+      - name: Resolve absolute path to compose file
+        ansible.builtin.set_fact:
+            compose_file_path: "{{ (playbook_dir ~ '/../../../stacks/apps/' ~ stack_name ~ '/docker-compose.yml') | realpath }}"
+
+      - name: Debug - Print resolved compose file path
+        ansible.builtin.debug:
+            msg: "Resolved compose file path: {{ compose_file_path }}"
+
+      - name: Check if compose file exists
+        ansible.builtin.stat:
+            path: "{{ compose_file_path }}"
+        register: compose_file_stat
+
+      - name: Fail if compose file does not exist
+        ansible.builtin.fail:
+            msg: "Compose file not found at: {{ compose_file_path }}"
+        when: not compose_file_stat.stat.exists
+
+      - name: Load .env file
+        ansible.builtin.slurp:
+            src: "{{ playbook_dir }}/../../../.env"
+        register: env_file_content
+
+      - name: Parse environment variables from .env
+        ansible.builtin.set_fact:
+            env_vars: "{{ dict(env_file_content.content | b64decode | regex_findall('^([A-Z_]+)=(.*)$', multiline=True)) }}"
+
+      - name: Attempt to deploy as an application stack
+        community.docker.docker_stack:
+            state: present
+            name: "{{ stack_name }}"
+            compose:
+                - "{{ compose_file_path }}"
+        environment: "{{ env_vars }}"
+        register: deploy_app_result
+        ignore_errors: no
+
+      - name: Report successful deployment
+        debug:
+            msg: "Stack '{{ stack_name }}' deployed successfully."
+        when: deploy_app_result is succeeded or deploy_infra_result is succeeded
+
+      - name: Fail if both deployments failed
+        fail:
+            msg: "Could not find or deploy stack '{{ stack_name }}'. Check that the stack name is correct and a docker-compose.yml exists in either 'stacks/' or 'stacks/apps/'."
+        when: deploy_app_result is failed and deploy_infra_result is failed

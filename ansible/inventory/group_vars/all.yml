@@ -1,0 +1,50 @@
+# ansible/inventory/group_vars/all.yml
+---
+# Common variables for all hosts
+# Safe to commit - no secrets!
+
+# Bootstrap configuration
+bootstrap_state_dir: /var/lib/homelab
+bootstrap_version: "1.0.0"
+
+# Docker configuration
+docker_users:
+    - "{{ ansible_user }}"
+
+# CIFS configuration
+cifs_packages:
+    - cifs-utils
+    - nfs-common
+
+# iSCSI configuration - shared block storage for Docker volumes
+iscsi_enabled: "{{ lookup('env', 'ISCSI_ENABLED') | default('false') | bool }}"
+iscsi_target_ip: "{{ lookup('env', 'NAS_IP') | default('192.168.86.189') }}"
+iscsi_target_port: "{{ lookup('env', 'ISCSI_TARGET_PORT') | default('3260') | int }}"
+iscsi_target_iqn: "{{ lookup('env', 'ISCSI_TARGET_IQN') }}"
+iscsi_mount_path: "{{ lookup('env', 'ISCSI_MOUNT_PATH') | default('/mnt/iscsi/media-apps') }}"
+
+# DNS configuration
+dns_api_url: "http://dns.diyhub.dev:5380/api"
+dns_admin_username: "admin"
+dns_admin_password: lookup('env', 'DNS_ADMIN_PASSWORD')
+
+# Firewall configuration (Commented out as per user's request)
+# firewall_allowed_ports:
+#   - { port: 22, proto: tcp, comment: 'SSH' }
+#   - { port: 80, proto: tcp, comment: 'HTTP' }
+#   - { port: 443, proto: tcp, comment: 'HTTPS' }
+#   - { port: 2377, proto: tcp, comment: 'Docker Swarm management' }
+#   - { port: 7946, proto: tcp, comment: 'Docker Swarm communication' }
+#   - { port: 7946, proto: udp, comment: 'Docker Swarm communication' }
+#   - { port: 4789, proto: udp, comment: 'Docker overlay network' }
+#   - { port: "{{ node_exporter_port }}", proto: tcp, comment: 'Node Exporter' }
+
+# SSH configuration
+ansible_ssh_private_key_file: "~/.ssh/selfhosted_rsa"
+ssh_disable_password_auth: true
+ssh_pubkey_authentication: true
+ssh_public_keys:
+    - "/home/cody/.ssh/selfhosted_rsa.pub"
+# Reference secrets (actual values in all.secret.yml)
+# cloudflare_token: "{{ vault_cloudflare_token }}"
+# aws_access_key: "{{ vault_aws_access_key }}"

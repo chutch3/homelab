@@ -34,6 +34,6 @@ volumes:
     prowlarr:
         driver: local
         driver_opts:
-            type: "cifs"
-            o: "username=${SMB_USERNAME},password=${SMB_PASSWORD},domain=${SMB_DOMAIN},vers=3.0,file_mode=0770,dir_mode=0770,uid=1000,gid=1000,soft,actimeo=30"
-            device: "//${NAS_SERVER}/prowlarr"
+            type: "none"
+            o: "bind"
+            device: "/mnt/iscsi/media-apps/prowlarr"

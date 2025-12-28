@@ -1,0 +1,36 @@
+# ansible/playbooks/update.yml
+---
+- name: Update existing nodes
+  hosts: all
+  become: yes
+
+  tasks:
+    - name: Update apt cache
+      apt:
+        update_cache: yes
+        cache_valid_time: 3600
+
+    - name: Upgrade all packages
+      apt:
+        upgrade: safe
+
+    - name: Check if reboot required
+      stat:
+        path: /var/run/reboot-required
+      register: reboot_required
+
+    - name: Notify if reboot needed
+      debug:
+        msg: "WARNING: Reboot required on {{ inventory_hostname }}"
+      when: reboot_required.stat.exists
+
+    - name: Update Docker if needed
+      import_role:
+        name: ../roles/docker
+      tags: ['docker']
+
+    - name: Update bootstrap state
+      shell: |
+        jq '.last_updated = "{{ ansible_date_time.iso8601 }}"'
+          {{ bootstrap_state_dir }}/bootstrap-state.json > /tmp/state.json
+        mv /tmp/state.json {{ bootstrap_state_dir }}/bootstrap-state.json

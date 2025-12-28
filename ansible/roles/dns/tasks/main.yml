@@ -1,0 +1,30 @@
+# ansible/roles/dns/tasks/main.yml
+---
+- name: Get API Token
+  ansible.builtin.include_tasks: get-token.yml
+
+- name: Perform DNS Action
+  block:
+    - name: Include Create Zone Task
+      ansible.builtin.include_tasks: create-zone.yml
+      when: dns_action == 'create_zone'
+
+    - name: Include Add Machine Records Task
+      ansible.builtin.include_tasks: add-machine-records.yml
+      when: dns_action == 'add_machine_records'
+
+    - name: Include Add Service CNAME Records Task
+      ansible.builtin.include_tasks: add-service-cnames.yml
+      when: dns_action == 'add_service_records'
+
+    - name: Include Configure All DNS Records Task
+      when: dns_action == 'configure'
+      block:
+        - name: Run Create Zone
+          ansible.builtin.include_tasks: create-zone.yml
+
+        - name: Run Add Machine Records
+          ansible.builtin.include_tasks: add-machine-records.yml
+
+        - name: Run Add Service CNAME Records
+          ansible.builtin.include_tasks: add-service-cnames.yml

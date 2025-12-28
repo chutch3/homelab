@@ -1,0 +1,11 @@
+# ansible/roles/common/handlers/main.yml
+---
+- name: restart cron
+  service:
+    name: cron
+    state: restarted
+
+- name: reload o2cb
+  systemd:
+    name: o2cb
+    state: reloaded

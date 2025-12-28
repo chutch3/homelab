@@ -1,0 +1,47 @@
+# ansible/playbooks/ops/teardown-stack.yml
+---
+- name: Tear down a single Docker Swarm stack and optionally its volumes
+  hosts: managers
+  vars:
+    # Mandatory: Name of the stack to tear down
+    stack_name: ""
+    # Optional: Set to true to remove associated volumes
+    remove_volumes: false
+
+  tasks:
+    - name: Ensure stack_name is defined
+      fail:
+        msg: "The 'stack_name' variable must be defined (e.g., -e stack_name=my_app)."
+      when: stack_name == ""
+
+    - name: Get volumes associated with the stack
+      command: 'docker volume ls --filter label=com.docker.stack.namespace={{ stack_name }} --format ''{% raw %}{{ .Name }}{% endraw %}'''
+      register: stack_volumes
+      changed_when: false
+      when: remove_volumes
+
+    - name: Remove the Docker Swarm stack
+      community.docker.docker_stack:
+        state: absent
+        name: "{{ stack_name }}"
+
+    - name: Remove associated Docker volumes
+      when: remove_volumes and stack_volumes.stdout_lines | length > 0
+      community.docker.docker_volume:
+        state: absent
+        name: "{{ item }}"
+      loop: "{{ stack_volumes.stdout_lines }}"
+
+    - name: Teardown summary
+      debug:
+        msg: |
+          Stack '{{ stack_name }}' has been removed.
+          {% if remove_volumes %}
+          {% if stack_volumes.stdout_lines | length > 0 %}
+          Removed volumes: {{ stack_volumes.stdout_lines | join(', ') }}
+          {% else %}
+          No volumes associated with '{{ stack_name }}' were found to remove.
+          {% endif %}
+          {% else %}
+          Volumes were preserved.
+          {% endif %}

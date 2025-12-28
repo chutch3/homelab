@@ -8,6 +8,7 @@
 Before we begin, make sure you have:
 
 - [x] **Docker Engine 24.0+** with Docker Compose v2
+- [x] **Ansible** installed on your control machine
 - [x] **Domain name** with Cloudflare DNS management
 - [x] **Cloudflare API credentials** (Global API Key or API Token)
 - [x] **Linux/Unix environment** (Ubuntu 20.04+, Debian 11+, or similar)
@@ -81,34 +82,38 @@ sonarr
 
 All these services have Docker Compose files and will be deployed automatically!
 
-### Step 4: Configure Multi-Node Setup (Optional)
-
-If you have multiple machines for Docker Swarm:
+### Step 4: Configure Multi-Node Setup
 
 ```bash
-# Copy and edit machines configuration
-cp machines.yaml.example machines.yaml
-nano machines.yaml
+# Copy and edit the Ansible inventory
+cp ansible/inventory/03-hosts.yml.example ansible/inventory/02-hosts.yml
+nano ansible/inventory/02-hosts.yml
 ```
-
-For single-machine setup, you can skip this step.
+For single-machine setup, you can just configure the `manager` host.
 
 ### Step 5: Deploy Everything
 
 Deploy all available services:
-
 ```bash
-./selfhosted.sh deploy
+# Install Ansible and dependencies
+task ansible:install
+
+# Bootstrap all nodes
+task ansible:bootstrap
+
+# Initialize the Docker Swarm cluster
+task ansible:cluster:init
+
+# Deploy all services
+task ansible:deploy:full
 ```
-
 Or deploy specific services only:
-
 ```bash
 # Deploy only homepage and actual budget
-./selfhosted.sh deploy --only-apps homepage,actual_server
+task ansible:deploy -- -e "only_apps=homepage,actual"
 
 # Deploy everything except heavy services
-./selfhosted.sh deploy --skip-apps photoprism,emby
+task ansible:deploy -- -e "skip_apps=photoprism,emby"
 ```
 
 ### Step 6: Access Your Services
@@ -159,14 +164,14 @@ The Homepage dashboard will show all your deployed services!
 
 ```bash
 # Deployment Commands
-./selfhosted.sh deploy                         # Deploy all services
-./selfhosted.sh deploy --only-apps service1,service2  # Deploy specific services
-./selfhosted.sh deploy --skip-apps service3   # Deploy all except specified
+task ansible:deploy:full                     # Deploy all services
+task ansible:deploy -- -e "only_apps=service1,service2"  # Deploy specific services
+task ansible:deploy -- -e "skip_apps=service3"   # Deploy all except specified
 
 # Cluster Management
-./selfhosted.sh cluster init                   # Initialize Docker Swarm
-./selfhosted.sh cluster status                 # Check cluster status
-./selfhosted.sh teardown                       # Destroy entire cluster
+task ansible:cluster:init                   # Initialize Docker Swarm
+task ansible:cluster:status                 # Check cluster status
+task ansible:teardown                       # Destroy entire cluster
 
 # Check Available Services
 ls stacks/apps/                                # See all available services
@@ -178,7 +183,7 @@ docker stack services <stack-name>            # Show services in a stack
 docker stack ps <stack-name>                  # Show tasks/containers
 
 # Monitoring
-./selfhosted.sh cluster status                     # Cluster health check
+task ansible:cluster:status                     # Cluster health check
 ```
 
 ## Troubleshooting Quick Fixes

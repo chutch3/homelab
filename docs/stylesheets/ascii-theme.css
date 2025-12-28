@@ -1,0 +1,230 @@
+:root {
+    --bg-color: #0D0D0D;
+    --text-color: #00FF41;
+    --accent-color: #FFB800;
+    --border-style: 1px solid var(--text-color);
+    --font-family: 'IBM Plex Mono', 'Menlo', 'Consolas', 'monaco', monospace;
+}
+
+/* --- General --- */
+body {
+    background-color: var(--bg-color);
+    color: var(--text-color);
+    font-family: var(--font-family);
+    font-size: 16px;
+    line-height: 1.6;
+    margin: 0;
+    padding: 0;
+    text-shadow: 0 0 5px var(--text-color); /* Phosphor glow effect */
+}
+
+h1, h2, h3, h4, h5, h6 {
+    color: var(--accent-color);
+    border-bottom: var(--border-style);
+    padding-bottom: 10px;
+    margin-top: 2rem;
+}
+
+a {
+    color: var(--text-color);
+    text-decoration: none;
+    background-color: #222;
+}
+
+a:hover {
+    background-color: var(--text-color);
+    color: var(--bg-color);
+}
+
+hr {
+    border: 0;
+    border-bottom: var(--border-style);
+    margin: 2rem 0;
+}
+
+/* --- Header --- */
+.ascii-header {
+    border-bottom: var(--border-style);
+    padding: 1rem;
+    text-align: center;
+}
+
+.ascii-logo {
+    color: var(--text-color);
+    font-size: 1rem;
+    white-space: pre;
+    text-align: center;
+    margin: 0 auto;
+}
+
+.header-links {
+    margin-top: 1rem;
+}
+
+.header-links a {
+    margin: 0 1rem;
+    padding: 0.5rem;
+}
+
+
+/* --- Layout --- */
+.ascii-container {
+    display: flex;
+    flex-wrap: wrap;
+}
+
+.ascii-nav {
+    width: 250px;
+    border-right: var(--border-style);
+    padding: 1rem;
+    height: calc(100vh - 200px);
+    overflow-y: auto;
+    box-sizing: border-box;
+    flex-shrink: 0; /* Prevents the nav from shrinking */
+}
+
+.ascii-content {
+    flex: 1;
+    padding: 1rem 2rem;
+    box-sizing: border-box;
+}
+
+
+/* --- Navigation --- */
+.ascii-nav ul {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+.ascii-nav li a {
+    display: block;
+    padding: 0.5rem;
+    margin-bottom: 5px;
+}
+
+.ascii-nav li.active > a {
+    background-color: var(--text-color);
+    color: var(--bg-color);
+}
+
+
+/* --- Content Elements --- */
+.ascii-content pre {
+    background-color: #1A1A1A;
+    border: var(--border-style);
+    padding: 1rem;
+    overflow-x: auto;
+}
+
+.ascii-content code {
+    background-color: #1A1A1A;
+    padding: 2px 5px;
+}
+
+.ascii-content pre code {
+    padding: 0;
+}
+
+.ascii-content table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.ascii-content th,
+.ascii-content td {
+    border: var(--border-style);
+    padding: 10px;
+    text-align: left;
+}
+
+.ascii-content th {
+    color: var(--accent-color);
+}
+
+.ascii-content blockquote {
+    border-left: 2px solid var(--accent-color);
+    padding-left: 1rem;
+    margin-left: 0;
+    font-style: italic;
+    color: #ccc;
+}
+
+
+/* --- Footer --- */
+.ascii-footer {
+    border-top: var(--border-style);
+    text-align: center;
+    padding: 1rem;
+    margin-top: 2rem;
+}
+
+/* --- Responsive --- */
+@media screen and (max-width: 768px) {
+    .ascii-logo {
+        font-size: 12px; /* Fixed font size for clarity */
+        overflow-x: auto;  /* Add scroll for very narrow screens */
+    }
+
+    .header-links a {
+        display: block;
+        margin: 0.5rem auto; /* Stack the links */
+    }
+
+    .ascii-container {
+        display: block;
+    }
+
+    .ascii-nav {
+        width: 100%;
+        border-right: none;
+        border-bottom: var(--border-style);
+        height: auto;
+        padding: 1rem;
+        box-sizing: border-box;
+    }
+
+    .ascii-content {
+        max-width: 100%;
+        padding: 1rem;
+        box-sizing: border-box;
+    }
+}
+
+/* --- Icon Sizing --- */
+.ascii-content .twemoji svg {
+    width: 1.2em;
+    height: 1.2em;
+    vertical-align: -0.2em;
+    fill: currentColor;
+}
+.fa {
+    font-size: 1.2em;
+    vertical-align: -0.2em;
+}
+
+/* --- General Image Sizing for potentially icon-like images --- */
+.ascii-content img {
+    max-width: 1.5em; /* Constrain width */
+    max-height: 1.5em; /* Constrain height */
+    height: auto;      /* Maintain aspect ratio */
+    vertical-align: middle; /* Align with text */
+    display: inline-block; /* Ensure it respects vertical-align */
+}
+
+/* --- Mermaid Diagram Styling --- */
+.mermaid svg {
+    background-color: var(--bg-color);
+}
+.mermaid path,
+.mermaid line,
+.mermaid rect,
+.mermaid polygon,
+.mermaid circle {
+    stroke: var(--text-color);
+    fill: var(--bg-color);
+}
+.mermaid text {
+    fill: var(--text-color);
+    stroke: none;
+}

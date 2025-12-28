@@ -6,86 +6,30 @@ This guide covers all the prerequisite setup steps needed before deploying the h
 
 You'll need to set up:
 
-1. **Docker Environment** - Sudoless Docker access on all nodes
-2. **Network Storage** (Optional) - OpenMediaVault or NAS with CIFS/SMB
-3. **Cloudflare** - Domain and API access for SSL certificates
-4. **SSH Access** - Key-based authentication between nodes
+1. **Docker Environment** - Ansible will install Docker, but you need a compatible OS.
+2. **Network Storage** (Optional) - OpenMediaVault or NAS with CIFS/SMB.
+3. **Cloudflare** - Domain and API access for SSL certificates.
+4. **SSH Access** - Key-based authentication between your control machine and all homelab nodes.
 
 ---
 
 ## 1. Docker Installation & Sudoless Access
 
-### Install Docker
+### OS Requirements
 
-Install Docker on all nodes (manager and workers):
+This playbook is tested on **Ubuntu 22.04+** and **Debian 11+**. Other Linux distributions may work but are not officially supported.
 
-=== "Ubuntu/Debian"
-    ```bash
-    # Install Docker using official script
-    curl -fsSL https://get.docker.com | sh
+### Docker Installation
 
-    # Verify installation
-    docker --version
-    docker compose version
-    ```
-
-=== "Manual Installation"
-    ```bash
-    # Update packages
-    sudo apt update
-    sudo apt install -y apt-transport-https ca-certificates curl software-properties-common
-
-    # Add Docker's official GPG key
-    curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor -o /usr/share/keyrings/docker-archive-keyring.gpg
-
-    # Add Docker repository
-    echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/docker-archive-keyring.gpg] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable" | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
-
-    # Install Docker
-    sudo apt update
-    sudo apt install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
-    ```
-
-### Enable Sudoless Docker Access
-
-**Why?** The deployment scripts need to run Docker commands without `sudo`. This requires adding your user to the `docker` group.
-
-```bash
-# Add current user to docker group
-sudo usermod -aG docker $USER
-
-# Apply the new group membership
-newgrp docker
-
-# Verify sudoless access works
-docker ps
-```
-
-**Important:** Run this on **all nodes** (manager and workers).
-
-!!! warning "Logout Required"
-    You may need to log out and back in for the group membership to take effect. If `newgrp docker` doesn't work, try:
-    ```bash
-    sudo su - $USER
-    ```
-
-### Test Docker Access
-
-Verify Docker works without sudo:
-
-```bash
-# Should work without sudo
-docker run hello-world
-
-# Check Docker Compose
-docker compose version
-```
+You do not need to install Docker yourself. The `ansible:bootstrap` command will automatically:
+- Install the correct version of Docker and Docker Compose.
+- Add your SSH user to the `docker` group for sudoless access.
 
 ---
 
 ## 2. Network Storage Setup (Optional)
 
-If you want to store service data on a NAS, you'll need to set up CIFS/SMB mounting.
+If you want to store service data on a NAS, you'll need to set up CIFS/SMB mounting. The `bootstrap` playbook will install the necessary `cifs-utils` on all nodes.
 
 ### Option A: OpenMediaVault (OMV)
 
@@ -156,43 +100,6 @@ If you already have a NAS (Synology, QNAP, TrueNAS, etc.):
 3. Create a user with read/write access
 4. Note the share path (e.g., `//nas-ip/homelab`)
 
-### Install CIFS Utils on Docker Nodes
-
-Install CIFS utilities on **all Docker nodes** that will mount network storage:
-
-```bash
-# Ubuntu/Debian
-sudo apt update
-sudo apt install -y cifs-utils
-
-# Verify installation
-mount.cifs -V
-```
-
-### Test NAS Connection
-
-From your Docker nodes:
-
-```bash
-# Create test mount point
-sudo mkdir -p /mnt/nas-test
-
-# Test mount (replace with your NAS details)
-sudo mount -t cifs //NAS_IP/homelab /mnt/nas-test -o username=homelab,password=YOUR_PASSWORD
-
-# Verify mount
-ls /mnt/nas-test
-
-# Create test file
-sudo touch /mnt/nas-test/test.txt
-ls /mnt/nas-test
-
-# Unmount
-sudo umount /mnt/nas-test
-```
-
-!!! success "Mount Successful"
-    If you can create files and see them, your NAS is configured correctly!
 
 ### Configure NAS in .env
 
@@ -300,58 +207,49 @@ nslookup traefik.yourdomain.com
 
 ## 4. SSH Key Setup
 
-The cluster management scripts use SSH to communicate between nodes.
+The Ansible playbooks use SSH to communicate between nodes.
 
 ### Generate SSH Key
 
-On your **manager node**:
+On your **control machine** (where you will run `task`):
 
 ```bash
 # Generate SSH key (if you don't have one)
-ssh-keygen -t rsa -b 4096 -f ~/.ssh/selfhosted_rsa -N ""
+ssh-keygen -t rsa -b 4096 -f ~/.ssh/id_rsa -N ""
 
 # This creates:
-# - ~/.ssh/selfhosted_rsa (private key)
-# - ~/.ssh/selfhosted_rsa.pub (public key)
+# - ~/.ssh/id_rsa (private key)
+# - ~/.ssh/id_rsa.pub (public key)
 ```
 
 ### Copy SSH Key to All Nodes
 
-Copy the public key to all worker nodes:
+The `ansible:bootstrap` command will automatically copy your public key to all nodes in your inventory. However, for this to work, you must be able to SSH into each node with a password for the *first time*.
 
+Alternatively, you can manually copy the key:
 ```bash
-# For each worker node
-ssh-copy-id -i ~/.ssh/selfhosted_rsa.pub user@worker-node-ip
+# For each homelab node
+ssh-copy-id -i ~/.ssh/id_rsa.pub user@homelab-node-ip
+```
 
-# Example:
-ssh-copy-id -i ~/.ssh/selfhosted_rsa.pub ubuntu@192.168.1.101
-ssh-copy-id -i ~/.ssh/selfhosted_rsa.pub ubuntu@192.168.1.102
+### Configure Ansible for SSH
+
+The Ansible inventory is pre-configured to use your default SSH key (`~/.ssh/id_rsa`). If you use a different key, you can specify it in `ansible/inventory/group_vars/all.yml`:
+
+```yaml
+ansible_ssh_private_key_file: '~/.ssh/your_custom_key'
 ```
 
 ### Test SSH Access
 
-Verify passwordless SSH works:
+Verify passwordless SSH works from your control machine to each homelab node:
 
 ```bash
 # Should connect without password prompt
-ssh -i ~/.ssh/selfhosted_rsa user@worker-node-ip
+ssh user@homelab-node-ip
 
 # Test command execution
-ssh -i ~/.ssh/selfhosted_rsa user@worker-node-ip "docker ps"
-```
-
-### Configure SSH Key Path
-
-The default SSH key path is `~/.ssh/selfhosted_rsa`. If you use a different path, set it in your environment:
-
-```bash
-export SSH_KEY_FILE=~/.ssh/your_custom_key
-```
-
-Or add to `.env`:
-
-```bash
-SSH_KEY_FILE=/home/user/.ssh/custom_key
+ssh user@homelab-node-ip "docker ps"
 ```
 
 ---
@@ -362,18 +260,14 @@ Before proceeding with deployment, verify:
 
 ### All Nodes (Manager + Workers)
 
-- [ ] Docker installed and running
-- [ ] Current user in `docker` group (sudoless access)
-- [ ] CIFS utils installed (if using NAS)
-- [ ] SSH access configured from manager
-- [ ] Required ports open (see below)
+- [ ] Compatible OS (Ubuntu 22.04+ or Debian 11+)
+- [ ] SSH access configured from your control machine.
 
 ### Network Storage (if applicable)
 
 - [ ] NAS/OMV installed and accessible
 - [ ] SMB/CIFS share created
 - [ ] User credentials configured
-- [ ] Test mount successful from all nodes
 
 ### Cloudflare
 
@@ -421,67 +315,17 @@ sudo ufw allow 4789/udp
 
 ## Troubleshooting
 
-### Docker Permission Denied
-
-**Error:** `permission denied while trying to connect to the Docker daemon socket`
-
-**Solution:**
-```bash
-# Verify user is in docker group
-groups $USER
-
-# Add user to docker group
-sudo usermod -aG docker $USER
-newgrp docker
-
-# Or restart session
-logout
-```
-
-### NAS Mount Fails
-
-**Error:** `mount error(13): Permission denied`
-
-**Check:**
-1. Verify SMB credentials are correct
-2. Check NAS share permissions
-3. Verify CIFS utils installed: `dpkg -l | grep cifs-utils`
-
-**Test manually:**
-```bash
-sudo mount -t cifs //NAS_IP/share /mnt/test \
-  -o username=user,password=pass,vers=3.0
-```
-
-### Cloudflare API Token Invalid
-
-**Error:** `Error getting DNS token` or `authentication failed`
-
-**Check:**
-1. Token has `Zone:DNS:Edit` and `Zone:Zone:Read` permissions
-2. Token is scoped to the correct zone/domain
-3. Token hasn't expired
-4. No typos in `.env` file
-
-**Test token:**
-```bash
-curl -X GET "https://api.cloudflare.com/client/v4/user/tokens/verify" \
-  -H "Authorization: Bearer YOUR_TOKEN" \
-  -H "Content-Type:application/json"
-```
-
 ### SSH Connection Fails
 
 **Error:** `Permission denied (publickey)`
 
 **Check:**
-1. Public key is in `~/.ssh/authorized_keys` on worker node
-2. SSH key permissions: `chmod 600 ~/.ssh/selfhosted_rsa`
-3. Correct username for worker node
+1. Your public key is in `~/.ssh/authorized_keys` on the remote node.
+2. The remote user's home directory and `.ssh` directory have correct permissions (`700` for `.ssh`, `600` for `authorized_keys`).
 
 **Debug:**
 ```bash
-ssh -v -i ~/.ssh/selfhosted_rsa user@worker-ip
+ssh -v user@homelab-node-ip
 ```
 
 ---
@@ -490,9 +334,9 @@ ssh -v -i ~/.ssh/selfhosted_rsa user@worker-ip
 
 Once all prerequisites are complete:
 
-1. [Configure machines.yaml](configuration.md) - Define your cluster nodes
-2. [Configure .env](configuration.md) - Set environment variables
-3. [First Deployment](first-deployment.md) - Deploy your homelab
+1. [Configure your inventory](configuration.md) - Define your cluster nodes in `ansible/inventory/02-hosts.yml`.
+2. [Configure .env](configuration.md) - Set environment variables.
+3. [First Deployment](first-deployment.md) - Deploy your homelab.
 
 ---
 

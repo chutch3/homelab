@@ -22,6 +22,7 @@ services:
             - "--entrypoints.web.address=:80"
             - "--entrypoints.websecure.address=:443"
             - "--entrypoints.metrics.address=:9100"
+            - "--entrypoints.hubitat.address=:8181"
 
             # ACME / Let's Encrypt (DNS-01 via Cloudflare)
             - "--certificatesresolvers.dns.acme.caServer=https://acme-v02.api.letsencrypt.org/directory"
@@ -48,6 +49,7 @@ services:
         ports:
             - "80:80"
             - "443:443"
+            - "8181:8181"
 
         healthcheck:
             test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8080/ping"]

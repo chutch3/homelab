@@ -10,7 +10,7 @@ services:
             - UMASK=002
             - TZ=${TZ}
         volumes:
-            - sonarr:/config
+            - sonarr_config:/config
             - torrents:/data/torrents
             - usenet:/data/usenet
         restart: unless-stopped
@@ -34,6 +34,13 @@ networks:
         external: true
 
 volumes:
+    sonarr_config:
+        driver: local
+        driver_opts:
+            type: "none"
+            o: "bind"
+            device: "/mnt/iscsi/media-apps/sonarr"
+
     torrents:
         driver: local
         driver_opts:
@@ -47,10 +54,3 @@ volumes:
             type: "cifs"
             o: "username=${SMB_USERNAME},password=${SMB_PASSWORD},domain=${SMB_DOMAIN},vers=3.0,file_mode=0770,dir_mode=0770,uid=1000,gid=1000,soft,actimeo=30"
             device: "//${NAS_SERVER}/usenet"
-
-    sonarr:
-        driver: local
-        driver_opts:
-            type: "cifs"
-            o: "username=${SMB_USERNAME},password=${SMB_PASSWORD},domain=${SMB_DOMAIN},vers=3.0,file_mode=0770,dir_mode=0770,uid=1000,gid=1000,soft,actimeo=30"
-            device: "//${NAS_SERVER}/sonarr"

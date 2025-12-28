@@ -1,0 +1,66 @@
+# ansible/playbooks/ops/teardown.yml
+---
+- name: Teardown Homelab Docker Swarm services and optionally volumes
+  hosts: managers
+  become: yes
+
+  vars:
+    remove_volumes: false # Set to true to remove volumes
+    leave_swarm: false    # Set to true to make nodes leave swarm
+
+  tasks:
+    - name: Get list of all running stack services
+      command: docker stack ls --format "{{ '{' }} .Name {{ '}' }}"
+      register: running_stacks
+      changed_when: false
+
+    - name: Stop and remove Docker Swarm stacks
+      community.docker.docker_stack:
+        state: absent
+        name: "{{ item }}"
+      loop: "{{ running_stacks.stdout_lines }}"
+      when: running_stacks.stdout_lines | length > 0
+
+    - name: Get list of all Docker volumes
+      command: docker volume ls --format "{{ '{' }} .Name {{ '}' }}"
+      register: all_volumes
+      changed_when: false
+      when: remove_volumes
+
+    - name: Remove all Docker volumes
+      community.docker.docker_volume:
+        state: absent
+        name: "{{ item }}"
+      loop: "{{ all_volumes.stdout_lines }}"
+      when: remove_volumes and all_volumes.stdout_lines | length > 0
+
+    - name: Force all nodes to leave the swarm
+      command: docker swarm leave --force
+      when: leave_swarm
+      delegate_to: "{{ item }}"
+      loop: "{{ ansible_play_hosts }}"
+      ignore_errors: yes
+
+    - name: Teardown summary
+      debug:
+        msg: |
+          Teardown complete.
+          {% if running_stacks.stdout_lines | length > 0 %}
+          Removed stacks: {{ running_stacks.stdout_lines | join(', ') }}
+          {% else %}
+          No stacks were running.
+          {% endif %}
+
+          {% if remove_volumes %}
+            {% if all_volumes.stdout_lines | length > 0 %}
+            Removed volumes: {{ all_volumes.stdout_lines | join(', ') }}
+            {% else %}
+            No volumes were present to remove.
+            {% endif %}
+          {% else %}
+          Volumes were preserved.
+          {% endif %}
+
+          {% if leave_swarm %}
+          Nodes have been instructed to leave the swarm.
+          {% endif %}
