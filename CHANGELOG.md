@@ -2,6 +2,37 @@
 
 <!-- version list -->
 
+## v3.0.0 (2025-12-29)
+
+### Continuous Integration
+
+- Add write permissions to release workflow for semantic-release
+  ([`4055cff`](https://github.com/chutch3/homelab/commit/4055cff9ba6a61b580806319b4ac2c8589064d62))
+
+- Fix broken pipelines
+  ([`20d844c`](https://github.com/chutch3/homelab/commit/20d844c45f492a7f46cc15b3c56180819421bfd0))
+
+- Fixed release pipeline
+  ([`b8cb9ab`](https://github.com/chutch3/homelab/commit/b8cb9ab6e06702c29d0481733caa88a916d17e12))
+
+- Move release to workflow_dispatch and cleanup other jobs
+  ([`b8724ab`](https://github.com/chutch3/homelab/commit/b8724ab6ea9f0862a98ffa9ac87a429fd5e8523e))
+
+### Documentation
+
+- Renamed from selfhosted.sh to homelab
+  ([`3ad84b1`](https://github.com/chutch3/homelab/commit/3ad84b180bcf86ea6ab63950738a1da6b80e0447))
+
+### Features
+
+- Switched to ansible and taskfile
+  ([`a0b8203`](https://github.com/chutch3/homelab/commit/a0b8203de3ccd0336969fa09a299bce1aa8c488b))
+
+### Breaking Changes
+
+- Deployment system migrated from docker-compose to ansible and taskfile
+
+
 ## v2.3.1 (2025-12-20)
 
 ### Bug Fixes
