@@ -91,3 +91,24 @@ scrape_configs:
   - job_name: "traefik"
     static_configs:
       - targets: ["traefik:9100"]
+
+  # NVIDIA GPU metrics
+  - job_name: "nvidia-gpu"
+    dockerswarm_sd_configs:
+      - host: unix:///var/run/docker.sock
+        role: nodes
+    relabel_configs:
+      # Use node address with GPU exporter port
+      - source_labels: [__meta_dockerswarm_node_address]
+        target_label: __address__
+        replacement: $1:9400
+      # Use node hostname as instance label
+      - source_labels: [__meta_dockerswarm_node_hostname]
+        target_label: instance
+      # Add node ID label
+      - source_labels: [__meta_dockerswarm_node_id]
+        target_label: node_id
+      # Only keep nodes with GPU label
+      - source_labels: [__meta_dockerswarm_node_label_gpu]
+        regex: "(true|True)"
+        action: keep

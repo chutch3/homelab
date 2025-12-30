@@ -27,4 +27,5 @@
       community.docker.docker_node:
         hostname: "{{ inventory_hostname }}"
         labels: "{{ node_labels }}"
-      when: swarm_state.stdout == "active" and node_labels is defined
+      when: node_labels is defined
+      delegate_to: "{{ groups['managers'][0] }}"

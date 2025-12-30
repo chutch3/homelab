@@ -16,6 +16,7 @@
     url: https://download.docker.com/linux/{{ ansible_distribution | lower }}/gpg
     state: present
     keyring: /etc/apt/keyrings/docker.gpg
+  when: docker_version_check.rc != 0
 
 - name: Add Docker repository
   apt_repository:
@@ -28,6 +29,7 @@
     filename: docker
   vars:
     dpkg_architecture: "{{ lookup('pipe', 'dpkg --print-architecture') }}"
+  when: docker_version_check.rc != 0
 
 - name: Install Docker packages
   apt:
@@ -39,6 +41,7 @@
       - docker-compose-plugin
     state: present
     update_cache: yes
+  when: docker_version_check.rc != 0
 
 - name: Ensure Docker service is running
   service:
@@ -53,18 +56,36 @@
     append: yes
   loop: "{{ docker_users }}"
 
-- name: Configure Docker daemon
-  copy:
-    content: |
-      {
-        "log-driver": "json-file",
-        "log-opts": {
-          "max-size": "10m",
-          "max-file": "3"
+- name: Check if daemon.json exists
+  stat:
+    path: /etc/docker/daemon.json
+  register: daemon_json_stat
+
+- name: Read existing daemon.json
+  slurp:
+    src: /etc/docker/daemon.json
+  register: existing_daemon_json
+  when: daemon_json_stat.stat.exists
+
+- name: Parse existing daemon.json or create default
+  set_fact:
+    docker_daemon_config: "{{ existing_daemon_json.content | b64decode | from_json if daemon_json_stat.stat.exists else {} }}"
+
+- name: Merge Docker daemon configuration
+  set_fact:
+    docker_daemon_config: "{{ docker_daemon_config | combine({
+        'log-driver': 'json-file',
+        'log-opts': {
+          'max-size': '10m',
+          'max-file': '3'
         },
-        "metrics-addr": "127.0.0.1:9323",
-        "experimental": false
-      }
+        'metrics-addr': '127.0.0.1:9323',
+        'experimental': false
+      }, recursive=true) }}"
+
+- name: Write Docker daemon configuration
+  copy:
+    content: "{{ docker_daemon_config | to_nice_json }}\n"
     dest: /etc/docker/daemon.json
     mode: '0644'
   notify: restart docker
@@ -73,6 +94,7 @@
   command: docker run --rm hello-world
   changed_when: false
   register: docker_test
+  when: docker_version_check.rc != 0
 
 - name: Get Docker Compose version
   command: docker compose version

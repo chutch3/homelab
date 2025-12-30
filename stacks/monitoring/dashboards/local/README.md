@@ -16,13 +16,19 @@ Comprehensive monitoring dashboard for all Docker Swarm nodes showing:
 - System Load Average (1m, 5m, 15m)
 - Node Uptime
 
+**GPU Metrics (on GPU-enabled nodes):**
+- GPU Utilization (%)
+- GPU Memory Usage (%)
+- GPU Temperature (Celsius)
+- GPU Power Consumption (Watts)
+
 **Container Metrics:**
 - Running Containers by Node (count)
 - Container Memory Usage by Node (bytes)
 - Container CPU Usage by Node (%)
 
 **Current Status:**
-- Bar gauge showing current CPU and RAM usage across all nodes
+- Bar gauge showing current CPU, RAM, and GPU usage across all nodes
 
 **Features:**
 - Auto-refresh every 30 seconds
@@ -48,6 +54,12 @@ All dashboards use the following Prometheus data sources:
    - Metrics: `engine_*`
    - Port: 9323
    - Requires daemon metrics configuration
+
+4. **NVIDIA GPU Exporter** - GPU metrics (on GPU-enabled nodes)
+   - Metrics: `nvidia_smi_*`
+   - Port: 9835
+   - Deployed as global service (only on nodes with `gpu=true` label)
+   - Requires NVIDIA drivers and GPU hardware
 
 ## Deployment
 
@@ -109,6 +121,22 @@ sum by (instance) (container_memory_usage_bytes{name=~".+"})
 sum by (instance) (rate(container_cpu_usage_seconds_total{name=~".+"}[5m])) * 100
 ```
 
+### NVIDIA GPU Exporter Queries
+
+```promql
+# GPU Utilization (%)
+nvidia_smi_utilization_gpu_ratio{instance=~".*"} * 100
+
+# GPU Memory Usage (%)
+100 * (nvidia_smi_memory_used_bytes / nvidia_smi_memory_total_bytes)
+
+# GPU Temperature (Celsius)
+nvidia_smi_temperature_gpu
+
+# GPU Power Consumption (Watts)
+nvidia_smi_power_draw_watts
+```
+
 ## Troubleshooting
 
 ### Dashboard not showing data
@@ -128,6 +156,11 @@ sum by (instance) (rate(container_cpu_usage_seconds_total{name=~".+"}[5m])) * 10
    docker service ps monitoring_cadvisor
    ```
 
+4. Verify NVIDIA GPU Exporter is running on GPU nodes:
+   ```bash
+   docker service ps monitoring_nvidia-gpu-exporter
+   ```
+
 ### Metrics missing from specific node
 
 1. Check if the service is running on that node:
@@ -139,6 +172,7 @@ sum by (instance) (rate(container_cpu_usage_seconds_total{name=~".+"}[5m])) * 10
    ```bash
    curl http://<node-ip>:9100/metrics
    curl http://<node-ip>:8080/metrics
+   curl http://<node-ip>:9835/metrics  # GPU metrics
    ```
 
 ### Dashboard shows "No Data"
@@ -146,6 +180,28 @@ sum by (instance) (rate(container_cpu_usage_seconds_total{name=~".+"}[5m])) * 10
 1. Verify time range is appropriate (default: last 1 hour)
 2. Check that Prometheus datasource is configured correctly
 3. Verify scrape interval in Prometheus configuration (default: 15s)
+
+### GPU metrics not showing
+
+1. Ensure the node is labeled correctly:
+   ```bash
+   docker node update --label-add gpu=true <node-name>
+   ```
+
+2. Verify NVIDIA drivers are installed on the host:
+   ```bash
+   nvidia-smi
+   ```
+
+3. Check GPU exporter logs:
+   ```bash
+   docker service logs monitoring_nvidia-gpu-exporter
+   ```
+
+4. Verify GPU devices are accessible in container:
+   ```bash
+   docker exec <container-id> ls -la /dev/nvidia*
+   ```
 
 ## Adding New Panels
 
@@ -181,7 +237,3 @@ Example panel structure:
 ## Dashboard IDs
 
 - `homelab-node-resources`: Node resource monitoring dashboard (UID)
-
-## Version History
-
-- v1.0.0 (2024-12-04): Initial dashboard with CPU, memory, disk, network, and container metrics
