@@ -41,6 +41,8 @@ services:
     image: ghcr.io/immich-app/immich-machine-learning:${IMMICH_VERSION:-release}
     volumes:
       - immich_model_cache:/cache
+    environment:
+      NVIDIA_VISIBLE_DEVICES: "all"
     restart: unless-stopped
     healthcheck:
       test: ["CMD-SHELL", "python /usr/src/healthcheck.py || exit 1"]
@@ -51,6 +53,9 @@ services:
       - traefik-public
     deploy:
       replicas: 1
+      placement:
+        constraints:
+          - node.labels.gpu == true
 
   immich-redis:
     image: registry.hub.docker.com/library/redis:6.2-alpine@sha256:84882e87b54734154586e5f8abd4dce69fe7311315e2fc6d67c29614c8de2672

@@ -1,0 +1,66 @@
+# ansible/playbooks/cluster/update-labels.yml
+---
+- name: Update Docker Swarm node labels from inventory
+  hosts: managers
+  gather_facts: no
+
+  tasks:
+    - name: Check if swarm is active
+      command: docker info --format '{{ "{{" }}.Swarm.LocalNodeState{{ "}}" }}'
+      register: swarm_state
+      changed_when: false
+      failed_when: false
+
+    - name: Fail if not in swarm
+      fail:
+        msg: "This node is not part of a Docker Swarm"
+      when: swarm_state.stdout != "active"
+
+    - name: Get all swarm nodes
+      command: docker node ls --format '{{ "{{" }}.Hostname{{ "}}" }}'
+      register: swarm_nodes
+      changed_when: false
+
+    - name: Get current labels for each node
+      shell: docker node inspect {{ item }} --format '{{ "{{" }}json .Spec.Labels{{ "}}" }}'
+      loop: "{{ groups['all'] }}"
+      when: item in swarm_nodes.stdout_lines
+      register: current_labels_raw
+      changed_when: false
+
+    - name: Sync labels for each inventory node
+      shell: |
+        # Get current labels (excluding machine.* system labels)
+        CURRENT_LABELS=$(docker node inspect {{ item.item }} --format '{{ "{{" }}json .Spec.Labels{{ "}}" }}' | jq -r 'to_entries | map(select(.key | startswith("machine.") | not)) | map(.key) | .[]' 2>/dev/null || echo "")
+
+        # Desired labels from inventory
+        {% if hostvars[item.item].node_labels is defined %}
+        DESIRED_LABELS="{{ hostvars[item.item].node_labels.keys() | list | join(' ') }}"
+        {% else %}
+        DESIRED_LABELS=""
+        {% endif %}
+
+        # Add/update labels from inventory
+        {% if hostvars[item.item].node_labels is defined %}
+        {% for key, value in hostvars[item.item].node_labels.items() %}
+        docker node update --label-add {{ key }}={{ value }} {{ item.item }}
+        {% endfor %}
+        {% endif %}
+
+        # Remove labels not in inventory (but keep machine.* labels)
+        for label in $CURRENT_LABELS; do
+          if ! echo "$DESIRED_LABELS" | grep -qw "$label"; then
+            echo "Removing label: $label"
+            docker node update --label-rm "$label" {{ item.item }}
+          fi
+        done
+      loop: "{{ current_labels_raw.results }}"
+      when:
+        - item.item in swarm_nodes.stdout_lines
+        - not item.skipped | default(false)
+      register: sync_result
+      changed_when: "'Removing label:' in sync_result.stdout"
+
+    - name: Display updated nodes
+      debug:
+        msg: "Synced labels for all nodes in inventory (added, updated, and removed labels to match inventory)"
