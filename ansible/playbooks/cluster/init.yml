@@ -57,3 +57,9 @@
       debug:
         msg: "Node {{ inventory_hostname }} is already an active Docker Swarm manager."
       when: swarm_state.stdout == "active"
+
+    - name: Apply node labels if defined
+      community.docker.docker_node:
+        hostname: "{{ inventory_hostname }}"
+        labels: "{{ node_labels }}"
+      when: node_labels is defined

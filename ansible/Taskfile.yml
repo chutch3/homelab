@@ -21,7 +21,7 @@ tasks:
         desc: Bootstrap all nodes with Ansible
         dir: "{{.ROOT_DIR}}"
         cmds:
-            - ANSIBLE_CONFIG=ansible/ansible.cfg ansible-playbook --become -i ansible/inventory/ ansible/playbooks/bootstrap.yml {{.CLI_ARGS}}
+            - ANSIBLE_CONFIG=ansible/ansible.cfg ansible-playbook --become -K -i ansible/inventory/ ansible/playbooks/bootstrap.yml {{.CLI_ARGS}}
 
     # Ansible Bootstrap specific node
     bootstrap:node:
@@ -98,6 +98,12 @@ tasks:
         cmds:
             - ANSIBLE_CONFIG=ansible/ansible.cfg ansible-playbook -i ansible/inventory/ ansible/playbooks/cluster/status.yml {{.CLI_ARGS}}
 
+    cluster:update-labels:
+        desc: Update Docker Swarm node labels from inventory
+        dir: "{{.ROOT_DIR}}"
+        cmds:
+            - ANSIBLE_CONFIG=ansible/ansible.cfg ansible-playbook -i ansible/inventory/ ansible/playbooks/cluster/update-labels.yml {{.CLI_ARGS}}
+
     # Ansible Application Deployment
     deploy:
         desc: Deploy all Docker Swarm stacks
@@ -115,7 +121,7 @@ tasks:
         desc: 'Deploy a single Docker Swarm stack (usage: task ansible:deploy:stack -- -e "stack_name=my_app")'
         dir: "{{.ROOT_DIR}}"
         cmds:
-            - ANSIBLE_CONFIG=ansible/ansible.cfg poetry run ansible-playbook -i ansible/inventory/ ansible/playbooks/deploy/stack.yml {{.CLI_ARGS}}
+            - ANSIBLE_CONFIG=ansible/ansible.cfg ansible-playbook -i ansible/inventory/ ansible/playbooks/deploy/stack.yml {{.CLI_ARGS}}
 
     # Ansible Volume Management
     volume:ls:

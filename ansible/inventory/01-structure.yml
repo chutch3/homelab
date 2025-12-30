@@ -15,11 +15,6 @@ all:
             vars:
                 swarm_role: worker
 
-        # GPU nodes group (hosts added in 02-hosts.yml)
-        gpu_nodes:
-            vars:
-                gpu_install_drivers: false # Assume drivers pre-installed
-
     vars:
         # Global settings (no secrets!)
         ansible_python_interpreter: /usr/bin/python3

@@ -12,23 +12,28 @@
             msg: "The 'stack_name' variable must be defined (e.g., -e stack_name=my_app)."
         when: stack_name == ""
 
-      - name: Resolve absolute path to compose file
+      - name: Check for compose file in stacks/ directory
+        ansible.builtin.stat:
+            path: "{{ (playbook_dir ~ '/../../../stacks/' ~ stack_name ~ '/docker-compose.yml') | realpath }}"
+        register: compose_file_stacks
+
+      - name: Check for compose file in stacks/apps/ directory
+        ansible.builtin.stat:
+            path: "{{ (playbook_dir ~ '/../../../stacks/apps/' ~ stack_name ~ '/docker-compose.yml') | realpath }}"
+        register: compose_file_apps
+
+      - name: Set compose file path
         ansible.builtin.set_fact:
-            compose_file_path: "{{ (playbook_dir ~ '/../../../stacks/apps/' ~ stack_name ~ '/docker-compose.yml') | realpath }}"
+            compose_file_path: "{{ compose_file_stacks.stat.path if compose_file_stacks.stat.exists else compose_file_apps.stat.path }}"
 
       - name: Debug - Print resolved compose file path
         ansible.builtin.debug:
             msg: "Resolved compose file path: {{ compose_file_path }}"
 
-      - name: Check if compose file exists
-        ansible.builtin.stat:
-            path: "{{ compose_file_path }}"
-        register: compose_file_stat
-
       - name: Fail if compose file does not exist
         ansible.builtin.fail:
             msg: "Compose file not found at: {{ compose_file_path }}"
-        when: not compose_file_stat.stat.exists
+        when: not compose_file_stacks.stat.exists and not compose_file_apps.stat.exists
 
       - name: Load .env file
         ansible.builtin.slurp:
@@ -52,9 +57,4 @@
       - name: Report successful deployment
         debug:
             msg: "Stack '{{ stack_name }}' deployed successfully."
-        when: deploy_app_result is succeeded or deploy_infra_result is succeeded
-
-      - name: Fail if both deployments failed
-        fail:
-            msg: "Could not find or deploy stack '{{ stack_name }}'. Check that the stack name is correct and a docker-compose.yml exists in either 'stacks/' or 'stacks/apps/'."
-        when: deploy_app_result is failed and deploy_infra_result is failed
+        when: deploy_app_result is succeeded

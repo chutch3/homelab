@@ -141,6 +141,30 @@ services:
             labels:
                 - "traefik.enable=false"
 
+    nvidia-gpu-exporter:
+        image: nvcr.io/nvidia/k8s/dcgm-exporter:3.3.8-3.6.0-ubuntu22.04
+        environment:
+            - NVIDIA_VISIBLE_DEVICES=all
+        ports:
+            - target: 9400
+              published: 9400
+              mode: host
+        networks:
+            - traefik-public
+        deploy:
+            mode: global
+            placement:
+                constraints:
+                    - node.labels.gpu == true
+            resources:
+                reservations:
+                    generic_resources:
+                        - discrete_resource_spec:
+                            kind: 'NVIDIA-GPU'
+                            value: 0
+            labels:
+                - "traefik.enable=false"
+
 networks:
     traefik-public:
         external: true
