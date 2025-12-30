@@ -18,16 +18,10 @@
   meta: end_play
   when: not gpu_present
 
-- name: Add NVIDIA Container Toolkit GPG key
-  get_url:
-    url: https://nvidia.github.io/libnvidia-container/gpgkey
-    dest: /tmp/nvidia-container-toolkit-keyring.gpg
-    mode: '0644'
-
-- name: Install NVIDIA GPG key
+- name: Download and install NVIDIA Container Toolkit GPG key
   shell: |
-    gpg --dearmor -o /usr/share/keyrings/nvidia-container-toolkit-keyring.gpg \
-      /tmp/nvidia-container-toolkit-keyring.gpg
+    curl -fsSL https://nvidia.github.io/libnvidia-container/gpgkey | \
+      gpg --dearmor -o /usr/share/keyrings/nvidia-container-toolkit-keyring.gpg
   args:
     creates: /usr/share/keyrings/nvidia-container-toolkit-keyring.gpg
 
@@ -45,8 +39,59 @@
     state: present
     update_cache: yes
 
+- name: Check if NVIDIA runtime is already configured
+  shell: grep -q '"nvidia"' /etc/docker/daemon.json || echo "not_configured"
+  register: nvidia_runtime_check
+  changed_when: false
+  failed_when: false
+
 - name: Configure Docker for NVIDIA runtime
   command: nvidia-ctk runtime configure --runtime=docker
+  notify: restart docker
+  when: nvidia_runtime_check.stdout == "not_configured"
+
+- name: Get GPU UUIDs for Swarm generic resources
+  shell: |
+    nvidia-smi -L | grep -oP 'UUID: \K[^)]+' | awk '{print "NVIDIA-GPU="$1}' | paste -sd ','
+  register: gpu_uuids
+  changed_when: false
+
+- name: Display detected GPU UUIDs
+  debug:
+    msg: "Detected GPUs: {{ gpu_uuids.stdout }}"
+
+- name: Read current Docker daemon.json
+  slurp:
+    src: /etc/docker/daemon.json
+  register: daemon_json_content
+  failed_when: false
+
+- name: Parse current daemon.json or create new
+  set_fact:
+    daemon_json: "{{ daemon_json_content.content | b64decode | from_json if daemon_json_content.content is defined else {} }}"
+
+- name: Add generic resources to daemon.json
+  set_fact:
+    daemon_json: "{{ daemon_json | combine({'node-generic-resources': gpu_uuids.stdout.split(',')}, recursive=true) }}"
+  when: gpu_uuids.stdout | length > 0
+
+- name: Ensure nvidia runtime is set as default
+  set_fact:
+    daemon_json: "{{ daemon_json | combine({'default-runtime': 'nvidia'}, recursive=true) }}"
+
+- name: Write updated daemon.json
+  copy:
+    content: "{{ daemon_json | to_nice_json }}\n"
+    dest: /etc/docker/daemon.json
+    mode: '0644'
+  notify: restart docker
+
+- name: Configure NVIDIA Container Runtime for Swarm
+  lineinfile:
+    path: /etc/nvidia-container-runtime/config.toml
+    regexp: '^#?\s*swarm-resource\s*='
+    line: 'swarm-resource = "DOCKER_RESOURCE_NVIDIA-GPU"'
+    state: present
   notify: restart docker
 
 - name: Flush handlers to restart Docker
@@ -59,8 +104,11 @@
     nvidia-smi
   changed_when: false
   register: gpu_test
+  when: nvidia_runtime_check.stdout == "not_configured"
 
 - name: Display GPU test result
   debug:
     msg: "GPU test successful"
-  when: gpu_test.rc == 0
+  when:
+    - nvidia_runtime_check.stdout == "not_configured"
+    - gpu_test.rc == 0
