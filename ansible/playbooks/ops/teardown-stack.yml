@@ -14,31 +14,74 @@
         msg: "The 'stack_name' variable must be defined (e.g., -e stack_name=my_app)."
       when: stack_name == ""
 
-    - name: Get volumes associated with the stack
+    - name: Get volumes associated with the stack (by label)
       command: 'docker volume ls --filter label=com.docker.stack.namespace={{ stack_name }} --format ''{% raw %}{{ .Name }}{% endraw %}'''
-      register: stack_volumes
+      register: stack_volumes_by_label
       changed_when: false
       when: remove_volumes
 
+    - name: Get volumes associated with the stack (by name prefix - fallback)
+      command: 'docker volume ls --filter name={{ stack_name }}_ --format ''{% raw %}{{ .Name }}{% endraw %}'''
+      register: stack_volumes_by_name
+      changed_when: false
+      when: remove_volumes and (stack_volumes_by_label.stdout_lines | default([]) | length == 0)
+
+    - name: Read docker-compose.yml to find volume names (locally)
+      set_fact:
+        compose_content: "{{ lookup('file', playbook_dir + '/../../../stacks/apps/' + stack_name + '/docker-compose.yml', errors='ignore') | from_yaml }}"
+      when: remove_volumes and (stack_volumes_by_label.stdout_lines | default([]) | length == 0) and (stack_volumes_by_name.stdout_lines | default([]) | length == 0)
+      ignore_errors: true
+
+    - name: Parse volume names from docker-compose.yml
+      set_fact:
+        compose_volumes: "{{ compose_content.volumes.keys() | list }}"
+      when: remove_volumes and compose_content is defined and compose_content.volumes is defined
+
+    - name: Check which compose volumes actually exist
+      command: "docker volume inspect {{ item }}"
+      loop: "{{ compose_volumes | default([]) }}"
+      register: volume_exists
+      failed_when: false
+      changed_when: false
+      when: remove_volumes and compose_volumes is defined
+
+    - name: Build list of existing volumes from compose file
+      set_fact:
+        stack_volumes_from_compose: "{{ volume_exists.results | selectattr('rc', 'equalto', 0) | map(attribute='item') | list }}"
+      when: remove_volumes and volume_exists is defined and volume_exists.results is defined
+
+    - name: Combine volume lists
+      set_fact:
+        stack_volumes: "{{ (stack_volumes_by_label.stdout_lines | default([])) + (stack_volumes_by_name.stdout_lines | default([])) + (stack_volumes_from_compose | default([])) }}"
+      when: remove_volumes
+
     - name: Remove the Docker Swarm stack
-      community.docker.docker_stack:
-        state: absent
-        name: "{{ stack_name }}"
+      ansible.builtin.command:
+        cmd: "docker stack rm {{ stack_name }}"
+      register: stack_removal
+      failed_when: false
+      changed_when: stack_removal.rc == 0
+
+    - name: Wait for stack to fully stop
+      pause:
+        seconds: 5
+      when: remove_volumes and stack_volumes | length > 0
 
     - name: Remove associated Docker volumes
-      when: remove_volumes and stack_volumes.stdout_lines | length > 0
-      community.docker.docker_volume:
-        state: absent
-        name: "{{ item }}"
-      loop: "{{ stack_volumes.stdout_lines }}"
+      when: remove_volumes and stack_volumes | length > 0
+      ansible.builtin.command:
+        cmd: "docker volume rm -f {{ item }}"
+      loop: "{{ stack_volumes }}"
+      register: volume_removal
+      failed_when: false
 
     - name: Teardown summary
       debug:
         msg: |
           Stack '{{ stack_name }}' has been removed.
           {% if remove_volumes %}
-          {% if stack_volumes.stdout_lines | length > 0 %}
-          Removed volumes: {{ stack_volumes.stdout_lines | join(', ') }}
+          {% if stack_volumes | default([]) | length > 0 %}
+          Removed volumes: {{ stack_volumes | join(', ') }}
           {% else %}
           No volumes associated with '{{ stack_name }}' were found to remove.
           {% endif %}
