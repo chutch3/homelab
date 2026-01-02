@@ -80,7 +80,7 @@ Browse our comprehensive catalog of self-hosted services. Each service is pre-co
 
 #### Quick Deploy
 ```bash
-./homelab deploy --only-apps actual_server
+task ansible:deploy:stack -- -e "stack_name=actual_server"
 ```
 
 [Learn more about Actual Budget →](https://actualbudget.org/)
@@ -115,7 +115,7 @@ Browse our comprehensive catalog of self-hosted services. Each service is pre-co
 
 #### Quick Deploy
 ```bash
-./homelab deploy --only-apps photoprism
+task ansible:deploy:stack -- -e "stack_name=photoprism"
 ```
 
 [Learn more about PhotoPrism →](https://photoprism.app/)
@@ -171,7 +171,7 @@ This service is planned for the next release. Want to help implement it?
 
 #### Quick Deploy
 ```bash
-./homelab deploy --only-apps homeassistant
+task ansible:deploy:stack -- -e "stack_name=homeassistant"
 ```
 
 [Learn more about Home Assistant →](https://www.home-assistant.io/)
@@ -202,7 +202,7 @@ This service is planned for the next release. Want to help implement it?
 
 #### Quick Deploy
 ```bash
-./homelab deploy --only-apps portainer
+task ansible:deploy:stack -- -e "stack_name=portainer"
 ```
 
 [Learn more about Portainer →](https://www.portainer.io/)
@@ -233,7 +233,7 @@ This service is planned for the next release. Want to help implement it?
 
 #### Quick Deploy
 ```bash
-./homelab deploy --only-apps cryptpad
+task ansible:deploy:stack -- -e "stack_name=cryptpad"
 ```
 
 [Learn more about CryptPad →](https://cryptpad.fr/)
@@ -264,7 +264,7 @@ This service is planned for the next release. Want to help implement it?
 
 #### Quick Deploy
 ```bash
-./homelab deploy --only-apps homepage
+task ansible:deploy:stack -- -e "stack_name=homepage"
 ```
 
 [Learn more about Homepage →](https://gethomepage.dev/)
@@ -317,7 +317,7 @@ volumes:
 ### 3. Deploy Your Service
 
 ```bash
-./homelab deploy --only-apps myservice
+task ansible:deploy:stack -- -e "stack_name=myservice"
 ```
 
 ### 4. Contribute Back

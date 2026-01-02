@@ -142,7 +142,7 @@ Deploy your entire homelab with just a few commands:
 
 ```bash
 # 1. Clone and setup
-git clone https://github.com/yourusername/homelab.git
+git clone https://github.com/chutch3/homelab.git
 cd homelab
 
 # 2. Configure your environment
@@ -150,7 +150,6 @@ cp .env.example .env
 nano .env  # Set your domain, Cloudflare credentials, etc.
 
 # 3. Configure your hosts
-cp ansible/inventory/03-hosts.yml.example ansible/inventory/02-hosts.yml
 nano ansible/inventory/02-hosts.yml # Add your hosts and their roles
 
 # 4. Install Ansible and dependencies
@@ -171,49 +170,42 @@ task ansible:deploy:full
 
 Or deploy specific services only:
 ```bash
-# Deploy only essential services
-task ansible:deploy -- -e "only_apps=homepage,actual"
-
-# Deploy everything except heavy media services
-task ansible:deploy -- -e "skip_apps=photoprism,emby"
+# Deploy only the homepage service
+task ansible:deploy:stack -- -e "stack_name=homepage"
 ```
 
 ## 🏗️ Architecture Overview
 
 ```mermaid
 graph TB
-    subgraph "🎯 Docker Swarm Homelab Platform"
-        ENV["📄 .env<br/>🔑 Configuration & Credentials"]
-        INVENTORY["⚙️ ansible/inventory/<br/>🏠 Multi-Node Setup"]
-        STACKS["📦 stacks/<br/>📁 Service Compose Files"]
-
-        subgraph "🏗️ Infrastructure Stack"
-            DNS["🌐 Technitium DNS<br/>Internal Resolution"]
-            TRAEFIK["🚪 Traefik Proxy<br/>SSL + Routing"]
-            MONITORING["📊 Prometheus/Grafana<br/>System Monitoring"]
-        end
-
-        subgraph "📱 Application Services"
-            APPS["🏠 Homepage Dashboard<br/>💰 Actual Budget<br/>🎬 Media Services<br/>🏡 Home Assistant<br/>📝 Collaboration Tools"]
-        end
-
-        subgraph "💾 Storage Layer"
-            CIFS["🗂️ SMB/CIFS Volumes<br/>Network Storage"]
-            LOCAL["💽 Local Docker Volumes<br/>Node Storage"]
-        end
+    subgraph "User & Configuration"
+        USER[🧑‍💻 User]
+        TASK[🔵 Taskfile.yml]
+        DOT_ENV["📄 .env"]
+        INVENTORY["⚙️ ansible/inventory/02-hosts.yml"]
+        STACKS_DIR["📁 stacks/"]
     end
 
-    ENV --> STACKS
-    INVENTORY --> STACKS
-    STACKS --> DNS
-    STACKS --> TRAEFIK
-    STACKS --> MONITORING
-    STACKS --> APPS
+    subgraph "Orchestration"
+        ANSIBLE["🤖 Ansible Playbooks"]
+    end
 
-    DNS --> APPS
-    TRAEFIK --> APPS
-    APPS --> CIFS
-    APPS --> LOCAL
+    subgraph "Docker Swarm Cluster"
+        MANAGER["👑 Manager Node"]
+        WORKER["- Worker Node"]
+        TRAEFIK["🚪 Traefik Proxy"]
+        APPS["🚀 Apps"]
+    end
+
+    USER -- runs --> TASK
+    TASK -- triggers --> ANSIBLE
+    ANSIBLE -- reads --> DOT_ENV
+    ANSIBLE -- reads --> INVENTORY
+    ANSIBLE -- reads --> STACKS_DIR
+    ANSIBLE -- deploys to --> MANAGER
+    MANAGER -- manages --> WORKER
+    MANAGER -- runs --> TRAEFIK
+    MANAGER -- runs --> APPS
 ```
 
 ## 🚀 Getting Started

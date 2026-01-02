@@ -71,12 +71,11 @@ DNS_SERVER_FORWARDERS=1.1.1.1,1.0.0.1
 
 ### Configure Multi-Node Setup
 
-```bash
-# Copy machines example
-cp ansible/inventory/03-hosts.yml.example ansible/inventory/02-hosts.yml
+Create `ansible/inventory/02-hosts.yml` with your server details:
 
-# Edit with your server details
-vim ansible/inventory/02-hosts.yml
+```bash
+# Create and edit your hosts file
+nano ansible/inventory/02-hosts.yml
 ```
 
 ```yaml title="ansible/inventory/02-hosts.yml"
