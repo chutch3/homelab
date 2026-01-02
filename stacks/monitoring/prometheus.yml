@@ -2,6 +2,9 @@ global:
   scrape_interval: 15s
   evaluation_interval: 15s
 
+rule_files:
+  - /etc/prometheus/alert-rules.yml
+
 scrape_configs:
   # Prometheus itself
   - job_name: "prometheus"
@@ -112,3 +115,52 @@ scrape_configs:
       - source_labels: [__meta_dockerswarm_node_label_gpu]
         regex: "(true|True)"
         action: keep
+
+  # Speedtest Exporter (internet bandwidth monitoring)
+  - job_name: "speedtest"
+    scrape_interval: 30m
+    scrape_timeout: 2m
+    dockerswarm_sd_configs:
+      - host: unix:///var/run/docker.sock
+        role: nodes
+    relabel_configs:
+      # Use node address with Speedtest Exporter port
+      - source_labels: [__meta_dockerswarm_node_address]
+        target_label: __address__
+        replacement: $1:9798
+      # Use node hostname as instance label
+      - source_labels: [__meta_dockerswarm_node_hostname]
+        target_label: instance
+      # Add node ID label
+      - source_labels: [__meta_dockerswarm_node_id]
+        target_label: node_id
+      # Only scrape manager node (where speedtest-exporter runs)
+      - source_labels: [__meta_dockerswarm_node_role]
+        regex: manager
+        action: keep
+
+  # iperf3 Exporter (inter-node bandwidth testing)
+  - job_name: "iperf3-bandwidth"
+    metrics_path: /probe
+    scrape_interval: 30m
+    scrape_timeout: 5m
+    dockerswarm_sd_configs:
+      - host: unix:///var/run/docker.sock
+        role: nodes
+    relabel_configs:
+      # Set target to Docker gateway IP (same on all nodes: 172.17.0.1)
+      - target_label: __param_target
+        replacement: 172.17.0.1:5201
+      # Use node hostname as instance label
+      - source_labels: [__meta_dockerswarm_node_hostname]
+        target_label: instance
+      # Add node ID label
+      - source_labels: [__meta_dockerswarm_node_id]
+        target_label: node_id
+      # Add node label for better identification
+      - source_labels: [__meta_dockerswarm_node_hostname]
+        target_label: node
+      # Scrape each node's exporter at node_address:9579
+      - source_labels: [__meta_dockerswarm_node_address]
+        target_label: __address__
+        replacement: $1:9579
