@@ -1,0 +1,12 @@
+FROM python:3.12-alpine
+
+# Install iperf3, verify version and create non-root user
+RUN apk add --no-cache iperf3=3.19.1-r0 && \
+    iperf3 --version && \
+    adduser -D -u 10001 iperf3user
+USER iperf3user
+
+EXPOSE 5201
+
+# Run iperf3 in server mode
+CMD ["iperf3", "-s"]
