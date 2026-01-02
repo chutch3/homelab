@@ -14,7 +14,8 @@
       when: service_name == ""
 
     - name: Get volumes associated with the service
-      command: 'docker volume ls --filter label=com.docker.stack.namespace={{ service_name }} --format ''{% raw %}{{ .Name }}{% endraw %}'''
+      ansible.builtin.command:
+        cmd: docker volume ls --filter label=com.docker.stack.namespace={{ service_name }} --format {{ '{{' }} .Name {{ '}}' }}
       register: service_volumes
       changed_when: false
 
@@ -24,12 +25,13 @@
       when: service_volumes.stdout_lines | length == 0
 
     - name: Inspect each volume
-      command: docker volume inspect {{ item }}
+      ansible.builtin.command:
+        cmd: docker volume inspect {{ item }}
       loop: "{{ service_volumes.stdout_lines }}"
       register: inspected_volumes
       changed_when: false
 
     - name: Display inspected volume details
-      debug:
+      ansible.builtin.debug:
         msg: "{{ item.stdout | from_json }}"
       loop: "{{ inspected_volumes.results }}"
