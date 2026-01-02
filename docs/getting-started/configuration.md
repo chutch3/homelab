@@ -113,16 +113,18 @@ GROQ_API_KEY=your_groq_api_key
 OPENROUTER_KEY=your_openrouter_key
 ```
 
-## Multi-Node Configuration (Full Example: `ansible/inventory/02-hosts.yml`)
+## Multi-Node Configuration
 
-For multi-node Docker Swarm deployments, configure your infrastructure in the Ansible inventory. You should copy this example to `ansible/inventory/02-hosts.yml` and customize it with your actual infrastructure details.
+For multi-node Docker Swarm deployments, configure your infrastructure in the Ansible inventory. You should create a file named `ansible/inventory/02-hosts.yml` and add your server details.
 
 ```bash
-cp ansible/inventory/03-hosts.yml.example ansible/inventory/02-hosts.yml
-vim ansible/inventory/02-hosts.yml
+# Create and edit your hosts file
+nano ansible/inventory/02-hosts.yml
 ```
 
-```yaml title="ansible/inventory/02-hosts.yml"
+**Example `ansible/inventory/02-hosts.yml`:**
+
+```yaml
 all:
   children:
     managers:

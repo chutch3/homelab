@@ -84,12 +84,12 @@ All these services have Docker Compose files and will be deployed automatically!
 
 ### Step 4: Configure Multi-Node Setup
 
+Create and edit the Ansible inventory file:
+
 ```bash
-# Copy and edit the Ansible inventory
-cp ansible/inventory/03-hosts.yml.example ansible/inventory/02-hosts.yml
 nano ansible/inventory/02-hosts.yml
 ```
-For single-machine setup, you can just configure the `manager` host.
+For single-machine setup, you can just configure the `manager` host. For a multi-node setup, add `workers`.
 
 ### Step 5: Deploy Everything
 
@@ -110,10 +110,8 @@ task ansible:deploy:full
 Or deploy specific services only:
 ```bash
 # Deploy only homepage and actual budget
-task ansible:deploy -- -e "only_apps=homepage,actual"
-
-# Deploy everything except heavy services
-task ansible:deploy -- -e "skip_apps=photoprism,emby"
+task ansible:deploy:stack -- -e "stack_name=homepage"
+task ansible:deploy:stack -- -e "stack_name=actual_server"
 ```
 
 ### Step 6: Access Your Services
@@ -121,7 +119,7 @@ task ansible:deploy -- -e "skip_apps=photoprism,emby"
 Once deployment completes, access your services at:
 
 - **Homepage Dashboard**: `https://homepage.yourdomain.com`
-- **Actual Budget**: `https://budget.yourdomain.com`
+- **Actual Budget**: `https://actual.yourdomain.com`
 - **Home Assistant**: `https://homeassistant.yourdomain.com`
 - **And many more...**
 
@@ -165,22 +163,20 @@ The Homepage dashboard will show all your deployed services!
 ```bash
 # Deployment Commands
 task ansible:deploy:full                     # Deploy all services
-task ansible:deploy -- -e "only_apps=service1,service2"  # Deploy specific services
-task ansible:deploy -- -e "skip_apps=service3"   # Deploy all except specified
+task ansible:deploy:stack -- -e "stack_name=service1"  # Deploy a specific service
 
 # Cluster Management
 task ansible:cluster:init                   # Initialize Docker Swarm
 task ansible:cluster:status                 # Check cluster status
-task ansible:teardown                       # Destroy entire cluster
+task ansible:teardown:full                  # Destroy entire cluster (including data)
 
 # Check Available Services
 ls stacks/apps/                                # See all available services
-ls stacks/apps/*/docker-compose.yml           # List services with compose files
 
 # Docker Swarm Management
 docker stack ls                                # List deployed stacks
 docker stack services <stack-name>            # Show services in a stack
-docker stack ps <stack-name>                  # Show tasks/containers
+docker stack ps <stack-name>                  # Show tasks/containers for a stack
 
 # Monitoring
 task ansible:cluster:status                     # Cluster health check
