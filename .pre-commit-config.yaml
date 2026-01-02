@@ -31,16 +31,14 @@ repos:
       hooks:
           - id: gitleaks
 
-    - repo: https://github.com/ansible/ansible-lint
-      rev: v24.9.2
+    - repo: local
       hooks:
           - id: ansible-lint
-            files: ^ansible/(playbooks|roles)/.*\.(ya?ml|ansible)$
-            args:
-                - "--profile=basic"
-            exclude: ^(stacks/|tests/|\.github/|docker-compose|Taskfile|mkdocs|\.pre-commit)
-            additional_dependencies:
-                - ansible-core>=2.13.3
+            name: Ansible Lint
+            entry: scripts/dev/run-ansible-lint.sh
+            language: system
+            files: \.
+            pass_filenames: true
 
     # Ansible syntax validation
     - repo: local
