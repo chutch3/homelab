@@ -2,7 +2,7 @@ version: "3.8"
 
 services:
     traefik:
-        image: traefik:v3.5.1
+        image: traefik:v3.6.1
 
         command:
             # Logging
