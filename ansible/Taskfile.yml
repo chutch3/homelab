@@ -184,3 +184,21 @@ tasks:
         dir: "{{.ROOT_DIR}}"
         cmds:
             - ANSIBLE_CONFIG=ansible/ansible.cfg ansible-playbook -i ansible/inventory/ ansible/playbooks/ops/teardown-stack.yml {{.CLI_ARGS}}
+
+    ops:system-prune:
+        desc: Docker system prune on all nodes (dry run by default)
+        dir: "{{.ROOT_DIR}}"
+        cmds:
+            - ANSIBLE_CONFIG=ansible/ansible.cfg ansible-playbook -i ansible/inventory/ ansible/playbooks/ops/system-prune.yml {{.CLI_ARGS}}
+
+    ops:system-prune:execute:
+        desc: Execute docker system prune on all nodes (DESTRUCTIVE - removes all unused data including volumes)
+        dir: "{{.ROOT_DIR}}"
+        cmds:
+            - ANSIBLE_CONFIG=ansible/ansible.cfg ansible-playbook -i ansible/inventory/ ansible/playbooks/ops/system-prune.yml -e "execute_prune=true" {{.CLI_ARGS}}
+
+    ops:system-prune:no-volumes:
+        desc: Execute docker system prune on all nodes (preserves volumes)
+        dir: "{{.ROOT_DIR}}"
+        cmds:
+            - ANSIBLE_CONFIG=ansible/ansible.cfg ansible-playbook -i ansible/inventory/ ansible/playbooks/ops/system-prune.yml -e "execute_prune=true include_volumes=false" {{.CLI_ARGS}}
