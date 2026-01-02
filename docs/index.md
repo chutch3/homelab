@@ -179,33 +179,33 @@ task ansible:deploy:stack -- -e "stack_name=homepage"
 ```mermaid
 graph TB
     subgraph "User & Configuration"
-        USER[🧑‍💻 User]
-        TASK[🔵 Taskfile.yml]
-        DOT_ENV["📄 .env"]
-        INVENTORY["⚙️ ansible/inventory/02-hosts.yml"]
-        STACKS_DIR["📁 stacks/"]
+        USER("User")
+        TASK("Taskfile.yml")
+        DOT_ENV(".env")
+        INVENTORY("ansible/inventory/02-hosts.yml")
+        STACKS_DIR("stacks/")
     end
 
     subgraph "Orchestration"
-        ANSIBLE["🤖 Ansible Playbooks"]
+        ANSIBLE("Ansible Playbooks")
     end
 
     subgraph "Docker Swarm Cluster"
-        MANAGER["👑 Manager Node"]
-        WORKER["- Worker Node"]
-        TRAEFIK["🚪 Traefik Proxy"]
-        APPS["🚀 Apps"]
+        MANAGER("Manager Node")
+        WORKER("Worker Node")
+        TRAEFIK("Traefik Proxy")
+        APPS("Apps")
     end
 
-    USER -- runs --> TASK
-    TASK -- triggers --> ANSIBLE
-    ANSIBLE -- reads --> DOT_ENV
-    ANSIBLE -- reads --> INVENTORY
-    ANSIBLE -- reads --> STACKS_DIR
-    ANSIBLE -- deploys to --> MANAGER
-    MANAGER -- manages --> WORKER
-    MANAGER -- runs --> TRAEFIK
-    MANAGER -- runs --> APPS
+    USER -- "runs" --> TASK
+    TASK -- "triggers" --> ANSIBLE
+    ANSIBLE -- "reads" --> DOT_ENV
+    ANSIBLE -- "reads" --> INVENTORY
+    ANSIBLE -- "reads" --> STACKS_DIR
+    ANSIBLE -- "deploys to" --> MANAGER
+    MANAGER -- "manages" --> WORKER
+    MANAGER -- "runs" --> TRAEFIK
+    MANAGER -- "runs" --> APPS
 ```
 
 ## 🚀 Getting Started
