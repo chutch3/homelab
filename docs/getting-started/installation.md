@@ -35,7 +35,7 @@ cd homelab
 Create your cluster configuration in the Ansible inventory:
 
 ```bash
-cp ansible/inventory/03-hosts.yml.example ansible/inventory/02-hosts.yml
+# Create and edit your hosts file
 nano ansible/inventory/02-hosts.yml
 ```
 
