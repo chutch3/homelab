@@ -9,56 +9,56 @@ The system is built on a **stacks-based architecture** using Ansible and Docker 
 ```mermaid
 graph TB
     subgraph "User Interface"
-        USER[🧑‍💻 User] -- runs --> TASK["🔵 Taskfile.yml<br/>(e.g., task ansible:deploy:full)"]
+        USER("User") -- runs --> TASK("Taskfile.yml (e.g., task ansible:deploy:full)")
     end
 
     subgraph "Configuration Files"
-        DOT_ENV["📄 .env<br/>Secrets & Variables"]
-        INVENTORY["⚙️ ansible/inventory/<br/>Host & Group Definitions"]
-        STACKS_DIR["📁 stacks/<br/>One folder per service"]
+        DOT_ENV(".env (Secrets & Variables)")
+        INVENTORY("ansible/inventory/ (Host & Group Definitions)")
+        STACKS_DIR("stacks/ (One folder per service)")
     end
 
     subgraph "Orchestration Engine"
-        ANSIBLE["🤖 Ansible<br/>(ansible-playbook)"]
-        PLAYBOOKS["📚 ansible/playbooks/<br/>(e.g., deploy/stacks.yml)"]
+        ANSIBLE("Ansible (ansible-playbook)")
+        PLAYBOOKS("ansible/playbooks/ (e.g., deploy/stacks.yml)")
     end
 
     subgraph "Deployment Target: Docker Swarm Cluster"
-        MANAGER["👑 Manager Node"]
-        WORKERS["- Worker Nodes"]
-        SWARM_NETWORK["🕸️ Overlay Network<br/>(traefik-public)"]
+        MANAGER("Manager Node")
+        WORKERS("Worker Nodes")
+        SWARM_NETWORK("Overlay Network (traefik-public)")
     end
 
     subgraph "Core Running Services"
-        TRAEFIK["🚪 Traefik<br/>(Reverse Proxy)"]
-        DNS["🌐 Technitium DNS<br/>(Internal DNS)"]
-        MONITORING["📊 Prometheus/Grafana<br/>(Monitoring)"]
+        TRAEFIK("Traefik (Reverse Proxy)")
+        DNS("Technitium DNS (Internal DNS)")
+        MONITORING("Prometheus/Grafana (Monitoring)")
     end
 
     subgraph "Application Services"
-        APPS["🚀 Applications<br/>(Home Assistant, Photoprism, etc.)"]
+        APPS("Applications (Home Assistant, etc.)")
     end
 
     %% Data Flow
     USER --> TASK
-    TASK -- triggers --> ANSIBLE
-    ANSIBLE -- reads --> PLAYBOOKS
-    ANSIBLE -- uses --> DOT_ENV
-    ANSIBLE -- uses --> INVENTORY
-    ANSIBLE -- reads service definitions from --> STACKS_DIR
+    TASK -- "triggers" --> ANSIBLE
+    ANSIBLE -- "reads" --> PLAYBOOKS
+    ANSIBLE -- "uses" --> DOT_ENV
+    ANSIBLE -- "uses" --> INVENTORY
+    ANSIBLE -- "reads service definitions from" --> STACKS_DIR
 
     %% Deployment Flow
-    ANSIBLE -- deploys to --> MANAGER
-    MANAGER -- manages --> WORKERS
-    MANAGER -- creates --> SWARM_NETWORK
-    MANAGER -- deploys --> TRAEFIK
-    MANAGER -- deploys --> DNS
-    MANAGER -- deploys --> MONITORING
-    MANAGER -- deploys --> APPS
+    ANSIBLE -- "deploys to" --> MANAGER
+    MANAGER -- "manages" --> WORKERS
+    MANAGER -- "creates" --> SWARM_NETWORK
+    MANAGER -- "deploys" --> TRAEFIK
+    MANAGER -- "deploys" --> DNS
+    MANAGER -- "deploys" --> MONITORING
+    MANAGER -- "deploys" --> APPS
 
     %% Service Interaction
-    TRAEFIK -- routes traffic to --> APPS
-    DNS -- resolves domains for --> APPS
+    TRAEFIK -- "routes traffic to" --> APPS
+    DNS -- "resolves domains for" --> APPS
 end
 ```
 
