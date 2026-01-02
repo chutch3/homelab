@@ -1,0 +1,95 @@
+# ansible/playbooks/ops/system-prune.yml
+---
+- name: Docker system prune on all nodes
+  hosts: all
+
+  vars:
+    # Optional: Set to true to actually execute the prune (default: false for safety)
+    execute_prune: false
+    # Optional: Include volumes in prune (default: true)
+    include_volumes: true
+    # Optional: Force prune without confirmation (default: false)
+    force: false
+
+  tasks:
+    - name: Check Docker service status
+      ansible.builtin.systemd:
+        name: docker
+      register: docker_service
+      failed_when: false
+
+    - name: Fail if Docker is not running
+      ansible.builtin.fail:
+        msg: "Docker service is not running on {{ inventory_hostname }}"
+      when: docker_service.status.ActiveState != "active"
+
+    - name: Get current disk usage (before prune)
+      ansible.builtin.command: docker system df
+      register: disk_usage_before
+      changed_when: false
+
+    - name: Display current disk usage
+      ansible.builtin.debug:
+        msg: |
+          Current Docker disk usage on {{ inventory_hostname }}:
+          {{ disk_usage_before.stdout }}
+
+    - name: Show what would be pruned (dry run)
+      ansible.builtin.command: >
+        docker system prune
+        {{ '--volumes' if include_volumes else '' }}
+        --all
+        --force
+      register: prune_dry_run
+      changed_when: false
+      check_mode: yes
+      when: not execute_prune
+
+    - name: Warn about dry run mode
+      ansible.builtin.debug:
+        msg: |
+          DRY RUN MODE - No changes will be made.
+          To execute the prune, run with: -e "execute_prune=true"
+          To skip volumes, run with: -e "include_volumes=false"
+      when: not execute_prune
+
+    - name: Execute docker system prune
+      ansible.builtin.command: >
+        docker system prune
+        {{ '--volumes' if include_volumes else '' }}
+        --all
+        --force
+      register: prune_result
+      changed_when: prune_result.rc == 0
+      when: execute_prune
+
+    - name: Get disk usage after prune
+      ansible.builtin.command: docker system df
+      register: disk_usage_after
+      changed_when: false
+      when: execute_prune
+
+    - name: Display prune results
+      ansible.builtin.debug:
+        msg: |
+          Docker system prune completed on {{ inventory_hostname }}:
+
+          Disk usage BEFORE:
+          {{ disk_usage_before.stdout }}
+
+          Disk usage AFTER:
+          {{ disk_usage_after.stdout }}
+
+          Prune output:
+          {{ prune_result.stdout }}
+      when: execute_prune
+
+    - name: Display summary for all nodes
+      ansible.builtin.debug:
+        msg: |
+          {% if execute_prune %}
+          ✓ System prune executed on {{ inventory_hostname }}
+          {% else %}
+          ⚠ DRY RUN - No changes made on {{ inventory_hostname }}
+          {% endif %}
+          Volumes included: {{ include_volumes }}
