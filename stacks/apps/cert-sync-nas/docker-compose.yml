@@ -19,7 +19,7 @@ services:
       # Mount SSH key from Docker secret
       - source: cert_sync_ssh_key
         target: /ssh-key/id_rsa
-        mode: 0400
+        mode: "0400"
     command: >
       sh -c "
       apk add --no-cache openssh-client bash &&
