@@ -4,22 +4,41 @@ A simple overview of how the homelab platform works.
 
 ## How It Works
 
-The platform deploys Docker containers using Docker Swarm across one or more machines:
+The platform deploys Docker containers using Docker Swarm across one or more machines. The process is managed by Ansible and triggered by `task` commands.
 
-```
-.env file → Docker Swarm → Running Services
+```mermaid
+graph LR
+    subgraph "Configuration"
+        A["📄 .env file"]
+        B["⚙️ ansible/inventory/02-hosts.yml"]
+        C["📁 stacks/"]
+    end
+    subgraph "Execution"
+        D["🤖 Ansible<br/>(triggered by 'task')"]
+    end
+    subgraph "Result"
+        E["🐝 Docker Swarm Cluster"]
+        F["🚀 Running Services"]
+    end
+
+    A --> D
+    B --> D
+    C --> D
+    D --> E
+    E --> F
+end
 ```
 
 ## Key Components
 
 ### Configuration
 - **`.env`** - Your domain, Cloudflare credentials, and passwords
-- **`machines.yaml`** - List of your servers (optional for single machine)
+- **`ansible/inventory/02-hosts.yml`** - List of your servers (after you create it)
 
 ### Services
 - **`stacks/apps/`** - Each folder contains a Docker Compose file for one service
 - **`stacks/reverse-proxy/`** - Traefik handles SSL certificates and routing
-- **`stacks/dns/`** - Local DNS server for internal resolution
+- **`stacks/dns/`** - Technitium DNS server for internal resolution
 
 ### Storage
 
@@ -39,7 +58,7 @@ See [Storage Architecture](storage.md) for detailed information about:
 
 ## Deployment Process
 
-When you run `./homelab deploy`:
+When you run `task ansible:deploy:full`:
 
 1. Sets up Docker Swarm cluster across your machines
 2. Deploys infrastructure (DNS, Traefik proxy, monitoring)
@@ -52,13 +71,13 @@ To add a new service:
 
 1. Create `stacks/apps/myservice/docker-compose.yml`
 2. Include Traefik labels for routing
-3. Run `./homelab deploy` to deploy it
+3. Run `task ansible:deploy:stack -- -e "stack_name=myservice"` to deploy it
 
 ## Removing Services
 
 To remove a service:
 
 1. Delete the `stacks/apps/servicename/` folder
-2. Run `./homelab nuke servicename` to clean up data
+2. Run `task ansible:teardown:stack -- -e "stack_name=servicename"` to clean up data
 
 That's it! The system handles the rest automatically.

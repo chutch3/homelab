@@ -16,13 +16,10 @@ ls stacks/apps/*/docker-compose.yml
 
 ```bash
 # Deploy all services
-./homelab deploy
+task ansible:deploy:full
 
-# Deploy only specific services
-./homelab deploy --only-apps homepage,actual_server,homeassistant
-
-# Deploy everything except heavy services
-./homelab deploy --skip-apps photoprism,emby
+# Deploy only a specific service
+task ansible:deploy:stack -- -e "stack_name=homepage"
 ```
 
 ## Check Service Status
@@ -42,14 +39,13 @@ docker service logs homepage_homepage --tail 50 --follow
 
 ```bash
 # Update a service (redeploy with latest configuration)
-docker stack deploy -c stacks/apps/homepage/docker-compose.yml homepage
+task ansible:deploy:stack -- -e "stack_name=homepage"
 
 # Remove a service stack
-docker stack rm homepage
+task ansible:teardown:stack -- -e "stack_name=homepage"
 
-# Remove a service and its data volumes
-docker stack rm homepage
-docker volume rm homepage_data  # Manually remove associated volumes
+# Remove a service and its data volumes (add remove_volumes=true)
+task ansible:teardown:stack -- -e "stack_name=homepage remove_volumes=true"
 ```
 
 ## Add a New Service
@@ -76,7 +72,7 @@ docker volume rm homepage_data  # Manually remove associated volumes
            - "traefik.enable=true"
            - "traefik.http.routers.myservice.rule=Host(`myapp.${BASE_DOMAIN}`)"
            - "traefik.http.routers.myservice.entrypoints=websecure"
-           - "traefik.http.routers.myservice.tls.certresolver=dns"
+           - "traefik.http.routers.myservice.tls.certresolver=letsencrypt"
            - "traefik.http.services.myservice.loadbalancer.server.port=8080"
 
    networks:
@@ -90,23 +86,20 @@ docker volume rm homepage_data  # Manually remove associated volumes
 
 3. **Deploy it**:
    ```bash
-   ./homelab deploy --only-apps myservice
+   task ansible:deploy:stack -- -e "stack_name=myservice"
    ```
 
 ## Remove a Service
 
 1. **Remove from Docker Swarm**:
    ```bash
-   docker stack rm servicename
+   task ansible:teardown:stack -- -e "stack_name=servicename"
    ```
 
 2. **Clean up data volumes** (optional - destroys all data):
    ```bash
-   # List volumes for the service
-   docker volume ls | grep servicename
-
-   # Remove specific volume
-   docker volume rm servicename_data
+   # Add remove_volumes=true to the teardown command
+   task ansible:teardown:stack -- -e "stack_name=servicename remove_volumes=true"
    ```
 
 3. **Delete the compose file** (optional):
