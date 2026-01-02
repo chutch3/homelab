@@ -38,7 +38,7 @@ services:
         - homepage.description=Photo & Video Management
 
   immich-machine-learning:
-    image: ghcr.io/immich-app/immich-machine-learning:${IMMICH_VERSION:-release}
+    image: ghcr.io/immich-app/immich-machine-learning:${IMMICH_VERSION:-release}-cuda
     volumes:
       - immich_model_cache:/cache
     environment:
