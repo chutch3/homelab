@@ -8,17 +8,17 @@ The platform deploys Docker containers using Docker Swarm across one or more mac
 
 ```mermaid
 graph LR
-    subgraph "Configuration"
-        A["📄 .env file"]
-        B["⚙️ ansible/inventory/02-hosts.yml"]
-        C["📁 stacks/"]
+    subgraph Configuration
+        A[".env file"]
+        B["ansible/inventory/02-hosts.yml"]
+        C["stacks/"]
     end
-    subgraph "Execution"
-        D["🤖 Ansible<br/>(triggered by 'task')"]
+    subgraph Execution
+        D["Ansible (triggered by 'task')"]
     end
-    subgraph "Result"
-        E["🐝 Docker Swarm Cluster"]
-        F["🚀 Running Services"]
+    subgraph Result
+        E["Docker Swarm Cluster"]
+        F["Running Services"]
     end
 
     A --> D
