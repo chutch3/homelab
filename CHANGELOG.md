@@ -2,6 +2,56 @@
 
 <!-- version list -->
 
+## v3.1.0 (2026-01-04)
+
+### Bug Fixes
+
+- Cryptpad health check/dns fix, added ssh.sh back
+  ([`92dd15d`](https://github.com/chutch3/homelab/commit/92dd15d0be2af723a39d08959d11f51d5059557c))
+
+- Speedtest healthcheck and prometheus exclusion
+  ([`65af794`](https://github.com/chutch3/homelab/commit/65af7944dc62478a040ecd0668ae80ed0fd286c9))
+
+- Speedtest healthcheck and update dashboard
+  ([`afe5b22`](https://github.com/chutch3/homelab/commit/afe5b227ac0ece6b67fc4cf1c4d36cf49e3dbde7))
+
+- Teardown with volumes now actually works
+  ([`84f10c8`](https://github.com/chutch3/homelab/commit/84f10c80b6a88e10df55c6788ea82c1c12097a00))
+
+### Chores
+
+- Added system level pruning of each node as a ansible command
+  ([`f2fc6f0`](https://github.com/chutch3/homelab/commit/f2fc6f01076105d6fcb7a460d4377115cc3d507a))
+
+- Ansible-lint now only runs on changed ansible files
+  ([`e9318e4`](https://github.com/chutch3/homelab/commit/e9318e44d253fe0133b88e841688bd50fe1a216a))
+
+- Bumped traefik version
+  ([`b41d24a`](https://github.com/chutch3/homelab/commit/b41d24a3835287a1173e286fec218d6d23acec9a))
+
+- Fix lint issues
+  ([`3346999`](https://github.com/chutch3/homelab/commit/3346999d68c480b8b5ae9f5fcf117ec5680fa60a))
+
+- Switched to cuda image of immich
+  ([`01288ed`](https://github.com/chutch3/homelab/commit/01288ed80bad08e526d08ebe4434cd3091023aea))
+
+### Documentation
+
+- Fixed mermaid diagrams
+  ([`548f2b2`](https://github.com/chutch3/homelab/commit/548f2b275962058d8d3bec737379df1084dfc049))
+
+- Updated docs to reflect current implementation
+  ([`4510b15`](https://github.com/chutch3/homelab/commit/4510b1565a97f05a4aa1a4d50c24cb92889a1df2))
+
+### Features
+
+- Added intra-node and internet bandwidth monitoring
+  ([`2f34acf`](https://github.com/chutch3/homelab/commit/2f34acf2d9f57e8023dbf0cab5ac076247854bef))
+
+- Added support for gpus and gpu monitoring
+  ([`611dd5d`](https://github.com/chutch3/homelab/commit/611dd5d3c29e84d5ba6e3229aaf2a9d1c9a27c42))
+
+
 ## v3.0.0 (2025-12-29)
 
 ### Continuous Integration
