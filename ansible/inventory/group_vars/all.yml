@@ -23,6 +23,11 @@ iscsi_target_port: "{{ lookup('env', 'ISCSI_TARGET_PORT') | default('3260') | in
 iscsi_target_iqn: "{{ lookup('env', 'ISCSI_TARGET_IQN') }}"
 iscsi_mount_path: "{{ lookup('env', 'ISCSI_MOUNT_PATH') | default('/mnt/iscsi/media-apps') }}"
 
+# Second iSCSI mount for app-data
+iscsi_app_data_enabled: "{{ lookup('env', 'ISCSI_APP_DATA_ENABLED') | default('false') | bool }}"
+iscsi_app_data_iqn: "{{ lookup('env', 'ISCSI_APP_DATA_IQN') }}"
+iscsi_app_data_mount_path: "{{ lookup('env', 'ISCSI_APP_DATA_MOUNT_PATH') | default('/mnt/iscsi/app-data') }}"
+
 # DNS configuration
 dns_api_url: "http://dns.diyhub.dev:5380/api"
 dns_admin_username: "admin"
