@@ -1,0 +1,48 @@
+version: "3.9"
+
+services:
+    mealie:
+        image: ghcr.io/mealie-recipes/mealie:v3.9.2
+        environment:
+            - ALLOW_SIGNUP=false
+            - PUID=1000
+            - PGID=1000
+            - TZ=${TZ}
+            - BASE_URL=https://mealie.${BASE_DOMAIN}
+            - MAX_WORKERS=1
+            - WEB_CONCURRENCY=1
+            - AUTO_BACKUP_ENABLED=true
+        volumes:
+            - mealie_data:/app/data
+        restart: unless-stopped
+        networks:
+            - traefik-public
+        deploy:
+            replicas: 1
+            resources:
+                limits:
+                    memory: 1000M
+            labels:
+                - "traefik.enable=true"
+                - "traefik.http.routers.mealie.rule=Host(`mealie.${BASE_DOMAIN}`)"
+                - "traefik.http.routers.mealie.entrypoints=websecure"
+                - "traefik.http.routers.mealie.tls.certresolver=dns"
+                - "traefik.http.services.mealie.loadbalancer.server.port=9000"
+
+                - homepage.group=Apps
+                - homepage.name=Mealie
+                - homepage.icon=mealie.png
+                - homepage.href=https://mealie.${BASE_DOMAIN}/
+                - homepage.description=Recipe Manager
+
+networks:
+    traefik-public:
+        external: true
+
+volumes:
+    mealie_data:
+        driver: local
+        driver_opts:
+            type: "none"
+            o: "bind"
+            device: "/mnt/iscsi/app-data/mealie"
