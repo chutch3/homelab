@@ -66,8 +66,8 @@
 
 - name: Discover iSCSI targets from NAS
   command: "iscsiadm -m discovery -t st -p {{ iscsi_target_ip }}:{{ iscsi_target_port }}"
-  register: iscsi_discovery
-  changed_when: iscsi_discovery.rc == 0
+  register: common_iscsi_discovery
+  changed_when: common_iscsi_discovery.rc == 0
   when:
       - iscsi_enabled | default(false)
       - iscsi_target_ip is defined
@@ -75,12 +75,12 @@
 
 - name: Login to iSCSI target
   command: "iscsiadm -m node --targetname {{ iscsi_target_iqn }} --portal {{ iscsi_target_ip }}:{{ iscsi_target_port }} --login"
-  register: iscsi_login
-  changed_when: "'successful' in iscsi_login.stdout"
+  register: common_iscsi_login
+  changed_when: "'successful' in common_iscsi_login.stdout"
   failed_when:
-      - iscsi_login.rc != 0
-      - "'already exists' not in iscsi_login.stderr"
-      - "'already present' not in iscsi_login.stderr"
+      - common_iscsi_login.rc != 0
+      - "'already exists' not in common_iscsi_login.stderr"
+      - "'already present' not in common_iscsi_login.stderr"
   when:
       - iscsi_enabled | default(false)
       - iscsi_target_iqn is defined
@@ -114,7 +114,7 @@
 
 - name: Check if iSCSI is currently mounted
   shell: "mount | grep {{ iscsi_mount_path }}"
-  register: iscsi_current_mount
+  register: common_iscsi_current_mount
   failed_when: false
   changed_when: false
   when: iscsi_enabled | default(false)
@@ -122,7 +122,7 @@
 
 - name: Check if iSCSI device has filesystem
   command: "blkid -o value -s TYPE /dev/disk/by-path/ip-{{ iscsi_target_ip }}:{{ iscsi_target_port }}-iscsi-{{ iscsi_target_iqn }}-lun-1"
-  register: current_fstype
+  register: common_current_fstype
   failed_when: false
   changed_when: false
   when:
@@ -136,8 +136,8 @@
       state: unmounted
   when:
       - iscsi_enabled | default(false)
-      - iscsi_current_mount.rc == 0
-      - current_fstype.stdout == "ext4"
+      - common_iscsi_current_mount.rc == 0
+      - common_current_fstype.stdout == "ext4"
   tags: iscsi
 
 - name: Remove old ext4 fstab entry
@@ -147,7 +147,7 @@
       state: absent
   when:
       - iscsi_enabled | default(false)
-      - current_fstype.stdout == "ext4"
+      - common_current_fstype.stdout == "ext4"
   tags: iscsi
 
 - name: Configure O2CB cluster configuration file
@@ -181,17 +181,17 @@
 
 - name: Load O2CB cluster configuration
   command: /usr/sbin/o2cb load
-  register: o2cb_load
+  register: common_o2cb_load
   failed_when: false
-  changed_when: o2cb_load.rc == 0
+  changed_when: common_o2cb_load.rc == 0
   when: iscsi_enabled | default(false)
   tags: iscsi
 
 - name: Configure O2CB cluster online
   command: /usr/sbin/o2cb online homelab
-  register: o2cb_online
+  register: common_o2cb_online
   failed_when: false
-  changed_when: o2cb_online.rc == 0
+  changed_when: common_o2cb_online.rc == 0
   when: iscsi_enabled | default(false)
   tags: iscsi
 
@@ -213,7 +213,7 @@
   when:
       - iscsi_enabled | default(false)
       - iscsi_target_iqn is defined
-      - current_fstype.stdout != "ocfs2"
+      - common_current_fstype.stdout != "ocfs2"
   run_once: true
   delegate_to: "{{ groups['managers'][0] }}"
   tags: iscsi
@@ -272,7 +272,7 @@
 - name: Verify test file is visible on all nodes
   stat:
       path: "{{ iscsi_mount_path }}/.cluster-test-{{ groups['managers'][0] }}.txt"
-  register: cluster_test_file
+  register: common_cluster_test_file
   when:
       - iscsi_enabled | default(false)
       - iscsi_mount_path is defined
@@ -283,7 +283,7 @@
       msg: "✓ OCFS2 cluster working! File from {{ groups['managers'][0] }} is visible on {{ inventory_hostname }}"
   when:
       - iscsi_enabled | default(false)
-      - cluster_test_file.stat.exists
+      - common_cluster_test_file.stat.exists
   tags: iscsi
 
 - name: Fail if cluster test file not visible
@@ -291,7 +291,7 @@
       msg: "✗ OCFS2 cluster NOT working! File from {{ groups['managers'][0] }} is NOT visible on {{ inventory_hostname }}"
   when:
       - iscsi_enabled | default(false)
-      - not cluster_test_file.stat.exists
+      - not common_cluster_test_file.stat.exists
   tags: iscsi
 
 - name: Clean up test file
@@ -303,4 +303,104 @@
       - iscsi_mount_path is defined
   run_once: true
   delegate_to: "{{ groups['managers'][0] }}"
+  tags: iscsi
+
+# Second iSCSI mount for app-data
+- name: Discover iSCSI targets from NAS (app-data)
+  command: "iscsiadm -m discovery -t st -p {{ iscsi_target_ip }}:{{ iscsi_target_port }}"
+  register: common_iscsi_app_data_discovery
+  changed_when: common_iscsi_app_data_discovery.rc == 0
+  when:
+      - iscsi_app_data_enabled | default(false)
+      - iscsi_target_ip is defined
+  tags: iscsi
+
+- name: Login to iSCSI target (app-data)
+  command: "iscsiadm -m node --targetname {{ iscsi_app_data_iqn }} --portal {{ iscsi_target_ip }}:{{ iscsi_target_port }} --login"
+  register: common_iscsi_app_data_login
+  changed_when: "'successful' in common_iscsi_app_data_login.stdout"
+  failed_when:
+      - common_iscsi_app_data_login.rc != 0
+      - "'already exists' not in common_iscsi_app_data_login.stderr"
+      - "'already present' not in common_iscsi_app_data_login.stderr"
+  when:
+      - iscsi_app_data_enabled | default(false)
+      - iscsi_app_data_iqn is defined
+  tags: iscsi
+
+- name: Enable automatic login on boot (app-data)
+  command: "iscsiadm -m node --targetname {{ iscsi_app_data_iqn }} --portal {{ iscsi_target_ip }}:{{ iscsi_target_port }} --op update -n node.startup -v automatic"
+  when:
+      - iscsi_app_data_enabled | default(false)
+      - iscsi_app_data_iqn is defined
+  tags: iscsi
+
+- name: Wait for iSCSI block device to appear (app-data)
+  wait_for:
+      path: "/dev/disk/by-path/ip-{{ iscsi_target_ip }}:{{ iscsi_target_port }}-iscsi-{{ iscsi_app_data_iqn }}-lun-1"
+      timeout: 30
+  when:
+      - iscsi_app_data_enabled | default(false)
+      - iscsi_app_data_iqn is defined
+  ignore_errors: yes
+  tags: iscsi
+
+- name: Check if iSCSI is currently mounted (app-data)
+  shell: "mount | grep {{ iscsi_app_data_mount_path }}"
+  register: common_iscsi_app_data_current_mount
+  failed_when: false
+  changed_when: false
+  when: iscsi_app_data_enabled | default(false)
+  tags: iscsi
+
+- name: Check if iSCSI device has filesystem (app-data)
+  command: "blkid -o value -s TYPE /dev/disk/by-path/ip-{{ iscsi_target_ip }}:{{ iscsi_target_port }}-iscsi-{{ iscsi_app_data_iqn }}-lun-1"
+  register: common_app_data_current_fstype
+  failed_when: false
+  changed_when: false
+  when:
+      - iscsi_app_data_enabled | default(false)
+      - iscsi_app_data_iqn is defined
+  tags: iscsi
+
+- name: Create OCFS2 filesystem on iSCSI device (app-data)
+  shell: "echo y | mkfs.ocfs2 -F --cluster-stack=o2cb --cluster-name=homelab -L app-data -N 4 /dev/disk/by-path/ip-{{ iscsi_target_ip }}:{{ iscsi_target_port }}-iscsi-{{ iscsi_app_data_iqn }}-lun-1"
+  when:
+      - iscsi_app_data_enabled | default(false)
+      - iscsi_app_data_iqn is defined
+      - common_app_data_current_fstype.stdout != "ocfs2"
+  run_once: true
+  delegate_to: "{{ groups['managers'][0] }}"
+  tags: iscsi
+
+- name: Create iSCSI mount point (app-data)
+  file:
+      path: "{{ iscsi_app_data_mount_path }}"
+      state: directory
+      mode: "0755"
+  when:
+      - iscsi_app_data_enabled | default(false)
+      - iscsi_app_data_mount_path is defined
+  tags: iscsi
+
+- name: Add OCFS2 device to /etc/fstab (app-data)
+  lineinfile:
+      path: /etc/fstab
+      line: "/dev/disk/by-path/ip-{{ iscsi_target_ip }}:{{ iscsi_target_port }}-iscsi-{{ iscsi_app_data_iqn }}-lun-1 {{ iscsi_app_data_mount_path }} ocfs2 _netdev,heartbeat=local 0 0"
+      state: present
+  when:
+      - iscsi_app_data_enabled | default(false)
+      - iscsi_app_data_iqn is defined
+  tags: iscsi
+
+- name: Mount OCFS2 filesystem (app-data)
+  ansible.posix.mount:
+      path: "{{ iscsi_app_data_mount_path }}"
+      src: "/dev/disk/by-path/ip-{{ iscsi_target_ip }}:{{ iscsi_target_port }}-iscsi-{{ iscsi_app_data_iqn }}-lun-1"
+      fstype: ocfs2
+      opts: _netdev,heartbeat=local
+      state: mounted
+  when:
+      - iscsi_app_data_enabled | default(false)
+      - iscsi_app_data_mount_path is defined
   tags: iscsi
