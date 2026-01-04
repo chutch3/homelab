@@ -89,6 +89,10 @@ scrape_configs:
       # Add node hostname label
       - source_labels: [__meta_dockerswarm_node_hostname]
         target_label: node
+      # Exclude speedtest-exporter from this job
+      - source_labels: [__meta_dockerswarm_service_name]
+        regex: "monitoring_speedtest-exporter"
+        action: drop
 
   # Traefik metrics
   - job_name: "traefik"
