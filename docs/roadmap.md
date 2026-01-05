@@ -4,7 +4,7 @@ Our mission is to create the ultimate self-hosting platform that makes running y
 
 !!! success "✅ **Production-Ready Platform Complete**"
 
-    The core platform is fully functional with comprehensive testing and CI/CD automation.
+    The core platform is fully functional with 25+ services, comprehensive testing, and CI/CD automation.
 
 ## Mission Statement
 
@@ -29,7 +29,7 @@ The mission of homelab is to:
 
     ---
 
-    Docker Swarm with 13+ pre-configured services ✅
+    Docker Swarm with 25+ pre-configured services ✅
 
 - :material-shield-lock: **Automatic SSL & DNS**
 
@@ -53,7 +53,7 @@ The mission of homelab is to:
 
     ---
 
-    152 tests with 95%+ pass rate, TDD methodology ✅
+    Comprehensive test suite with CI/CD validation, TDD methodology ✅
 
 - :material-github-action: **CI/CD Pipeline**
 
@@ -63,29 +63,40 @@ The mission of homelab is to:
 
 </div>
 
-### ✅ Currently Deployed Services (13+)
+### ✅ Currently Deployed Services (25+)
 
 **Infrastructure & Networking:**
 - :material-dns: **Technitium DNS** - Local DNS server ✅
 - :material-shield-check: **Traefik** - Reverse proxy with automatic SSL ✅
 - :material-chart-line: **Prometheus + Grafana** - System monitoring and dashboards ✅
+- :material-monitor: **Node Exporter** - Host metrics collection ✅
 
 **Home & Productivity:**
 - :material-view-dashboard: **Homepage** - Service dashboard ✅
 - :material-cash: **Actual Budget** - Personal finance management ✅
 - :material-home-automation: **Home Assistant** - Smart home automation platform ✅
 - :material-file-document: **CryptPad** - Collaborative documents with encryption ✅
+- :material-food: **Mealie** - Recipe management and meal planning ✅
 
 **Media & Photos:**
 - :material-image: **PhotoPrism** - AI-powered photo management ✅
+- :material-image-multiple: **Immich** - High-performance photo backup ✅
 - :material-movie: **Emby** - Media server and streaming ✅
 
 **Media Automation Stack:**
 - :material-television: **Sonarr** - TV series management ✅
 - :material-filmstrip: **Radarr** - Movie management ✅
+- :material-video: **Whisparr** - Adult content management ✅
 - :material-magnify: **Prowlarr** - Indexer management ✅
+- :material-chart-box: **Profilarr** - Media quality profiling ✅
+- :material-shield-search: **FlareSolverr** - Cloudflare bypass for indexers ✅
 - :material-download: **qBittorrent** - Primary torrent client ✅
 - :material-download: **Deluge** - Alternative torrent client ✅
+- :material-download-box: **SABnzbd** - Usenet downloader ✅
+- :material-download-box: **NZBGet** - Lightweight Usenet client ✅
+
+**Prepper & Resilience:**
+- :material-book-open-variant: **Kiwix** - Offline Wikipedia and knowledge archives ✅
 
 **AI & Chat:**
 - :material-robot: **LibreChat** - Self-hosted AI chat interface ✅
@@ -98,7 +109,6 @@ The mission of homelab is to:
 |---------|----------|-------------|
 | **Node-RED** | High | Flow-based automation for advanced smart home integration |
 | **Grocy** | Medium | Groceries and household management |
-| **Mealie** | Medium | Recipe management and meal planning |
 | **Monica** | Low | Personal CRM and relationship management |
 | **Paperless-ngx** | High | Document management system |
 
@@ -148,7 +158,6 @@ The mission of homelab is to:
 
 | Service | Priority | Description | Status |
 |---------|----------|-------------|--------|
-| **Kiwix** | High | Offline Wikipedia, Stack Exchange, medical guides | 🔄 [Issue #13](https://github.com/chutch3/homelab/issues/13) |
 | **OpenStreetMap Tile Server** | High | Local map server for offline navigation | 🔄 [Issue #13](https://github.com/chutch3/homelab/issues/13) |
 | **Ollama** | High | Local LLM inference for offline AI assistance | 🔄 [Issue #13](https://github.com/chutch3/homelab/issues/13) |
 | **LocalAI** | Medium | Alternative local AI inference platform | 🔄 Planned |
@@ -168,7 +177,6 @@ The mission of homelab is to:
 | Service | Priority | Description |
 |---------|----------|-------------|
 | **Jellyfin** | Medium | Alternative media server (FOSS alternative to Emby) |
-| **Immich** | Medium | High-performance photo backup (alternative to PhotoPrism) |
 | **Audiobookshelf** | Low | Audiobook and podcast server |
 | **Navidrome** | Low | Music server and streamer |
 | **Romm** | Low | ROM and game library management |
@@ -221,7 +229,7 @@ We welcome contributions! Here's how you can help:
 
 **🔥 Hot Topics** (Help Wanted):
 
-1. **Prepper Services** - Implement offline Wikipedia (Kiwix), OpenStreetMap tile server, local LLM hosting
+1. **Prepper Services** - OpenStreetMap tile server, local LLM hosting (Ollama), offline content archives
 2. **Security & Privacy** - Vaultwarden password manager, WireGuard VPN, Authentik SSO
 3. **Development Tools** - Gitea/Forgejo, PostgreSQL, Redis integration
 4. **Productivity Suite** - NextCloud deployment, Paperless-ngx document management
