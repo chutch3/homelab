@@ -250,6 +250,27 @@ grep -r "traefik.http.routers" stacks/ | grep "Host("
 cat stacks/apps/sonarr/docker-compose.yml | grep -A5 "traefik"
 ```
 
+### Docker Service Names in Private DNS Logs
+
+**Symptom:** Private DNS logs show repeated NxDomain queries for Docker service names (mariadb, immich-postgres, etc.) from IP addresses in the 10.0.0.0/8 range.
+
+**Root Cause:** Docker's embedded DNS (127.0.0.11) forwards unresolved queries to external DNS servers when it can't resolve internal service names. This typically indicates a failing or non-existent Docker service.
+
+**How to identify:**
+```bash
+# Check for services with 0 replicas (failing/crash-looping)
+docker service ls | awk '$4 ~ /0\/[0-9]/ {print $2, $4}'
+
+# Check why the service is failing
+docker service ps <service-name> --no-trunc
+```
+
+**Fix:** Resolve the issue with the failing container, or scale down the application if it's not needed:
+```bash
+# Scale down to stop the failed service
+docker service scale <service-name>=0
+```
+
 ## Next Steps
 
 Once DNS is configured:
