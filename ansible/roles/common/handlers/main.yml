@@ -8,4 +8,4 @@
 - name: reload o2cb
   systemd:
     name: o2cb
-    state: reloaded
+    state: restarted
