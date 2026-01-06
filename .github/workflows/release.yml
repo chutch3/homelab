@@ -2,6 +2,10 @@ name: Release
 
 on:
     workflow_dispatch:
+    schedule:
+        # Runs every Monday at 8 AM EST (1 PM UTC)
+        # Note: GitHub Actions uses UTC. Adjust for DST if needed (EDT = UTC-4)
+        - cron: '0 13 * * 1'
 
 jobs:
     release:
