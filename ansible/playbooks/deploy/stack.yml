@@ -22,6 +22,18 @@
             path: "{{ (playbook_dir ~ '/../../../stacks/apps/' ~ stack_name ~ '/docker-compose.yml') | realpath }}"
         register: compose_file_apps
 
+      - name: Fail if compose file does not exist in either location
+        ansible.builtin.fail:
+            msg: |
+              Stack '{{ stack_name }}' not found. Checked locations:
+                - stacks/{{ stack_name }}/docker-compose.yml
+                - stacks/apps/{{ stack_name }}/docker-compose.yml
+
+              Available stacks:
+                Infrastructure: monitoring, reverse-proxy, dns
+                Apps: Run 'ls stacks/apps/' to see available application stacks
+        when: not compose_file_stacks.stat.exists and not compose_file_apps.stat.exists
+
       - name: Set compose file path
         ansible.builtin.set_fact:
             compose_file_path: "{{ compose_file_stacks.stat.path if compose_file_stacks.stat.exists else compose_file_apps.stat.path }}"
@@ -29,11 +41,6 @@
       - name: Debug - Print resolved compose file path
         ansible.builtin.debug:
             msg: "Resolved compose file path: {{ compose_file_path }}"
-
-      - name: Fail if compose file does not exist
-        ansible.builtin.fail:
-            msg: "Compose file not found at: {{ compose_file_path }}"
-        when: not compose_file_stacks.stat.exists and not compose_file_apps.stat.exists
 
       - name: Load .env file
         ansible.builtin.slurp:
