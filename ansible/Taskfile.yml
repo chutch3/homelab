@@ -104,6 +104,12 @@ tasks:
         cmds:
             - ANSIBLE_CONFIG=ansible/ansible.cfg ansible-playbook -i ansible/inventory/ ansible/playbooks/cluster/update-labels.yml {{.CLI_ARGS}}
 
+    cluster:sync:
+        desc: Auto-detect and sync nodes with changed IPs (removes stale entries and rejoins)
+        dir: "{{.ROOT_DIR}}"
+        cmds:
+            - ANSIBLE_CONFIG=ansible/ansible.cfg ansible-playbook -i ansible/inventory/ ansible/playbooks/cluster/sync.yml {{.CLI_ARGS}}
+
     # Ansible Application Deployment
     deploy:
         desc: Deploy all Docker Swarm stacks
