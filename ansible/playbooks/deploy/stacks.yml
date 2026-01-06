@@ -15,15 +15,17 @@
   tasks:
     - name: Get list of stack directories
       find:
-        paths: "{{ stacks_base_path }}/apps"
+        paths: "{{ playbook_dir }}/../../../{{ stacks_base_path }}/apps"
         file_type: directory
+      delegate_to: localhost
       register: app_stack_dirs
 
     - name: Get list of infrastructure stack directories
       find:
-        paths: "{{ stacks_base_path }}"
+        paths: "{{ playbook_dir }}/../../../{{ stacks_base_path }}"
         file_type: directory
         patterns: ["monitoring", "reverse-proxy", "dns"]
+      delegate_to: localhost
       register: infra_stack_dirs
 
     - name: Prepare list of stacks to deploy
