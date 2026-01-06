@@ -10,7 +10,7 @@
 
   tasks:
     - name: Get list of all running stack services
-      command: docker stack ls --format "{{ '{' }} .Name {{ '}' }}"
+      command: docker stack ls --format "{{ '{{' }}.Name{{ '}}' }}"
       register: running_stacks
       changed_when: false
 
@@ -22,7 +22,7 @@
       when: running_stacks.stdout_lines | length > 0
 
     - name: Get list of all Docker volumes
-      command: docker volume ls --format "{{ '{' }} .Name {{ '}' }}"
+      command: docker volume ls --format "{{ '{{' }}.Name{{ '}}' }}"
       register: all_volumes
       changed_when: false
       when: remove_volumes
