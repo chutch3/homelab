@@ -17,9 +17,6 @@ services:
       - ADMIN_TOKEN=${VAULTWARDEN_ADMIN_TOKEN:-some-random-token-change-me}
     deploy:
       replicas: 1
-      placement:
-        constraints:
-          - node.role == manager
       labels:
         # Traefik Labels
         - "traefik.enable=true"
