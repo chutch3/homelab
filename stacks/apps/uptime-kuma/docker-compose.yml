@@ -11,9 +11,6 @@ services:
     restart: unless-stopped
     deploy:
       replicas: 1
-      placement:
-        constraints:
-          - node.role == manager
       labels:
         - "traefik.enable=true"
         - "traefik.http.routers.uptime-kuma.rule=Host(`uptime.${BASE_DOMAIN}`)"
