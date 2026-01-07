@@ -1,0 +1,36 @@
+version: "3.9"
+
+services:
+  uptime-kuma:
+    image: louislam/uptime-kuma:1
+    container_name: uptime-kuma
+    volumes:
+      - uptime-kuma-data:/app/data
+    networks:
+      - traefik-public
+    restart: unless-stopped
+    deploy:
+      replicas: 1
+      placement:
+        constraints:
+          - node.role == manager
+      labels:
+        - "traefik.enable=true"
+        - "traefik.http.routers.uptime-kuma.rule=Host(`uptime.${BASE_DOMAIN}`)"
+        - "traefik.http.routers.uptime-kuma.entrypoints=websecure"
+        - "traefik.http.routers.uptime-kuma.tls.certresolver=dns"
+        - "traefik.http.services.uptime-kuma.loadbalancer.server.port=3001"
+
+        - "homepage.group=Monitoring"
+        - "homepage.name=Uptime Kuma"
+        - "homepage.icon=mdi-progress-check"
+        - "homepage.href=https://uptime.${BASE_DOMAIN}/"
+        - "homepage.description=Service uptime monitoring"
+
+networks:
+  traefik-public:
+    external: true
+
+volumes:
+  uptime-kuma-data:
+    driver: local
