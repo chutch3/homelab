@@ -1,0 +1,43 @@
+version: "3.9"
+
+services:
+  node-red:
+    image: nodered/node-red:latest
+    container_name: node-red
+    restart: unless-stopped
+    volumes:
+      - node-red-data:/data
+    networks:
+      - traefik-public
+    environment:
+      - TZ=${TZ}
+      - PUID=${PUID:-1000}
+      - PGID=${PGID:-1000}
+    deploy:
+      replicas: 1
+      labels:
+        # Traefik Labels
+        - "traefik.enable=true"
+        - "traefik.http.routers.node-red.rule=Host(`nodered.${BASE_DOMAIN}`)"
+        - "traefik.http.routers.node-red.entrypoints=websecure"
+        - "traefik.http.routers.node-red.tls.certresolver=dns"
+        - "traefik.http.services.node-red.loadbalancer.server.port=1880"
+
+        # Homepage Labels
+        - "homepage.group=Automation"
+        - "homepage.name=Node-RED"
+        - "homepage.icon=node-red.svg"
+        - "homepage.href=https://nodered.${BASE_DOMAIN}"
+        - "homepage.description=Flow-based Automation"
+
+networks:
+  traefik-public:
+    external: true
+
+volumes:
+  node-red-data:
+    driver: local
+    driver_opts:
+      type: "none"
+      o: "bind"
+      device: "/mnt/iscsi/app-data/node-red"
