@@ -1,0 +1,48 @@
+version: "3.9"
+
+services:
+  vaultwarden:
+    image: vaultwarden/server:latest
+    container_name: vaultwarden
+    restart: unless-stopped
+    volumes:
+      - vaultwarden-data:/data
+    networks:
+      - traefik-public
+    environment:
+      # Set the base domain for Vaultwarden
+      - DOMAIN=https://vaultwarden.${BASE_DOMAIN}
+      # Enable the admin interface and set a token
+      # It is recommended to change this token in your .env file
+      - ADMIN_TOKEN=${VAULTWARDEN_ADMIN_TOKEN:-some-random-token-change-me}
+    deploy:
+      replicas: 1
+      placement:
+        constraints:
+          - node.role == manager
+      labels:
+        # Traefik Labels
+        - "traefik.enable=true"
+        - "traefik.http.routers.vaultwarden.rule=Host(`vaultwarden.${BASE_DOMAIN}`)"
+        - "traefik.http.routers.vaultwarden.entrypoints=websecure"
+        - "traefik.http.routers.vaultwarden.tls.certresolver=dns"
+        - "traefik.http.services.vaultwarden.loadbalancer.server.port=80"
+
+        # Homepage Labels
+        - "homepage.group=Security"
+        - "homepage.name=Vaultwarden"
+        - "homepage.icon=vaultwarden.svg" # Using si-vaultwarden would be better, but we'll stick to project convention
+        - "homepage.href=https://vaultwarden.${BASE_DOMAIN}"
+        - "homepage.description=Password Manager"
+
+networks:
+  traefik-public:
+    external: true
+
+volumes:
+  vaultwarden-data:
+    driver: local
+    driver_opts:
+      type: "none"
+      o: "bind"
+      device: "/mnt/iscsi/app-data/vaultwarden"
