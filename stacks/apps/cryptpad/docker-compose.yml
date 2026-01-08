@@ -7,7 +7,7 @@ services:
         environment:
             - CPAD_MAIN_DOMAIN=https://cryptpad.${BASE_DOMAIN}
             - CPAD_SANDBOX_DOMAIN=https://cryptpad-sandbox.${BASE_DOMAIN}
-            - CPAD_CONF=/cryptpad/app_data/config/config.js
+            - CPAD_CONF=/cryptpad/config/config.js
             - CPAD_INSTALL_ONLYOFFICE=yes
         user: "4001:4001"
         volumes:
@@ -71,6 +71,6 @@ volumes:
     cryptpad:
         driver: local
         driver_opts:
-            type: "cifs"
-            o: "username=${SMB_USERNAME},password=${SMB_PASSWORD},vers=3.0,nobrl,uid=0,gid=100,file_mode=0777,dir_mode=0777,soft,actimeo=30"
-            device: "//${NAS_SERVER}/cryptpad"
+            type: "none"
+            o: "bind"
+            device: "/mnt/iscsi/app-data/cryptpad"
