@@ -404,3 +404,103 @@
       - iscsi_app_data_enabled | default(false)
       - iscsi_app_data_mount_path is defined
   tags: iscsi
+
+# Third iSCSI mount for cache storage
+- name: Discover iSCSI targets from NAS (cache)
+  command: "iscsiadm -m discovery -t st -p {{ iscsi_target_ip }}:{{ iscsi_target_port }}"
+  register: common_iscsi_cache_discovery
+  changed_when: common_iscsi_cache_discovery.rc == 0
+  when:
+      - iscsi_cache_enabled | default(false)
+      - iscsi_target_ip is defined
+  tags: iscsi
+
+- name: Login to iSCSI target (cache)
+  command: "iscsiadm -m node --targetname {{ iscsi_cache_iqn }} --portal {{ iscsi_target_ip }}:{{ iscsi_target_port }} --login"
+  register: common_iscsi_cache_login
+  changed_when: "'successful' in common_iscsi_cache_login.stdout"
+  failed_when:
+      - common_iscsi_cache_login.rc != 0
+      - "'already exists' not in common_iscsi_cache_login.stderr"
+      - "'already present' not in common_iscsi_cache_login.stderr"
+  when:
+      - iscsi_cache_enabled | default(false)
+      - iscsi_cache_iqn is defined
+  tags: iscsi
+
+- name: Enable automatic login on boot (cache)
+  command: "iscsiadm -m node --targetname {{ iscsi_cache_iqn }} --portal {{ iscsi_target_ip }}:{{ iscsi_target_port }} --op update -n node.startup -v automatic"
+  when:
+      - iscsi_cache_enabled | default(false)
+      - iscsi_cache_iqn is defined
+  tags: iscsi
+
+- name: Wait for iSCSI block device to appear (cache)
+  wait_for:
+      path: "/dev/disk/by-path/ip-{{ iscsi_target_ip }}:{{ iscsi_target_port }}-iscsi-{{ iscsi_cache_iqn }}-lun-1"
+      timeout: 30
+  when:
+      - iscsi_cache_enabled | default(false)
+      - iscsi_cache_iqn is defined
+  ignore_errors: yes
+  tags: iscsi
+
+- name: Check if iSCSI is currently mounted (cache)
+  shell: "mount | grep {{ iscsi_cache_mount_path }}"
+  register: common_iscsi_cache_current_mount
+  failed_when: false
+  changed_when: false
+  when: iscsi_cache_enabled | default(false)
+  tags: iscsi
+
+- name: Check if iSCSI device has filesystem (cache)
+  command: "blkid -o value -s TYPE /dev/disk/by-path/ip-{{ iscsi_target_ip }}:{{ iscsi_target_port }}-iscsi-{{ iscsi_cache_iqn }}-lun-1"
+  register: common_cache_current_fstype
+  failed_when: false
+  changed_when: false
+  when:
+      - iscsi_cache_enabled | default(false)
+      - iscsi_cache_iqn is defined
+  tags: iscsi
+
+- name: Create OCFS2 filesystem on iSCSI device (cache)
+  shell: "echo y | mkfs.ocfs2 -F --cluster-stack=o2cb --cluster-name=homelab -L cache -N 4 /dev/disk/by-path/ip-{{ iscsi_target_ip }}:{{ iscsi_target_port }}-iscsi-{{ iscsi_cache_iqn }}-lun-1"
+  when:
+      - iscsi_cache_enabled | default(false)
+      - iscsi_cache_iqn is defined
+      - common_cache_current_fstype.stdout != "ocfs2"
+  run_once: true
+  delegate_to: "{{ groups['managers'][0] }}"
+  tags: iscsi
+
+- name: Create iSCSI mount point (cache)
+  file:
+      path: "{{ iscsi_cache_mount_path }}"
+      state: directory
+      mode: "0755"
+  when:
+      - iscsi_cache_enabled | default(false)
+      - iscsi_cache_mount_path is defined
+  tags: iscsi
+
+- name: Add OCFS2 device to /etc/fstab (cache)
+  lineinfile:
+      path: /etc/fstab
+      line: "/dev/disk/by-path/ip-{{ iscsi_target_ip }}:{{ iscsi_target_port }}-iscsi-{{ iscsi_cache_iqn }}-lun-1 {{ iscsi_cache_mount_path }} ocfs2 _netdev,heartbeat=local 0 0"
+      state: present
+  when:
+      - iscsi_cache_enabled | default(false)
+      - iscsi_cache_iqn is defined
+  tags: iscsi
+
+- name: Mount OCFS2 filesystem (cache)
+  ansible.posix.mount:
+      path: "{{ iscsi_cache_mount_path }}"
+      src: "/dev/disk/by-path/ip-{{ iscsi_target_ip }}:{{ iscsi_target_port }}-iscsi-{{ iscsi_cache_iqn }}-lun-1"
+      fstype: ocfs2
+      opts: _netdev,heartbeat=local
+      state: mounted
+  when:
+      - iscsi_cache_enabled | default(false)
+      - iscsi_cache_mount_path is defined
+  tags: iscsi

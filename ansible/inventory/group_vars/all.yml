@@ -28,6 +28,11 @@ iscsi_app_data_enabled: "{{ lookup('env', 'ISCSI_APP_DATA_ENABLED') | default('f
 iscsi_app_data_iqn: "{{ lookup('env', 'ISCSI_APP_DATA_IQN') }}"
 iscsi_app_data_mount_path: "{{ lookup('env', 'ISCSI_APP_DATA_MOUNT_PATH') | default('/mnt/iscsi/app-data') }}"
 
+# Third iSCSI mount for cache storage
+iscsi_cache_enabled: "{{ lookup('env', 'ISCSI_CACHE_ENABLED') | default('false') | bool }}"
+iscsi_cache_iqn: "{{ lookup('env', 'ISCSI_CACHE_IQN') }}"
+iscsi_cache_mount_path: "{{ lookup('env', 'ISCSI_CACHE_MOUNT_PATH') | default('/mnt/iscsi/cache') }}"
+
 # DNS configuration
 dns_api_url: "http://dns.diyhub.dev:5380/api"
 dns_admin_username: "admin"
