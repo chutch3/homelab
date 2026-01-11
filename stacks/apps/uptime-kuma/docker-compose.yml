@@ -31,3 +31,7 @@ networks:
 volumes:
   uptime-kuma-data:
     driver: local
+    driver_opts:
+      type: "none"
+      o: "bind"
+      device: "/mnt/iscsi/app-data/uptime-kuma"
