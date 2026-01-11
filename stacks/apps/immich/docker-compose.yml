@@ -59,6 +59,8 @@ services:
 
   immich-redis:
     image: registry.hub.docker.com/library/redis:6.2-alpine@sha256:84882e87b54734154586e5f8abd4dce69fe7311315e2fc6d67c29614c8de2672
+    volumes:
+      - immich_redis_data:/data
     restart: unless-stopped
     healthcheck:
       test: ["CMD-SHELL", "redis-cli ping || exit 1"]
@@ -120,3 +122,9 @@ volumes:
     # ML model cache should be on local storage for performance
     # Network storage would add latency to face detection and object recognition
     # This volume will be created on the node where immich-machine-learning is deployed
+  immich_redis_data:
+    driver: local
+    driver_opts:
+      type: "none"
+      o: "bind"
+      device: "/mnt/iscsi/cache/immich-redis"
