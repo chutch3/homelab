@@ -11,6 +11,7 @@ services:
             - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
             - /var/run/docker.sock:/var/run/docker.sock:ro
         deploy:
+            endpoint_mode: dnsrr
             placement:
                 constraints:
                     - node.role == manager
