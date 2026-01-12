@@ -69,8 +69,7 @@ EOF
 
 load_environment() {
     # Load environment variables and dependencies
-    # Sources .env for SSH_KEY_FILE configuration
-    # Sources machine.sh for NAS discovery from machines.yaml
+    # Sources .env for NAS_SERVER, NAS_USER, and SSH_KEY_FILE configuration
     # Sources ssh.sh for SSH helper functions
     if [ -f "$PROJECT_ROOT/.env" ]; then
         set -a  # Export all variables
@@ -79,41 +78,39 @@ load_environment() {
         log_info "Loaded environment from .env"
     fi
 
-    # Source common machine library (includes ssh.sh)
-    if [ -f "$PROJECT_ROOT/scripts/common/machine.sh" ]; then
-        source "$PROJECT_ROOT/scripts/common/machine.sh"
-        log_info "Loaded machine library"
+    # Source common ssh library
+    if [ -f "$PROJECT_ROOT/scripts/common/ssh.sh" ]; then
+        source "$PROJECT_ROOT/scripts/common/ssh.sh"
+        log_info "Loaded ssh library"
     else
-        log_error "Could not find scripts/common/machine.sh"
+        log_error "Could not find scripts/common/ssh.sh"
         log_error "Please ensure you're running this from the project directory"
         exit 1
     fi
 }
 
 get_nas_connection_info() {
-    # Gather NAS connection credentials from machines.yaml
-    # Falls back to prompts if machines.yaml not available
+    # Gather NAS connection credentials from .env file
+    # Falls back to prompts if env vars not set
     # Exports NAS_USER_HOST for use by SSH functions
     log_info "Gathering NAS connection information..."
 
-    # Get NAS IP from machines.yaml
-    local nas_ip
-    if nas_ip=$(machines_get_ip "nas" 2>/dev/null); then
-        NAS_SERVER="$nas_ip"
-        log_info "Using NAS from machines.yaml: $NAS_SERVER"
-    else
-        log_warn "Could not find NAS in machines.yaml, prompting..."
+    # Get NAS IP/hostname from .env (NAS_SERVER)
+    if [ -z "${NAS_SERVER:-}" ]; then
+        log_warn "NAS_SERVER not found in .env, prompting..."
         prompt NAS_SERVER "NAS hostname or IP" "nas.local"
+        log_warn "Consider adding NAS_SERVER=$NAS_SERVER to .env file"
+    else
+        log_info "Using NAS_SERVER from .env: $NAS_SERVER"
     fi
 
-    # Get NAS SSH user from machines.yaml
-    local nas_user
-    if nas_user=$(machines_get_ssh_user "nas" 2>/dev/null) && [ "$nas_user" != "null" ]; then
-        NAS_USER="$nas_user"
-        log_info "Using NAS user from machines.yaml: $NAS_USER"
-    else
-        log_warn "Could not find NAS SSH user in machines.yaml, prompting..."
+    # Get NAS SSH user from .env (NAS_USER)
+    if [ -z "${NAS_USER:-}" ]; then
+        log_warn "NAS_USER not found in .env, prompting..."
         prompt NAS_USER "SSH username for NAS" "root"
+        log_warn "Consider adding NAS_USER=$NAS_USER to .env file"
+    else
+        log_info "Using NAS_USER from .env: $NAS_USER"
     fi
 
     # Use SSH_KEY_FILE from .env if available, otherwise prompt
@@ -275,10 +272,10 @@ verify_email_system() {
 
 offer_initial_download() {
     echo
-    read -r -p "Run initial download of starter pack now? (y/N): " run_init
+    read -r -p "Run initial download now (~200GB)? (y/N): " run_init
 
     if [[ "$run_init" =~ ^[Yy]$ ]]; then
-        log_info "Starting initial download (this will take a while for 100GB+ of data)..."
+        log_info "Starting initial download (this will take a while for ~200GB of data)..."
         log_warn "Downloads will run in background on NAS. Check logs at: $ZIM_LOG_DIR"
 
         # Use nohup to run in background, redirect output to log file

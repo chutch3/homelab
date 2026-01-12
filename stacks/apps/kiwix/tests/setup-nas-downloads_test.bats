@@ -156,16 +156,16 @@ teardown() {
 # get_nas_connection_info() Function Tests
 # ==============================================================================
 
-@test "get_nas_connection_info should call machines_get_ip" {
+@test "get_nas_connection_info should check NAS_SERVER env var" {
     local script="${BATS_TEST_DIRNAME}/../setup-nas-downloads.sh"
     run grep -A20 "^get_nas_connection_info()" "$script"
-    [[ "$output" =~ "machines_get_ip" ]]
+    [[ "$output" =~ "NAS_SERVER" ]]
 }
 
-@test "get_nas_connection_info should call machines_get_ssh_user" {
+@test "get_nas_connection_info should check NAS_USER env var" {
     local script="${BATS_TEST_DIRNAME}/../setup-nas-downloads.sh"
     run grep -A20 "^get_nas_connection_info()" "$script"
-    [[ "$output" =~ "machines_get_ssh_user" ]]
+    [[ "$output" =~ "NAS_USER" ]]
 }
 
 @test "get_nas_connection_info should use SSH_KEY_FILE from env if set" {

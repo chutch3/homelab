@@ -25,22 +25,25 @@ cmd_mv() { mv "$@"; }
 cmd_rm() { rm "$@"; }
 cmd_date() { date "$@"; }
 
-# Starter pack content - includes tech resources and emergency preparedness content
+# ZIM files to download - comprehensive knowledge archive
 # NOTE: Update these URLs periodically to get the latest versions
 # Check https://download.kiwix.org/zim/ for current versions
-# Last updated: 2025-12-04
-declare -A STARTER_PACK=(
-    ["wikipedia_en_nopic"]="wikipedia/wikipedia_en_all_nopic_2025-08.zim"
-    ["gutenberg_en"]="gutenberg/gutenberg_en_all_2025-11.zim"
-    ["medicine"]="wikipedia/wikipedia_en_medicine_nopic_2025-10.zim"
-    ["stackoverflow"]="stack_exchange/stackoverflow.com_en_all_2023-11.zim"
-    ["freecodecamp"]="freecodecamp/freecodecamp_en_all_2025-11.zim"
-    ["openstreetmap_wiki"]="other/openstreetmap-wiki_en_all_nopic_2025-07.zim"
-    ["gardening"]="stack_exchange/gardening.stackexchange.com_en_all_2025-10.zim"
-    ["diy"]="stack_exchange/diy.stackexchange.com_en_all_2025-08.zim"
-    ["cooking"]="stack_exchange/cooking.stackexchange.com_en_all_2025-07.zim"
-    ["sustainability"]="stack_exchange/sustainability.stackexchange.com_en_all_2025-10.zim"
-    ["wikivoyage"]="wikivoyage/wikivoyage_en_all_nopic_2025-09.zim"
+# Last updated: 2026-01-12
+declare -A ZIM_FILES=(
+    ["wikipedia_en_maxi"]="wikipedia/wikipedia_en_all_maxi_2024-01.zim"
+    ["gutenberg_en"]="gutenberg/gutenberg_en_all_2023-08.zim"
+    ["wikimed"]="other/wikimed_en_all_2024-10.zim"
+    ["stackoverflow"]="stack_exchange/stackoverflow.com_en_all_2024-02.zim"
+    ["stackexchange_unix"]="stack_exchange/unix.stackexchange.com_en_all_2024-02.zim"
+    ["stackexchange_serverfault"]="stack_exchange/serverfault.com_en_all_2024-02.zim"
+    ["stackexchange_superuser"]="stack_exchange/superuser.com_en_all_2024-02.zim"
+    ["freecodecamp"]="freecodecamp/freecodecamp_en_all_2024-01.zim"
+    ["openstreetmap_wiki"]="other/openstreetmap-wiki_en_all_nopic_2024-08.zim"
+    ["gardening"]="stack_exchange/gardening.stackexchange.com_en_all_2024-02.zim"
+    ["diy"]="stack_exchange/diy.stackexchange.com_en_all_2024-02.zim"
+    ["cooking"]="stack_exchange/cooking.stackexchange.com_en_all_2024-02.zim"
+    ["sustainability"]="stack_exchange/sustainability.stackexchange.com_en_all_2024-02.zim"
+    ["wikivoyage"]="wikivoyage/wikivoyage_en_all_nopic_2024-11.zim"
 )
 
 LOG_FILE="${LOG_FILE:-$ZIM_LOG_DIR/zim-manager-$(date +%Y-%m-%d_%H-%M-%S).log}"
@@ -55,7 +58,7 @@ usage() {
 Usage: $0 {init|check|download <url>}
 
 Commands:
-    init              Download starter pack (Wikipedia, WikiMed, Stack Overflow, etc.)
+    init              Download ZIM files (Wikipedia w/ images, Stack Exchange, WikiMed, etc.)
     check             Check for available updates and send report
     download <url>    Download a specific ZIM file from URL
 
@@ -163,13 +166,13 @@ Next automated check: $(date -d '+30 days')
     return $updates_available
 }
 
-download_starter_pack() {
-    log "Starting initial download of starter pack..."
+download_zim_files() {
+    log "Starting download of ZIM files..."
     local success_count=0
     local fail_count=0
 
-    for name in "${!STARTER_PACK[@]}"; do
-        local path="${STARTER_PACK[$name]}"
+    for name in "${!ZIM_FILES[@]}"; do
+        local path="${ZIM_FILES[$name]}"
         # Get latest version by fetching directory listing
         # This is simplified - real implementation would parse HTML/JSON
         local url="$DOWNLOAD_SOURCE/$path"
@@ -205,7 +208,7 @@ if [ -z "${BATS_TEST_MODE:-}" ]; then
     case "${1:-check}" in
         init)
             log "=== Kiwix Initial Setup ==="
-            download_starter_pack
+            download_zim_files
             ;;
         check)
             log "=== Kiwix Update Check ==="
