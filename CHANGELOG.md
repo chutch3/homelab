@@ -2,6 +2,88 @@
 
 <!-- version list -->
 
+## v3.2.0 (2026-01-12)
+
+### Bug Fixes
+
+- Added help message if stack not found when deploying
+  ([`89cb23b`](https://github.com/chutch3/homelab/commit/89cb23bbbaae4a03813971348af2c1d424c9726e))
+
+- Cryptpad config.js and move to iscsi
+  ([`7941bf9`](https://github.com/chutch3/homelab/commit/7941bf99a3d315cc442afdf20e177ae41788b3c1))
+
+- Dns resolution issue with traefik by adding temp env var
+  ([`0679f6b`](https://github.com/chutch3/homelab/commit/0679f6b4ddc455bbb09129e93f0d47440d5e9686))
+
+- Formatting the output in teardown all correctly so you can see what apps where torn down
+  ([`79ea04a`](https://github.com/chutch3/homelab/commit/79ea04a4638417e9bea5f9e474a96e6a9b99c01a))
+
+- Octals are now defined correctly and linter is fixed
+  ([`ae8448a`](https://github.com/chutch3/homelab/commit/ae8448a513f7d613c44398245a85d9bb4da7c8f3))
+
+- Paths not being correct in the deploy stacks
+  ([`3484cc4`](https://github.com/chutch3/homelab/commit/3484cc41d6afa1f4bf908caec9f6364fb85ba468))
+
+- Reload o2cb should be restarted
+  ([`d14869b`](https://github.com/chutch3/homelab/commit/d14869b11e15e501bde520b0639eee97c56fd791))
+
+- Remove placement constraints from kuma and vaultwarden
+  ([`99e9c35`](https://github.com/chutch3/homelab/commit/99e9c358ce1b9c4c6a8d4d08dc9a1d673684cb44))
+
+- Set environment variables before deploying a stack
+  ([`983d224`](https://github.com/chutch3/homelab/commit/983d224d06c97b813bd5bf1663b119e1adca51b9))
+
+- The status message in the add service cnames task and lint
+  ([`f434b59`](https://github.com/chutch3/homelab/commit/f434b5926d17febbf1fcb2309a196c47128544c7))
+
+### Continuous Integration
+
+- Auto release schedule (every monday at 8 am)
+  ([`977586d`](https://github.com/chutch3/homelab/commit/977586dc4b3c7857b14f2ee59d16efde800d9ad2))
+
+### Documentation
+
+- Added troubleshooting markdown file in docs
+  ([`4d31378`](https://github.com/chutch3/homelab/commit/4d3137896e20d99c13aaa8796e05b457de82fd44))
+
+- Crt style and mermaid doc fixes
+  ([`2a3a19c`](https://github.com/chutch3/homelab/commit/2a3a19c6c4a44f33198fcbc3feffd136a0a76991))
+
+- On how docker handles unresolved domains and it's effect on the private dns service
+  ([`41afd7b`](https://github.com/chutch3/homelab/commit/41afd7bdb73af114b36f7413ebb55a00d2d86027))
+
+- Updated roadmap
+  ([`a770233`](https://github.com/chutch3/homelab/commit/a7702336d6ddb662e8007faedc69669baff1c098))
+
+### Features
+
+- Added cache ISCSI path in the cluster file system and migrated redis for immich to it
+  ([`3a2e1ad`](https://github.com/chutch3/homelab/commit/3a2e1ad45a7bafdeddd4fc8a20acd925c264e565))
+
+- Added mealie
+  ([`57051ae`](https://github.com/chutch3/homelab/commit/57051aef779d814e4bd4ec1767a32f4d4cb2b5d2))
+
+- Added node-red
+  ([`a7612b2`](https://github.com/chutch3/homelab/commit/a7612b29392b5c3b1fa5910c88e51e7f67a5ef75))
+
+- Added sync functionality for addressing stale nodes (e.g. ip address changes for a node)
+  ([`a4a0dc8`](https://github.com/chutch3/homelab/commit/a4a0dc8a1e048fddc9467e52a98962de78c6e3b4))
+
+- Added uptime-kuma
+  ([`d7f87fe`](https://github.com/chutch3/homelab/commit/d7f87fe512b66fd2324165853174990d0f5c5ab5))
+
+- Added vaultwarden
+  ([`a5a51b4`](https://github.com/chutch3/homelab/commit/a5a51b438243c775f5aaa0ab50a698f58772bd3f))
+
+- Moved uptime-kuma to app-data directory
+  ([`51eaf32`](https://github.com/chutch3/homelab/commit/51eaf32da6fa0de1195206185d85d3276cc37602))
+
+### Performance Improvements
+
+- Use dnsrr endpoint mode for prometheus
+  ([`ac03e56`](https://github.com/chutch3/homelab/commit/ac03e56fb1c30d550d3b18226d2d202f10e4a9e8))
+
+
 ## v3.1.0 (2026-01-04)
 
 ### Bug Fixes
