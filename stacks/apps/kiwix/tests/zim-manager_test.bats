@@ -363,7 +363,7 @@ teardown() {
 # Integration Tests - Test Complete Workflows
 # ==============================================================================
 
-@test "download_starter_pack() should iterate through STARTER_PACK array without exiting" {
+@test "download_zim_files() should iterate through ZIM_FILES array without exiting" {
     # This test verifies the fix for the ((success_count++)) bug with set -e
     # Previously, ((0++)) would return 0, causing set -e to exit the script
 
@@ -382,7 +382,7 @@ teardown() {
     send_email() { return 0; }
     export -f send_email
 
-    run download_starter_pack
+    run download_zim_files
 
     # Should complete successfully without exiting early due to set -e
     # This is the KEY test - before the fix, this would return non-zero

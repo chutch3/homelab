@@ -14,34 +14,26 @@ This deployment provides:
 
 ## Storage Requirements
 
-**Starter Pack (~330GB):**
-- English Wikipedia (no pictures): 50 GB
-- Project Gutenberg (60,000+ public domain books): 206 GB
-- WikiMed (medical encyclopedia): 10 GB
-- Stack Overflow (programming Q/A): 50 GB
-- FreeCodeCamp (coding tutorials): 5 GB
-- OpenStreetMap Wiki (mapping/navigation): 0.3 GB
-- Gardening Stack Exchange (growing food): 0.8 GB
-- DIY Stack Exchange (repairs/building): 1.8 GB
-- Cooking Stack Exchange (food prep): 0.2 GB
-- Sustainability Stack Exchange (self-sufficiency): 0.02 GB
-- Wikivoyage (travel guides): 5 GB
+**Total: ~200GB**
 
-**Full Deployment (~770GB):**
+The following ZIM files will be downloaded:
 - English Wikipedia (with images): 119 GB
-- All Stack Exchange sites: ~200 GB
-- Multiple language Wikipedias: ~300 GB
-- Educational content: ~100 GB
-- Project Gutenberg: ~50 GB
+- WikiMed (medical encyclopedia): 10 GB
+- Project Gutenberg (60,000+ public domain books): 50 GB
+- Stack Overflow (programming Q/A): 12 GB
+- Stack Exchange (Unix, ServerFault, SuperUser): ~5 GB each
+- FreeCodeCamp (coding tutorials): 3 GB
+- OpenStreetMap Wiki (mapping/navigation): 0.3 GB
+- Stack Exchange (Gardening, DIY, Cooking, Sustainability): ~1 GB each
+- Wikivoyage (travel guides): 5 GB
 
 ## Prerequisites
 
 1. **OpenMediaVault NAS** (or any Linux system accessible via SSH)
 2. **Available Storage:** 500GB - 2TB on NAS
-3. **NAS Configuration:** NAS defined in `machines.yaml` with role `storage`
-4. **SSH Access:** SSH key authentication to NAS
-5. **Email System:** Mail command configured on NAS for notifications (optional)
-6. **Environment Variables:** SMB credentials configured in root `.env` file
+3. **SSH Access:** SSH key authentication to NAS
+4. **Email System:** Mail command configured on NAS for notifications (optional)
+5. **Environment Variables:** NAS connection and SMB credentials in root `.env` file
 
 ## Installation
 
@@ -55,7 +47,7 @@ cd stacks/apps/kiwix
 ```
 
 This script will:
-1. Prompt for NAS connection details (hostname, SSH user, SSH key path)
+1. Load NAS connection details from `.env` (or prompt if not set)
 2. Test SSH connectivity
 3. Prompt for storage paths on NAS
 4. Prompt for email address for notifications
@@ -64,26 +56,19 @@ This script will:
 7. Create configuration file at `/etc/kiwix-config.sh` on NAS
 8. Set up monthly cron job for update checks
 9. Test email notifications
-10. Optionally start initial download of starter pack
+10. Optionally start initial download (~200GB)
 
-The script automatically discovers your NAS from `machines.yaml` (looks for machine with key "nas"). If not found in machines.yaml, it will prompt for connection details.
+The script reads `NAS_SERVER`, `NAS_USER`, and `SSH_KEY_FILE` from your `.env` file. If these aren't configured, it will prompt you interactively.
 
-**Example machines.yaml entry:**
-```yaml
-machines:
-  nas:
-    ip: 192.168.86.189
-    role: storage
-    ssh_user: cody
-    swarm_node: false
+**Example prompts (if env vars not set):**
 ```
-
-**Example prompts (if needed):**
-```
-ZIM data directory on NAS [/srv/kiwix_data]:
-Log directory on NAS [/var/log/kiwix]:
-Email address for notifications [admin@example.com]: you@example.com
-Run initial download of starter pack now? (y/N): y
+NAS hostname or IP [nas.local]: <enter your NAS IP or hostname>
+SSH username for NAS [root]: <enter your NAS username>
+SSH key path [~/.ssh/selfhosted_rsa]: <enter path to your SSH key>
+ZIM data directory on NAS [/srv/kiwix_data]: <press enter for default>
+Log directory on NAS [/var/log/kiwix]: <press enter for default>
+Email address for notifications [admin@example.com]: <enter your email>
+Run initial download now? (y/N): y
 ```
 
 ### Step 2: Monitor Download Progress
@@ -101,7 +86,7 @@ ssh admin@nas.local 'du -sh /srv/kiwix_data'
 ssh admin@nas.local 'ls -lh /srv/kiwix_data/*.zim'
 ```
 
-**Note:** Initial downloads can take several hours for 100GB+ of data depending on your NAS's internet connection speed.
+**Note:** Initial downloads can take several hours for ~200GB of data depending on your NAS's internet connection speed.
 
 ### Step 3: Deploy Kiwix Service
 
@@ -144,16 +129,17 @@ TZ=America/New_York                    # Optional: Timezone for service
 SMB_USERNAME=your_nas_username
 SMB_PASSWORD=your_nas_password
 SMB_DOMAIN=WORKGROUP
-NAS_SERVER=192.168.86.189              # Must match NAS IP from machines.yaml
+NAS_SERVER=nas.local                   # NAS IP/hostname for both SSH setup and CIFS mount
 
-# SSH configuration (optional - setup script uses machines.yaml)
-SSH_KEY_FILE=~/.ssh/selfhosted_rsa
+# SSH configuration (required for setup script)
+NAS_USER=admin                         # SSH username for NAS
+SSH_KEY_FILE=~/.ssh/id_rsa             # Path to SSH private key
 ```
 
 **Important:**
-- The setup scripts automatically discover NAS connection info from `machines.yaml`
-- `NAS_SERVER` in `.env` must match the IP in `machines.yaml` (used by docker-compose for CIFS mount)
-- SSH user is discovered from `machines.yaml`, no need to configure in `.env`
+- `NAS_SERVER`, `NAS_USER`, and `SSH_KEY_FILE` are used by the setup script for SSH operations
+- If these aren't set in `.env`, the setup script will prompt you interactively
+- `NAS_SERVER` is also used by docker-compose for the CIFS mount
 
 ### Update Schedule
 
@@ -314,7 +300,7 @@ This will:
 3. Make it executable
 4. Verify the installation
 
-The script automatically discovers your NAS from machines.yaml and uses SSH_KEY_FILE from your .env file.
+The script reads NAS connection details from your .env file (NAS_SERVER, NAS_USER, SSH_KEY_FILE).
 
 ### Updating ZIM Files
 
@@ -387,7 +373,7 @@ Setup and management script for Kiwix NAS configuration.
 ```
 
 **What it does:**
-- Discovers NAS from `machines.yaml` automatically
+- Reads NAS connection info from `.env` (or prompts if not set)
 - Sets up directories and configuration on NAS
 - Copies zim-manager.sh script to NAS
 - Configures cron job for monthly updates
@@ -399,7 +385,7 @@ ZIM file download and management script (runs on the NAS itself).
 
 **Commands:**
 ```bash
-# Download starter pack (330GB)
+# Download ZIM files (~200GB)
 ssh root@nas 'zim-manager.sh init'
 
 # Check for available updates (sends email report)
