@@ -26,7 +26,6 @@ graph LR
     C --> D
     D --> E
     E --> F
-end
 ```
 
 ## Key Components

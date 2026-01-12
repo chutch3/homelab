@@ -59,7 +59,6 @@ graph TB
     %% Service Interaction
     TRAEFIK -- "routes traffic to" --> APPS
     DNS -- "resolves domains for" --> APPS
-end
 ```
 
 ## Key Components
