@@ -63,18 +63,25 @@ The mission of homelab is to:
 
 </div>
 
-### ✅ Currently Deployed Services (25+)
+### ✅ Currently Deployed Services (33+)
 
 **Infrastructure & Networking:**
 - :material-dns: **Technitium DNS** - Local DNS server ✅
 - :material-shield-check: **Traefik** - Reverse proxy with automatic SSL ✅
 - :material-chart-line: **Prometheus + Grafana** - System monitoring and dashboards ✅
 - :material-monitor: **Node Exporter** - Host metrics collection ✅
+- :material-docker: **cAdvisor** - Container-level performance metrics ✅
+- :material-chart-box: **NVIDIA GPU Exporter** - GPU metrics and monitoring ✅
+- :material-speedometer: **Speedtest Exporter** - Network speed monitoring ✅
+- :material-network: **iperf3 Server + Exporter** - Network performance testing ✅
+- :material-file-document-multiple: **Loki + Promtail** - Log aggregation and shipping ✅
+- :material-heart-pulse: **Uptime Kuma** - Uptime monitoring with notifications ✅
 
 **Home & Productivity:**
 - :material-view-dashboard: **Homepage** - Service dashboard ✅
 - :material-cash: **Actual Budget** - Personal finance management ✅
 - :material-home-automation: **Home Assistant** - Smart home automation platform ✅
+- :material-sitemap: **Node-RED** - Flow-based automation for advanced smart home integration ✅
 - :material-file-document: **CryptPad** - Collaborative documents with encryption ✅
 - :material-food: **Mealie** - Recipe management and meal planning ✅
 
@@ -97,6 +104,15 @@ The mission of homelab is to:
 
 **Prepper & Resilience:**
 - :material-book-open-variant: **Kiwix** - Offline Wikipedia and knowledge archives ✅
+  - Wikipedia (119GB with images)
+  - Project Gutenberg (60,000+ ebooks)
+  - WikiMed (medical encyclopedia)
+  - Stack Overflow + Stack Exchange sites
+  - WikiVoyage, OpenStreetMap Wiki
+  - Gardening, DIY, Cooking, Sustainability knowledge
+
+**Security & Privacy:**
+- :material-lock: **Vaultwarden** - Bitwarden-compatible password manager ✅
 
 **AI & Chat:**
 - :material-robot: **LibreChat** - Self-hosted AI chat interface ✅
@@ -107,29 +123,27 @@ The mission of homelab is to:
 
 | Service | Priority | Description |
 |---------|----------|-------------|
-| **Node-RED** | High | Flow-based automation for advanced smart home integration |
+| **Traccar** | Medium | GPS tracking for family safety and device location |
 | **Grocy** | Medium | Groceries and household management |
 | **Monica** | Low | Personal CRM and relationship management |
-| **Paperless-ngx** | High | Document management system |
+| **Paperless-ngx** | High | Document management and long-term archival system |
 
 ### 💼 Development & DevOps
 
+**Note:** PostgreSQL and Redis are deployed with apps that need them (e.g., Immich includes PostgreSQL), not as standalone services.
+
 | Service | Priority | Description |
 |---------|----------|-------------|
-| **Gitea** | High | Self-hosted Git service with CI/CD |
-| **Forgejo** | Medium | Community-driven Gitea fork |
+| **Forgejo** | High | Self-hosted Git service with CI/CD (community-driven Gitea fork) |
 | **Code-Server** | Medium | VS Code in the browser |
-| **PostgreSQL** | High | Relational database for apps |
-| **Redis** | High | In-memory cache and message broker |
 | **Harbor** | Low | Container registry and scanning |
 
 ### 📝 Productivity & Collaboration
 
 | Service | Priority | Description |
 |---------|----------|-------------|
-| **NextCloud** | High | File sync, calendar, contacts, collaboration |
+| **NextCloud** | High | File sync, calendar, contacts, collaboration, long-term document storage |
 | **Bookstack** | Medium | Wiki and documentation platform |
-| **Outline** | Medium | Knowledge base and team wiki |
 | **Memos** | Low | Lightweight note-taking |
 | **Stirling-PDF** | Medium | PDF manipulation toolkit |
 
@@ -137,59 +151,70 @@ The mission of homelab is to:
 
 | Service | Priority | Description |
 |---------|----------|-------------|
-| **Vaultwarden** | High | Bitwarden-compatible password manager |
+| **Searxng** | Medium | Private meta-search engine (aggregates results without tracking) |
 | **Authentik** | Medium | Identity provider and SSO |
 | **AdGuard Home** | Medium | Network-wide ad and tracker blocking |
 | **WireGuard** | High | VPN for secure remote access |
 | **Crowdsec** | Low | Collaborative security engine |
 
-### 📬 Communication
-
-| Service | Priority | Description |
-|---------|----------|-------------|
-| **Matrix (Synapse)** | Medium | Federated chat and messaging |
-| **Mailu** | Low | Complete email server suite |
-| **Jitsi Meet** | Low | Video conferencing platform |
-| **Mailcow** | Low | Email server with web UI |
 
 ### 🎯 Prepper & Resilience
 
 *Building self-sufficient systems for network independence and long-term data preservation.*
 
+**✅ Completed via Kiwix:**
+- Wikipedia with images (offline encyclopedia)
+- Project Gutenberg (60,000+ ebooks)
+- WikiMed (medical knowledge)
+- Stack Overflow + Stack Exchange (technical Q&A)
+- WikiVoyage (travel guides)
+- OpenStreetMap Wiki (mapping reference)
+- Practical knowledge (gardening, DIY, cooking, sustainability)
+
+**Future Services:**
+
 | Service | Priority | Description | Status |
 |---------|----------|-------------|--------|
-| **OpenStreetMap Tile Server** | High | Local map server for offline navigation | 🔄 [Issue #13](https://github.com/chutch3/homelab/issues/13) |
+| **Kolibri** | High | Offline educational platform with K-12 curriculum (Khan Academy, structured learning) | 🔄 Planned |
+| **OpenStreetMap Tile Server** | High | Local map server for offline navigation with actual map tiles | 🔄 [Issue #13](https://github.com/chutch3/homelab/issues/13) |
 | **Ollama** | High | Local LLM inference for offline AI assistance | 🔄 [Issue #13](https://github.com/chutch3/homelab/issues/13) |
-| **LocalAI** | Medium | Alternative local AI inference platform | 🔄 Planned |
-| **Calibre-Web** | Medium | Ebook library management and reader | 🔄 Planned |
-| **Project Gutenberg Mirror** | Low | 70,000+ free ebooks for offline access | 🔄 Planned |
+| **Calibre-Web** | Medium | Ebook library management and reader (for managing additional ebook collections) | 🔄 Planned |
 | **ArchiveBox** | Medium | Self-hosted web archive for important pages | 🔄 Planned |
 | **FreshRSS** | Low | RSS reader for decentralized news aggregation | 🔄 Planned |
 
-**Key Questions for Prepper Services ([Issue #13](https://github.com/chutch3/homelab/issues/13)):**
-- Source and licensing for offline data archives
-- Automated init and update processes for large datasets
-- Storage strategy for knowledge vs personal backups
+**Remaining Challenges ([Issue #13](https://github.com/chutch3/homelab/issues/13)):**
+- ✅ ~~Source and licensing for offline data archives~~ (Solved via Kiwix ZIM files)
+- ✅ ~~Automated init and update processes~~ (Implemented with monthly update checks)
+- OpenStreetMap tile generation and storage strategy
 - Source code archiving and mirror strategies
+- Local LLM model management and updates
 
 ### 🎮 Gaming & Entertainment
 
 | Service | Priority | Description |
 |---------|----------|-------------|
-| **Jellyfin** | Medium | Alternative media server (FOSS alternative to Emby) |
 | **Audiobookshelf** | Low | Audiobook and podcast server |
 | **Navidrome** | Low | Music server and streamer |
 | **Romm** | Low | ROM and game library management |
 
-### 🔧 Infrastructure & Monitoring
+### 💾 Backup & Recovery
+
+**Current:** Manual backups using rclone to encrypted Backblaze B2 storage
 
 | Service | Priority | Description |
 |---------|----------|-------------|
-| **Uptime Kuma** | High | Uptime monitoring with notifications |
-| **Netdata** | Medium | Real-time performance monitoring |
-| **Portainer** | Medium | Container management UI |
-| **Dozzle** | Low | Real-time log viewer for Docker |
-| **Watchtower** | Low | Automated container updates |
+| **Restic** | High | Automated encrypted backups to Backblaze (replaces manual rclone) |
+| **Kopia** | Medium | Modern backup tool with web UI (alternative to Restic) |
+| **Duplicati** | Low | Web-based backup with scheduling (simpler but less efficient) |
+
+### 🔧 Infrastructure & Monitoring
+
+| Service | Priority | Description | Status |
+|---------|----------|-------------|--------|
+| ~~**Netdata**~~ | ~~Medium~~ | ~~Real-time performance monitoring~~ | ✅ **Alternative: Prometheus + Grafana + cAdvisor + Exporters** |
+| ~~**Dozzle**~~ | ~~Low~~ | ~~Real-time log viewer~~ | ✅ **Alternative: Loki + Promtail + Grafana** |
+| **Portainer** | Medium | Container management UI | 🔄 Planned (alternative to CLI) |
+| **Watchtower** | Low | Automated container updates | 🔄 Planned |
 
 [View complete roadmap →](https://github.com/chutch3/homelab/issues?q=is%3Aissue+is%3Aopen+label%3Aenhancement)
 
@@ -229,17 +254,18 @@ We welcome contributions! Here's how you can help:
 
 **🔥 Hot Topics** (Help Wanted):
 
-1. **Prepper Services** - OpenStreetMap tile server, local LLM hosting (Ollama), offline content archives
-2. **Security & Privacy** - Vaultwarden password manager, WireGuard VPN, Authentik SSO
-3. **Development Tools** - Gitea/Forgejo, PostgreSQL, Redis integration
-4. **Productivity Suite** - NextCloud deployment, Paperless-ngx document management
-5. **Infrastructure** - Uptime Kuma monitoring, Portainer container management
-6. **Documentation** - Service setup guides, domain-specific tutorials
-7. **Testing** - Integration tests for new services
+1. **Prepper Services** - OpenStreetMap tile server, local LLM hosting (Ollama), web archiving (ArchiveBox)
+2. **Security & Privacy** - WireGuard VPN, Authentik SSO, AdGuard Home
+3. **Backup & Recovery** - Automated Restic/Kopia backups to replace manual rclone process
+4. **Development Tools** - Forgejo with CI/CD, code editing tools
+5. **Productivity Suite** - NextCloud deployment, Paperless-ngx document management
+6. **Infrastructure** - Portainer container management (monitoring is complete)
+7. **Documentation** - Service setup guides, domain-specific tutorials
+8. **Testing** - Integration tests for new services
 
 **Domain-Specific Needs:**
 
-- **Prepper/Resilience**: Data archiving strategies, update automation, storage optimization
+- **Prepper/Resilience**: OpenStreetMap tile generation, LLM model management, source code archiving
 - **Home Automation**: Advanced Node-RED flows, Home Assistant integrations
 - **Media**: Alternative servers (Jellyfin, Immich), codec optimization
 - **Security**: SSO implementation, network security hardening
