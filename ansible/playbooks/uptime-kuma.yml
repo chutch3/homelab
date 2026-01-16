@@ -1,0 +1,21 @@
+---
+# ansible/playbooks/uptime-kuma.yml
+# Manage Uptime Kuma monitors for machines and services
+#
+# Usage:
+#   ansible-playbook uptime-kuma.yml -e "uptime_action=configure"
+#
+# Actions:
+#   - create_groups: Create Machines and Services monitor groups
+#   - add_machines: Add ping monitors for all inventory hosts
+#   - add_services: Discover and add HTTP monitors for Traefik services
+#   - configure: Run all tasks in sequence
+
+- name: Manage Uptime Kuma Monitors
+  hosts: managers
+  gather_facts: false
+  vars:
+      base_domain: "{{ lookup('env', 'BASE_DOMAIN') }}"
+
+  roles:
+      - role: uptime_kuma

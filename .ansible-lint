@@ -2,6 +2,9 @@
 # Ansible-lint configuration
 profile: basic
 
+# Project directory for resolving relative paths
+project_dir: ansible/
+
 # Exclude non-Ansible directories
 exclude_paths:
   - .github/

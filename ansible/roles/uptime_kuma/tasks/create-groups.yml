@@ -1,0 +1,32 @@
+---
+# ansible/roles/uptime-kuma/tasks/create-groups.yml
+# Create monitor groups for organizing machines and services
+
+- name: Create Machines monitor group
+  lucasheld.uptime_kuma.monitor:
+    api_url: "{{ uptime_kuma_api_url }}"
+    api_token: "{{ uptime_kuma_api_token }}"
+    api_timeout: 30
+    name: Machines
+    type: group
+    state: present
+  register: uptime_kuma_machines_group_result
+  delegate_to: localhost
+
+- name: Create Services monitor group
+  lucasheld.uptime_kuma.monitor:
+    api_url: "{{ uptime_kuma_api_url }}"
+    api_token: "{{ uptime_kuma_api_token }}"
+    api_timeout: 30
+    name: Services
+    type: group
+    state: present
+  register: uptime_kuma_services_group_result
+  delegate_to: localhost
+
+- name: Display group creation status
+  ansible.builtin.debug:
+    msg: |
+      Monitor groups configured:
+      - Machines: {{ 'Created' if uptime_kuma_machines_group_result.changed else 'Already exists' }}
+      - Services: {{ 'Created' if uptime_kuma_services_group_result.changed else 'Already exists' }}

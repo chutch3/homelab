@@ -1,6 +1,8 @@
 #!/bin/bash
 set -e
 
+export ANSIBLE_CONFIG=ansible/ansible.cfg
+
 # This script is a wrapper for ansible-lint that only runs it if there are
 # ansible files to be linted. This is to prevent the pre-commit hook from
 # running on every commit, even if there are no ansible changes.

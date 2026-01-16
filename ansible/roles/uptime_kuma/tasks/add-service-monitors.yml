@@ -1,0 +1,65 @@
+---
+# ansible/roles/uptime-kuma/tasks/add-service-monitors.yml
+# Discover services from docker-compose files and create HTTP monitors
+
+- name: Find all docker-compose.yml files
+  ansible.builtin.find:
+      paths: "{{ playbook_dir }}/../../stacks/apps"
+      patterns: "docker-compose.yml"
+      recurse: true
+  register: uptime_kuma_compose_files
+  delegate_to: localhost
+
+- name: Get only compose files with Traefik Host() rules
+  ansible.builtin.shell: "grep -l 'Host(' {{ item.path }}"
+  loop: "{{ uptime_kuma_compose_files.files }}"
+  register: uptime_kuma_traefik_compose_files
+  changed_when: false
+  failed_when: false
+  delegate_to: localhost
+
+- name: Extract Traefik Host() rules from matching files
+  ansible.builtin.shell: "grep -o 'Host(`[^`]*`)' {{ item.path }}"
+  loop: "{{ uptime_kuma_traefik_compose_files.results | selectattr('rc', '==', 0) | map(attribute='item') | list }}"
+  register: uptime_kuma_traefik_rules
+  changed_when: false
+  failed_when: false
+  delegate_to: localhost
+
+- name: Process and set discovered domains
+  ansible.builtin.set_fact:
+      uptime_kuma_discovered_domains: >
+          {{ uptime_kuma_traefik_rules.results |
+             map(attribute='stdout_lines') | flatten |
+             map('regex_search', 'Host\(`([^`]+)`\)', '\1') |
+             flatten | select('ne', '') |
+             map('regex_replace', '\$\{BASE_DOMAIN\}', base_domain) |
+             unique | list }}
+
+- name: Display discovered services
+  ansible.builtin.debug:
+      msg: "Discovered {{ uptime_kuma_discovered_domains | length }} services to monitor: {{ uptime_kuma_discovered_domains | join(', ') }}"
+
+- name: Add HTTP monitor for each discovered service
+  lucasheld.uptime_kuma.monitor:
+      api_url: "{{ uptime_kuma_api_url }}"
+      api_token: "{{ uptime_kuma_api_token }}"
+      name: "{{ item }}"
+      type: http
+      url: "https://{{ item }}"
+      parent_name: Services
+      interval: 60
+      state: present
+  loop: "{{ uptime_kuma_discovered_domains }}"
+  register: uptime_kuma_add_service_monitor_result
+  delegate_to: localhost
+  retries: 3
+  delay: 5
+  until: uptime_kuma_add_service_monitor_result is succeeded
+
+- name: Display service monitor status
+  ansible.builtin.debug:
+      msg: "Monitor for {{ item.item }}: {{ 'Created' if item.changed else 'Already exists' }}"
+  loop: "{{ uptime_kuma_add_service_monitor_result.results }}"
+  loop_control:
+      label: "{{ item.item }}"
