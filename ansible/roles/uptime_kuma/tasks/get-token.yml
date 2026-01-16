@@ -1,0 +1,20 @@
+---
+# ansible/roles/uptime-kuma/tasks/get-token.yml
+# Authenticate with Uptime Kuma and obtain API token
+
+- name: Authenticate with Uptime Kuma
+  lucasheld.uptime_kuma.login:
+    api_url: "{{ uptime_kuma_api_url }}"
+    api_username: "{{ uptime_kuma_username }}"
+    api_password: "{{ lookup('env', 'UPTIME_KUMA_PASSWORD') }}"
+  register: uptime_kuma_auth
+  delegate_to: localhost
+
+- name: Fail if authentication failed
+  ansible.builtin.fail:
+    msg: "Failed to authenticate with Uptime Kuma. Please check your credentials."
+  when: uptime_kuma_auth.token is not defined
+
+- name: Set Uptime Kuma API token
+  ansible.builtin.set_fact:
+    uptime_kuma_api_token: "{{ uptime_kuma_auth.token }}"
