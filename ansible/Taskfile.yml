@@ -171,7 +171,33 @@ tasks:
         desc: "[Complete] Full Technitium DNS setup"
         dir: "{{.ROOT_DIR}}"
         cmds:
-            - ANSIBLE_CONFIG=ansible/ans.cfg ansible-playbook -i ansible/inventory/ ansible/playbooks/dns.yml -e "dns_action=configure" {{.CLI_ARGS}}
+            - ANSIBLE_CONFIG=ansible/ansible.cfg ansible-playbook -i ansible/inventory/ ansible/playbooks/dns.yml -e "dns_action=configure" {{.CLI_ARGS}}
+
+    # Ansible Uptime Kuma Management
+    uptime:create-groups:
+        desc: "Create Machines and Services monitor groups in Uptime Kuma"
+        dir: "{{.ROOT_DIR}}"
+        cmds:
+            - ANSIBLE_CONFIG=ansible/ansible.cfg ansible-playbook -i ansible/inventory/ ansible/playbooks/uptime-kuma.yml -e "uptime_action=create_groups" {{.CLI_ARGS}}
+
+    uptime:add-machines:
+        desc: "Add ping monitors for all machines"
+        dir: "{{.ROOT_DIR}}"
+        cmds:
+            - ANSIBLE_CONFIG=ansible/ansible.cfg ansible-playbook -i ansible/inventory/ ansible/playbooks/uptime-kuma.yml -e "uptime_action=add_machines" {{.CLI_ARGS}}
+
+    uptime:add-services:
+        desc: "Add HTTP monitors for all Traefik services"
+        dir: "{{.ROOT_DIR}}"
+        cmds:
+            - ANSIBLE_CONFIG=ansible/ansible.cfg ansible-playbook -i ansible/inventory/ ansible/playbooks/uptime-kuma.yml -e "uptime_action=add_services" {{.CLI_ARGS}}
+
+    uptime:configure:
+        desc: "[Complete] Full Uptime Kuma setup (groups + machines + services)"
+        dir: "{{.ROOT_DIR}}"
+        cmds:
+            - ANSIBLE_CONFIG=ansible/ansible.cfg ansible-playbook -i ansible/inventory/ ansible/playbooks/uptime-kuma.yml -e "uptime_action=configure" {{.CLI_ARGS}}
+
     # Ansible Operations
     teardown:
         desc: Remove all Docker Swarm stacks (preserve volumes)

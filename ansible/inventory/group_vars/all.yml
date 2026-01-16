@@ -38,6 +38,10 @@ dns_api_url: "http://dns.diyhub.dev:5380/api"
 dns_admin_username: "admin"
 dns_admin_password: lookup('env', 'DNS_ADMIN_PASSWORD')
 
+# Uptime Kuma configuration
+uptime_kuma_api_url: "https://uptime.{{ lookup('env', 'BASE_DOMAIN') }}"
+uptime_kuma_username: "{{ lookup('env', 'UPTIME_KUMA_USERNAME') | default('admin', true) }}"
+
 # Firewall configuration (Commented out as per user's request)
 # firewall_allowed_ports:
 #   - { port: 22, proto: tcp, comment: 'SSH' }

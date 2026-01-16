@@ -1,26 +1,26 @@
 extends: relaxed
 
 ignore: |
-  .venv/
-  .git/
-  site/
-  coverage/
-  .facts/
-  node_modules/
-  *.egg-info/
+    .venv/
+    .git/
+    site/
+    coverage/
+    .facts/
+    node_modules/
+    *.egg-info/
 
 rules:
-  line-length:
-    max: 160
-    level: warning
-  comments:
-    min-spaces-from-content: 1
-  octal-values:
-    forbid-implicit-octal: false  # Allow implicit octals like 0755 (required for Docker Swarm mode/permissions)
-    forbid-explicit-octal: true
+    line-length:
+        max: 160
+        level: warning
+    comments:
+        min-spaces-from-content: 1
+    octal-values:
+        forbid-implicit-octal: true
+        forbid-explicit-octal: true
 
 yaml-tags:
-  - "!!python/name:material.extensions.emoji.to_svg"
-  - "!!python/name:material.extensions.emoji.twemoji"
-  - "!!python/name:pymdownx.superfences.fence_code_format"
-  - "!!python/object/apply:pymdownx.slugs.slugify"
+    - "!!python/name:material.extensions.emoji.to_svg"
+    - "!!python/name:material.extensions.emoji.twemoji"
+    - "!!python/name:pymdownx.superfences.fence_code_format"
+    - "!!python/object/apply:pymdownx.slugs.slugify"

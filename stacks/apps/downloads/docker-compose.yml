@@ -12,7 +12,7 @@ services:
     configs:
       - source: vpn_init_script
         target: /scripts/init-vpn.sh
-        mode: 0755
+        mode: '0755'
     environment:
       - VPN_SERVICE_PROVIDER=nordvpn
       - VPN_TYPE=openvpn

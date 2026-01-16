@@ -1,0 +1,24 @@
+---
+- name: Add ping monitor for each machine
+  lucasheld.uptime_kuma.monitor:
+      api_url: "{{ uptime_kuma_api_url }}"
+      api_token: "{{ uptime_kuma_api_token }}"
+      name: "{{ item }}"
+      type: ping
+      hostname: "{{ hostvars[item].ansible_host }}"
+      parent_name: Machines
+      interval: 60
+      state: present
+  loop: "{{ groups['all'] }}"
+  register: uptime_kuma_add_machine_monitor_result
+  delegate_to: localhost
+  retries: 3
+  delay: 5
+  until: uptime_kuma_add_machine_monitor_result is succeeded
+
+- name: Display machine monitor status
+  ansible.builtin.debug:
+      msg: "Monitor for {{ item.item }} ({{ hostvars[item.item].ansible_host }}): {{ 'Created' if item.changed else 'Already exists' }}"
+  loop: "{{ uptime_kuma_add_machine_monitor_result.results }}"
+  loop_control:
+      label: "{{ item.item }}"
