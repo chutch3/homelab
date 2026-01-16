@@ -1,0 +1,32 @@
+---
+# ansible/roles/uptime-kuma/tasks/main.yml
+# Uptime Kuma monitor management - mirrors DNS role pattern
+
+- name: Get API Token
+  ansible.builtin.include_tasks: get-token.yml
+
+- name: Perform Uptime Kuma Action
+  block:
+    - name: Include Create Groups Task
+      ansible.builtin.include_tasks: create-groups.yml
+      when: uptime_action == 'create_groups'
+
+    - name: Include Add Machine Monitors Task
+      ansible.builtin.include_tasks: add-machine-monitors.yml
+      when: uptime_action == 'add_machines'
+
+    - name: Include Add Service Monitors Task
+      ansible.builtin.include_tasks: add-service-monitors.yml
+      when: uptime_action == 'add_services'
+
+    - name: Include Configure All Monitors Task
+      when: uptime_action == 'configure'
+      block:
+        - name: Run Create Groups
+          ansible.builtin.include_tasks: create-groups.yml
+
+        - name: Run Add Machine Monitors
+          ansible.builtin.include_tasks: add-machine-monitors.yml
+
+        - name: Run Add Service Monitors
+          ansible.builtin.include_tasks: add-service-monitors.yml
