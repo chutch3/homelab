@@ -1,0 +1,24 @@
+#!/bin/bash
+# Schedule whitelist fix for after SABnzbd starts
+# Uses BASE_DOMAIN env var to construct the full domain
+cat > /tmp/fix-whitelist.sh << INNER
+#!/bin/bash
+sleep 15
+DOMAIN="sabnzbd.${BASE_DOMAIN}"
+CONFIG="/config/sabnzbd.ini"
+MARKER="/config/.whitelist-fixed"
+
+if [ -f "\$MARKER" ]; then
+    exit 0
+fi
+
+if ! grep -q "\$DOMAIN" "\$CONFIG"; then
+    sed -i "s/^host_whitelist = .*/host_whitelist = \$DOMAIN,/" "\$CONFIG"
+    API_KEY=\$(grep "^api_key" "\$CONFIG" | cut -d= -f2 | tr -d " ")
+    curl -s "http://localhost:8080/api?mode=restart&apikey=\$API_KEY" || true
+fi
+
+touch "\$MARKER"
+INNER
+chmod +x /tmp/fix-whitelist.sh
+nohup /tmp/fix-whitelist.sh &>/dev/null &
