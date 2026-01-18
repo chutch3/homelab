@@ -117,6 +117,9 @@ The mission of homelab is to:
 **AI & Chat:**
 - :material-robot: **LibreChat** - Self-hosted AI chat interface ✅
 
+**Development & DevOps:**
+- :material-brain: **MLflow** - ML experiment tracking, model registry, and serving ✅
+
 ## 🚀 Future Services by Domain
 
 ### 🏠 Home & Lifestyle
