@@ -217,16 +217,28 @@ volumes:
 
   qbittorrent:
     driver: local
-    # Using local storage (CIFS causes hanging and stale file handles)
+    driver_opts:
+      type: "none"
+      o: "bind"
+      device: "/mnt/iscsi/media-apps/qbittorrent"
 
   deluge:
     driver: local
-    # Using local storage (CIFS causes hanging and stale file handles)
+    driver_opts:
+      type: "none"
+      o: "bind"
+      device: "/mnt/iscsi/media-apps/deluge"
 
   sabnzbd:
     driver: local
-    # Using local storage
+    driver_opts:
+      type: "none"
+      o: "bind"
+      device: "/mnt/iscsi/media-apps/sabnzbd"
 
   nzbget:
     driver: local
-    # Using local storage
+    driver_opts:
+      type: "none"
+      o: "bind"
+      device: "/mnt/iscsi/media-apps/nzbget"
