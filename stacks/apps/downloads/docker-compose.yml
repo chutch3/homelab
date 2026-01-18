@@ -114,10 +114,16 @@ services:
   sabnzbd:
     image: lscr.io/linuxserver/sabnzbd:latest
     container_name: sabnzbd
+    hostname: sabnzbd.${BASE_DOMAIN}
+    configs:
+      - source: sabnzbd_fix_whitelist
+        target: /custom-cont-init.d/99-fix-whitelist
+        mode: 493
     environment:
       - PUID=1000
       - PGID=1000
       - TZ=${TZ}
+      - BASE_DOMAIN=${BASE_DOMAIN}
     volumes:
       - sabnzbd:/config
       - usenet:/data/usenet
@@ -184,6 +190,8 @@ services:
 configs:
   vpn_init_script:
     file: ./scripts/init-vpn.sh
+  sabnzbd_fix_whitelist:
+    file: ./sabnzbd/99-fix-whitelist
 
 networks:
   traefik-public:
