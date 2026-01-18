@@ -18,10 +18,12 @@ services:
         deploy:
             labels:
                 - "traefik.enable=true"
+                - "traefik.swarm.network=traefik-public"
                 - "traefik.http.routers.homeassistant.rule=Host(`ha.${BASE_DOMAIN}`)"
                 - "traefik.http.routers.homeassistant.entrypoints=websecure"
                 - "traefik.http.routers.homeassistant.tls.certresolver=dns"
                 - "traefik.http.services.homeassistant.loadbalancer.server.port=8123"
+                - "traefik.http.routers.homeassistant.service=homeassistant"
                 - homepage.group=Home
                 - homepage.name=Home Assistant
                 - homepage.icon=home-assistant.png
@@ -32,6 +34,7 @@ services:
                 - "traefik.http.routers.homeassistant-hubitat-events.tls=true" # Assuming TLS is desired for 8181
                 - "traefik.http.routers.homeassistant-hubitat-events.tls.certresolver=dns"
                 - "traefik.http.services.homeassistant-hubitat-events.loadbalancer.server.port=8181"
+                - "traefik.http.routers.homeassistant-hubitat-events.service=homeassistant-hubitat-events"
 
 networks:
     traefik-public:
@@ -41,6 +44,6 @@ volumes:
     homeassistant:
         driver: local
         driver_opts:
-            type: "cifs"
-            o: "username=${SMB_USERNAME},password=${SMB_PASSWORD},vers=3.0,nobrl,uid=0,gid=100,file_mode=0777,dir_mode=0777,soft,actimeo=30"
-            device: "//${NAS_SERVER}/homeassistant"
+            type: "none"
+            o: "bind"
+            device: "/mnt/iscsi/app-data/homeassistant"
