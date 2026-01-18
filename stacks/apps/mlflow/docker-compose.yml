@@ -1,0 +1,47 @@
+version: "3.9"
+
+services:
+  mlflow:
+    image: ghcr.io/mlflow/mlflow:v2.10.1
+    command: >
+      mlflow server
+      --host 0.0.0.0
+      --port 5000
+      --backend-store-uri file:///mlflow/backend
+      --default-artifact-root file:///mlflow/artifacts
+    environment:
+      - TZ=${TZ}
+    volumes:
+      - mlflow_data:/mlflow
+    restart: unless-stopped
+    networks:
+      - traefik-public
+    deploy:
+      replicas: 1
+      resources:
+        limits:
+          memory: 1000M
+      labels:
+        - "traefik.enable=true"
+        - "traefik.http.routers.mlflow.rule=Host(`mlflow.${BASE_DOMAIN}`)"
+        - "traefik.http.routers.mlflow.entrypoints=websecure"
+        - "traefik.http.routers.mlflow.tls.certresolver=dns"
+        - "traefik.http.services.mlflow.loadbalancer.server.port=5000"
+
+        - homepage.group=Apps
+        - homepage.name=MLflow
+        - homepage.icon=mlflow.png
+        - homepage.href=https://mlflow.${BASE_DOMAIN}/
+        - homepage.description=MLflow Tracking
+
+networks:
+  traefik-public:
+    external: true
+
+volumes:
+  mlflow_data:
+    driver: local
+    driver_opts:
+      type: "none"
+      o: "bind"
+      device: "/mnt/iscsi/app-data/mlflow"
