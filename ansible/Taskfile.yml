@@ -1,5 +1,8 @@
 version: "3"
 
+env:
+    ANSIBLE_CONFIG: "ansible/ansible.cfg"
+
 tasks:
     # Ansible Install Ansible (setup)
     install:
@@ -14,223 +17,225 @@ tasks:
         desc: Test Ansible connectivity to all nodes
         dir: "{{.ROOT_DIR}}"
         cmds:
-            - ANSIBLE_CONFIG=ansible/ansible.cfg ansible -i ansible/inventory/ all -m ping
+            - ansible -i ansible/inventory/ all -m ping
 
     # Ansible Bootstrap all nodes
     bootstrap:
         desc: Bootstrap all nodes with Ansible
         dir: "{{.ROOT_DIR}}"
         cmds:
-            - ANSIBLE_CONFIG=ansible/ansible.cfg ansible-playbook --become -K -i ansible/inventory/ ansible/playbooks/bootstrap.yml {{.CLI_ARGS}}
+            - ansible-playbook --become -K -i ansible/inventory/ ansible/playbooks/bootstrap.yml {{.CLI_ARGS}}
 
     # Ansible Bootstrap specific node
     bootstrap:node:
         desc: "Bootstrap specific node (usage: task ansible:bootstrap:node -- worker-01)"
         dir: "{{.ROOT_DIR}}"
         cmds:
-            - ANSIBLE_CONFIG=ansible/ansible.cfg ansible-playbook --become -i ansible/inventory/ ansible/playbooks/bootstrap.yml --limit {{.CLI_ARGS}}
+            - ansible-playbook --become -i ansible/inventory/ ansible/playbooks/bootstrap.yml --limit {{.CLI_ARGS}}
 
     # Ansible Dry run bootstrap
     bootstrap:check:
         desc: Dry run of bootstrap playbook
         dir: "{{.ROOT_DIR}}"
         cmds:
-            - ANSIBLE_CONFIG=ansible/ansible.cfg ansible-playbook --become -i ansible/inventory/ ansible/playbooks/bootstrap.yml --check {{.CLI_ARGS}}
+            - ansible-playbook --become -i ansible/inventory/ ansible/playbooks/bootstrap.yml --check {{.CLI_ARGS}}
 
     # Ansible Validate nodes
     validate:
         desc: Validate all node configurations
         dir: "{{.ROOT_DIR}}"
         cmds:
-            - ANSIBLE_CONFIG=ansible/ansible.cfg ansible-playbook --become -i ansible/inventory/ ansible/playbooks/validate.yml
+            - ansible-playbook --become -i ansible/inventory/ ansible/playbooks/validate.yml
 
     # Ansible Update nodes
     update:
         desc: Update all nodes (packages, configs)
         dir: "{{.ROOT_DIR}}"
         cmds:
-            - ANSIBLE_CONFIG=ansible/ansible.cfg ansible-playbook --become -i ansible/inventory/ ansible/playbooks/update.yml {{.CLI_ARGS}}
+            - ansible-playbook --become -i ansible/inventory/ ansible/playbooks/update.yml {{.CLI_ARGS}}
 
     # Ansible Run specific tags
     tags:
         desc: "Run bootstrap with specific tags (usage: task ansible:tags -- docker,gpu)"
         dir: "{{.ROOT_DIR}}"
         cmds:
-            - ANSIBLE_CONFIG=ansible/ansible.cfg ansible-playbook --become -i ansible/inventory/ ansible/playbooks/bootstrap.yml --tags {{.CLI_ARGS}}
+            - ansible-playbook --become -i ansible/inventory/ ansible/playbooks/bootstrap.yml --tags {{.CLI_ARGS}}
 
     # Ansible Ad-hoc command
     cmd:
-        desc: 'Run ad-hoc command on all nodes (usage: task ansible:cmd -- "docker ps")'
+        desc: "Run ad-hoc command on the giant node"
         dir: "{{.ROOT_DIR}}"
         cmds:
-            - ANSIBLE_CONFIG=ansible/ansible.cfg ansible -i ansible/inventory/ all -m shell -a "{{.CLI_ARGS}}"
+            - ansible -i ansible/inventory/ {{ .HOST }} -m shell -a {{ .CLI_ARGS | q }} -K
+        vars:
+            HOST: "{{ .HOST | default all }}"
 
     # Ansible Show inventory
     inventory:
         desc: Show merged inventory (structure + hosts)
         dir: "{{.ROOT_DIR}}"
         cmds:
-            - ANSIBLE_CONFIG=ansible/ansible.cfg ansible-inventory -i ansible/inventory/ --list --yaml
+            - ansible-inventory -i ansible/inventory/ --list --yaml
 
     # Ansible List hosts
     hosts:
         desc: List all hosts
         dir: "{{.ROOT_DIR}}"
         cmds:
-            - ANSIBLE_CONFIG=ansible/ansible.cfg ansible -i ansible/inventory/ all --list-hosts
+            - ansible -i ansible/inventory/ all --list-hosts
 
     # Ansible Cluster Management
     cluster:init:
         desc: Initialize Docker Swarm on manager node
         dir: "{{.ROOT_DIR}}"
         cmds:
-            - ANSIBLE_CONFIG=ansible/ansible.cfg ansible-playbook -i ansible/inventory/ ansible/playbooks/cluster/init.yml {{.CLI_ARGS}}
+            - ansible-playbook -i ansible/inventory/ ansible/playbooks/cluster/init.yml {{.CLI_ARGS}}
 
     cluster:join:
         desc: Join worker nodes to the swarm
         dir: "{{.ROOT_DIR}}"
         cmds:
-            - ANSIBLE_CONFIG=ansible/ansible.cfg ansible-playbook -i ansible/inventory/ ansible/playbooks/cluster/join.yml {{.CLI_ARGS}}
+            - ansible-playbook -i ansible/inventory/ ansible/playbooks/cluster/join.yml {{.CLI_ARGS}}
 
     cluster:status:
         desc: Show Docker Swarm cluster status
         dir: "{{.ROOT_DIR}}"
         cmds:
-            - ANSIBLE_CONFIG=ansible/ansible.cfg ansible-playbook -i ansible/inventory/ ansible/playbooks/cluster/status.yml {{.CLI_ARGS}}
+            - ansible-playbook -i ansible/inventory/ ansible/playbooks/cluster/status.yml {{.CLI_ARGS}}
 
     cluster:update-labels:
         desc: Update Docker Swarm node labels from inventory
         dir: "{{.ROOT_DIR}}"
         cmds:
-            - ANSIBLE_CONFIG=ansible/ansible.cfg ansible-playbook -i ansible/inventory/ ansible/playbooks/cluster/update-labels.yml {{.CLI_ARGS}}
+            - ansible-playbook -i ansible/inventory/ ansible/playbooks/cluster/update-labels.yml {{.CLI_ARGS}}
 
     cluster:sync:
         desc: Auto-detect and sync nodes with changed IPs (removes stale entries and rejoins)
         dir: "{{.ROOT_DIR}}"
         cmds:
-            - ANSIBLE_CONFIG=ansible/ansible.cfg ansible-playbook -i ansible/inventory/ ansible/playbooks/cluster/sync.yml {{.CLI_ARGS}}
+            - ansible-playbook -i ansible/inventory/ ansible/playbooks/cluster/sync.yml {{.CLI_ARGS}}
 
     # Ansible Application Deployment
     deploy:
         desc: Deploy all Docker Swarm stacks
         dir: "{{.ROOT_DIR}}"
         cmds:
-            - ANSIBLE_CONFIG=ansible/ansible.cfg ansible-playbook -i ansible/inventory/ ansible/playbooks/deploy/stacks.yml {{.CLI_ARGS}}
+            - ansible-playbook -i ansible/inventory/ ansible/playbooks/deploy/stacks.yml {{.CLI_ARGS}}
 
     deploy:quick:
         desc: Deploy apps only (skip infrastructure stacks)
         dir: "{{.ROOT_DIR}}"
         cmds:
-            - ANSIBLE_CONFIG=ansible/ansible.cfg ansible-playbook -i ansible/inventory/ ansible/playbooks/deploy/stacks.yml -e "skip_infrastructure=true" {{.CLI_ARGS}}
+            - ansible-playbook -i ansible/inventory/ ansible/playbooks/deploy/stacks.yml -e "skip_infrastructure=true" {{.CLI_ARGS}}
 
     deploy:stack:
         desc: 'Deploy a single Docker Swarm stack (usage: task ansible:deploy:stack -- -e "stack_name=my_app")'
         dir: "{{.ROOT_DIR}}"
         cmds:
-            - ANSIBLE_CONFIG=ansible/ansible.cfg ansible-playbook -i ansible/inventory/ ansible/playbooks/deploy/stack.yml {{.CLI_ARGS}}
+            - ansible-playbook -i ansible/inventory/ ansible/playbooks/deploy/stack.yml {{.CLI_ARGS}}
 
     # Ansible Volume Management
     volume:ls:
         desc: List all Docker volumes
         dir: "{{.ROOT_DIR}}"
         cmds:
-            - ANSIBLE_CONFIG=ansible/ansible.cfg ansible-playbook -i ansible/inventory/ ansible/playbooks/volumes/list.yml {{.CLI_ARGS}}
+            - ansible-playbook -i ansible/inventory/ ansible/playbooks/volumes/list.yml {{.CLI_ARGS}}
 
     volume:inspect:
         desc: 'Inspect a specific Docker volume (usage: task ansible:volume:inspect -- -e "service_name=my_app")'
         dir: "{{.ROOT_DIR}}"
         cmds:
-            - ANSIBLE_CONFIG=ansible/ansible.cfg ansible-playbook -i ansible/inventory/ ansible/playbooks/volumes/inspect.yml {{.CLI_ARGS}}
+            - ansible-playbook -i ansible/inventory/ ansible/playbooks/volumes/inspect.yml {{.CLI_ARGS}}
 
     volume:cleanup:
         desc: 'Clean up stale CIFS volumes for a stack (usage: task ansible:volume:cleanup -- -e "stack_name=sonarr")'
         dir: "{{.ROOT_DIR}}"
         cmds:
-            - ANSIBLE_CONFIG=ansible/ansible.cfg ansible-playbook -i ansible/inventory/ ansible/playbooks/volumes/cleanup.yml {{.CLI_ARGS}}
+            - ansible-playbook -i ansible/inventory/ ansible/playbooks/volumes/cleanup.yml {{.CLI_ARGS}}
 
     # Ansible DNS Management
     dns:create-zone:
         desc: "[Step 2] Create primary DNS zone in Technitium DNS"
         dir: "{{.ROOT_DIR}}"
         cmds:
-            - ANSIBLE_CONFIG=ansible/ansible.cfg ansible-playbook -i ansible/inventory/ ansible/playbooks/dns.yml -e "dns_action=create_zone" {{.CLI_ARGS}}
+            - ansible-playbook -i ansible/inventory/ ansible/playbooks/dns.yml -e "dns_action=create_zone" {{.CLI_ARGS}}
 
     dns:add-machines:
         desc: "[Step 3] Add machine A records to Technitium DNS"
         dir: "{{.ROOT_DIR}}"
         cmds:
-            - ANSIBLE_CONFIG=ansible/ansible.cfg ansible-playbook -i ansible/inventory/ ansible/playbooks/dns.yml -e "dns_action=add_machine_records" {{.CLI_ARGS}}
+            - ansible-playbook -i ansible/inventory/ ansible/playbooks/dns.yml -e "dns_action=add_machine_records" {{.CLI_ARGS}}
 
     dns:add-services:
         desc: "[Step 4] Add CNAME records for all services"
         dir: "{{.ROOT_DIR}}"
         cmds:
-            - ANSIBLE_CONFIG=ansible/ansible.cfg ansible-playbook -i ansible/inventory/ ansible/playbooks/dns.yml -e "dns_action=add_service_records" {{.CLI_ARGS}}
+            - ansible-playbook -i ansible/inventory/ ansible/playbooks/dns.yml -e "dns_action=add_service_records" {{.CLI_ARGS}}
 
     dns:configure:
         desc: "[Complete] Full Technitium DNS setup"
         dir: "{{.ROOT_DIR}}"
         cmds:
-            - ANSIBLE_CONFIG=ansible/ansible.cfg ansible-playbook -i ansible/inventory/ ansible/playbooks/dns.yml -e "dns_action=configure" {{.CLI_ARGS}}
+            - ansible-playbook -i ansible/inventory/ ansible/playbooks/dns.yml -e "dns_action=configure" {{.CLI_ARGS}}
 
     # Ansible Uptime Kuma Management
     uptime:create-groups:
         desc: "Create Machines and Services monitor groups in Uptime Kuma"
         dir: "{{.ROOT_DIR}}"
         cmds:
-            - ANSIBLE_CONFIG=ansible/ansible.cfg ansible-playbook -i ansible/inventory/ ansible/playbooks/uptime-kuma.yml -e "uptime_action=create_groups" {{.CLI_ARGS}}
+            - ansible-playbook -i ansible/inventory/ ansible/playbooks/uptime-kuma.yml -e "uptime_action=create_groups" {{.CLI_ARGS}}
 
     uptime:add-machines:
         desc: "Add ping monitors for all machines"
         dir: "{{.ROOT_DIR}}"
         cmds:
-            - ANSIBLE_CONFIG=ansible/ansible.cfg ansible-playbook -i ansible/inventory/ ansible/playbooks/uptime-kuma.yml -e "uptime_action=add_machines" {{.CLI_ARGS}}
+            - ansible-playbook -i ansible/inventory/ ansible/playbooks/uptime-kuma.yml -e "uptime_action=add_machines" {{.CLI_ARGS}}
 
     uptime:add-services:
         desc: "Add HTTP monitors for all Traefik services"
         dir: "{{.ROOT_DIR}}"
         cmds:
-            - ANSIBLE_CONFIG=ansible/ansible.cfg ansible-playbook -i ansible/inventory/ ansible/playbooks/uptime-kuma.yml -e "uptime_action=add_services" {{.CLI_ARGS}}
+            - ansible-playbook -i ansible/inventory/ ansible/playbooks/uptime-kuma.yml -e "uptime_action=add_services" {{.CLI_ARGS}}
 
     uptime:configure:
         desc: "[Complete] Full Uptime Kuma setup (groups + machines + services)"
         dir: "{{.ROOT_DIR}}"
         cmds:
-            - ANSIBLE_CONFIG=ansible/ansible.cfg ansible-playbook -i ansible/inventory/ ansible/playbooks/uptime-kuma.yml -e "uptime_action=configure" {{.CLI_ARGS}}
+            - ansible-playbook -i ansible/inventory/ ansible/playbooks/uptime-kuma.yml -e "uptime_action=configure" {{.CLI_ARGS}}
 
     # Ansible Operations
     teardown:
         desc: Remove all Docker Swarm stacks (preserve volumes)
         dir: "{{.ROOT_DIR}}"
         cmds:
-            - ANSIBLE_CONFIG=ansible/ansible.cfg ansible-playbook -i ansible/inventory/ ansible/playbooks/ops/teardown.yml {{.CLI_ARGS}}
+            - ansible-playbook -i ansible/inventory/ ansible/playbooks/ops/teardown.yml {{.CLI_ARGS}}
 
     teardown:full:
         desc: Complete teardown (stacks, volumes, and leave swarm)
         dir: "{{.ROOT_DIR}}"
         cmds:
-            - ANSIBLE_CONFIG=ansible/ansible.cfg ansible-playbook -i ansible/inventory/ ansible/playbooks/ops/teardown.yml -e "remove_volumes=true leave_swarm=true" {{.CLI_ARGS}}
+            - ansible-playbook -i ansible/inventory/ ansible/playbooks/ops/teardown.yml -e "remove_volumes=true leave_swarm=true" {{.CLI_ARGS}}
 
     teardown:stack:
         desc: 'Tear down a single stack (usage: task ansible:teardown:stack -- -e "stack_name=profilarr remove_volumes=true")'
         dir: "{{.ROOT_DIR}}"
         cmds:
-            - ANSIBLE_CONFIG=ansible/ansible.cfg ansible-playbook -i ansible/inventory/ ansible/playbooks/ops/teardown-stack.yml {{.CLI_ARGS}}
+            - ansible-playbook -i ansible/inventory/ ansible/playbooks/ops/teardown-stack.yml {{.CLI_ARGS}}
 
     ops:system-prune:
         desc: Docker system prune on all nodes (dry run by default)
         dir: "{{.ROOT_DIR}}"
         cmds:
-            - ANSIBLE_CONFIG=ansible/ansible.cfg ansible-playbook -i ansible/inventory/ ansible/playbooks/ops/system-prune.yml {{.CLI_ARGS}}
+            - ansible-playbook -i ansible/inventory/ ansible/playbooks/ops/system-prune.yml {{.CLI_ARGS}}
 
     ops:system-prune:execute:
         desc: Execute docker system prune on all nodes (DESTRUCTIVE - removes all unused data including volumes)
         dir: "{{.ROOT_DIR}}"
         cmds:
-            - ANSIBLE_CONFIG=ansible/ansible.cfg ansible-playbook -i ansible/inventory/ ansible/playbooks/ops/system-prune.yml -e "execute_prune=true" {{.CLI_ARGS}}
+            - ansible-playbook -i ansible/inventory/ ansible/playbooks/ops/system-prune.yml -e "execute_prune=true" {{.CLI_ARGS}}
 
     ops:system-prune:no-volumes:
         desc: Execute docker system prune on all nodes (preserves volumes)
         dir: "{{.ROOT_DIR}}"
         cmds:
-            - ANSIBLE_CONFIG=ansible/ansible.cfg ansible-playbook -i ansible/inventory/ ansible/playbooks/ops/system-prune.yml -e "execute_prune=true include_volumes=false" {{.CLI_ARGS}}
+            - ansible-playbook -i ansible/inventory/ ansible/playbooks/ops/system-prune.yml -e "execute_prune=true include_volumes=false" {{.CLI_ARGS}}
