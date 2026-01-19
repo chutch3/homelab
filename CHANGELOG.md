@@ -2,6 +2,44 @@
 
 <!-- version list -->
 
+## v3.3.0 (2026-01-19)
+
+### Bug Fixes
+
+- Addressed the whitelist issue with sabnzbd
+  ([`173bcb3`](https://github.com/chutch3/homelab/commit/173bcb39fad2696e8665df1d1e4bec227e756ced))
+
+- Home assistant router now setup correctly. HA was migrated to ISCSI
+  ([`0f37d7e`](https://github.com/chutch3/homelab/commit/0f37d7ec248d0da639181b118765e2f64175deb8))
+
+- Permission specification, should be an int
+  ([`e62f190`](https://github.com/chutch3/homelab/commit/e62f1902bb3ef4e1edbd585417566d79bbc50807))
+
+### Documentation
+
+- Updated roadmap
+  ([`06e4392`](https://github.com/chutch3/homelab/commit/06e4392b16666db87c414917d0f9461a408d2523))
+
+### Features
+
+- Added mlflow app
+  ([`77b24ab`](https://github.com/chutch3/homelab/commit/77b24ab0bf851aff37e39a6879a7e01fec7189b6))
+
+- Added uptime-kuma registration of all machines and services
+  ([`ab4acaa`](https://github.com/chutch3/homelab/commit/ab4acaaa23c17ef580f207fc0d014f2d6c2f5630))
+
+- Moved downloads to iscsi
+  ([`79db11e`](https://github.com/chutch3/homelab/commit/79db11eb68be44cbbbad142442efe99e7a381c9a))
+
+### Refactoring
+
+- Cleaned up ansible config env specification
+  ([`88a3c55`](https://github.com/chutch3/homelab/commit/88a3c55187b649d6be5d7cc8bb7d17bc82710a25))
+
+- Kiwix no longer has a starter pack
+  ([`cbb84d8`](https://github.com/chutch3/homelab/commit/cbb84d8be031c73c6f91d05d79a472ce81de1515))
+
+
 ## v3.2.0 (2026-01-12)
 
 ### Bug Fixes
