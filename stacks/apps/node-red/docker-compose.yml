@@ -21,6 +21,7 @@ services:
         - "traefik.http.routers.node-red.rule=Host(`nodered.${BASE_DOMAIN}`)"
         - "traefik.http.routers.node-red.entrypoints=websecure"
         - "traefik.http.routers.node-red.tls.certresolver=dns"
+        - "traefik.http.routers.node-red.middlewares=authentik@swarm"
         - "traefik.http.services.node-red.loadbalancer.server.port=1880"
 
         # Homepage Labels
