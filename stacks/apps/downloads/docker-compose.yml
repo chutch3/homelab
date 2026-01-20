@@ -67,6 +67,7 @@ services:
         - "traefik.http.routers.qbittorrent.rule=Host(`qbittorrent.${BASE_DOMAIN}`)"
         - "traefik.http.routers.qbittorrent.entrypoints=websecure"
         - "traefik.http.routers.qbittorrent.tls.certresolver=dns"
+        - "traefik.http.routers.qbittorrent.middlewares=authentik@swarm"
         - "traefik.http.services.qbittorrent.loadbalancer.server.port=8080"
         - homepage.group=Downloads
         - homepage.name=qBittorrent
@@ -104,6 +105,7 @@ services:
         - "traefik.http.routers.deluge.rule=Host(`deluge.${BASE_DOMAIN}`)"
         - "traefik.http.routers.deluge.entrypoints=websecure"
         - "traefik.http.routers.deluge.tls.certresolver=dns"
+        - "traefik.http.routers.deluge.middlewares=authentik@swarm"
         - "traefik.http.services.deluge.loadbalancer.server.port=8112"
         - homepage.group=Downloads
         - homepage.name=Deluge
@@ -145,6 +147,7 @@ services:
         - "traefik.http.routers.sabnzbd.rule=Host(`sabnzbd.${BASE_DOMAIN}`)"
         - "traefik.http.routers.sabnzbd.entrypoints=websecure"
         - "traefik.http.routers.sabnzbd.tls.certresolver=dns"
+        - "traefik.http.routers.sabnzbd.middlewares=authentik@swarm"
         - "traefik.http.services.sabnzbd.loadbalancer.server.port=8080"
         - homepage.group=Downloads
         - homepage.name=SABnzbd
@@ -180,6 +183,7 @@ services:
         - "traefik.http.routers.nzbget.rule=Host(`nzbget.${BASE_DOMAIN}`)"
         - "traefik.http.routers.nzbget.entrypoints=websecure"
         - "traefik.http.routers.nzbget.tls.certresolver=dns"
+        - "traefik.http.routers.nzbget.middlewares=authentik@swarm"
         - "traefik.http.services.nzbget.loadbalancer.server.port=6789"
         - homepage.group=Downloads
         - homepage.name=NZBGet

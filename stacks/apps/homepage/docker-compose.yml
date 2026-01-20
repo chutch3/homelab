@@ -35,6 +35,7 @@ services:
                 - "traefik.http.routers.homepage.rule=Host(`homepage.${BASE_DOMAIN}`)"
                 - "traefik.http.routers.homepage.entrypoints=websecure"
                 - "traefik.http.routers.homepage.tls.certresolver=dns"
+                - "traefik.http.routers.homepage.middlewares=authentik@swarm"
                 - "traefik.http.services.homepage.loadbalancer.server.port=3000"
 
                 - homepage.group=System
