@@ -12,6 +12,16 @@ services:
             - MAX_WORKERS=1
             - WEB_CONCURRENCY=1
             - AUTO_BACKUP_ENABLED=true
+            # Authentik OIDC Configuration
+            - OIDC_AUTH_ENABLED=true
+            - OIDC_SIGNUP_ENABLED=true
+            - OIDC_CONFIGURATION_URL=https://auth.${BASE_DOMAIN}/application/o/mealie/.well-known/openid-configuration
+            - OIDC_CLIENT_ID=${MEALIE_OAUTH_CLIENT_ID}
+            - OIDC_CLIENT_SECRET=${MEALIE_OAUTH_CLIENT_SECRET}
+            - OIDC_PROVIDER_NAME=Authentik
+            - OIDC_AUTO_REDIRECT=false
+            - OIDC_ADMIN_GROUP=Mealie Admins
+            - OIDC_USER_GROUP=Mealie Users
         volumes:
             - mealie_data:/app/data
         restart: unless-stopped
