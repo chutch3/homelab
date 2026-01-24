@@ -10,6 +10,11 @@ The platform uses a **hybrid storage architecture** combining three storage tech
 2. **CIFS/SMB** - Network shares for large media files
 3. **Local Docker Volumes** - For services that don't need shared storage
 
+!!! note "Recent Migrations (v3.4.0)"
+    - **Emby** migrated to iSCSI storage for improved performance and reliability
+    - **Kopia backup system** deployed to back up iSCSI-mounted application data (`/mnt/iscsi/app-data`, `/mnt/iscsi/media-apps`)
+    - Ongoing initiative to migrate more services to iSCSI for better database integrity
+
 ```mermaid
 graph TB
     subgraph "Storage Architecture"
@@ -150,7 +155,7 @@ volumes:
 
 Used for application configuration and databases that require POSIX filesystem.
 
-**Example: Sonarr, Radarr, Prowlarr, Whisparr**
+**Example: Sonarr, Radarr, Prowlarr, Whisparr, Emby**
 
 ```yaml
 volumes:
@@ -302,6 +307,8 @@ When deploying a service with CIFS volumes, Docker Swarm enters a **"Preparing" 
 | SQLite databases | OCFS2 (iSCSI) | POSIX compliance, file locking, no corruption |
 | Application config files | OCFS2 (iSCSI) | Cluster-safe, fast access |
 | Small persistent data | OCFS2 (iSCSI) | Low latency, reliable |
+| Backup data (Kopia) | OCFS2 (iSCSI) | Backing up application data from `/mnt/iscsi/` |
+| Media server libraries | OCFS2 (iSCSI) | Database integrity, metadata performance (Emby) |
 | Large media libraries | CIFS/SMB | High capacity, shared access |
 | Download directories | CIFS/SMB | Large files, shared across services |
 | Read-heavy media | CIFS/SMB | Optimized for streaming |
