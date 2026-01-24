@@ -1,0 +1,75 @@
+version: "3.8"
+
+services:
+    kopia:
+        image: kopia/kopia:latest
+        hostname: kopia
+        environment:
+            - KOPIA_PASSWORD=${KOPIA_PASSWORD}
+            - TZ=${TZ}
+        volumes:
+            - kopia_config:/app/config
+            - kopia_cache:/app/cache
+            - app_data:/data/app-data:ro
+            - media_apps:/data/media-apps:ro
+        command:
+            - server
+            - start
+            - --insecure
+            - --address=0.0.0.0:51515
+            - --server-username=${KOPIA_SERVER_USERNAME}
+            - --server-password=${KOPIA_SERVER_PASSWORD}
+        networks:
+            - traefik-public
+        deploy:
+            replicas: 1
+            restart_policy:
+                condition: any
+                delay: 5s
+            labels:
+                # Traefik
+                - "traefik.enable=true"
+                - "traefik.http.routers.kopia.rule=Host(`backup.${BASE_DOMAIN}`)"
+                - "traefik.http.routers.kopia.entrypoints=websecure"
+                - "traefik.http.routers.kopia.tls.certresolver=dns"
+                - "traefik.http.routers.kopia.middlewares=authentik@swarm"
+                - "traefik.http.services.kopia.loadbalancer.server.port=51515"
+                # Homepage
+                - "homepage.group=Infrastructure"
+                - "homepage.name=Kopia Backup"
+                - "homepage.icon=kopia.png"
+                - "homepage.href=https://backup.${BASE_DOMAIN}/"
+                - "homepage.description=Automated backup system"
+
+networks:
+    traefik-public:
+        external: true
+
+volumes:
+    kopia_config:
+        driver: local
+        driver_opts:
+            type: "none"
+            o: "bind"
+            device: "/mnt/iscsi/app-data/kopia/config"
+
+    kopia_cache:
+        driver: local
+        driver_opts:
+            type: "none"
+            o: "bind"
+            device: "/mnt/iscsi/cache/kopia"
+
+    app_data:
+        driver: local
+        driver_opts:
+            type: "none"
+            o: "bind"
+            device: "/mnt/iscsi/app-data"
+
+    media_apps:
+        driver: local
+        driver_opts:
+            type: "none"
+            o: "bind"
+            device: "/mnt/iscsi/media-apps"
