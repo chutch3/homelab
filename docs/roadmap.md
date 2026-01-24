@@ -63,7 +63,7 @@ The mission of homelab is to:
 
 </div>
 
-### ✅ Currently Deployed Services (33+)
+### ✅ Currently Deployed Services (35+)
 
 **Infrastructure & Networking:**
 - :material-dns: **Technitium DNS** - Local DNS server ✅
@@ -76,6 +76,7 @@ The mission of homelab is to:
 - :material-network: **iperf3 Server + Exporter** - Network performance testing ✅
 - :material-file-document-multiple: **Loki + Promtail** - Log aggregation and shipping ✅
 - :material-heart-pulse: **Uptime Kuma** - Uptime monitoring with notifications ✅
+- :material-account-key: **Authentik** - Identity provider and SSO (integrated with 8+ services) ✅
 
 **Home & Productivity:**
 - :material-view-dashboard: **Homepage** - Service dashboard ✅
@@ -112,13 +113,19 @@ The mission of homelab is to:
   - Gardening, DIY, Cooking, Sustainability knowledge
 
 **Security & Privacy:**
-- :material-lock: **Vaultwarden** - Bitwarden-compatible password manager ✅
+- :material-lock: **Vaultwarden** - Bitwarden-compatible password manager (with Authentik SSO) ✅
 
 **AI & Chat:**
 - :material-robot: **LibreChat** - Self-hosted AI chat interface ✅
 
 **Development & DevOps:**
 - :material-brain: **MLflow** - ML experiment tracking, model registry, and serving ✅
+
+**Backup & Recovery:**
+- :material-backup-restore: **Kopia** - Automated encrypted backups to cloud storage (Backblaze B2) with web UI ✅
+  - Backs up iSCSI-mounted application data weekly
+  - Retention: 4 weekly + 3 monthly snapshots
+  - Integrated with Authentik SSO
 
 ## 🚀 Future Services by Domain
 
@@ -155,7 +162,6 @@ The mission of homelab is to:
 | Service | Priority | Description |
 |---------|----------|-------------|
 | **Searxng** | Medium | Private meta-search engine (aggregates results without tracking) |
-| **Authentik** | Medium | Identity provider and SSO |
 | **AdGuard Home** | Medium | Network-wide ad and tracker blocking |
 | **WireGuard** | High | VPN for secure remote access |
 | **Crowdsec** | Low | Collaborative security engine |
@@ -202,13 +208,12 @@ The mission of homelab is to:
 
 ### 💾 Backup & Recovery
 
-**Current:** Manual backups using rclone to encrypted Backblaze B2 storage
+**Current:** Automated encrypted backups using Kopia to Backblaze B2 storage for iSCSI-mounted application data
 
-| Service | Priority | Description |
-|---------|----------|-------------|
-| **Restic** | High | Automated encrypted backups to Backblaze (replaces manual rclone) |
-| **Kopia** | Medium | Modern backup tool with web UI (alternative to Restic) |
-| **Duplicati** | Low | Web-based backup with scheduling (simpler but less efficient) |
+| Service | Priority | Description | Status |
+|---------|----------|-------------|--------|
+| **Restic** | Low | Alternative encrypted backup tool (currently using Kopia) | 🔄 Alternative option |
+| **Duplicati** | Low | Web-based backup with scheduling (simpler but less efficient) | 🔄 Alternative option |
 
 ### 🔧 Infrastructure & Monitoring
 
@@ -258,20 +263,21 @@ We welcome contributions! Here's how you can help:
 **🔥 Hot Topics** (Help Wanted):
 
 1. **Prepper Services** - OpenStreetMap tile server, local LLM hosting (Ollama), web archiving (ArchiveBox)
-2. **Security & Privacy** - WireGuard VPN, Authentik SSO, AdGuard Home
-3. **Backup & Recovery** - Automated Restic/Kopia backups to replace manual rclone process
-4. **Development Tools** - Forgejo with CI/CD, code editing tools
-5. **Productivity Suite** - NextCloud deployment, Paperless-ngx document management
-6. **Infrastructure** - Portainer container management (monitoring is complete)
-7. **Documentation** - Service setup guides, domain-specific tutorials
-8. **Testing** - Integration tests for new services
+2. **Security & Privacy** - WireGuard VPN, AdGuard Home, expanding Authentik SSO to more services
+3. **Development Tools** - Forgejo with CI/CD, code editing tools
+4. **Productivity Suite** - NextCloud deployment, Paperless-ngx document management
+5. **Infrastructure** - Portainer container management (monitoring is complete)
+6. **Documentation** - Service setup guides, domain-specific tutorials, Authentik SSO integration guide
+7. **Testing** - Integration tests for new services
+8. **Storage** - Expanding iSCSI storage strategy for more services
 
 **Domain-Specific Needs:**
 
 - **Prepper/Resilience**: OpenStreetMap tile generation, LLM model management, source code archiving
 - **Home Automation**: Advanced Node-RED flows, Home Assistant integrations
-- **Media**: Alternative servers (Jellyfin, Immich), codec optimization
-- **Security**: SSO implementation, network security hardening
+- **Media**: Alternative servers (Jellyfin), codec optimization, iSCSI storage expansion
+- **Security**: Expanding Authentik SSO integrations, network security hardening, VPN access
+- **Backup & Recovery**: Expanding Kopia coverage to additional data sources
 
 [Get started contributing →](https://github.com/chutch3/homelab/issues)
 
