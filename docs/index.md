@@ -32,7 +32,7 @@
 
 ## What is Selfhosted?
 
-A Docker Swarm-based homelab deployment platform that simplifies running multiple self-hosted services. With pre-configured compose files for 12+ popular services, automatic SSL certificates via Traefik, and network storage integration, you can have a complete homelab infrastructure running in minutes.
+A Docker Swarm-based homelab deployment platform that simplifies running multiple self-hosted services. With pre-configured compose files for 25+ popular services, automatic SSL certificates via Traefik, centralized SSO via Authentik, automated backups, and network storage integration, you can have a complete homelab infrastructure running in minutes.
 
 !!! tip "What is self-hosting?"
     Self-hosting is the practice of running and maintaining your own services instead of relying on third-party providers, giving you control over your data and infrastructure. For more information, see [r/selfhosted](https://www.reddit.com/r/selfhosted/wiki/index).
@@ -45,7 +45,7 @@ A Docker Swarm-based homelab deployment platform that simplifies running multipl
 
     ---
 
-    12+ ready-to-deploy services with Docker Compose files
+    25+ ready-to-deploy services with Docker Compose files
 
 - :shield: **Automatic SSL**
 
@@ -85,7 +85,7 @@ A Docker Swarm-based homelab deployment platform that simplifies running multipl
 Single `.env` file contains all configuration - domains, credentials, storage paths, and API keys.
 
 ### :material-package: Pre-Built Service Stack
-12+ popular services with production-ready Docker Compose configurations including Traefik labels.
+25+ popular services with production-ready Docker Compose configurations including Traefik labels and Authentik SSO integration.
 
 ### :material-console: Simple Deployment Interface
 A simple `Taskfile.yml` provides a clean and consistent interface for all management commands, powered by Ansible.
@@ -134,7 +134,12 @@ Pre-configured Docker Compose stacks ready for deployment:
     - **[Prowlarr](https://prowlarr.com/)** - Indexer manager for media automation
     - **Downloads Stack** - Unified qBittorrent, Deluge, and VPN setup with SOCKS5 proxy
 
-**Total: 13 pre-configured services** with more being added regularly!
+**Total: 25+ pre-configured services** with more being added regularly!
+
+**New in v3.4.0:**
+- :material-account-key: **Authentik** - Identity provider and SSO (integrated with 8+ services)
+- :material-backup-restore: **Kopia** - Automated encrypted backups to cloud storage
+- :material-harddisk: **iSCSI Storage** - Enhanced storage backend for media services
 
 ## 🎯 Quick Example
 
