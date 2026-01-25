@@ -1,0 +1,94 @@
+version: "3.9"
+
+services:
+    takeout-manager:
+        # For Docker Swarm, use pre-built images from a registry
+        # Registry options:
+        #   - GitHub Container Registry: ghcr.io/YOUR_USERNAME/takeout-manager:latest
+        #   - Docker Hub: YOUR_USERNAME/takeout-manager:latest
+        #   - Private Registry: registry.YOUR_DOMAIN.com/takeout-manager:latest
+        image: ${REGISTRY_URL:-ghcr.io}/${REGISTRY_NAMESPACE:-your-username}/takeout-manager:${IMAGE_TAG:-latest}
+        container_name: takeout-manager
+        restart: unless-stopped
+        volumes:
+            - takeout-manager-db:/app/db
+        networks:
+            - traefik-public
+        environment:
+            - TZ=${TZ:-UTC}
+            - PUID=${PUID:-1000}
+            - PGID=${PGID:-1000}
+        deploy:
+            replicas: 1
+            placement:
+                constraints:
+                    # Run on manager node if iSCSI is only available there
+                    # Comment out if iSCSI is available on all nodes
+                    - node.role == manager
+            labels:
+                # Traefik Labels
+                - "traefik.enable=true"
+                - "traefik.http.routers.takeout-manager.rule=Host(`takeout.${BASE_DOMAIN}`)"
+                - "traefik.http.routers.takeout-manager.entrypoints=websecure"
+                - "traefik.http.routers.takeout-manager.tls.certresolver=dns"
+                - "traefik.http.services.takeout-manager.loadbalancer.server.port=8000"
+
+                # Homepage Labels
+                - "homepage.group=Services"
+                - "homepage.name=Takeout Manager"
+                - "homepage.icon=mdi-download-box"
+                - "homepage.href=https://takeout.${BASE_DOMAIN}"
+                - "homepage.description=Google Photos Takeout Management"
+
+    takeout-worker:
+        image: ${REGISTRY_URL:-ghcr.io}/${REGISTRY_NAMESPACE:-your-username}/takeout-worker:${IMAGE_TAG:-latest}
+        container_name: takeout-worker
+        restart: unless-stopped
+        volumes:
+            - takeout-downloads:/downloads
+            - takeout-pictures:/pictures
+            - takeout-videos:/videos
+        networks:
+            - traefik-public # So it can communicate with the manager
+        environment:
+            - TZ=${TZ:-UTC}
+            - PUID=${PUID:-1000}
+            - PGID=${PGID:-1000}
+            - MANAGER_URL=http://takeout-manager:8000
+        deploy:
+            mode: global # Run one instance of the worker on every node
+
+networks:
+    traefik-public:
+        external: true
+
+volumes:
+    # Manager Database (iSCSI - Block)
+    takeout-manager-db:
+        driver: local
+        driver_opts:
+            type: "none"
+            o: "bind"
+            device: "/mnt/iscsi/app-data/takeout-manager"
+
+    # Worker Volumes (SMB/CIFS - File)
+    takeout-downloads:
+        driver: local
+        driver_opts:
+            type: "cifs"
+            o: "username=${SMB_USERNAME},password=${SMB_PASSWORD},domain=${SMB_DOMAIN},vers=3.0,file_mode=0770,dir_mode=0770,uid=1000,gid=1000,soft,actimeo=30"
+            device: "//${NAS_SERVER}/google_photos_takeout"
+
+    takeout-pictures:
+        driver: local
+        driver_opts:
+            type: "cifs"
+            o: "username=${SMB_USERNAME},password=${SMB_PASSWORD},domain=${SMB_DOMAIN},vers=3.0,file_mode=0770,dir_mode=0770,uid=1000,gid=1000,soft,actimeo=30"
+            device: "//${NAS_SERVER}/all_data/google_photos_pictures"
+
+    takeout-videos:
+        driver: local
+        driver_opts:
+            type: "cifs"
+            o: "username=${SMB_USERNAME},password=${SMB_PASSWORD},domain=${SMB_DOMAIN},vers=3.0,file_mode=0770,dir_mode=0770,uid=1000,gid=1000,soft,actimeo=30"
+            device: "//${NAS_SERVER}/all_data/google_photos_videos"
