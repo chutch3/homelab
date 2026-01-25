@@ -20,7 +20,7 @@ Browse our comprehensive catalog of self-hosted services. Each service is pre-co
 
     Organize and stream your photos, videos, and music
 
-    **3 services planned**
+    **2 services available**
 
 - :material-home-automation: **[Smart Home & Automation](#smart-home-automation)**
 
@@ -119,6 +119,45 @@ task ansible:deploy:stack -- -e "stack_name=photoprism"
 ```
 
 [Learn more about PhotoPrism →](https://photoprism.app/)
+
+</div>
+
+### Takeout Manager {#takeout-manager}
+
+<div class="service-card">
+
+**Google Photos Takeout automation and management**
+
+- **Domain**: `takeout.yourdomain.com`
+- **Port**: `8000`
+- **Status**: ✅ Available
+- **Tags**: `media` `photos` `automation` `distributed`
+
+#### Features
+- Distributed downloads across all nodes
+- Web-based job creation and monitoring
+- Automatic file organization (photos/videos)
+- Cookie-based authentication management
+- Real-time progress tracking
+- Retry failed chunks from UI
+
+#### Prerequisites
+- iSCSI block storage for database
+- SMB/CIFS shares for downloads and media
+
+#### Quick Deploy
+```bash
+# Build and push images
+cd stacks/apps/takeout-manager
+task login
+task publish
+
+# Deploy stack
+cd ../../..
+task ansible:deploy:stack -- -e "stack_name=takeout-manager"
+```
+
+[Learn more in the stack README →](../../stacks/apps/takeout-manager/README.md)
 
 </div>
 
