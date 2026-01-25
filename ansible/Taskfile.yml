@@ -203,6 +203,64 @@ tasks:
         cmds:
             - ansible-playbook -i ansible/inventory/ ansible/playbooks/uptime-kuma.yml -e "uptime_action=configure" {{.CLI_ARGS}}
 
+    # Container Registry Management
+    registry:login:
+        desc: Login all Swarm nodes to container registry (requires GITHUB_TOKEN and GITHUB_USERNAME)
+        dir: "{{.ROOT_DIR}}"
+        vars:
+            GITHUB_TOKEN: '{{.GITHUB_TOKEN | default ""}}'
+            GITHUB_USERNAME: '{{.GITHUB_USERNAME | default ""}}'
+        preconditions:
+            - sh: '[ -n "{{.GITHUB_TOKEN}}" ]'
+              msg: |
+                GITHUB_TOKEN not set. Please set it as environment variable or in .env file:
+                  export GITHUB_TOKEN=ghp_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+                  OR add to .env: GITHUB_TOKEN=ghp_xxx
+            - sh: '[ -n "{{.GITHUB_USERNAME}}" ]'
+              msg: |
+                GITHUB_USERNAME not set. Please set it as environment variable or in .env file:
+                  export GITHUB_USERNAME=your-github-username
+                  OR add to .env: GITHUB_USERNAME=your-username
+        cmds:
+            - |
+                echo "Logging in to ghcr.io on all nodes as {{.GITHUB_USERNAME}}..."
+                ansible -i ansible/inventory/ all -m shell \
+                  -a "echo {{.GITHUB_TOKEN}} | docker login ghcr.io -u {{.GITHUB_USERNAME}} --password-stdin"
+
+    registry:login:custom:
+        desc: 'Login to custom registry (set REGISTRY_URL, REGISTRY_USER, REGISTRY_PASS)'
+        dir: "{{.ROOT_DIR}}"
+        vars:
+            REGISTRY_URL: '{{.REGISTRY_URL | default "ghcr.io"}}'
+            REGISTRY_USER: '{{.REGISTRY_USER | default ""}}'
+            REGISTRY_PASS: '{{.REGISTRY_PASS | default ""}}'
+        preconditions:
+            - sh: '[ -n "{{.REGISTRY_USER}}" ]'
+              msg: |
+                REGISTRY_USER not set. Please set it:
+                  export REGISTRY_USER=your-username
+                  OR add to .env: REGISTRY_USER=your-username
+            - sh: '[ -n "{{.REGISTRY_PASS}}" ]'
+              msg: |
+                REGISTRY_PASS not set. Please set it:
+                  export REGISTRY_PASS=your-password-or-token
+                  OR add to .env: REGISTRY_PASS=your-password
+        cmds:
+            - |
+                echo "Logging in to {{.REGISTRY_URL}} on all nodes as {{.REGISTRY_USER}}..."
+                ansible -i ansible/inventory/ all -m shell \
+                  -a "echo {{.REGISTRY_PASS}} | docker login {{.REGISTRY_URL}} -u {{.REGISTRY_USER}} --password-stdin"
+
+    registry:logout:
+        desc: Logout from container registry on all nodes (set REGISTRY_URL, defaults to ghcr.io)
+        dir: "{{.ROOT_DIR}}"
+        vars:
+            REGISTRY_URL: '{{.REGISTRY_URL | default "ghcr.io"}}'
+        cmds:
+            - |
+                echo "Logging out from {{.REGISTRY_URL}} on all nodes..."
+                ansible -i ansible/inventory/ all -m shell -a "docker logout {{.REGISTRY_URL}}"
+
     # Ansible Operations
     teardown:
         desc: Remove all Docker Swarm stacks (preserve volumes)

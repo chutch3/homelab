@@ -1,0 +1,233 @@
+version: "3"
+
+dotenv: ["../../../.env"]
+
+vars:
+    STACK_DIR: "{{.TASKFILE_DIR}}"
+    REGISTRY_URL: '{{.REGISTRY_URL | default "ghcr.io"}}'
+    REGISTRY_NAMESPACE: '{{.REGISTRY_NAMESPACE | default "your-username"}}'
+    IMAGE_TAG: '{{.IMAGE_TAG | default "latest"}}'
+    PLATFORM: '{{.PLATFORM | default "linux/amd64"}}'
+
+tasks:
+    # Build images locally (no push)
+    build:
+        desc: Build both manager and worker images locally
+        cmds:
+            - |
+                echo "🔨 Building Takeout Manager images..."
+                echo "Registry: {{.REGISTRY_URL}}/{{.REGISTRY_NAMESPACE}}"
+                echo "Tag: {{.IMAGE_TAG}}"
+                echo ""
+            - task: build:manager
+            - task: build:worker
+            - |
+                echo ""
+                echo "✅ Build complete!"
+                echo "Manager: {{.REGISTRY_URL}}/{{.REGISTRY_NAMESPACE}}/takeout-manager:{{.IMAGE_TAG}}"
+                echo "Worker:  {{.REGISTRY_URL}}/{{.REGISTRY_NAMESPACE}}/takeout-worker:{{.IMAGE_TAG}}"
+                echo ""
+                echo "To push: task push (or task publish for build+push)"
+
+    # Build manager image
+    build:manager:
+        desc: Build manager image only
+        cmds:
+            - |
+                docker build \
+                  --platform {{.PLATFORM}} \
+                  --tag {{.REGISTRY_URL}}/{{.REGISTRY_NAMESPACE}}/takeout-manager:{{.IMAGE_TAG}} \
+                  --file {{.STACK_DIR}}/manager/Dockerfile \
+                  {{.STACK_DIR}}/manager
+
+    # Build worker image
+    build:worker:
+        desc: Build worker image only
+        cmds:
+            - |
+                docker build \
+                  --platform {{.PLATFORM}} \
+                  --tag {{.REGISTRY_URL}}/{{.REGISTRY_NAMESPACE}}/takeout-worker:{{.IMAGE_TAG}} \
+                  --file {{.STACK_DIR}}/worker/Dockerfile \
+                  {{.STACK_DIR}}/worker
+
+    # Push images to registry
+    push:
+        desc: Push both images to registry (must be built first)
+        deps: [check-registry]
+        cmds:
+            - |
+                echo "📤 Pushing images to {{.REGISTRY_URL}}/{{.REGISTRY_NAMESPACE}}..."
+                echo ""
+            - task: push:manager
+            - task: push:worker
+            - |
+                echo ""
+                echo "✅ Images pushed successfully!"
+
+    # Push manager image
+    push:manager:
+        desc: Push manager image to registry
+        deps: [check-registry]
+        cmds:
+            - docker push {{.REGISTRY_URL}}/{{.REGISTRY_NAMESPACE}}/takeout-manager:{{.IMAGE_TAG}}
+
+    # Push worker image
+    push:worker:
+        desc: Push worker image to registry
+        deps: [check-registry]
+        cmds:
+            - docker push {{.REGISTRY_URL}}/{{.REGISTRY_NAMESPACE}}/takeout-worker:{{.IMAGE_TAG}}
+
+    # Build and push in one command
+    publish:
+        desc: Build and push images to registry
+        deps: [check-registry]
+        cmds:
+            - task: build
+            - task: push
+
+    # Quick publish with versioning
+    release:
+        desc: Build, tag with version, and push (use with --version=v1.0.0)
+        deps: [check-registry]
+        vars:
+            VERSION: '{{.VERSION | default "latest"}}'
+        cmds:
+            - |
+                echo "🚀 Releasing version {{.VERSION}}"
+                echo ""
+            - task: build
+              vars:
+                IMAGE_TAG: '{{.VERSION}}'
+            - task: push
+              vars:
+                IMAGE_TAG: '{{.VERSION}}'
+            - |
+                echo ""
+                echo "✅ Released version {{.VERSION}}"
+                echo ""
+                echo "Next steps:"
+                echo "1. Update .env: IMAGE_TAG={{.VERSION}}"
+                echo "2. Deploy: task ansible:deploy:stack -- -e 'stack_name=takeout-manager'"
+
+    # Check registry login
+    check-registry:
+        desc: Verify registry login
+        internal: true
+        silent: true
+        cmds:
+            - |
+                if ! docker info 2>&1 | grep -q "Registry"; then
+                    echo "⚠️  Warning: You may not be logged in to {{.REGISTRY_URL}}"
+                    echo ""
+                    echo "To login:"
+                    if [ "{{.REGISTRY_URL}}" = "ghcr.io" ]; then
+                        echo "  echo \$GITHUB_TOKEN | docker login ghcr.io -u {{.REGISTRY_NAMESPACE}} --password-stdin"
+                    elif [ "{{.REGISTRY_URL}}" = "docker.io" ] || [ "{{.REGISTRY_URL}}" = "" ]; then
+                        echo "  docker login"
+                    else
+                        echo "  docker login {{.REGISTRY_URL}}"
+                    fi
+                    echo ""
+                fi
+
+    # Login to registry
+    login:
+        desc: Login to container registry (interactive)
+        cmds:
+            - |
+                echo "🔑 Logging in to {{.REGISTRY_URL}}..."
+                if [ "{{.REGISTRY_URL}}" = "ghcr.io" ]; then
+                    echo "For GitHub Container Registry, use a Personal Access Token"
+                    echo "Token scopes needed: write:packages, read:packages"
+                    echo ""
+                    echo "Username: {{.REGISTRY_NAMESPACE}}"
+                    echo "Password: (paste your GitHub PAT)"
+                    docker login ghcr.io -u {{.REGISTRY_NAMESPACE}}
+                elif [ "{{.REGISTRY_URL}}" = "docker.io" ] || [ "{{.REGISTRY_URL}}" = "" ]; then
+                    docker login
+                else
+                    docker login {{.REGISTRY_URL}}
+                fi
+
+    # Test images locally
+    test:
+        desc: Test built images with docker-compose (local test)
+        cmds:
+            - |
+                echo "🧪 Testing images locally..."
+                cd {{.STACK_DIR}}
+                docker-compose up -d
+                echo ""
+                echo "Services started. Check status with: docker-compose ps"
+                echo "View logs: docker-compose logs -f"
+                echo "Stop: docker-compose down"
+
+    # Show current configuration
+    config:
+        desc: Show current build configuration
+        cmds:
+            - |
+                echo "Current configuration:"
+                echo "====================="
+                echo "Registry URL:      {{.REGISTRY_URL}}"
+                echo "Namespace:         {{.REGISTRY_NAMESPACE}}"
+                echo "Tag:               {{.IMAGE_TAG}}"
+                echo "Platform:          {{.PLATFORM}}"
+                echo ""
+                echo "Full image names:"
+                echo "  Manager: {{.REGISTRY_URL}}/{{.REGISTRY_NAMESPACE}}/takeout-manager:{{.IMAGE_TAG}}"
+                echo "  Worker:  {{.REGISTRY_URL}}/{{.REGISTRY_NAMESPACE}}/takeout-worker:{{.IMAGE_TAG}}"
+                echo ""
+                echo "Override with environment variables:"
+                echo "  REGISTRY_URL=ghcr.io REGISTRY_NAMESPACE=myuser IMAGE_TAG=v1.0.0 task build"
+
+    # Clean up local images
+    clean:
+        desc: Remove locally built images
+        cmds:
+            - |
+                echo "🧹 Cleaning up local images..."
+                docker rmi {{.REGISTRY_URL}}/{{.REGISTRY_NAMESPACE}}/takeout-manager:{{.IMAGE_TAG}} 2>/dev/null || true
+                docker rmi {{.REGISTRY_URL}}/{{.REGISTRY_NAMESPACE}}/takeout-worker:{{.IMAGE_TAG}} 2>/dev/null || true
+                echo "✅ Cleanup complete"
+
+    # Help
+    help:
+        desc: Show usage examples
+        cmds:
+            - |
+                echo "Takeout Manager - Build & Publish Tasks"
+                echo "========================================"
+                echo ""
+                echo "Quick Start:"
+                echo "  1. Set registry in .env:"
+                echo "     REGISTRY_URL=ghcr.io"
+                echo "     REGISTRY_NAMESPACE=your-username"
+                echo ""
+                echo "  2. Login to registry:"
+                echo "     task login"
+                echo ""
+                echo "  3. Build and publish:"
+                echo "     task publish"
+                echo ""
+                echo "Common Tasks:"
+                echo "  task build         - Build images locally"
+                echo "  task push          - Push pre-built images"
+                echo "  task publish       - Build and push (one command)"
+                echo "  task release       - Create versioned release"
+                echo "  task config        - Show current settings"
+                echo ""
+                echo "Examples:"
+                echo "  # Build with custom tag"
+                echo "  IMAGE_TAG=v1.0.0 task build"
+                echo ""
+                echo "  # Build for multiple platforms"
+                echo "  PLATFORM=linux/amd64,linux/arm64 task build"
+                echo ""
+                echo "  # Release a version"
+                echo "  task release VERSION=v1.2.3"
+                echo ""
+                echo "  # Override all settings"
+                echo "  REGISTRY_URL=docker.io REGISTRY_NAMESPACE=myuser IMAGE_TAG=test task publish"
