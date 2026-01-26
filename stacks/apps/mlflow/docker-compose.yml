@@ -30,7 +30,7 @@ services:
 
         - homepage.group=Apps
         - homepage.name=MLflow
-        - homepage.icon=mlflow.png
+        - homepage.icon=mdi-brain
         - homepage.href=https://mlflow.${BASE_DOMAIN}/
         - homepage.description=MLflow Tracking
 

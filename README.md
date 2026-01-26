@@ -1,264 +1,359 @@
 # 🏠 Homelab
 
-**Docker Swarm • Pre-Configured • Production-Ready**
+**Production-Ready Self-Hosted Infrastructure • 25+ Services • One Command Deploy**
 
 ![License](https://img.shields.io/badge/license-MIT-blue.svg)
 ![Docker](https://img.shields.io/badge/docker-%230db7ed.svg?logo=docker&logoColor=white)
+![Tests](https://img.shields.io/badge/tests-passing-brightgreen.svg)
+![Python](https://img.shields.io/badge/python-3.9+-blue.svg)
 
-A Docker Swarm homelab platform with 25+ pre-configured services, automatic SSL certificates via Traefik, network storage integration, and centralized SSO. Deploy your entire self-hosted infrastructure with one command.
-
-## 🚀 Quick Start
-
-**Requirements:**
-- Docker with Compose v2
-- Domain name with Cloudflare DNS
-- Cloudflare API token
-
-**Deploy everything:**
-```bash
-git clone https://github.com/yourusername/homelab.git
-cd homelab
-
-# Configure environment
-cp .env.example .env
-nano .env  # Add your domain and Cloudflare token
-
-# Configure hosts
-cp ansible/inventory/03-hosts.yml.example ansible/inventory/02-hosts.yml
-nano ansible/inventory/02-hosts.yml # Add your hosts and their roles
-
-# Install Ansible and dependencies
-task ansible:install
-
-# Deploy all services
-task ansible:bootstrap
-task ansible:cluster:init
-task ansible:deploy:full
-```
-
-Access your services at `https://homepage.yourdomain.com`
-
-## 📦 Pre-Configured Services
-
-**Infrastructure:**
-- 🌐 **Technitium DNS** - Local DNS server
-- 🚪 **Traefik** - Reverse proxy with automatic SSL
-- 📊 **Prometheus + Grafana** - System monitoring
-- 🔐 **Authentik** - Identity provider and SSO
-- 💾 **Kopia** - Automated encrypted backups
-
-**Applications:**
-- 🏠 **Homepage** - Service dashboard
-- 💰 **Actual Budget** - Personal finance
-- 🏡 **Home Assistant** - Smart home automation
-- 📸 **PhotoPrism** - Photo management
-- 🎬 **Emby** - Media server
-- 📝 **CryptPad** - Collaborative documents
-- 🤖 **LibreChat** - AI chat interface
-- 📚 **Kiwix** - Offline Wikipedia & knowledge archive
-
-**Media Automation:**
-- 📺 **Sonarr** - TV series management
-- 🎥 **Radarr** - Movie management
-- 🔍 **Prowlarr** - Indexer management
-- ⬇️ **qBittorrent** - BitTorrent client
-- ⬇️ **Deluge** - Alternative torrent client
-
-## 🛠️ Management Commands
-
-All commands are run through `task`.
-
-### Node Management
-```bash
-# Bootstrap all nodes (installs Docker, common packages, etc.)
-task ansible:bootstrap
-
-# Bootstrap a single node
-task ansible:bootstrap:node -- worker-01
-
-# Run a dry-run of the bootstrap process
-task ansible:bootstrap:check
-```
-
-### Cluster Management
-```bash
-# Initialize the Docker Swarm cluster
-task ansible:cluster:init
-
-# Join worker nodes to the cluster
-task ansible:cluster:join -- -e "manager_ip=... manager_token=..."
-
-# Check the status of the cluster
-task ansible:cluster:status
-```
-
-### Application Deployment
-```bash
-# Deploy all infrastructure and applications
-task ansible:deploy:full
-
-# Deploy only applications (skip infrastructure)
-task ansible:deploy:quick
-
-# Deploy a single stack
-task ansible:deploy:stack -- -e "stack_name=sonarr"
-```
-
-### DNS Management
-```bash
-# Configure all DNS records (zone, A records, CNAMEs)
-task ansible:dns:configure
-
-# Create the primary DNS zone
-task ansible:dns:create-zone
-
-# Add A records for all machines
-task ansible:dns:add-machines
-
-# Add CNAME records for all services
-task ansible:dns:add-services
-```
-
-### Volume Management
-```bash
-# List all Docker volumes
-task ansible:volume:ls
-
-# Inspect volumes for a specific service
-task ansible:volume:inspect -- -e "service_name=sonarr"
-```
-
-### Teardown
-```bash
-# Tear down a single stack
-task ansible:teardown:stack -- -e "stack_name=sonarr"
-
-# Tear down a single stack and its volumes
-task ansible:teardown:stack -- -e "stack_name=sonarr remove_volumes=true"
-
-# Tear down all stacks (preserve volumes)
-task ansible:teardown
-
-# Complete teardown (stacks, volumes, and leave swarm)
-task ansible:teardown:full
-```
-
-## ⚙️ Configuration
-
-### Environment Variables (.env)
-
-```bash
-# Domain & SSL
-BASE_DOMAIN=yourdomain.com
-CF_Token=your_cloudflare_api_token
-ACME_EMAIL=admin@yourdomain.com
-
-# Network Storage (optional)
-NAS_SERVER=nas.yourdomain.com
-SMB_USERNAME=your_username
-SMB_PASSWORD=your_password
-
-# Service credentials
-GRAFANA_ADMIN_PASSWORD=secure_password
-# ... more service passwords
-```
-
-### Host Inventory (ansible/inventory/02-hosts.yml)
-
-```yaml
-all:
-  children:
-    managers:
-      hosts:
-        manager-01:
-          ansible_host: 192.168.1.10
-          ansible_user: admin
-          node_labels:
-            storage: true
-    workers:
-      hosts:
-        worker-01:
-          ansible_host: 192.168.1.11
-          ansible_user: admin
-          node_labels:
-            gpu: true
-```
-
-## 📁 Adding Services
-
-1. **Create compose file:**
-   ```bash
-   mkdir stacks/apps/myservice
-   nano stacks/apps/myservice/docker-compose.yml
-   ```
-
-2. **Include Traefik labels:**
-   ```yaml
-   version: "3.9"
-   services:
-     myservice:
-       image: myapp:latest
-       networks:
-         - traefik-public
-       deploy:
-         labels:
-           - "traefik.enable=true"
-           - "traefik.http.routers.myservice.rule=Host(`myapp.${BASE_DOMAIN}`)"
-           - "traefik.http.routers.myservice.tls.certresolver=dns"
-
-   networks:
-     traefik-public:
-       external: true
-   ```
-
-3. **Deploy:**
-   ```bash
-   task ansible:deploy:stack -- -e "stack_name=myservice"
-   ```
-
-## 🏗️ How It Works
-
-```
-.env & ansible/inventory -> Ansible -> Docker Swarm → Traefik SSL → Running Services
-```
-
-**Deployment Process:**
-1. **`ansible:bootstrap`**: Prepares each node with Docker and other dependencies.
-2. **`ansible:cluster:init`**: Initializes the Docker Swarm on the manager.
-3. **`ansible:deploy:full`**: Deploys all services as Docker Swarm stacks.
-4. Traefik automatically gets SSL certificates for services with the correct labels.
-
-**Storage:**
-- Data persists on NAS via SMB/CIFS network shares.
-- Configuration in environment variables.
-- Services auto-configured with Traefik routing.
-
-## 🔧 Development
-
-```bash
-# Install dependencies
-task install
-
-# Run all tests
-task test
-
-# Run linting
-task lint
-
-# Complete CI check
-task check
-```
-
-## 🤝 Contributing
-
-1. Write tests first (TDD approach)
-2. Use conventional commit messages
-3. Update documentation for changes
-
-## 📄 License
-
-MIT License - see [LICENSE](LICENSE) file.
+A complete Docker Swarm homelab platform with 25+ pre-configured services, automatic SSL certificates, centralized SSO, comprehensive monitoring, and automated backups. Deploy your entire self-hosted infrastructure in minutes, not weeks.
 
 ---
 
-**Deploy your entire homelab in minutes** ⚡
+## 🌟 Why This Project?
+
+Most homelab setups require weeks of configuration, trial and error, and manual service integration. **This project gives you a production-ready platform from day one** with 25+ services that just work together - complete with automated SSL, centralized authentication, full observability, and offline-first resilience features.
+
+---
+
+## ✨ Key Features
+
+<div align="center">
+
+| Feature | Description |
+|---------|-------------|
+| 🚀 **One-Command Deploy** | Entire infrastructure deployed with `task ansible:deploy:full` |
+| 🔐 **Centralized SSO** | Authentik integrated with 8+ services for unified authentication |
+| 📊 **Full Observability** | Prometheus + Grafana + Loki for metrics, dashboards, and logs |
+| 🔒 **Automatic SSL** | Traefik + Cloudflare for zero-config HTTPS certificates |
+| 💾 **Automated Backups** | Kopia backing up to Backblaze B2 with encryption |
+| 🛡️ **Offline-First** | Wikipedia, ebooks, Stack Overflow, maps, and LLMs available offline |
+| 🌐 **Remote Access** | Tailscale VPN for secure access from anywhere |
+| 🧪 **Tested & CI/CD** | Comprehensive test suite with GitHub Actions automation |
+
+</div>
+
+---
+
+<!-- Screenshot: Homepage Dashboard -->
+<!-- Place screenshot at: /docs/images/homepage-dashboard.png -->
+<!-- Recommended size: 1200x800px -->
+![Homepage Dashboard](docs/images/homepage-dashboard.png)
+*All your services in one place with real-time status monitoring*
+
+---
+
+## 📦 What's Included (25+ Services)
+
+<details open>
+<summary><b>🏗️ Infrastructure & Monitoring (11 services)</b></summary>
+
+- **Technitium DNS** - Local DNS server with adblocking
+- **Traefik** - Reverse proxy with automatic SSL
+- **Prometheus + Grafana** - Metrics collection and visualization
+- **Loki + Promtail** - Log aggregation and shipping
+- **Node Exporter** - Host metrics collection
+- **cAdvisor** - Container performance metrics
+- **NVIDIA GPU Exporter** - GPU metrics and monitoring
+- **Speedtest Exporter** - Network speed monitoring
+- **iperf3 Server + Exporter** - Network performance testing
+- **Uptime Kuma** - Uptime monitoring with notifications
+- **Authentik** - Identity provider and SSO
+
+</details>
+
+<details>
+<summary><b>🏠 Home & Productivity (6 services)</b></summary>
+
+- **Homepage** - Unified service dashboard
+- **Actual Budget** - Personal finance management
+- **Home Assistant + Node-RED** - Smart home automation
+- **CryptPad** - Encrypted collaborative documents
+- **Mealie** - Recipe management and meal planning
+
+</details>
+
+<details>
+<summary><b>📷 Media & Photos (3 services)</b></summary>
+
+- **PhotoPrism** - AI-powered photo management
+- **Immich** - High-performance photo backup
+- **Emby** - Media server and streaming
+
+</details>
+
+<details>
+<summary><b>🎬 Media Automation (9 services)</b></summary>
+
+- **Sonarr** - TV series management
+- **Radarr** - Movie management
+- **Whisparr** - Adult content management
+- **Prowlarr** - Indexer management
+- **Profilarr** - Media quality profiling
+- **FlareSolverr** - Cloudflare bypass for indexers
+- **qBittorrent + Deluge** - Torrent clients
+- **SABnzbd + NZBGet** - Usenet clients
+
+</details>
+
+<details>
+<summary><b>🛡️ Security, AI & Resilience (4 services)</b></summary>
+
+- **Vaultwarden** - Bitwarden-compatible password manager
+- **Kiwix** - Offline Wikipedia (119GB) + Project Gutenberg + Stack Overflow
+- **LibreChat** - Self-hosted AI chat interface
+- **MLflow** - ML experiment tracking
+
+</details>
+
+<details>
+<summary><b>💾 Backup & Recovery</b></summary>
+
+- **Kopia** - Automated encrypted backups to Backblaze B2
+
+</details>
+
+[View complete service documentation →](https://chutch3.github.io/homelab/)
+
+---
+
+## 🏗️ Architecture
+
+```mermaid
+graph TB
+    Internet([Internet])
+    Tailscale[Tailscale VPN]
+    Traefik[Traefik Reverse Proxy<br/>Automatic SSL via Cloudflare]
+
+    subgraph Swarm[Docker Swarm Cluster]
+        Manager[Manager Node<br/>Orchestration + Services]
+        Worker1[Worker Node 1<br/>GPU Workloads]
+        Worker2[Worker Node 2<br/>General Workloads]
+    end
+
+    subgraph Services[Service Stack - 25+ Apps]
+        Infrastructure[Infrastructure<br/>DNS, Monitoring, SSO]
+        Apps[Applications<br/>Home, Media, Productivity]
+        Media[Media Automation<br/>Sonarr, Radarr, etc.]
+        AI[AI & Resilience<br/>LibreChat, Kiwix, MLflow]
+    end
+
+    Storage[NAS/iSCSI Storage<br/>Persistent Data]
+    Backup[Backblaze B2<br/>Encrypted Backups]
+
+    Internet --> Tailscale
+    Tailscale --> Traefik
+    Traefik --> Manager
+    Manager --> Worker1
+    Manager --> Worker2
+
+    Manager --> Services
+    Worker1 --> Services
+    Worker2 --> Services
+
+    Services --> Storage
+    Storage --> Backup
+
+    style Internet fill:#e1f5ff
+    style Tailscale fill:#90caf9
+    style Traefik fill:#64b5f6
+    style Swarm fill:#f5f5f5
+    style Services fill:#fff9c4
+    style Storage fill:#c8e6c9
+    style Backup fill:#ffccbc
+```
+
+**Key Components:**
+- **Tailscale VPN**: Secure remote access without port forwarding
+- **Traefik**: Automatic SSL certificate management via Cloudflare DNS
+- **Docker Swarm**: Multi-node orchestration with service placement
+- **Authentik**: Single sign-on for unified authentication
+- **Prometheus/Grafana**: Comprehensive monitoring and alerting
+- **Kopia**: Encrypted backups to cloud storage
+
+<!-- Screenshot: Grafana Dashboard -->
+![Grafana Monitoring](docs/images/grafana-dashboard.png)
+*Real-time system metrics and performance monitoring*
+
+---
+
+## 📋 Requirements
+
+### Software
+- **Docker** with Compose v2 (installed automatically)
+- **Taskfile** for command execution ([install](https://taskfile.dev/installation/))
+- **Ansible** 2.9+ (installed via `task ansible:install`)
+
+### Services
+- **Domain name** with Cloudflare DNS management
+- **Cloudflare API token** for DNS-01 challenge
+- **Tailscale account** for remote access (optional but recommended)
+
+---
+
+## 🚀 Quick Start
+
+### 1. Clone and Configure
+
+```bash
+git clone https://github.com/chutch3/homelab.git
+cd homelab
+
+# Configure environment variables
+cp .env.example .env
+nano .env  # Add your domain and Cloudflare API token
+
+# Configure host inventory
+cp ansible/inventory/03-hosts.yml.example ansible/inventory/02-hosts.yml
+nano ansible/inventory/02-hosts.yml  # Add your nodes
+```
+
+### 2. Deploy
+
+```bash
+# Install Ansible and dependencies
+task ansible:install
+
+# Bootstrap all nodes (installs Docker, dependencies)
+task ansible:bootstrap
+
+# Initialize Docker Swarm cluster
+task ansible:cluster:init
+
+# Deploy all services
+task ansible:deploy:full
+```
+
+### 3. Access Your Services
+
+Navigate to `https://homepage.yourdomain.com` to see your dashboard!
+
+<!-- Screenshot: Uptime Kuma -->
+![Uptime Kuma](docs/images/uptime-kuma.png)
+*Service uptime monitoring with real-time status and notifications*
+
+**First-time setup:**
+1. Configure Authentik SSO at `https://auth.yourdomain.com`
+2. Set up Grafana dashboards at `https://grafana.yourdomain.com`
+3. Configure DNS records via Technitium at `https://dns.yourdomain.com`
+
+---
+
+## 🔧 Common Management Commands
+
+All commands use `task` (Taskfile) for consistency:
+
+```bash
+# Deploy a single service
+task ansible:deploy:stack -- -e "stack_name=sonarr"
+
+# Check cluster status
+task ansible:cluster:status
+
+# Configure DNS records
+task ansible:dns:configure
+
+# Run tests
+task test
+
+# Check service logs
+docker service logs <service-name> -f
+
+# Teardown a service (preserve data)
+task ansible:teardown:stack -- -e "stack_name=sonarr"
+```
+
+[View complete command reference →](https://chutch3.github.io/homelab/user-guide/service-management/)
+
+---
+
+## 📚 Documentation
+
+**Full documentation available at: [chutch3.github.io/homelab](https://chutch3.github.io/homelab/)**
+
+- [Getting Started Guide](https://chutch3.github.io/homelab/getting-started/quick-start/)
+- [Installation Instructions](https://chutch3.github.io/homelab/getting-started/installation/)
+- [Configuration Guide](https://chutch3.github.io/homelab/getting-started/configuration/)
+- [Service Management](https://chutch3.github.io/homelab/user-guide/service-management/)
+- [Architecture Overview](https://chutch3.github.io/homelab/architecture/overview/)
+- [Storage Configuration](https://chutch3.github.io/homelab/architecture/storage/)
+
+---
+
+## 🗺️ Roadmap
+
+See what's next on the journey: [View Roadmap](https://chutch3.github.io/homelab/roadmap/)
+
+**Upcoming High-Priority Services:**
+- 📄 Paperless-ngx (document management)
+- ☁️ NextCloud (file sync, calendar, contacts)
+- 💻 Forgejo (self-hosted git with CI/CD)
+- 🤖 Ollama (local LLM for offline AI)
+- 🗺️ OpenStreetMap Tile Server (offline maps)
+- 📚 Kolibri (offline K-12 education)
+- 💾 ArchiveBox (web page archiving)
+
+---
+
+## 🤝 Contributing
+
+We welcome contributions! Here's how to get started:
+
+1. **Write tests first** - We follow TDD methodology
+2. **Use conventional commits** - Semantic versioning and automated releases
+3. **Update documentation** - Keep docs in sync with changes
+4. **Check CI** - Run `task check` before submitting PRs
+
+[View contribution guidelines →](https://chutch3.github.io/homelab/)
+
+---
+
+## 🧪 Development
+
+```bash
+# Install development dependencies
+task install
+
+# Run full test suite
+task test
+
+# Run linting checks
+task lint
+
+# Run complete CI validation
+task check
+
+# Build documentation locally
+task docs:serve
+```
+
+---
+
+## 💡 Who Is This For?
+
+This project is perfect if you:
+- ✅ Want a **production-ready homelab** without weeks of setup
+- ✅ Need **multiple services working together** with SSO
+- ✅ Value **monitoring and observability** from day one
+- ✅ Want **offline-first resilience** for network independence
+- ✅ Appreciate **tested, documented infrastructure-as-code**
+- ✅ Prefer **learning by example** from working configurations
+
+---
+
+## 📄 License
+
+MIT License - see [LICENSE](LICENSE) file for details.
+
+---
+
+<div align="center">
+
+**⚡ Deploy your entire homelab in minutes ⚡**
+
+[Documentation](https://chutch3.github.io/homelab/) • [Roadmap](https://chutch3.github.io/homelab/roadmap/) • [Issues](https://github.com/chutch3/homelab/issues) • [Discussions](https://github.com/chutch3/homelab/discussions)
+
+*Built with ❤️ for the self-hosting community*
+
+</div>
