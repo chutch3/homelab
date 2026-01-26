@@ -29,7 +29,7 @@ The mission of homelab is to:
 
     ---
 
-    Docker Swarm with 25+ pre-configured services ✅
+    Docker Swarm with 25 pre-configured services ✅
 
 - :material-shield-lock: **Automatic SSL & DNS**
 
@@ -63,7 +63,7 @@ The mission of homelab is to:
 
 </div>
 
-### ✅ Currently Deployed Services (35+)
+### ✅ Currently Deployed Services (25)
 
 **Infrastructure & Networking:**
 - :material-dns: **Technitium DNS** - Local DNS server ✅
