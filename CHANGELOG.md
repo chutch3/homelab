@@ -2,6 +2,30 @@
 
 <!-- version list -->
 
+## v3.4.0 (2026-01-26)
+
+### Documentation
+
+- Updated documentation
+  ([`ccfc466`](https://github.com/chutch3/homelab/commit/ccfc466b571002fba4a6b118ec7724f3469a80db))
+
+### Features
+
+- Add takeout-manager service for Google Photos automation (closes #73)
+  ([`0af52be`](https://github.com/chutch3/homelab/commit/0af52becc937228198beac52426fbb02aed1df5b))
+
+- Added initial authentik integration for homelab SSO
+  ([`d302c3e`](https://github.com/chutch3/homelab/commit/d302c3e9a5abe3d6194c1cfb46de98cc6c55262f))
+
+- Added kopia for backups of the iscsi mounts
+  ([`cbcbe09`](https://github.com/chutch3/homelab/commit/cbcbe09079dc3bee320b05bd3b0a94c2f4d57dea))
+
+### Refactoring
+
+- Migrated emby to iscsi
+  ([`0912c53`](https://github.com/chutch3/homelab/commit/0912c53c326756fc7d362a1f390124ae5a4443bc))
+
+
 ## v3.3.0 (2026-01-19)
 
 ### Bug Fixes
