@@ -25,7 +25,7 @@ services:
 
                 - homepage.group=Finance
                 - homepage.name=Actual Budget
-                - homepage.icon=actual.png
+                - homepage.icon=mdi-cash-multiple
                 - homepage.href=https://budget.${BASE_DOMAIN}/
                 - homepage.description=Budgeting Application
 

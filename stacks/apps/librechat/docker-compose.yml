@@ -29,7 +29,7 @@ services:
                 - traefik.http.services.librechat.loadbalancer.server.port=3080
                 - homepage.group=AI
                 - homepage.name=LibreChat
-                - homepage.icon=chat.png
+                - homepage.icon=mdi-chat
                 - homepage.href=https://chat.${BASE_DOMAIN}/
                 - homepage.description=AI Chat Interface
             replicas: 1

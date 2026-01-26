@@ -25,7 +25,7 @@ services:
 
                 - homepage.group=Infrastructure
                 - homepage.name=DNS
-                - homepage.icon=technitium-dns.png
+                - homepage.icon=mdi-dns
                 - homepage.href=https://dns.${BASE_DOMAIN}/
                 - homepage.description=DNS Server (Swarm failover enabled)
         environment:
