@@ -113,7 +113,9 @@ tasks:
     docs:serve:
         desc: Serve documentation locally with live reload
         cmds:
-            - poetry run mkdocs serve --dev-addr=0.0.0.0:8000
+            - poetry run mkdocs serve --dev-addr=0.0.0.0:{{.PORT}}
+        vars:
+            PORT: "{{ .PORT | default 8000 }}"
 
     docs:validate:
         desc: Validate documentation build and check for issues

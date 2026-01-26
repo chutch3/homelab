@@ -1,292 +1,229 @@
-# Roadmap
+# 🛣️ The Homelab Journey
+
+*A vertical road map of our self-hosting adventure*
+
+---
+
+```
+                    🏁 STARTING LINE 🏁
+                         ║
+                         ║
+```
+
+## 🎯 Mission: The Destination Ahead
 
 Our mission is to create the ultimate self-hosting platform that makes running your own services as simple as possible while maintaining security, reliability, and flexibility.
 
-!!! success "✅ **Production-Ready Platform Complete**"
+**Why This Journey?**
 
-    The core platform is fully functional with 25+ services, comprehensive testing, and CI/CD automation.
+- 🖥️ **Use existing hardware** - Make the most of what you already have
+- 🚀 **Get up and running fast** - Deploy services in minutes, not hours
+- 🔐 **Enable data sovereignty and control** - Keep your data yours
+- ⚙️ **Enable easy customization** - Adapt to your specific needs
+- 🔗 **Connect open source projects together** - Unified ecosystem
+- 📱 **Support multiple application domains** - Home automation, media, productivity, development, security
+- 🛡️ **Build resilient systems** - Offline-first capabilities for network independence
+- 📚 **Documentation and guides** - Clear instructions for getting started
 
-## Mission Statement
+---
 
-The mission of homelab is to:
+```
+                         ║
+                         ║
+                    ╔════╩════╗
+                    ║  MILE   ║
+                    ║    1    ║
+                    ╚════╦════╝
+                         ║
+```
 
-- :material-server: **Use existing hardware** - Make the most of what you already have
-- :material-rocket-launch: **Get up and running fast** - Deploy services in minutes, not hours
-- :material-shield-check: **Enable data sovereignty and control** - Keep your data yours
-- :material-tune: **Enable easy customization** - Adapt to your specific needs
-- :material-link: **Connect open source projects together** - Unified ecosystem
-- :material-apps: **Support multiple application domains** - Home automation, media, productivity, development, security
-- :material-shield-half-full: **Build resilient systems** - Offline-first capabilities for network independence
-- :material-book-open: **Documentation and guides** - Clear instructions for getting started
-
-## 🔄 Current Status
-
-### ✅ Completed Platform Features
+## ✅ MILE 1: Foundation & Infrastructure
+**Status:** COMPLETED • **Date:** 2024-Q4
 
 <div class="grid cards" markdown>
 
-- :material-cog: **Production-Ready Deployment**
+- 🐳 **Docker Swarm Deployment**
 
     ---
 
-    Docker Swarm with 25 pre-configured services ✅
+    Production-ready orchestration with 25+ services
 
-- :material-shield-lock: **Automatic SSL & DNS**
-
-    ---
-
-    Traefik reverse proxy with Cloudflare integration ✅
-
-- :material-chart-line: **Built-in Monitoring**
+- 🔒 **Automatic SSL & DNS**
 
     ---
 
-    Prometheus + Grafana for system observability ✅
+    Traefik reverse proxy + Cloudflare integration
 
-- :material-console: **Simple Management CLI**
-
-    ---
-
-    Deploy, update, and manage services with one command ✅
-
-- :material-test-tube: **Comprehensive Testing**
+- 📊 **Monitoring Stack**
 
     ---
 
-    Comprehensive test suite with CI/CD validation, TDD methodology ✅
+    Prometheus + Grafana + Loki for full observability
 
-- :material-github-action: **CI/CD Pipeline**
+- 🔧 **Management CLI**
 
     ---
 
-    GitHub Actions with automated testing, linting, semantic releases ✅
+    Deploy and manage services with one command
 
 </div>
 
-### ✅ Currently Deployed Services (25)
+**Rest Stop Summary:** Core platform infrastructure complete ✅
 
-**Infrastructure & Networking:**
-- :material-dns: **Technitium DNS** - Local DNS server ✅
-- :material-shield-check: **Traefik** - Reverse proxy with automatic SSL ✅
-- :material-chart-line: **Prometheus + Grafana** - System monitoring and dashboards ✅
-- :material-monitor: **Node Exporter** - Host metrics collection ✅
-- :material-docker: **cAdvisor** - Container-level performance metrics ✅
-- :material-chart-box: **NVIDIA GPU Exporter** - GPU metrics and monitoring ✅
-- :material-speedometer: **Speedtest Exporter** - Network speed monitoring ✅
-- :material-network: **iperf3 Server + Exporter** - Network performance testing ✅
-- :material-file-document-multiple: **Loki + Promtail** - Log aggregation and shipping ✅
-- :material-heart-pulse: **Uptime Kuma** - Uptime monitoring with notifications ✅
-- :material-account-key: **Authentik** - Identity provider and SSO (integrated with 8+ services) ✅
+---
 
-**Home & Productivity:**
-- :material-view-dashboard: **Homepage** - Service dashboard ✅
-- :material-cash: **Actual Budget** - Personal finance management ✅
-- :material-home-automation: **Home Assistant** - Smart home automation platform ✅
-- :material-sitemap: **Node-RED** - Flow-based automation for advanced smart home integration ✅
-- :material-file-document: **CryptPad** - Collaborative documents with encryption ✅
-- :material-food: **Mealie** - Recipe management and meal planning ✅
+```
+                         ║
+                    - - -║- - -
+                    - - -║- - -
+                         ║
+                    ╔════╩════╗
+                    ║  MILE   ║
+                    ║    2    ║
+                    ╚════╦════╝
+                         ║
+```
 
-**Media & Photos:**
-- :material-image: **PhotoPrism** - AI-powered photo management ✅
-- :material-image-multiple: **Immich** - High-performance photo backup ✅
-- :material-movie: **Emby** - Media server and streaming ✅
+## ✅ MILE 2: Essential Services (25 Deployed)
+**Status:** COMPLETED • **Services Live:** 25
 
-**Media Automation Stack:**
-- :material-television: **Sonarr** - TV series management ✅
-- :material-filmstrip: **Radarr** - Movie management ✅
-- :material-video: **Whisparr** - Adult content management ✅
-- :material-magnify: **Prowlarr** - Indexer management ✅
-- :material-chart-box: **Profilarr** - Media quality profiling ✅
-- :material-shield-search: **FlareSolverr** - Cloudflare bypass for indexers ✅
-- :material-download: **qBittorrent** - Primary torrent client ✅
-- :material-download: **Deluge** - Alternative torrent client ✅
-- :material-download-box: **SABnzbd** - Usenet downloader ✅
-- :material-download-box: **NZBGet** - Lightweight Usenet client ✅
+### 🏗️ Infrastructure Layer
+- ✅ Technitium DNS - Local DNS server
+- ✅ Traefik - Reverse proxy with automatic SSL
+- ✅ Prometheus + Grafana - Metrics and dashboards
+- ✅ Node Exporter - Host metrics collection
+- ✅ cAdvisor - Container-level performance metrics
+- ✅ NVIDIA GPU Exporter - GPU metrics and monitoring
+- ✅ Speedtest Exporter - Network speed monitoring
+- ✅ iperf3 Server + Exporter - Network performance testing
+- ✅ Loki + Promtail - Log aggregation
+- ✅ Uptime Kuma - Uptime monitoring
+- ✅ Authentik - SSO (integrated with 8+ services)
 
-**Prepper & Resilience:**
-- :material-book-open-variant: **Kiwix** - Offline Wikipedia and knowledge archives ✅
-  - Wikipedia (119GB with images)
-  - Project Gutenberg (60,000+ ebooks)
-  - WikiMed (medical encyclopedia)
-  - Stack Overflow + Stack Exchange sites
-  - WikiVoyage, OpenStreetMap Wiki
-  - Gardening, DIY, Cooking, Sustainability knowledge
+### 🏠 Home & Productivity
+- ✅ Homepage - Service dashboard
+- ✅ Actual Budget - Personal finance
+- ✅ Home Assistant + Node-RED - Smart home platform
+- ✅ CryptPad - Encrypted collaboration
+- ✅ Mealie - Recipe management
 
-**Security & Privacy:**
-- :material-lock: **Vaultwarden** - Bitwarden-compatible password manager (with Authentik SSO) ✅
+### 📷 Media & Photos
+- ✅ PhotoPrism - AI-powered photo management
+- ✅ Immich - High-performance photo backup
+- ✅ Emby - Media streaming
 
-**AI & Chat:**
-- :material-robot: **LibreChat** - Self-hosted AI chat interface ✅
+### 🎬 Media Automation (The *arr Stack)
+- ✅ Sonarr + Radarr + Whisparr + Prowlarr + Profilarr
+- ✅ FlareSolverr - Cloudflare bypass for indexers
+- ✅ qBittorrent + Deluge - Torrent clients
+- ✅ SABnzbd + NZBGet - Usenet clients
 
-**Development & DevOps:**
-- :material-brain: **MLflow** - ML experiment tracking, model registry, and serving ✅
+### 🛡️ Prepper & Resilience
+- ✅ Kiwix - Offline Wikipedia (119GB) + Project Gutenberg + Stack Overflow + Medical knowledge
 
-**Backup & Recovery:**
-- :material-backup-restore: **Kopia** - Automated encrypted backups to cloud storage (Backblaze B2) with web UI ✅
-  - Backs up iSCSI-mounted application data weekly
-  - Retention: 4 weekly + 3 monthly snapshots
-  - Integrated with Authentik SSO
+### 🔐 Security & Privacy
+- ✅ Vaultwarden - Password manager (with Authentik SSO)
 
-## 🚀 Future Services by Domain
-
-### 🏠 Home & Lifestyle
-
-| Service | Priority | Description |
-|---------|----------|-------------|
-| **Traccar** | Medium | GPS tracking for family safety and device location |
-| **Grocy** | Medium | Groceries and household management |
-| **Monica** | Low | Personal CRM and relationship management |
-| **Paperless-ngx** | High | Document management and long-term archival system |
-
-### 💼 Development & DevOps
-
-**Note:** PostgreSQL and Redis are deployed with apps that need them (e.g., Immich includes PostgreSQL), not as standalone services.
-
-| Service | Priority | Description |
-|---------|----------|-------------|
-| **Forgejo** | High | Self-hosted Git service with CI/CD (community-driven Gitea fork) |
-| **Code-Server** | Medium | VS Code in the browser |
-| **Harbor** | Low | Container registry and scanning |
-
-### 📝 Productivity & Collaboration
-
-| Service | Priority | Description |
-|---------|----------|-------------|
-| **NextCloud** | High | File sync, calendar, contacts, collaboration, long-term document storage |
-| **Bookstack** | Medium | Wiki and documentation platform |
-| **Memos** | Low | Lightweight note-taking |
-| **Stirling-PDF** | Medium | PDF manipulation toolkit |
-
-### 🔒 Security & Privacy
-
-| Service | Priority | Description |
-|---------|----------|-------------|
-| **Searxng** | Medium | Private meta-search engine (aggregates results without tracking) |
-| **AdGuard Home** | Medium | Network-wide ad and tracker blocking |
-| **WireGuard** | High | VPN for secure remote access |
-| **Crowdsec** | Low | Collaborative security engine |
-
-
-### 🎯 Prepper & Resilience
-
-*Building self-sufficient systems for network independence and long-term data preservation.*
-
-**✅ Completed via Kiwix:**
-- Wikipedia with images (offline encyclopedia)
-- Project Gutenberg (60,000+ ebooks)
-- WikiMed (medical knowledge)
-- Stack Overflow + Stack Exchange (technical Q&A)
-- WikiVoyage (travel guides)
-- OpenStreetMap Wiki (mapping reference)
-- Practical knowledge (gardening, DIY, cooking, sustainability)
-
-**Future Services:**
-
-| Service | Priority | Description | Status |
-|---------|----------|-------------|--------|
-| **Kolibri** | High | Offline educational platform with K-12 curriculum (Khan Academy, structured learning) | 🔄 Planned |
-| **OpenStreetMap Tile Server** | High | Local map server for offline navigation with actual map tiles | 🔄 [Issue #13](https://github.com/chutch3/homelab/issues/13) |
-| **Ollama** | High | Local LLM inference for offline AI assistance | 🔄 [Issue #13](https://github.com/chutch3/homelab/issues/13) |
-| **Calibre-Web** | Medium | Ebook library management and reader (for managing additional ebook collections) | 🔄 Planned |
-| **ArchiveBox** | Medium | Self-hosted web archive for important pages | 🔄 Planned |
-| **FreshRSS** | Low | RSS reader for decentralized news aggregation | 🔄 Planned |
-
-**Remaining Challenges ([Issue #13](https://github.com/chutch3/homelab/issues/13)):**
-- ✅ ~~Source and licensing for offline data archives~~ (Solved via Kiwix ZIM files)
-- ✅ ~~Automated init and update processes~~ (Implemented with monthly update checks)
-- OpenStreetMap tile generation and storage strategy
-- Source code archiving and mirror strategies
-- Local LLM model management and updates
-
-### 🎮 Gaming & Entertainment
-
-| Service | Priority | Description |
-|---------|----------|-------------|
-| **Audiobookshelf** | Low | Audiobook and podcast server |
-| **Navidrome** | Low | Music server and streamer |
-| **Romm** | Low | ROM and game library management |
+### 🤖 AI & Development
+- ✅ LibreChat - AI chat interface
+- ✅ MLflow - ML experiment tracking
 
 ### 💾 Backup & Recovery
+- ✅ Kopia - Automated encrypted backups to Backblaze B2
 
-**Current:** Automated encrypted backups using Kopia to Backblaze B2 storage for iSCSI-mounted application data
+**Rest Stop Summary:** Production platform with 25 services ✅
 
-| Service | Priority | Description | Status |
-|---------|----------|-------------|--------|
-| **Restic** | Low | Alternative encrypted backup tool (currently using Kopia) | 🔄 Alternative option |
-| **Duplicati** | Low | Web-based backup with scheduling (simpler but less efficient) | 🔄 Alternative option |
+---
 
-### 🔧 Infrastructure & Monitoring
+```
+                         ║
+                    - - -║- - -
+                    - - -║- - -
+                         ║
+                    ╔════╩════╗
+                    ║  MILE   ║
+                    ║    3    ║
+                    ╚════╦════╝
+                         ║
+```
 
-| Service | Priority | Description | Status |
-|---------|----------|-------------|--------|
-| ~~**Netdata**~~ | ~~Medium~~ | ~~Real-time performance monitoring~~ | ✅ **Alternative: Prometheus + Grafana + cAdvisor + Exporters** |
-| ~~**Dozzle**~~ | ~~Low~~ | ~~Real-time log viewer~~ | ✅ **Alternative: Loki + Promtail + Grafana** |
-| **Portainer** | Medium | Container management UI | 🔄 Planned (alternative to CLI) |
-| **Watchtower** | Low | Automated container updates | 🔄 Planned |
+## ✅ MILE 3: Quality & Automation
+**Status:** COMPLETED • **Date:** 2024-Q4
 
-[View complete roadmap →](https://github.com/chutch3/homelab/issues?q=is%3Aissue+is%3Aopen+label%3Aenhancement)
+- ✅ Comprehensive test suite with TDD methodology
+- ✅ GitHub Actions CI/CD pipeline
+- ✅ Automated testing, linting, and validation
+- ✅ Semantic versioning and releases
 
-## 🤝 How to Contribute
+**Rest Stop Summary:** Professional-grade development workflow ✅
 
-We welcome contributions! Here's how you can help:
+---
 
-<div class="grid cards" markdown>
+```
+                         ║
+                    = = =║= = =  🚗 YOU ARE HERE
+                    = = =║= = =
+                         ║
+                    ╔════╩════╗
+                    ║ CURRENT ║
+                    ║ LOCATION║
+                    ╚════╦════╝
+                         ║
+```
 
-- :material-plus-circle: **Add New Services**
+## 🚗 Current Location: Maintenance & Documentation
+**Status:** IN PROGRESS
 
-    ---
+- 🔄 Keeping services updated and healthy
+- 📚 Improving documentation
+- 🧪 Expanding test coverage
+- 🔍 Planning next destinations
 
-    Contribute service definitions for popular applications
+---
 
-- :material-test-tube: **Improve Testing**
+```
+                         ║
+                    - - -║- - -
+                    - - -║- - -
+                         ║
+                    🚧   ║   🚧
+                    ╔════╩════╗
+                    ║  NEXT   ║
+                    ║   EXIT  ║
+                    ╚════╦════╝
+                         ║
+```
 
-    ---
+## 🗺️ The Road Ahead: Future Destinations
 
-    Help us achieve 100% test coverage
+### 🎯 NEEDS (High Priority - Real Gaps to Fill)
 
-- :material-book-open: **Write Documentation**
+| Need / Current Gap | Solution | Why It Matters |
+|-------------------|----------|----------------|
+| **Document Management & Archival**<br>No system for organizing scanned documents, PDFs, receipts, tax forms, contracts | **Paperless-ngx** | Long-term archival with OCR, tagging, full-text search, automated organization |
+| **File Sync, Calendar, & Contacts**<br>No unified cloud storage replacement or calendar/contacts synchronization | **NextCloud** | Self-hosted file sync across devices, calendar management, contacts storage, document collaboration |
+| **Source Code Hosting**<br>No local git repository with issue tracking and CI/CD capabilities | **Forgejo**<br>(community-driven Gitea fork) | Self-hosted git repos, issue tracking, pull requests, built-in CI/CD pipelines |
+| **Offline AI Assistance**<br>LibreChat requires external API calls - no true offline AI capability | **Ollama**<br>(integrates with LibreChat) | Run LLMs locally for offline AI assistance, privacy, no API costs |
+| **Offline Navigation Maps**<br>Kiwix has OSM Wiki documentation but not actual map tiles for GPS navigation | **OpenStreetMap Tile Server** | Render and serve map tiles locally for offline navigation and mapping apps |
+| **Offline Educational Content**<br>Wikipedia provides general knowledge but lacks structured K-12 curriculum with video lessons | **Kolibri**<br>(Khan Academy content) | Structured learning paths, video lessons, interactive exercises, progress tracking |
+| **Web Page Archiving**<br>No way to preserve important websites before they disappear or change | **ArchiveBox** | Archive critical web pages, articles, and sites for offline reference and preservation |
 
-    ---
+---
 
-    Help other users get started faster
+### 💭 NICE TO HAVE (Lower Priority - Potential Future Needs)
 
-- :material-bug: **Report Bugs**
-
-    ---
-
-    Help us identify and fix issues
-
-</div>
-
-### Current Contribution Opportunities
-
-**🔥 Hot Topics** (Help Wanted):
-
-1. **Prepper Services** - OpenStreetMap tile server, local LLM hosting (Ollama), web archiving (ArchiveBox)
-2. **Security & Privacy** - WireGuard VPN, AdGuard Home, expanding Authentik SSO to more services
-3. **Development Tools** - Forgejo with CI/CD, code editing tools
-4. **Productivity Suite** - NextCloud deployment, Paperless-ngx document management
-5. **Infrastructure** - Portainer container management (monitoring is complete)
-6. **Documentation** - Service setup guides, domain-specific tutorials, Authentik SSO integration guide
-7. **Testing** - Integration tests for new services
-8. **Storage** - Expanding iSCSI storage strategy for more services
-
-**Domain-Specific Needs:**
-
-- **Prepper/Resilience**: OpenStreetMap tile generation, LLM model management, source code archiving
-- **Home Automation**: Advanced Node-RED flows, Home Assistant integrations
-- **Media**: Alternative servers (Jellyfin), codec optimization, iSCSI storage expansion
-- **Security**: Expanding Authentik SSO integrations, network security hardening, VPN access
-- **Backup & Recovery**: Expanding Kopia coverage to additional data sources
-
-[Get started contributing →](https://github.com/chutch3/homelab/issues)
-
-## 💡 Have Ideas?
-
-Share your suggestions:
-
-- **Feature Requests**: [Open an issue](https://github.com/chutch3/homelab/issues/new)
-- **Discussions**: [Join our discussions](https://github.com/chutch3/homelab/discussions)
-- **Community**: [r/selfhosted](https://reddit.com/r/selfhosted)
-
-Together, we're building the future of self-hosting! 🚀
+| Possible Need / Gap | Solution | Why It Matters |
+|-------------------|----------|----------------|
+| **Private Search Engine**<br>Reliance on external search engines that track queries | **Searxng** | Meta-search engine that aggregates results without tracking or profiling |
+| **Family GPS Tracking**<br>No way to locate family members or track device locations for safety | **Traccar** | Real-time GPS tracking, geofencing, location history |
+| **Pantry & Grocery Inventory**<br>Mealie handles recipes but not pantry inventory, expiration tracking, shopping lists | **Grocy** | Track groceries, expiration dates, automate shopping lists, reduce food waste |
+| **Ebook Library Management**<br>Kiwix has Project Gutenberg but no management for personal ebook collections | **Calibre-Web** | Organize, tag, and read personal ebook collections with web interface |
+| **Knowledge Base / Wiki**<br>CryptPad handles collaboration but not structured wiki documentation | **Bookstack** | Organized wiki with books, chapters, pages for structured documentation |
+| **PDF Manipulation**<br>No self-hosted tools for merging, splitting, converting, or editing PDFs | **Stirling-PDF** | Comprehensive PDF toolkit for all manipulation tasks |
+| **Personal CRM**<br>No system for tracking relationships, interactions, and personal contacts | **Monica** | Remember important dates, track conversations, manage personal relationships |
+| **RSS Feed Aggregation**<br>No centralized way to follow blogs, news, and content without algorithms | **FreshRSS** | Decentralized news reading, control your feed, offline reading |
+| **Container Registry**<br>No private registry for custom Docker images | **Harbor** | Store and scan custom container images, vulnerability scanning |
+| **Web-based IDE**<br>No browser-based code editing environment | **Code-Server**<br>(VS Code in browser) | Code from any device, remote development environment |
+| **Collaborative Security**<br>No crowdsourced threat intelligence or IP reputation | **Crowdsec** | Block IPs based on community threat intelligence |
+| **ROM & Game Library**<br>No management system for retro game ROMs | **Romm** | Organize and manage retro gaming library |
+| **Automated Container Updates**<br>Manual service updates required | **Watchtower** | Automatically pull and update container images |
