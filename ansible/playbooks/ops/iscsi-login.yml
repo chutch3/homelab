@@ -1,0 +1,17 @@
+# ansible/playbooks/ops/iscsi-login.yml
+---
+- name: Log in to iSCSI target
+  hosts: all
+  become: true
+  tasks:
+    - name: Ensure iSCSI initiator utils are installed
+      ansible.builtin.package:
+        name: open-iscsi
+        state: present
+
+    - name: Discover and log in to iSCSI target
+      community.general.open_iscsi:
+        portal: "{{ iscsi_target_ip }}:{{ iscsi_target_port }}"
+        iqn: "{{ iscsi_target_iqn }}"
+        state: present
+      when: iscsi_enabled | bool

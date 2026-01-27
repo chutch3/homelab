@@ -1,0 +1,11 @@
+# ansible/playbooks/ops/shutdown-nodes.yml
+---
+- name: Shut down nodes
+  hosts: all
+  become: true
+  tasks:
+    - name: Shut down the target host
+      community.general.shutdown:
+        delay: 1
+        msg: "System shutdown initiated by Ansible."
+      when: ansible_host != 'localhost'

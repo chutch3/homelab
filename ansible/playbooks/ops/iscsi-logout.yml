@@ -1,0 +1,12 @@
+# ansible/playbooks/ops/iscsi-logout.yml
+---
+- name: Log out from iSCSI target
+  hosts: all
+  become: true
+  tasks:
+    - name: Log out from iSCSI target
+      community.general.open_iscsi:
+        portal: "{{ iscsi_target_ip }}:{{ iscsi_target_port }}"
+        iqn: "{{ iscsi_target_iqn }}"
+        state: absent
+      when: iscsi_enabled | bool
