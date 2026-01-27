@@ -1,0 +1,83 @@
+---
+# ansible/roles/uptime_kuma/tasks/remove-service-monitors.yml
+# Remove service monitors from Uptime Kuma
+
+- name: Find docker-compose.yml file for specific stack
+  ansible.builtin.stat:
+    path: "{{ playbook_dir }}/../../stacks/apps/{{ stack_name }}/docker-compose.yml"
+  register: uptime_kuma_compose_file_stat
+  delegate_to: localhost
+  when: stack_name is defined
+
+- name: Set compose files list for specific stack
+  ansible.builtin.set_fact:
+    uptime_kuma_compose_files:
+      files:
+        - path: "{{ playbook_dir }}/../../stacks/apps/{{ stack_name }}/docker-compose.yml"
+  when: stack_name is defined and uptime_kuma_compose_file_stat.stat.exists
+
+- name: Find all docker-compose.yml files
+  ansible.builtin.find:
+    paths: "{{ playbook_dir }}/../../stacks/apps"
+    patterns: "docker-compose.yml"
+    recurse: yes
+  register: uptime_kuma_compose_files
+  delegate_to: localhost
+  when: stack_name is not defined
+
+- name: Get only compose files with Traefik Host() rules
+  ansible.builtin.shell: "grep -l 'Host(' {{ item.path }}"
+  loop: "{{ uptime_kuma_compose_files.files }}"
+  register: uptime_kuma_traefik_compose_files
+  changed_when: false
+  failed_when: false
+  delegate_to: localhost
+  when: uptime_kuma_compose_files is defined and uptime_kuma_compose_files.files is defined
+
+- name: Extract Traefik Host() rules from matching files
+  ansible.builtin.shell: "grep -o 'Host(`[^`]*`)' {{ item.path }}"
+  loop: "{{ uptime_kuma_traefik_compose_files.results | selectattr('rc', '==', 0) | map(attribute='item') | list }}"
+  register: uptime_kuma_traefik_rules
+  changed_when: false
+  failed_when: false
+  delegate_to: localhost
+  when: uptime_kuma_traefik_compose_files is defined and uptime_kuma_traefik_compose_files.results is defined
+
+- name: Process and set discovered domains
+  ansible.builtin.set_fact:
+    uptime_kuma_discovered_domains: >
+        {{ uptime_kuma_traefik_rules.results |
+            map(attribute='stdout_lines') | flatten |
+            map('regex_search', 'Host\\(`([^`]+)`\\)', '\1') |
+            flatten | select('ne', '') |
+            map('regex_replace', '\$\{BASE_DOMAIN\}', base_domain) |
+            unique | list }}
+  when: uptime_kuma_traefik_rules is defined and uptime_kuma_traefik_rules.results is defined
+
+- name: Display monitors to be removed
+  ansible.builtin.debug:
+    msg: "Removing {{ uptime_kuma_discovered_domains | length }} monitors: {{ uptime_kuma_discovered_domains | join(', ') }}"
+  when: uptime_kuma_discovered_domains is defined and uptime_kuma_discovered_domains | length > 0
+
+- name: Remove HTTP monitor for each discovered service
+  lucasheld.uptime_kuma.monitor:
+    api_url: "{{ uptime_kuma_api_url }}"
+    api_token: "{{ uptime_kuma_api_token }}"
+    name: "{{ item }}"
+    state: absent
+  loop: "{{ uptime_kuma_discovered_domains }}"
+  register: uptime_kuma_remove_service_monitor_result
+  delegate_to: localhost
+  retries: 3
+  delay: 2
+  until: uptime_kuma_remove_service_monitor_result is succeeded
+  failed_when: false
+  when: uptime_kuma_discovered_domains is defined and uptime_kuma_discovered_domains | length > 0
+
+- name: Display service monitor removal status
+  ansible.builtin.debug:
+    msg: "Monitor for {{ item.item }}: {{ 'Removed' if item.changed else 'Not found or already removed' }}"
+  loop: "{{ uptime_kuma_remove_service_monitor_result.results }}"
+  loop_control:
+    label: "{{ item.item }}"
+  when: uptime_kuma_remove_service_monitor_result is defined and uptime_kuma_remove_service_monitor_result.results is defined

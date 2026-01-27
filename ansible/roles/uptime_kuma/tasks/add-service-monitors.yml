@@ -6,9 +6,17 @@
   ansible.builtin.find:
       paths: "{{ playbook_dir }}/../../stacks/apps"
       patterns: "docker-compose.yml"
-      recurse: true
+      recurse: yes
   register: uptime_kuma_compose_files
   delegate_to: localhost
+  when: stack_name is not defined
+
+- name: Use specific compose file when stack_name is defined
+  ansible.builtin.set_fact:
+      uptime_kuma_compose_files:
+          files:
+              - path: "{{ compose_file_path }}"
+  when: stack_name is defined
 
 - name: Get only compose files with Traefik Host() rules
   ansible.builtin.shell: "grep -l 'Host(' {{ item.path }}"

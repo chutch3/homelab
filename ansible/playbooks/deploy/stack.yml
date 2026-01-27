@@ -5,12 +5,25 @@
   vars:
       # Mandatory: Name of the stack to deploy
       stack_name: ""
+      # Optional: Register DNS (auto-detects new stacks, set to false to skip)
+      register_dns: "auto"
+      # Optional: Register uptime monitoring (auto-detects new stacks, set to false to skip)
+      register_uptime: "auto"
 
   tasks:
       - name: Ensure stack_name is defined
         ansible.builtin.fail:
             msg: "The 'stack_name' variable must be defined (e.g., -e stack_name=my_app)."
         when: stack_name == ""
+
+      - name: Check if stack already exists
+        ansible.builtin.command: docker stack ls --format '{% raw %}{{.Name}}{% endraw %}'
+        register: existing_stacks
+        changed_when: false
+
+      - name: Determine if this is a new stack deployment
+        ansible.builtin.set_fact:
+            is_new_stack: "{{ stack_name not in existing_stacks.stdout_lines }}"
 
       - name: Check for compose file in stacks/ directory
         ansible.builtin.stat:
@@ -62,6 +75,52 @@
         ignore_errors: no
 
       - name: Report successful deployment
-        debug:
-            msg: "Stack '{{ stack_name }}' deployed successfully."
+        ansible.builtin.debug:
+            msg: "Stack '{{ stack_name }}' deployed successfully{{ ' (new stack)' if is_new_stack else ' (updated)' }}."
         when: deploy_app_result is succeeded
+
+      - name: Set DNS registration flag
+        ansible.builtin.set_fact:
+            should_register_dns: "{{ (register_dns == 'auto' and is_new_stack) or (register_dns | bool) }}"
+        when: register_dns
+
+      - name: Set uptime registration flag
+        ansible.builtin.set_fact:
+            should_register_uptime: "{{ (register_uptime == 'auto' and is_new_stack) or (register_uptime | bool) }}"
+        when: register_uptime
+
+      - name: Get DNS API token
+        ansible.builtin.include_role:
+            name: dns
+            tasks_from: get-token
+        when: should_register_dns | default(false)
+
+      - name: Register DNS for new stack
+        ansible.builtin.include_role:
+            name: dns
+            tasks_from: add-service-cnames
+        vars:
+            dns_base_domain: "{{ lookup('env', 'BASE_DOMAIN') }}"
+        when: should_register_dns | default(false)
+
+      - name: Get uptime API token
+        ansible.builtin.include_role:
+            name: uptime_kuma
+            tasks_from: get-token
+        when: should_register_uptime | default(false)
+
+      - name: Register uptime monitoring for new stack
+        ansible.builtin.include_role:
+            name: uptime_kuma
+            tasks_from: add-service-monitors
+        vars:
+            uptime_kuma_base_domain: "{{ lookup('env', 'BASE_DOMAIN') }}"
+        when: should_register_uptime | default(false)
+
+      - name: Deployment summary
+        ansible.builtin.debug:
+            msg: |
+                ✅ Stack '{{ stack_name }}' deployed successfully
+                   - Status: {{ 'New deployment' if is_new_stack else 'Updated existing stack' }}
+                   - DNS registered: {{ 'Yes' if should_register_dns | default(false) else 'No' }}
+                   - Uptime monitoring: {{ 'Yes' if should_register_uptime | default(false) else 'No' }}
