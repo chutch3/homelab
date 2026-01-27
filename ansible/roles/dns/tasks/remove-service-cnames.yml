@@ -1,0 +1,79 @@
+# ansible/roles/dns/tasks/remove-service-cnames.yml
+---
+- name: Find docker-compose.yml file for specific stack
+  ansible.builtin.stat:
+    path: "{{ playbook_dir }}/../../stacks/apps/{{ stack_name }}/docker-compose.yml"
+  register: dns_compose_file_stat
+  delegate_to: localhost
+  when: stack_name is defined
+
+- name: Set compose files list for specific stack
+  set_fact:
+    dns_compose_files:
+      files:
+        - path: "{{ playbook_dir }}/../../stacks/apps/{{ stack_name }}/docker-compose.yml"
+  when: stack_name is defined and dns_compose_file_stat.stat.exists
+
+- name: Find all docker-compose.yml files
+  find:
+    paths: "{{ playbook_dir }}/../../stacks/apps"
+    patterns: "docker-compose.yml"
+    recurse: yes
+  register: dns_compose_files
+  delegate_to: localhost
+  when: stack_name is not defined
+
+- name: Get only compose files with Traefik Host() rules
+  shell: "grep -l 'Host(' {{ item.path }}"
+  loop: "{{ dns_compose_files.files }}"
+  register: dns_traefik_compose_files
+  changed_when: false
+  failed_when: false # Ignore rc=1 when no matches
+  delegate_to: localhost
+  when: dns_compose_files is defined and dns_compose_files.files is defined
+
+- name: Extract Traefik Host() rules
+  shell: "grep -o 'Host(`.*`)' {{ item.path }}"
+  loop: "{{ dns_traefik_compose_files.results | selectattr('rc', '==', 0) | map(attribute='item') | list }}"
+  register: dns_traefik_rules
+  changed_when: false
+  failed_when: false # Ignore rc=1 when no matches
+  delegate_to: localhost
+  when: dns_traefik_compose_files is defined and dns_traefik_compose_files.results is defined
+
+- name: Process and set discovered domains
+  set_fact:
+    dns_discovered_domains: >
+      {{ dns_traefik_rules.results |
+         map(attribute='stdout_lines') | flatten |
+         map('regex_search', 'Host\(`([^`]+)`\)', '\1') |
+         flatten | select('ne', '') |
+         map('regex_replace', '\$\{BASE_DOMAIN\}', base_domain) |
+         unique | list }}
+  when: dns_traefik_rules is defined and dns_traefik_rules.results is defined
+
+- name: Display domains to be removed
+  debug:
+    msg: "Removing {{ dns_discovered_domains | length }} DNS records: {{ dns_discovered_domains }}"
+  when: dns_discovered_domains is defined and dns_discovered_domains | length > 0
+
+- name: Remove CNAME record for each discovered service
+  uri:
+    url: "{{ dns_api_url }}/zones/records/delete"
+    method: POST
+    body_format: form-urlencoded
+    body:
+      token: "{{ dns_api_token }}"
+      domain: "{{ item }}"
+      zone: "{{ base_domain }}"
+      type: "CNAME"
+    status_code: [200, 400] # 400 if record doesn't exist
+  loop: "{{ dns_discovered_domains }}"
+  register: dns_remove_cname_result
+  when: dns_discovered_domains is defined and dns_discovered_domains | length > 0
+
+- name: Display CNAME record removal status
+  debug:
+    msg: "CNAME for {{ item.item }}: {{ 'Removed' if item.json.status == 'ok' else 'Not found or already removed' }}"
+  loop: "{{ dns_remove_cname_result.results }}"
+  when: dns_remove_cname_result is defined and dns_remove_cname_result.results is defined

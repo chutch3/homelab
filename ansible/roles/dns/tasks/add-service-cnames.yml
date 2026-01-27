@@ -7,6 +7,14 @@
     recurse: yes
   register: dns_compose_files
   delegate_to: localhost
+  when: stack_name is not defined
+
+- name: Use specific compose file when stack_name is defined
+  set_fact:
+    dns_compose_files:
+      files:
+        - path: "{{ compose_file_path }}"
+  when: stack_name is defined
 
 - name: Get only compose files with Traefik Host() rules
   shell: "grep -l 'Host(' {{ item.path }}"

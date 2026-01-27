@@ -178,6 +178,12 @@ tasks:
         cmds:
             - ansible-playbook -i ansible/inventory/ ansible/playbooks/dns.yml -e "dns_action=configure" {{.CLI_ARGS}}
 
+    configure:dns:
+        desc: 'Configure DNS for all services or specific stack (usage: task ansible:configure:dns -- -e "stack_name=kolibri")'
+        dir: "{{.ROOT_DIR}}"
+        cmds:
+            - ansible-playbook -i ansible/inventory/ ansible/playbooks/dns.yml -e "dns_action=add_service_records" {{.CLI_ARGS}}
+
     # Ansible Uptime Kuma Management
     uptime:create-groups:
         desc: "Create Machines and Services monitor groups in Uptime Kuma"
@@ -202,6 +208,12 @@ tasks:
         dir: "{{.ROOT_DIR}}"
         cmds:
             - ansible-playbook -i ansible/inventory/ ansible/playbooks/uptime-kuma.yml -e "uptime_action=configure" {{.CLI_ARGS}}
+
+    configure:uptime:
+        desc: 'Configure Uptime Kuma for all services or specific stack (usage: task ansible:configure:uptime -- -e "stack_name=kolibri")'
+        dir: "{{.ROOT_DIR}}"
+        cmds:
+            - ansible-playbook -i ansible/inventory/ ansible/playbooks/uptime-kuma.yml -e "uptime_action=add_services" {{.CLI_ARGS}}
 
     # Container Registry Management
     registry:login:

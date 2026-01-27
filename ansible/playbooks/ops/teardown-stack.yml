@@ -7,6 +7,10 @@
     stack_name: ""
     # Optional: Set to true to remove associated volumes
     remove_volumes: false
+    # Optional: Set to false to preserve DNS records (default: true)
+    remove_dns: true
+    # Optional: Set to false to preserve uptime monitoring (default: true)
+    remove_uptime: true
 
   tasks:
     - name: Ensure stack_name is defined
@@ -75,16 +79,39 @@
       register: volume_removal
       failed_when: false
 
+    - name: Get DNS API token
+      ansible.builtin.include_role:
+        name: dns
+        tasks_from: get-token
+      when: remove_dns | bool
+
+    - name: Remove DNS records for stack
+      ansible.builtin.include_role:
+        name: dns
+        tasks_from: remove-service-cnames
+      vars:
+        dns_base_domain: "{{ lookup('env', 'BASE_DOMAIN') }}"
+      when: remove_dns | bool
+
+    - name: Get uptime API token
+      ansible.builtin.include_role:
+        name: uptime_kuma
+        tasks_from: get-token
+      when: remove_uptime | bool
+
+    - name: Remove uptime monitors for stack
+      ansible.builtin.include_role:
+        name: uptime_kuma
+        tasks_from: remove-service-monitors
+      vars:
+        uptime_kuma_base_domain: "{{ lookup('env', 'BASE_DOMAIN') }}"
+      when: remove_uptime | bool
+
     - name: Teardown summary
-      debug:
+      ansible.builtin.debug:
         msg: |
-          Stack '{{ stack_name }}' has been removed.
-          {% if remove_volumes %}
-          {% if stack_volumes | default([]) | length > 0 %}
-          Removed volumes: {{ stack_volumes | join(', ') }}
-          {% else %}
-          No volumes associated with '{{ stack_name }}' were found to remove.
-          {% endif %}
-          {% else %}
-          Volumes were preserved.
-          {% endif %}
+          ✅ Stack '{{ stack_name }}' teardown complete
+             - Stack removed: Yes
+             - Volumes removed: {{ 'Yes (' + (stack_volumes | default([]) | join(', ')) + ')' if remove_volumes and stack_volumes | default([]) | length > 0 else ('No' if not remove_volumes else 'None found') }}
+             - DNS records removed: {{ 'Yes' if remove_dns | bool else 'No (preserved)' }}
+             - Uptime monitors removed: {{ 'Yes' if remove_uptime | bool else 'No (preserved)' }}
