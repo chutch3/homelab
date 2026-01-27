@@ -273,6 +273,37 @@ tasks:
                 echo "Logging out from {{.REGISTRY_URL}} on all nodes..."
                 ansible -i ansible/inventory/ all -m shell -a "docker logout {{.REGISTRY_URL}}"
 
+    # Ansible Power Management
+    iscsi:login:
+        desc: 'Login to iSCSI target on all nodes'
+        dir: "{{.ROOT_DIR}}"
+        cmds:
+            - ansible-playbook -i ansible/inventory/ ansible/playbooks/ops/iscsi-login.yml
+
+    iscsi:logout:
+        desc: 'Logout from iSCSI target on all nodes'
+        dir: "{{.ROOT_DIR}}"
+        cmds:
+            - ansible-playbook -i ansible/inventory/ ansible/playbooks/ops/iscsi-logout.yml
+
+    ocfs2:mount:
+        desc: 'Mount OCFS2 filesystems on all nodes'
+        dir: "{{.ROOT_DIR}}"
+        cmds:
+            - ansible-playbook -i ansible/inventory/ ansible/playbooks/ops/ocfs2-mount.yml
+
+    ocfs2:umount:
+        desc: 'Unmount OCFS2 filesystems on all nodes'
+        dir: "{{.ROOT_DIR}}"
+        cmds:
+            - ansible-playbook -i ansible/inventory/ ansible/playbooks/ops/ocfs2-umount.yml
+
+    nodes:shutdown:
+        desc: 'Shut down cluster nodes (usage: task ansible:nodes:shutdown -- <group|all>)'
+        dir: "{{.ROOT_DIR}}"
+        cmds:
+            - ansible-playbook -i ansible/inventory/ ansible/playbooks/ops/shutdown-nodes.yml --limit {{.CLI_ARGS | default "all"}}
+
     # Ansible Operations
     teardown:
         desc: Remove all Docker Swarm stacks (preserve volumes)

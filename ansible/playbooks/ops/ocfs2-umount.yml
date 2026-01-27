@@ -1,0 +1,17 @@
+# ansible/playbooks/ops/ocfs2-umount.yml
+---
+- name: Unmount OCFS2 filesystems
+  hosts: all
+  become: true
+  tasks:
+    - name: Unmount OCFS2 app-data filesystem
+      ansible.posix.mount:
+        path: "{{ iscsi_app_data_mount_path }}"
+        state: unmounted
+      when: iscsi_app_data_enabled | bool
+
+    - name: Unmount primary OCFS2 media filesystem
+      ansible.posix.mount:
+        path: "{{ iscsi_mount_path }}"
+        state: unmounted
+      when: iscsi_enabled | bool
