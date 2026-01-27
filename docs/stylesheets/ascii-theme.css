@@ -336,3 +336,39 @@ hr {
     fill: var(--text-color);
     stroke: none;
 }
+
+/* --- Code Block Copy Button --- */
+.code-wrapper {
+    position: relative;
+}
+
+.copy-button {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    background-color: var(--bg-color);
+    color: var(--text-color);
+    border: var(--border-style);
+    font-family: var(--font-family);
+    padding: 2px 8px;
+    cursor: pointer;
+    opacity: 0.7;
+    transition: opacity 0.2s ease-in-out;
+}
+
+.copy-button:hover {
+    background-color: var(--text-color);
+    color: var(--bg-color);
+    opacity: 1;
+}
+
+.copy-button:active {
+    background-color: var(--accent-color);
+    color: var(--bg-color);
+}
+
+.copy-button.copied {
+    background-color: var(--accent-color);
+    color: var(--bg-color);
+    opacity: 1;
+}

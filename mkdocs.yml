@@ -8,6 +8,8 @@ site_author: "Cody Hutchens"
 theme:
   name: null
   custom_dir: "docs/overrides"
+  features:
+    - content.code.copy
 
 extra_css:
   - stylesheets/ascii-theme.css
