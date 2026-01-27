@@ -1,0 +1,23 @@
+# ansible/playbooks/ops/ocfs2-mount.yml
+---
+- name: Mount OCFS2 filesystems
+  hosts: all
+  become: true
+  tasks:
+    - name: Mount primary OCFS2 media filesystem
+      ansible.posix.mount:
+        path: "{{ iscsi_mount_path }}"
+        src: "/dev/disk/by-uuid/{{ OCFS2_MEDIA_UUID }}" # This requires OCFS2_MEDIA_UUID to be defined, e.g., in group_vars
+        fstype: ocfs2
+        opts: "_netdev,heartbeat=local,nointr,data=ordered,coherency=full"
+        state: mounted
+      when: iscsi_enabled | bool
+
+    - name: Mount OCFS2 app-data filesystem
+      ansible.posix.mount:
+        path: "{{ iscsi_app_data_mount_path }}"
+        src: "/dev/disk/by-uuid/{{ OCFS2_APP_DATA_UUID }}" # This requires OCFS2_APP_DATA_UUID to be defined
+        fstype: ocfs2
+        opts: "_netdev,heartbeat=local,nointr,data=ordered,coherency=full"
+        state: mounted
+      when: iscsi_app_data_enabled | bool

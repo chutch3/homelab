@@ -48,6 +48,7 @@ nav:
       - "Prerequisites": "getting-started/prerequisites.md"
   - "User Guide":
       - "Service Management": "user-guide/service-management.md"
+      - "Shutdown and Startup": "user-guide/shutdown-startup.md"
   - "Architecture":
       - "Overview": "architecture/overview.md"
       - "Storage": "architecture/storage.md"
