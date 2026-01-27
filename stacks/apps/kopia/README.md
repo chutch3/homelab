@@ -65,7 +65,28 @@ docker exec -it $CONTAINER_ID kopia repository connect b2 \
 
 After connecting to the repository, configure backup policies and create initial snapshots.
 
-### 1. Set up backup policies
+### 1. Exclude PostgreSQL directories
+
+**IMPORTANT**: PostgreSQL data directories should NOT be backed up while the database is running, as file-based backups can be inconsistent. Exclude these directories from Kopia backups:
+
+```bash
+# Get the container ID
+CONTAINER_ID=$(docker ps -q -f label=com.docker.swarm.service.name=kopia_kopia)
+
+# Exclude PostgreSQL directories from backups
+docker exec -it $CONTAINER_ID kopia policy set /data/app-data \
+  --add-ignore "**/postgresql/"
+
+# Verify exclusions
+docker exec -it $CONTAINER_ID kopia policy show /data/app-data
+```
+
+This will exclude:
+- `/mnt/iscsi/app-data/authentik/postgresql`
+- `/mnt/iscsi/app-data/forgejo/postgresql`
+- Any other `*/postgresql/` directories
+
+### 2. Set up backup policies
 
 ```bash
 # Get the container ID
@@ -82,7 +103,7 @@ docker exec -it $CONTAINER_ID kopia policy set /data/media-apps \
   --keep-daily 0 --keep-weekly 4 --keep-monthly 3
 ```
 
-### 2. Create initial snapshots
+### 3. Create initial snapshots
 
 ```bash
 # Create initial backups
