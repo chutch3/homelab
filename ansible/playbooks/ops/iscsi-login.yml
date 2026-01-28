@@ -11,7 +11,8 @@
 
     - name: Discover and log in to iSCSI target
       community.general.open_iscsi:
-        portal: "{{ iscsi_target_ip }}:{{ iscsi_target_port }}"
-        iqn: "{{ iscsi_target_iqn }}"
+        portal: "{{ iscsi_target_ip }}"
+        port: "{{ iscsi_target_port }}"
+        target: "{{ iscsi_target_iqn }}"
         state: present
       when: iscsi_enabled | bool

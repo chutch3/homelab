@@ -23,13 +23,15 @@ tasks:
     bootstrap:
         desc: Bootstrap all nodes with Ansible
         dir: "{{.ROOT_DIR}}"
+        interactive: true
         cmds:
-            - ansible-playbook --become -K -i ansible/inventory/ ansible/playbooks/bootstrap.yml {{.CLI_ARGS}}
+            - ansible-playbook --become -i ansible/inventory/ ansible/playbooks/bootstrap.yml {{.CLI_ARGS}}
 
     # Ansible Bootstrap specific node
     bootstrap:node:
         desc: "Bootstrap specific node (usage: task ansible:bootstrap:node -- worker-01)"
         dir: "{{.ROOT_DIR}}"
+        interactive: true
         cmds:
             - ansible-playbook --become -i ansible/inventory/ ansible/playbooks/bootstrap.yml --limit {{.CLI_ARGS}}
 
@@ -37,6 +39,7 @@ tasks:
     bootstrap:check:
         desc: Dry run of bootstrap playbook
         dir: "{{.ROOT_DIR}}"
+        interactive: true
         cmds:
             - ansible-playbook --become -i ansible/inventory/ ansible/playbooks/bootstrap.yml --check {{.CLI_ARGS}}
 
@@ -44,6 +47,7 @@ tasks:
     validate:
         desc: Validate all node configurations
         dir: "{{.ROOT_DIR}}"
+        interactive: true
         cmds:
             - ansible-playbook --become -i ansible/inventory/ ansible/playbooks/validate.yml
 
@@ -51,6 +55,7 @@ tasks:
     update:
         desc: Update all nodes (packages, configs)
         dir: "{{.ROOT_DIR}}"
+        interactive: true
         cmds:
             - ansible-playbook --become -i ansible/inventory/ ansible/playbooks/update.yml {{.CLI_ARGS}}
 
@@ -58,6 +63,7 @@ tasks:
     tags:
         desc: "Run bootstrap with specific tags (usage: task ansible:tags -- docker,gpu)"
         dir: "{{.ROOT_DIR}}"
+        interactive: true
         cmds:
             - ansible-playbook --become -i ansible/inventory/ ansible/playbooks/bootstrap.yml --tags {{.CLI_ARGS}}
 
@@ -65,8 +71,9 @@ tasks:
     cmd:
         desc: "Run ad-hoc command on the giant node"
         dir: "{{.ROOT_DIR}}"
+        interactive: true
         cmds:
-            - ansible -i ansible/inventory/ {{ .HOST }} -m shell -a {{ .CLI_ARGS | q }} -K
+            - ansible -i ansible/inventory/ {{ .HOST }} -m shell -a {{ .CLI_ARGS | q }}
         vars:
             HOST: "{{ .HOST | default all }}"
 
@@ -225,14 +232,14 @@ tasks:
         preconditions:
             - sh: '[ -n "{{.GITHUB_TOKEN}}" ]'
               msg: |
-                GITHUB_TOKEN not set. Please set it as environment variable or in .env file:
-                  export GITHUB_TOKEN=ghp_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-                  OR add to .env: GITHUB_TOKEN=ghp_xxx
+                  GITHUB_TOKEN not set. Please set it as environment variable or in .env file:
+                    export GITHUB_TOKEN=ghp_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+                    OR add to .env: GITHUB_TOKEN=ghp_xxx
             - sh: '[ -n "{{.GITHUB_USERNAME}}" ]'
               msg: |
-                GITHUB_USERNAME not set. Please set it as environment variable or in .env file:
-                  export GITHUB_USERNAME=your-github-username
-                  OR add to .env: GITHUB_USERNAME=your-username
+                  GITHUB_USERNAME not set. Please set it as environment variable or in .env file:
+                    export GITHUB_USERNAME=your-github-username
+                    OR add to .env: GITHUB_USERNAME=your-username
         cmds:
             - |
                 echo "Logging in to ghcr.io on all nodes as {{.GITHUB_USERNAME}}..."
@@ -240,7 +247,7 @@ tasks:
                   -a "echo {{.GITHUB_TOKEN}} | docker login ghcr.io -u {{.GITHUB_USERNAME}} --password-stdin"
 
     registry:login:custom:
-        desc: 'Login to custom registry (set REGISTRY_URL, REGISTRY_USER, REGISTRY_PASS)'
+        desc: "Login to custom registry (set REGISTRY_URL, REGISTRY_USER, REGISTRY_PASS)"
         dir: "{{.ROOT_DIR}}"
         vars:
             REGISTRY_URL: '{{.REGISTRY_URL | default "ghcr.io"}}'
@@ -249,14 +256,14 @@ tasks:
         preconditions:
             - sh: '[ -n "{{.REGISTRY_USER}}" ]'
               msg: |
-                REGISTRY_USER not set. Please set it:
-                  export REGISTRY_USER=your-username
-                  OR add to .env: REGISTRY_USER=your-username
+                  REGISTRY_USER not set. Please set it:
+                    export REGISTRY_USER=your-username
+                    OR add to .env: REGISTRY_USER=your-username
             - sh: '[ -n "{{.REGISTRY_PASS}}" ]'
               msg: |
-                REGISTRY_PASS not set. Please set it:
-                  export REGISTRY_PASS=your-password-or-token
-                  OR add to .env: REGISTRY_PASS=your-password
+                  REGISTRY_PASS not set. Please set it:
+                    export REGISTRY_PASS=your-password-or-token
+                    OR add to .env: REGISTRY_PASS=your-password
         cmds:
             - |
                 echo "Logging in to {{.REGISTRY_URL}} on all nodes as {{.REGISTRY_USER}}..."
@@ -275,32 +282,37 @@ tasks:
 
     # Ansible Power Management
     iscsi:login:
-        desc: 'Login to iSCSI target on all nodes'
+        desc: "Login to iSCSI target on all nodes"
         dir: "{{.ROOT_DIR}}"
+        interactive: true
         cmds:
-            - ansible-playbook -i ansible/inventory/ ansible/playbooks/ops/iscsi-login.yml
+            - ansible-playbook -i ansible/inventory/ ansible/playbooks/ops/iscsi-login.yml {{.CLI_ARGS}}
 
     iscsi:logout:
-        desc: 'Logout from iSCSI target on all nodes'
+        desc: "Logout from iSCSI target on all nodes"
         dir: "{{.ROOT_DIR}}"
+        interactive: true
         cmds:
-            - ansible-playbook -i ansible/inventory/ ansible/playbooks/ops/iscsi-logout.yml
+            - ansible-playbook -i ansible/inventory/ ansible/playbooks/ops/iscsi-logout.yml {{.CLI_ARGS}}
 
     ocfs2:mount:
-        desc: 'Mount OCFS2 filesystems on all nodes'
+        desc: "Mount OCFS2 filesystems on all nodes"
         dir: "{{.ROOT_DIR}}"
+        interactive: true
         cmds:
-            - ansible-playbook -i ansible/inventory/ ansible/playbooks/ops/ocfs2-mount.yml
+            - ansible-playbook -i ansible/inventory/ ansible/playbooks/ops/ocfs2-mount.yml {{.CLI_ARGS}}
 
     ocfs2:umount:
-        desc: 'Unmount OCFS2 filesystems on all nodes'
+        desc: "Unmount OCFS2 filesystems on all nodes"
         dir: "{{.ROOT_DIR}}"
+        interactive: true
         cmds:
-            - ansible-playbook -i ansible/inventory/ ansible/playbooks/ops/ocfs2-umount.yml
+            - ansible-playbook -i ansible/inventory/ ansible/playbooks/ops/ocfs2-umount.yml {{.CLI_ARGS}}
 
     nodes:shutdown:
-        desc: 'Shut down cluster nodes (usage: task ansible:nodes:shutdown -- <group|all>)'
+        desc: "Shut down cluster nodes (usage: task ansible:nodes:shutdown -- <group|all>)"
         dir: "{{.ROOT_DIR}}"
+        interactive: true
         cmds:
             - ansible-playbook -i ansible/inventory/ ansible/playbooks/ops/shutdown-nodes.yml --limit {{.CLI_ARGS | default "all"}}
 
