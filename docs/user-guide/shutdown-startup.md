@@ -15,7 +15,7 @@ This procedure powers down all services and nodes in a controlled sequence using
 This command runs an Ansible playbook to remove all running stacks, which also handles the unmounting of CIFS volumes.
 
 ```bash
-task ansible:teardown
+task ansible:teardown -- -K
 ```
 
 > **Note:** This step can take 10-15 minutes as it waits for network volumes to unmount cleanly.
@@ -25,7 +25,7 @@ task ansible:teardown
 This task runs a playbook to unmount all configured OCFS2 filesystems on all nodes.
 
 ```bash
-task ansible:ocfs2:umount
+task ansible:ocfs2:umount -- -K
 ```
 
 **Step 3: Disconnect iSCSI Storage**
@@ -33,7 +33,7 @@ task ansible:ocfs2:umount
 This task logs out from the iSCSI targets on all nodes.
 
 ```bash
-task ansible:iscsi:logout
+task ansible:iscsi:logout -- -K
 ```
 
 **Step 4: Shut Down Cluster Nodes**
@@ -42,11 +42,11 @@ Shut down the workers first, then the managers, by passing the inventory group n
 
 1.  Shut down **worker** nodes:
     ```bash
-    task ansible:nodes:shutdown -- workers
+    task ansible:nodes:shutdown -- workers -K
     ```
 2.  Shut down **manager** nodes:
     ```bash
-    task ansible:nodes:shutdown -- managers
+    task ansible:nodes:shutdown -- managers -K
     ```
 
 **Step 5: Shut Down the NAS**
