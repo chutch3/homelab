@@ -2,6 +2,42 @@
 
 <!-- version list -->
 
+## v3.5.0 (2026-02-02)
+
+### Bug Fixes
+
+- Task command fixes
+  ([`9dc04f5`](https://github.com/chutch3/homelab/commit/9dc04f513491fe1e8c15700e609dcc6ab5bdc942))
+
+### Documentation
+
+- Added copy button to code snippits
+  ([`6193efd`](https://github.com/chutch3/homelab/commit/6193efd5527c0bc446a9479358a8d5d7cc077e71))
+
+- Documentation and readme improvments
+  ([`7413e80`](https://github.com/chutch3/homelab/commit/7413e8050d70b6100698a3f69de28b7b7049cce5))
+
+- Documentation updates
+  ([`2c379d2`](https://github.com/chutch3/homelab/commit/2c379d20ede19912b719a2ab9d921882e75c13e6))
+
+- Documentation updates
+  ([`a0f5229`](https://github.com/chutch3/homelab/commit/a0f522943ec5d18fb87f2105b93c8859690b5efe))
+
+- Updated kopia docs
+  ([`7f98840`](https://github.com/chutch3/homelab/commit/7f988404ea7b1ebe15083fb20c9be72c587fbbf0))
+
+### Features
+
+- Added forgejo with authentik setup doc
+  ([`fc5f54c`](https://github.com/chutch3/homelab/commit/fc5f54cb406e36cbcee79fa9502bec809f529494))
+
+- Added new ansible tasks to bettwe support creating and teardown
+  ([`4e15db1`](https://github.com/chutch3/homelab/commit/4e15db1a17f3cebaf2bdebc409d75f143295d956))
+
+- Updated ansible deployment and teardown interfaces to include dns and uptime
+  ([`ef498ad`](https://github.com/chutch3/homelab/commit/ef498ad1fd505bbcbe27f7e46f04658c91eced21))
+
+
 ## v3.4.0 (2026-01-26)
 
 ### Documentation
