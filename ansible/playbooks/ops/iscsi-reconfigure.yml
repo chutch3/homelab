@@ -1,0 +1,92 @@
+---
+# ansible/playbooks/ops/iscsi-reconfigure.yml
+# Reconfigure iSCSI targets with new portal IP address
+# Use this when migrating to a new NAS IP or troubleshooting stale configurations
+
+- name: Reconfigure iSCSI targets
+  hosts: all
+  become: true
+  tasks:
+    - name: Ensure iscsid service is running
+      systemd:
+        name: iscsid
+        state: started
+        enabled: yes
+
+    - name: Clean up stale iSCSI configurations
+      include_role:
+        name: ../roles/common
+        tasks_from: iscsi-cleanup.yml
+
+    - name: Discover iSCSI targets from NAS (new IP)
+      command: "iscsiadm -m discovery -t st -p {{ iscsi_target_ip }}:{{ iscsi_target_port }}"
+      register: iscsi_discovery
+      when:
+        - iscsi_target_ip is defined
+        - iscsi_target_port is defined
+
+    - name: Login to primary iSCSI target (media-apps)
+      command: "iscsiadm -m node --targetname {{ iscsi_target_iqn }} --portal {{ iscsi_target_ip }}:{{ iscsi_target_port }} --login"
+      when:
+        - iscsi_enabled | default(false)
+        - iscsi_target_iqn is defined
+      ignore_errors: true
+
+    - name: Enable automatic login for primary target
+      command: "iscsiadm -m node --targetname {{ iscsi_target_iqn }} --portal {{ iscsi_target_ip }}:{{ iscsi_target_port }} --op update -n node.startup -v automatic"
+      when:
+        - iscsi_enabled | default(false)
+        - iscsi_target_iqn is defined
+      ignore_errors: true
+
+    - name: Login to app-data iSCSI target
+      command: "iscsiadm -m node --targetname {{ iscsi_app_data_iqn }} --portal {{ iscsi_target_ip }}:{{ iscsi_target_port }} --login"
+      when:
+        - iscsi_app_data_enabled | default(false)
+        - iscsi_app_data_iqn is defined
+      ignore_errors: true
+
+    - name: Enable automatic login for app-data target
+      command: "iscsiadm -m node --targetname {{ iscsi_app_data_iqn }} --portal {{ iscsi_target_ip }}:{{ iscsi_target_port }} --op update -n node.startup -v automatic"
+      when:
+        - iscsi_app_data_enabled | default(false)
+        - iscsi_app_data_iqn is defined
+      ignore_errors: true
+
+    - name: Login to cache iSCSI target
+      command: "iscsiadm -m node --targetname {{ iscsi_cache_iqn }} --portal {{ iscsi_target_ip }}:{{ iscsi_target_port }} --login"
+      when:
+        - iscsi_cache_enabled | default(false)
+        - iscsi_cache_iqn is defined
+      ignore_errors: true
+
+    - name: Enable automatic login for cache target
+      command: "iscsiadm -m node --targetname {{ iscsi_cache_iqn }} --portal {{ iscsi_target_ip }}:{{ iscsi_target_port }} --op update -n node.startup -v automatic"
+      when:
+        - iscsi_cache_enabled | default(false)
+        - iscsi_cache_iqn is defined
+      ignore_errors: true
+
+    - name: Wait for iSCSI block devices to appear
+      wait_for:
+        path: "/dev/disk/by-path/ip-{{ iscsi_target_ip }}:{{ iscsi_target_port }}-iscsi-{{ item }}-lun-1"
+        timeout: 30
+      loop:
+        - "{{ iscsi_target_iqn }}"
+        - "{{ iscsi_app_data_iqn }}"
+        - "{{ iscsi_cache_iqn }}"
+      when:
+        - iscsi_enabled | default(false)
+        - item is defined
+        - item != ""
+      ignore_errors: true
+
+    - name: Display iSCSI session status
+      command: iscsiadm -m session
+      register: iscsi_sessions
+      ignore_errors: true
+
+    - name: Show active sessions
+      debug:
+        var: iscsi_sessions.stdout_lines
+      when: iscsi_sessions.rc == 0
