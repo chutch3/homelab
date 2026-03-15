@@ -15,8 +15,11 @@ ls stacks/apps/*/docker-compose.yml
 ## Deploy Services
 
 ```bash
-# Deploy all services
-task ansible:deploy:full
+# Deploy all services (infrastructure + apps)
+task ansible:deploy
+
+# Deploy apps only (skip infrastructure stacks)
+task ansible:deploy:quick
 
 # Deploy only a specific service
 task ansible:deploy:stack -- -e "stack_name=homepage"
@@ -34,6 +37,35 @@ docker stack services homepage
 # View service logs
 docker service logs homepage_homepage --tail 50 --follow
 ```
+
+## Cluster Management
+
+```bash
+# Auto-detect and sync nodes with changed IPs (removes stale entries and rejoins)
+task ansible:cluster:sync
+
+# Update Docker Swarm node labels from inventory
+task ansible:cluster:update-labels
+```
+
+Use `cluster:sync` when a node's IP address has changed and it has been dropped from the swarm. The playbook detects the mismatch, removes the stale swarm entry, and rejoins the node automatically.
+
+Use `cluster:update-labels` after editing node labels in your inventory file to apply the changes to the live swarm without a full re-init.
+
+## Volume Management
+
+```bash
+# List all Docker volumes across the cluster
+task ansible:volume:ls
+
+# Inspect a specific Docker volume
+task ansible:volume:inspect -- -e "service_name=sonarr"
+
+# Clean up stale CIFS volumes for a stack
+task ansible:volume:cleanup -- -e "stack_name=sonarr"
+```
+
+Stale CIFS volumes can accumulate after a service is torn down or if a CIFS mount fails during deployment. `volume:cleanup` removes those leftover volumes so a fresh deployment can create them cleanly.
 
 ## Manage Individual Services
 
