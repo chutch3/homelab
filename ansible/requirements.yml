@@ -1,9 +1,38 @@
 ---
-# Ansible Galaxy collection requirements
-# Install with: ansible-galaxy collection install -r requirements.yml
+# Ansible Galaxy collection requirements - REFACTORED
+# Install with: ansible-galaxy collection install -r requirements.yml --force
+#
+# Version Strategy:
+# - Pin to major.minor versions to prevent breaking changes
+# - Use semantic versioning constraints (>=X.Y.Z,<X+1.0.0)
+# - Test updates in dev environment before production
 
 collections:
+  # Docker and Docker Swarm management
   - name: community.docker
+    version: ">=3.4.0,<4.0.0"
+    # Provides: docker_swarm, docker_swarm_info, docker_node, docker_stack,
+    #           docker_network, docker_volume, docker_container modules
+
+  # General utilities: open_iscsi, timezone, parted, etc.
   - name: community.general
+    version: ">=8.0.0,<9.0.0"
+    # Provides: open_iscsi, timezone, parted, iso_extract, etc.
+
+  # POSIX-specific modules (mount, firewalld, selinux)
+  # CRITICAL: This was MISSING from original requirements.yml
+  - name: ansible.posix
+    version: ">=1.5.0,<2.0.0"
+    # Provides: mount, authorized_key, firewalld, sysctl
+    # Used in: common/main.yml (mount module)
+
+  # Uptime Kuma monitoring integration
   - name: lucasheld.uptime_kuma
-    version: ">=1.2.0"
+    version: ">=1.2.0,<2.0.0"
+    # Provides: uptime_kuma_* modules for monitor management
+
+# Python dependencies (install via pip on control node):
+# - docker>=6.0.0
+# - requests>=2.28.0
+# - PyYAML>=6.0
+# - jmespath>=1.0.0 (for json_query filter)
