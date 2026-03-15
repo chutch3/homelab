@@ -89,8 +89,6 @@
       ansible.builtin.include_role:
         name: dns
         tasks_from: remove-service-cnames
-      vars:
-        dns_base_domain: "{{ lookup('env', 'BASE_DOMAIN') }}"
       when: remove_dns | bool
 
     - name: Get uptime API token
@@ -103,8 +101,6 @@
       ansible.builtin.include_role:
         name: uptime_kuma
         tasks_from: remove-service-monitors
-      vars:
-        uptime_kuma_base_domain: "{{ lookup('env', 'BASE_DOMAIN') }}"
       when: remove_uptime | bool
 
     - name: Teardown summary

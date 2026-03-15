@@ -99,8 +99,6 @@
         ansible.builtin.include_role:
             name: dns
             tasks_from: add-service-cnames
-        vars:
-            dns_base_domain: "{{ lookup('env', 'BASE_DOMAIN') }}"
         when: should_register_dns | default(false)
 
       - name: Get uptime API token
@@ -113,8 +111,6 @@
         ansible.builtin.include_role:
             name: uptime_kuma
             tasks_from: add-service-monitors
-        vars:
-            uptime_kuma_base_domain: "{{ lookup('env', 'BASE_DOMAIN') }}"
         when: should_register_uptime | default(false)
 
       - name: Deployment summary

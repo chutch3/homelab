@@ -21,6 +21,27 @@
       loop: "{{ running_stacks.stdout_lines }}"
       when: running_stacks.stdout_lines | length > 0
 
+    - name: Wait for stacks to be removed
+      pause:
+        seconds: 5
+      when: running_stacks.stdout_lines | length > 0
+
+    - name: Get list of orphaned containers (created, exited, dead)
+      shell: docker ps -aq --filter "status=created" --filter "status=exited" --filter "status=dead"
+      register: orphaned_containers
+      changed_when: false
+
+    - name: Remove orphaned containers
+      command: docker rm -f {{ item }}
+      loop: "{{ orphaned_containers.stdout_lines }}"
+      when: orphaned_containers.stdout_lines | length > 0
+      failed_when: false
+
+    - name: Wait for containers to be fully removed
+      pause:
+        seconds: 3
+      when: orphaned_containers.stdout_lines | length > 0
+
     - name: Get list of all Docker volumes
       command: docker volume ls --format "{{ '{{' }}.Name{{ '}}' }}"
       register: all_volumes
