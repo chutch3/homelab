@@ -1,65 +1,201 @@
-# ansible/playbooks/cluster/init.yml
 ---
-- name: Initialize Docker Swarm
+# ansible/playbooks/cluster/init.yml
+# Initialize Docker Swarm with full verification
+
+- name: Initialize Docker Swarm cluster
   hosts: managers
   become: yes
+
   vars:
     ansible_python_interpreter: /usr/bin/python3
 
   tasks:
-    - name: Check if already in swarm
-      command: docker info --format '{{ "{{" }}.Swarm.LocalNodeState{{ "}}" }}'
-      register: swarm_state
-      changed_when: false
+    # =========================================================================
+    # PHASE 1: Pre-flight Checks
+    # =========================================================================
+    - name: "[PRE-FLIGHT] Check if already in swarm"
+      community.docker.docker_swarm_info:
+      register: swarm_info
 
-    - name: Initialize swarm if not already active
-      command: docker swarm init --advertise-addr {{ ansible_host }}
-      register: swarm_init_result
-      when: swarm_state.stdout != "active"
+    - name: "[PRE-FLIGHT] Display current state"
+      ansible.builtin.debug:
+        msg: "Node {{ inventory_hostname }} swarm state: {{ 'active' if swarm_info.docker_swarm_active else 'inactive' }}"
 
-    - name: Create traefik-public overlay network
+    - name: "[PRE-FLIGHT] Verify Docker is running"
+      community.docker.docker_host_info:
+      register: docker_info
+      failed_when: not docker_info.host_info is defined
+
+    # =========================================================================
+    # PHASE 2: Initialize Swarm
+    # =========================================================================
+    - name: "[INIT] Initialize Docker Swarm"
+      community.docker.docker_swarm:
+        state: present
+        advertise_addr: "{{ ansible_host }}"
+      when: not swarm_info.docker_swarm_active
+      register: swarm_init
+
+    - name: "[INIT] Wait for swarm to stabilize"
+      ansible.builtin.pause:
+        seconds: 3
+      when: swarm_init.changed
+
+    # =========================================================================
+    # PHASE 3: Verify Swarm Initialization
+    # =========================================================================
+    - name: "[VERIFY] Get updated swarm info"
+      community.docker.docker_swarm_info:
+      register: swarm_info_after
+
+    - name: "[VERIFY] Verify swarm is active"
+      ansible.builtin.assert:
+        that:
+          - swarm_info_after.docker_swarm_active
+        fail_msg: "❌ Swarm initialization failed - node not active"
+        success_msg: "✓ Swarm is active"
+
+    - name: "[VERIFY] Verify node is a manager"
+      ansible.builtin.assert:
+        that:
+          - swarm_info_after.docker_swarm_manager
+        fail_msg: "❌ Node is not a manager"
+        success_msg: "✓ Node is a manager"
+
+    - name: "[VERIFY] Get node details"
+      community.docker.docker_node_info:
+        self: yes
+      register: node_details
+
+    - name: "[VERIFY] Verify node is Ready"
+      ansible.builtin.assert:
+        that:
+          - node_details.nodes[0].Status.State == 'ready'
+        fail_msg: "❌ Node status is {{ node_details.nodes[0].Status.State }}"
+        success_msg: "✓ Node status is Ready"
+
+    - name: "[VERIFY] Display swarm info"
+      ansible.builtin.debug:
+        msg: |
+          ✅ Swarm Initialization Complete
+          ================================
+          Node ID:      {{ swarm_info_after.docker_swarm_node_id[:12] }}...
+          Manager:      {{ swarm_info_after.docker_swarm_manager }}
+          Node Address: {{ ansible_host }}
+          Swarm Size:   {{ node_details.nodes | length }} node(s)
+
+    # =========================================================================
+    # PHASE 4: Create Overlay Networks
+    # =========================================================================
+    - name: "[NETWORK] Create traefik-public overlay network"
       community.docker.docker_network:
         name: traefik-public
         driver: overlay
         attachable: yes
         state: present
-      when: swarm_state.stdout != "active"
+      register: network_creation
 
-    - name: Get worker join token
-      command: docker swarm join-token worker -q
-      register: worker_token
-      when: swarm_state.stdout != "active"
+    - name: "[NETWORK] Verify network exists"
+      community.docker.docker_network_info:
+        name: traefik-public
+      register: network_info
+      until: network_info.network is defined
+      retries: 3
+      delay: 2
 
-    - name: Get manager join token
-      command: docker swarm join-token manager -q
-      register: manager_token
-      when: swarm_state.stdout != "active"
+    - name: "[NETWORK] Verify network configuration"
+      ansible.builtin.assert:
+        that:
+          - network_info.network.Driver == 'overlay'
+          - network_info.network.Attachable
+        fail_msg: "❌ Network configuration incorrect"
+        success_msg: "✓ Network 'traefik-public' created and configured"
 
-    - name: Set fact for worker token
-      set_fact:
-        swarm_worker_join_token: "{{ worker_token.stdout }}"
-      when: swarm_state.stdout != "active"
+    - name: "[NETWORK] Display network info"
+      ansible.builtin.debug:
+        msg: "✓ Network 'traefik-public' - ID: {{ network_info.network.Id[:12] }}, Scope: {{ network_info.network.Scope }}"
 
-    - name: Set fact for manager token
-      set_fact:
-        swarm_manager_join_token: "{{ manager_token.stdout }}"
-      when: swarm_state.stdout != "active"
+    # =========================================================================
+    # PHASE 5: Get Join Tokens
+    # =========================================================================
+    - name: "[TOKENS] Get worker join token"
+      community.docker.docker_swarm_info:
+      register: swarm_tokens
 
-    - name: Display swarm init results
-      debug:
-        msg: |
-          Docker Swarm initialized on {{ inventory_hostname }}.
-          Worker Join Token: {{ swarm_worker_join_token | default('N/A') }}
-          Manager Join Token: {{ swarm_manager_join_token | default('N/A') }}
-      when: swarm_state.stdout != "active"
+    - name: "[TOKENS] Set facts for join tokens"
+      ansible.builtin.set_fact:
+        swarm_worker_token: "{{ swarm_tokens.swarm_facts.JoinTokens.Worker }}"
+        swarm_manager_token: "{{ swarm_tokens.swarm_facts.JoinTokens.Manager }}"
 
-    - name: Display existing swarm info if already active
-      debug:
-        msg: "Node {{ inventory_hostname }} is already an active Docker Swarm manager."
-      when: swarm_state.stdout == "active"
+    - name: "[TOKENS] Verify tokens are not empty"
+      ansible.builtin.assert:
+        that:
+          - swarm_worker_token | length > 0
+          - swarm_manager_token | length > 0
+        fail_msg: "❌ Failed to retrieve join tokens"
+        success_msg: "✓ Join tokens retrieved"
 
-    - name: Apply node labels if defined
+    # =========================================================================
+    # PHASE 6: Apply Node Labels
+    # =========================================================================
+    - name: "[LABELS] Get current node labels"
+      community.docker.docker_node_info:
+        name: "{{ inventory_hostname }}"
+      register: current_node
+      when: node_labels is defined
+
+    - name: "[LABELS] Display current labels"
+      ansible.builtin.debug:
+        msg: "Current labels: {{ current_node.nodes[0].Spec.Labels | default({}) }}"
+      when: node_labels is defined
+
+    - name: "[LABELS] Update node labels"
       community.docker.docker_node:
         hostname: "{{ inventory_hostname }}"
         labels: "{{ node_labels }}"
+        labels_state: replace
+      when:
+        - node_labels is defined
+        - current_node.nodes[0].Spec.Labels | default({}) != node_labels
+      register: label_update
+
+    - name: "[LABELS] Verify labels applied"
+      community.docker.docker_node_info:
+        name: "{{ inventory_hostname }}"
+      register: verify_labels
       when: node_labels is defined
+
+    - name: "[LABELS] Display updated labels"
+      ansible.builtin.debug:
+        msg: "✓ Labels applied: {{ verify_labels.nodes[0].Spec.Labels }}"
+      when: node_labels is defined
+
+    # =========================================================================
+    # PHASE 7: Final Summary
+    # =========================================================================
+    - name: "[SUMMARY] Display initialization summary"
+      ansible.builtin.debug:
+        msg: |
+
+          ╔══════════════════════════════════════════════════════════════╗
+          ║          SWARM INITIALIZATION COMPLETE
+          ╚══════════════════════════════════════════════════════════════╝
+
+          Manager Node: {{ inventory_hostname }}
+          Node ID:      {{ swarm_info_after.docker_swarm_node_id[:12] }}...
+          Node IP:      {{ ansible_host }}
+
+          Worker Join Command:
+          docker swarm join --token {{ swarm_worker_token }} {{ ansible_host }}:2377
+
+          Manager Join Command:
+          docker swarm join --token {{ swarm_manager_token }} {{ ansible_host }}:2377
+
+          Networks Created:
+          - traefik-public (overlay, attachable)
+
+          Node Labels: {{ node_labels | default('None') }}
+
+          Next Steps:
+          1. Run join playbook on worker nodes
+          2. Deploy stacks with: ansible-playbook playbooks/deploy/stacks.yml

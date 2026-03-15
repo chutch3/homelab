@@ -3,6 +3,9 @@
 # Common variables for all hosts
 # Safe to commit - no secrets!
 
+# Domain configuration
+base_domain: "{{ lookup('env', 'BASE_DOMAIN') }}"
+
 # Bootstrap configuration
 bootstrap_state_dir: /var/lib/homelab
 bootstrap_version: "1.0.0"

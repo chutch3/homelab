@@ -1,31 +1,210 @@
-# ansible/playbooks/cluster/join.yml
 ---
+# ansible/playbooks/cluster/join.yml
+# Join worker nodes to Docker Swarm with full verification
+
 - name: Join worker nodes to Docker Swarm
   hosts: workers
   become: yes
+
   vars:
     ansible_python_interpreter: /usr/bin/python3
-    # This variable should be passed dynamically or obtained from a fact
-    # e.g., --extra-vars "manager_ip=192.168.1.100 manager_token=SWMTKN-1-..."
+    # These should be passed via --extra-vars:
+    # manager_ip: IP address of manager node
+    # manager_token: Worker join token from manager
 
   tasks:
-    - name: Ensure manager_ip and manager_token are defined
+    # =========================================================================
+    # PHASE 1: Pre-flight Checks
+    # =========================================================================
+    - name: "[PRE-FLIGHT] Ensure manager_ip is defined"
       ansible.builtin.fail:
-        msg: "manager_ip and manager_token must be defined to join workers."
-      when: manager_ip is not defined or manager_token is not defined
+        msg: "manager_ip must be defined (use -e 'manager_ip=X.X.X.X')"
+      when: manager_ip is not defined
 
-    - name: Check if already in swarm
-      command: docker info --format '{{ "{{" }}.Swarm.LocalNodeState{{ "}}" }}'
-      register: swarm_state
-      changed_when: false
+    - name: "[PRE-FLIGHT] Ensure manager_token is defined"
+      ansible.builtin.fail:
+        msg: "manager_token must be defined (use -e 'manager_token=SWMTKN-...')"
+      when: manager_token is not defined
 
-    - name: Join swarm if not already active
-      command: docker swarm join --token {{ manager_token }} {{ manager_ip }}:2377
-      when: swarm_state.stdout != "active"
+    - name: "[PRE-FLIGHT] Check current swarm state"
+      community.docker.docker_swarm_info:
+      register: swarm_info
 
-    - name: Apply node labels if defined
+    - name: "[PRE-FLIGHT] Display current state"
+      ansible.builtin.debug:
+        msg: "Node {{ inventory_hostname }} swarm state: {{ 'active' if swarm_info.docker_swarm_active else 'inactive' }}"
+
+    - name: "[PRE-FLIGHT] Verify Docker is running"
+      community.docker.docker_host_info:
+      register: docker_info
+
+    - name: "[PRE-FLIGHT] Test connectivity to manager"
+      ansible.builtin.wait_for:
+        host: "{{ manager_ip }}"
+        port: 2377
+        timeout: 10
+      register: manager_connectivity
+
+    - name: "[PRE-FLIGHT] Display connectivity status"
+      ansible.builtin.debug:
+        msg: "✓ Manager reachable at {{ manager_ip }}:2377"
+
+    # =========================================================================
+    # PHASE 2: Join Swarm
+    # =========================================================================
+    - name: "[JOIN] Join swarm as worker"
+      community.docker.docker_swarm:
+        state: join
+        advertise_addr: "{{ ansible_host }}"
+        join_token: "{{ manager_token }}"
+        remote_addrs:
+          - "{{ manager_ip }}:2377"
+      when: not swarm_info.docker_swarm_active
+      register: swarm_join
+
+    - name: "[JOIN] Wait for node to stabilize"
+      ansible.builtin.pause:
+        seconds: 5
+      when: swarm_join.changed
+
+    # =========================================================================
+    # PHASE 3: Verify Local State
+    # =========================================================================
+    - name: "[VERIFY-LOCAL] Get updated swarm info"
+      community.docker.docker_swarm_info:
+      register: swarm_info_after
+      until: swarm_info_after.docker_swarm_active
+      retries: 5
+      delay: 2
+
+    - name: "[VERIFY-LOCAL] Verify node joined swarm"
+      ansible.builtin.assert:
+        that:
+          - swarm_info_after.docker_swarm_active
+        fail_msg: "❌ Node failed to join swarm"
+        success_msg: "✓ Node is in swarm"
+
+    - name: "[VERIFY-LOCAL] Verify node is a worker"
+      ansible.builtin.assert:
+        that:
+          - not swarm_info_after.docker_swarm_manager
+        fail_msg: "❌ Node is a manager (expected worker)"
+        success_msg: "✓ Node is a worker"
+
+    - name: "[VERIFY-LOCAL] Display local swarm info"
+      ansible.builtin.debug:
+        msg: |
+          Node {{ inventory_hostname }} joined swarm:
+          - Node ID: {{ swarm_info_after.docker_swarm_node_id[:12] }}...
+          - Manager: {{ swarm_info_after.docker_swarm_manager }}
+          - Node Address: {{ ansible_host }}
+
+    # =========================================================================
+    # PHASE 4: Verify From Manager
+    # =========================================================================
+    - name: "[VERIFY-MANAGER] Check node visibility from manager"
+      community.docker.docker_node_info:
+        name: "{{ inventory_hostname }}"
+      delegate_to: "{{ groups['managers'][0] }}"
+      register: node_info
+      until: node_info.nodes | length > 0
+      retries: 10
+      delay: 2
+
+    - name: "[VERIFY-MANAGER] Verify node is Ready"
+      ansible.builtin.assert:
+        that:
+          - node_info.nodes | length > 0
+          - node_info.nodes[0].Status.State == 'ready'
+        fail_msg: "❌ Node status is {{ node_info.nodes[0].Status.State | default('unknown') }}"
+        success_msg: "✓ Node status is Ready"
+
+    - name: "[VERIFY-MANAGER] Verify node is reachable"
+      ansible.builtin.assert:
+        that:
+          - node_info.nodes[0].Status.Addr == ansible_host
+        fail_msg: "❌ Node address mismatch: {{ node_info.nodes[0].Status.Addr }} != {{ ansible_host }}"
+        success_msg: "✓ Node is reachable from manager"
+
+    - name: "[VERIFY-MANAGER] Display node details from manager"
+      ansible.builtin.debug:
+        msg: |
+          ✓ Node visible from manager:
+          - Node ID: {{ node_info.nodes[0].ID[:12] }}
+          - Hostname: {{ node_info.nodes[0].Description.Hostname }}
+          - Status: {{ node_info.nodes[0].Status.State }}
+          - Availability: {{ node_info.nodes[0].Spec.Availability }}
+          - Address: {{ node_info.nodes[0].Status.Addr }}
+
+    # =========================================================================
+    # PHASE 5: Apply Node Labels
+    # =========================================================================
+    - name: "[LABELS] Get current node labels"
+      community.docker.docker_node_info:
+        name: "{{ inventory_hostname }}"
+      delegate_to: "{{ groups['managers'][0] }}"
+      register: current_labels
+      when: node_labels is defined
+
+    - name: "[LABELS] Display current labels"
+      ansible.builtin.debug:
+        msg: "Current labels: {{ current_labels.nodes[0].Spec.Labels | default({}) }}"
+      when: node_labels is defined
+
+    - name: "[LABELS] Update node labels"
       community.docker.docker_node:
         hostname: "{{ inventory_hostname }}"
         labels: "{{ node_labels }}"
-      when: node_labels is defined
+        labels_state: replace
       delegate_to: "{{ groups['managers'][0] }}"
+      when:
+        - node_labels is defined
+        - current_labels.nodes[0].Spec.Labels | default({}) != node_labels
+      register: label_update
+
+    - name: "[LABELS] Verify labels applied"
+      community.docker.docker_node_info:
+        name: "{{ inventory_hostname }}"
+      delegate_to: "{{ groups['managers'][0] }}"
+      register: verify_labels
+      when: node_labels is defined
+
+    - name: "[LABELS] Display updated labels"
+      ansible.builtin.debug:
+        msg: "✓ Labels applied: {{ verify_labels.nodes[0].Spec.Labels }}"
+      when: node_labels is defined
+
+    # =========================================================================
+    # PHASE 6: Final Summary
+    # =========================================================================
+    - name: "[SUMMARY] Get cluster status"
+      community.docker.docker_node_info:
+      delegate_to: "{{ groups['managers'][0] }}"
+      register: cluster_nodes
+      run_once: true
+
+    - name: "[SUMMARY] Display join summary"
+      ansible.builtin.debug:
+        msg: |
+
+          ╔══════════════════════════════════════════════════════════════╗
+          ║          WORKER NODE JOIN COMPLETE
+          ╚══════════════════════════════════════════════════════════════╝
+
+          Worker Node: {{ inventory_hostname }}
+          Node ID:     {{ swarm_info_after.docker_swarm_node_id[:12] }}...
+          Node IP:     {{ ansible_host }}
+          Status:      {{ node_info.nodes[0].Status.State }}
+
+          Manager:     {{ manager_ip }}
+          Labels:      {{ node_labels | default('None') }}
+
+          Cluster Size: {{ cluster_nodes.nodes | length }} node(s)
+          - Managers: {{ cluster_nodes.nodes | selectattr('Spec.Role', 'equalto', 'manager') | list | length }}
+          - Workers:  {{ cluster_nodes.nodes | selectattr('Spec.Role', 'equalto', 'worker') | list | length }}
+
+          ✅ Node successfully joined and verified
+
+          Next Steps:
+          - Deploy stacks: ansible-playbook playbooks/deploy/stacks.yml
+          - Check status: ansible-playbook playbooks/cluster/status.yml
