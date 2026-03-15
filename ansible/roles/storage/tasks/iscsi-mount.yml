@@ -1,0 +1,206 @@
+---
+# ansible/roles/storage/tasks/iscsi-mount.yml
+# Loop-based iSCSI mounting - eliminates 427 lines of duplication!
+
+# Define iSCSI mounts as a data structure
+- name: Define iSCSI mount configurations
+  ansible.builtin.set_fact:
+    storage_iscsi_mounts:
+      - name: media-apps
+        enabled: "{{ iscsi_enabled | default(false) }}"
+        iqn: "{{ iscsi_target_iqn }}"
+        mount_path: "{{ iscsi_mount_path }}"
+        label: "media-apps"
+      - name: app-data
+        enabled: "{{ iscsi_app_data_enabled | default(false) }}"
+        iqn: "{{ iscsi_app_data_iqn }}"
+        mount_path: "{{ iscsi_app_data_mount_path }}"
+        label: "app-data"
+      - name: cache
+        enabled: "{{ iscsi_cache_enabled | default(false) }}"
+        iqn: "{{ iscsi_cache_iqn }}"
+        mount_path: "{{ iscsi_cache_mount_path }}"
+        label: "cache"
+
+# Discovery only needs to run once per host (discovers all targets)
+- name: Discover iSCSI targets from NAS
+  ansible.builtin.command: "iscsiadm -m discovery -t st -p {{ iscsi_target_ip }}:{{ iscsi_target_port }}"
+  register: storage_iscsi_discovery
+  changed_when: storage_iscsi_discovery.rc == 0
+  when: storage_iscsi_mounts | selectattr('enabled') | list | length > 0
+
+# Login to each enabled iSCSI target
+- name: Login to iSCSI targets
+  community.general.open_iscsi:
+    target: "{{ item.iqn }}"
+    portal: "{{ iscsi_target_ip }}:{{ iscsi_target_port }}"
+    login: yes
+    automatic: yes
+    state: present
+  loop: "{{ storage_iscsi_mounts }}"
+  when:
+    - item.enabled | bool
+    - item.iqn is defined
+  register: storage_iscsi_login
+
+# Verify iSCSI sessions are active
+- name: Verify iSCSI sessions are active
+  ansible.builtin.command: iscsiadm -m session
+  register: storage_active_sessions
+  changed_when: false
+  failed_when:
+    - storage_iscsi_mounts | selectattr('enabled') | list | length > 0
+    - item.iqn not in storage_active_sessions.stdout
+  loop: "{{ storage_iscsi_mounts }}"
+  when: item.enabled | bool
+
+# Wait for block devices to appear
+- name: Wait for iSCSI block devices to appear
+  ansible.builtin.wait_for:
+    path: "/dev/disk/by-path/ip-{{ iscsi_target_ip }}:{{ iscsi_target_port }}-iscsi-{{ item.iqn }}-lun-1"
+    state: present
+    timeout: 30
+  loop: "{{ storage_iscsi_mounts }}"
+  when:
+    - item.enabled | bool
+    - item.iqn is defined
+  ignore_errors: yes
+
+# Check current filesystem types
+- name: Check if iSCSI devices have filesystems
+  ansible.builtin.command: "blkid -o value -s TYPE /dev/disk/by-path/ip-{{ iscsi_target_ip }}:{{ iscsi_target_port }}-iscsi-{{ item.iqn }}-lun-1"
+  loop: "{{ storage_iscsi_mounts }}"
+  register: storage_current_fstype
+  failed_when: false
+  changed_when: false
+  when:
+    - item.enabled | bool
+    - item.iqn is defined
+
+# Create OCFS2 filesystems (only if not already OCFS2)
+- name: Create OCFS2 filesystems on iSCSI devices
+  ansible.builtin.shell: "echo y | mkfs.ocfs2 -F --cluster-stack=o2cb --cluster-name=homelab -L {{ item.item.label }} -N 4 /dev/disk/by-path/ip-{{ iscsi_target_ip }}:{{ iscsi_target_port }}-iscsi-{{ item.item.iqn }}-lun-1"
+  loop: "{{ storage_current_fstype.results }}"
+  when:
+    - item.item.enabled | bool
+    - item.stdout != "ocfs2"
+  run_once: true
+  delegate_to: "{{ groups['managers'][0] }}"
+
+# Create mount points
+- name: Create iSCSI mount points
+  ansible.builtin.file:
+    path: "{{ item.mount_path }}"
+    state: directory
+    mode: "0755"
+  loop: "{{ storage_iscsi_mounts }}"
+  when:
+    - item.enabled | bool
+    - item.mount_path is defined
+
+# Add to /etc/fstab
+- name: Add OCFS2 devices to /etc/fstab
+  ansible.builtin.lineinfile:
+    path: /etc/fstab
+    line: "/dev/disk/by-path/ip-{{ iscsi_target_ip }}:{{ iscsi_target_port }}-iscsi-{{ item.iqn }}-lun-1 {{ item.mount_path }} ocfs2 _netdev,heartbeat=local 0 0"
+    state: present
+  loop: "{{ storage_iscsi_mounts }}"
+  when:
+    - item.enabled | bool
+    - item.iqn is defined
+
+# Mount OCFS2 filesystems
+- name: Mount OCFS2 filesystems
+  ansible.posix.mount:
+    path: "{{ item.mount_path }}"
+    src: "/dev/disk/by-path/ip-{{ iscsi_target_ip }}:{{ iscsi_target_port }}-iscsi-{{ item.iqn }}-lun-1"
+    fstype: ocfs2
+    opts: _netdev,heartbeat=local
+    state: mounted
+  loop: "{{ storage_iscsi_mounts }}"
+  when:
+    - item.enabled | bool
+    - item.mount_path is defined
+  register: storage_mount_result
+
+# Verify mounts are accessible
+- name: Verify mounts are accessible
+  ansible.builtin.stat:
+    path: "{{ item.mount_path }}"
+  loop: "{{ storage_iscsi_mounts }}"
+  register: storage_mount_stat
+  failed_when:
+    - item.enabled | bool
+    - not storage_mount_stat.results[ansible_loop.index0].stat.exists
+  when: item.enabled | bool
+
+# Test write access to mounts
+- name: Test write access to mounts
+  ansible.builtin.file:
+    path: "{{ item.mount_path }}/.write_test_{{ inventory_hostname }}"
+    state: touch
+    mode: '0644'
+  loop: "{{ storage_iscsi_mounts }}"
+  when:
+    - item.enabled | bool
+    - item.mount_path is defined
+  register: storage_write_test
+
+# Clean up write test files
+- name: Clean up write test files
+  ansible.builtin.file:
+    path: "{{ item.mount_path }}/.write_test_{{ inventory_hostname }}"
+    state: absent
+  loop: "{{ storage_iscsi_mounts }}"
+  when:
+    - item.enabled | bool
+    - item.mount_path is defined
+
+# Cluster test: Create file on manager and verify on all nodes
+- name: Create cluster test file on manager
+  ansible.builtin.copy:
+    content: "OCFS2 cluster test from {{ inventory_hostname }} at {{ ansible_date_time.iso8601 }}"
+    dest: "{{ iscsi_mount_path }}/.cluster-test-{{ inventory_hostname }}.txt"
+    mode: '0644'
+  when:
+    - iscsi_enabled | default(false)
+    - iscsi_mount_path is defined
+  run_once: true
+  delegate_to: "{{ groups['managers'][0] }}"
+
+- name: Wait for filesystem sync
+  ansible.builtin.pause:
+    seconds: 2
+  when: iscsi_enabled | default(false)
+
+- name: Verify cluster test file is visible on all nodes
+  ansible.builtin.stat:
+    path: "{{ iscsi_mount_path }}/.cluster-test-{{ groups['managers'][0] }}.txt"
+  register: storage_cluster_test_file
+  when:
+    - iscsi_enabled | default(false)
+    - iscsi_mount_path is defined
+  failed_when:
+    - not storage_cluster_test_file.stat.exists
+
+- name: Display cluster test results
+  ansible.builtin.debug:
+    msg: "✓ OCFS2 cluster working! File from {{ groups['managers'][0] }} is visible on {{ inventory_hostname }}"
+  when:
+    - iscsi_enabled | default(false)
+    - storage_cluster_test_file.stat.exists
+
+- name: Clean up cluster test file
+  ansible.builtin.file:
+    path: "{{ iscsi_mount_path }}/.cluster-test-{{ groups['managers'][0] }}.txt"
+    state: absent
+  when:
+    - iscsi_enabled | default(false)
+    - iscsi_mount_path is defined
+  run_once: true
+  delegate_to: "{{ groups['managers'][0] }}"
+
+# Display mount summary
+- name: Display mount summary
+  ansible.builtin.debug:
+    msg: "✓ iSCSI/OCFS2 setup complete - {{ storage_iscsi_mounts | selectattr('enabled') | list | length }} mount(s) active and verified"
