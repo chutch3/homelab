@@ -43,6 +43,12 @@
     update_cache: yes
   when: docker_version_check.rc != 0
 
+- name: Install Docker Python SDK for Ansible modules
+  ansible.builtin.apt:
+    name:
+      - python3-docker
+    state: present
+
 - name: Ensure Docker service is running
   service:
     name: docker
@@ -59,29 +65,21 @@
 - name: Check if daemon.json exists
   stat:
     path: /etc/docker/daemon.json
-  register: daemon_json_stat
+  register: docker_daemon_json_stat
 
 - name: Read existing daemon.json
   slurp:
     src: /etc/docker/daemon.json
-  register: existing_daemon_json
-  when: daemon_json_stat.stat.exists
+  register: docker_existing_daemon_json
+  when: docker_daemon_json_stat.stat.exists
 
 - name: Parse existing daemon.json or create default
   set_fact:
-    docker_daemon_config: "{{ existing_daemon_json.content | b64decode | from_json if daemon_json_stat.stat.exists else {} }}"
+    docker_daemon_config: "{{ docker_existing_daemon_json.content | b64decode | from_json if docker_daemon_json_stat.stat.exists else {} }}"
 
 - name: Merge Docker daemon configuration
   set_fact:
-    docker_daemon_config: "{{ docker_daemon_config | combine({
-        'log-driver': 'json-file',
-        'log-opts': {
-          'max-size': '10m',
-          'max-file': '3'
-        },
-        'metrics-addr': '127.0.0.1:9323',
-        'experimental': false
-      }, recursive=true) }}"
+    docker_daemon_config: "{{ docker_daemon_config | combine({'log-driver': 'json-file', 'log-opts': {'max-size': '10m', 'max-file': '3'}, 'metrics-addr': '127.0.0.1:9323', 'experimental': false}, recursive=true) }}"
 
 - name: Write Docker daemon configuration
   copy:
@@ -98,9 +96,9 @@
 
 - name: Get Docker Compose version
   command: docker compose version
-  register: compose_version_check
+  register: docker_compose_version_check
   changed_when: false
 
 - name: Parse Docker Compose version
   set_fact:
-    docker_compose_installed_version: "{{ compose_version_check.stdout | regex_search('v\\d+\\.\\d+\\.\\d+') }}"
+    docker_compose_installed_version: "{{ docker_compose_version_check.stdout | regex_search('v\\d+\\.\\d+\\.\\d+') }}"

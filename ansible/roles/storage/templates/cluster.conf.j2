@@ -1,0 +1,13 @@
+cluster:
+	node_count = {{ groups['all'] | length }}
+	name = homelab
+
+{% for host in groups['all'] %}
+node:
+	ip_port = 7777
+	ip_address = {{ hostvars[host]['ansible_host'] }}
+	number = {{ loop.index0 }}
+	name = {{ host }}
+	cluster = homelab
+
+{% endfor %}
