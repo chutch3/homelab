@@ -1,0 +1,17 @@
+---
+# ansible/roles/storage/tasks/main.yml
+# Manages iSCSI and OCFS2 shared storage for Docker Swarm cluster
+
+- name: Include OCFS2 cluster setup
+  ansible.builtin.include_tasks: ocfs2-setup.yml
+  when: iscsi_enabled | default(false)
+  tags:
+    - storage
+    - iscsi
+
+- name: Include iSCSI mount configuration
+  ansible.builtin.include_tasks: iscsi-mount.yml
+  when: iscsi_enabled | default(false)
+  tags:
+    - storage
+    - iscsi

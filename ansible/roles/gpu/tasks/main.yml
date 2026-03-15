@@ -2,13 +2,13 @@
 ---
 - name: Check for NVIDIA GPU
   shell: lspci | grep -i nvidia
-  register: nvidia_check
+  register: gpu_nvidia_check
   changed_when: false
   failed_when: false
 
 - name: Set GPU present fact
   set_fact:
-    gpu_present: "{{ nvidia_check.rc == 0 }}"
+    gpu_present: "{{ gpu_nvidia_check.rc == 0 }}"
 
 - name: Display GPU detection result
   debug:
@@ -41,14 +41,14 @@
 
 - name: Check if NVIDIA runtime is already configured
   shell: grep -q '"nvidia"' /etc/docker/daemon.json || echo "not_configured"
-  register: nvidia_runtime_check
+  register: gpu_nvidia_runtime_check
   changed_when: false
   failed_when: false
 
 - name: Configure Docker for NVIDIA runtime
   command: nvidia-ctk runtime configure --runtime=docker
   notify: restart docker
-  when: nvidia_runtime_check.stdout == "not_configured"
+  when: gpu_nvidia_runtime_check.stdout == "not_configured"
 
 - name: Get GPU UUIDs for Swarm generic resources
   shell: |
@@ -63,25 +63,25 @@
 - name: Read current Docker daemon.json
   slurp:
     src: /etc/docker/daemon.json
-  register: daemon_json_content
+  register: gpu_daemon_json_content
   failed_when: false
 
 - name: Parse current daemon.json or create new
   set_fact:
-    daemon_json: "{{ daemon_json_content.content | b64decode | from_json if daemon_json_content.content is defined else {} }}"
+    gpu_daemon_json: "{{ gpu_daemon_json_content.content | b64decode | from_json if gpu_daemon_json_content.content is defined else {} }}"
 
 - name: Add generic resources to daemon.json
   set_fact:
-    daemon_json: "{{ daemon_json | combine({'node-generic-resources': gpu_uuids.stdout.split(',')}, recursive=true) }}"
+    gpu_daemon_json: "{{ gpu_daemon_json | combine({'node-generic-resources': gpu_uuids.stdout.split(',')}, recursive=true) }}"
   when: gpu_uuids.stdout | length > 0
 
 - name: Ensure nvidia runtime is set as default
   set_fact:
-    daemon_json: "{{ daemon_json | combine({'default-runtime': 'nvidia'}, recursive=true) }}"
+    gpu_daemon_json: "{{ gpu_daemon_json | combine({'default-runtime': 'nvidia'}, recursive=true) }}"
 
 - name: Write updated daemon.json
   copy:
-    content: "{{ daemon_json | to_nice_json }}\n"
+    content: "{{ gpu_daemon_json | to_nice_json }}\n"
     dest: /etc/docker/daemon.json
     mode: '0644'
   notify: restart docker
@@ -104,11 +104,11 @@
     nvidia-smi
   changed_when: false
   register: gpu_test
-  when: nvidia_runtime_check.stdout == "not_configured"
+  when: gpu_nvidia_runtime_check.stdout == "not_configured"
 
 - name: Display GPU test result
   debug:
     msg: "GPU test successful"
   when:
-    - nvidia_runtime_check.stdout == "not_configured"
+    - gpu_nvidia_runtime_check.stdout == "not_configured"
     - gpu_test.rc == 0

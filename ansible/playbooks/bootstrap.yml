@@ -47,6 +47,9 @@
     - role: ../roles/common
       tags: ['common', 'base']
 
+    - role: ../roles/storage
+      tags: ['storage', 'iscsi']
+
     - role: ../roles/ssh
       tags: ['ssh', 'security']
 

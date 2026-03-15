@@ -1,0 +1,66 @@
+---
+# ansible/roles/storage/tasks/ocfs2-setup.yml
+# Configure OCFS2 cluster filesystem for shared storage
+
+- name: Install OCFS2 cluster filesystem tools
+  ansible.builtin.apt:
+    name:
+      - ocfs2-tools
+    state: present
+    update_cache: yes
+    cache_valid_time: 3600
+
+- name: Configure O2CB cluster configuration file
+  ansible.builtin.template:
+    src: cluster.conf.j2
+    dest: /etc/ocfs2/cluster.conf
+    mode: "0644"
+  notify: reload o2cb
+
+- name: Configure O2CB defaults
+  ansible.builtin.lineinfile:
+    path: /etc/default/o2cb
+    regexp: "^{{ item.key }}="
+    line: "{{ item.key }}={{ item.value }}"
+    create: yes
+    mode: "0644"
+  loop:
+    - { key: "O2CB_ENABLED", value: "true" }
+    - { key: "O2CB_BOOTCLUSTER", value: "homelab" }
+
+- name: Enable and start O2CB cluster service
+  ansible.builtin.systemd:
+    name: o2cb
+    state: started
+    enabled: yes
+
+- name: Load O2CB cluster configuration
+  ansible.builtin.command: /usr/sbin/o2cb load
+  register: storage_o2cb_load
+  failed_when: false
+  changed_when: storage_o2cb_load.rc == 0
+
+- name: Configure O2CB cluster online
+  ansible.builtin.command: /usr/sbin/o2cb online homelab
+  register: storage_o2cb_online
+  failed_when: false
+  changed_when: storage_o2cb_online.rc == 0
+
+- name: Restart O2CB to ensure cluster is fully initialized
+  ansible.builtin.systemd:
+    name: o2cb
+    state: restarted
+
+- name: Wait for O2CB cluster to be ready
+  ansible.builtin.pause:
+    seconds: 3
+
+- name: Verify O2CB cluster is online
+  ansible.builtin.command: /usr/sbin/o2cb cluster-status homelab
+  register: storage_o2cb_status
+  changed_when: false
+  failed_when: "'Online' not in storage_o2cb_status.stdout"
+
+- name: Display O2CB cluster status
+  ansible.builtin.debug:
+    msg: "✓ OCFS2 cluster 'homelab' is online and ready"

@@ -1,0 +1,129 @@
+---
+# ansible/roles/storage/tasks/iscsi-unmount.yml
+# Safely unmount iSCSI/OCFS2 storage with verification
+
+# Define iSCSI mounts (same structure as mount task)
+- name: Define iSCSI mount configurations
+  ansible.builtin.set_fact:
+    storage_iscsi_mounts:
+      - name: media-apps
+        enabled: "{{ iscsi_enabled | default(false) }}"
+        iqn: "{{ iscsi_target_iqn }}"
+        mount_path: "{{ iscsi_mount_path }}"
+      - name: app-data
+        enabled: "{{ iscsi_app_data_enabled | default(false) }}"
+        iqn: "{{ iscsi_app_data_iqn }}"
+        mount_path: "{{ iscsi_app_data_mount_path }}"
+      - name: cache
+        enabled: "{{ iscsi_cache_enabled | default(false) }}"
+        iqn: "{{ iscsi_cache_iqn }}"
+        mount_path: "{{ iscsi_cache_mount_path }}"
+
+# Stop OCFS2 cluster services
+- name: Stop OCFS2 cluster services
+  ansible.builtin.systemd:
+    name: "{{ item }}"
+    state: stopped
+  loop:
+    - o2cb
+    - ocfs2
+  ignore_errors: true
+
+# Unmount OCFS2 filesystems
+- name: Unmount OCFS2 filesystems
+  ansible.posix.mount:
+    path: "{{ item.mount_path }}"
+    state: unmounted
+  loop: "{{ storage_iscsi_mounts }}"
+  when:
+    - item.enabled | bool
+    - item.mount_path is defined
+  register: storage_unmount_result
+  failed_when: false
+
+# Verify filesystems are unmounted
+- name: Check for remaining OCFS2 mounts
+  ansible.builtin.command: mount
+  register: storage_current_mounts
+  changed_when: false
+
+- name: Verify no OCFS2 mounts remain
+  ansible.builtin.assert:
+    that:
+      - "'ocfs2' not in storage_current_mounts.stdout"
+    fail_msg: "ERROR: OCFS2 filesystems still mounted"
+    success_msg: "✓ All OCFS2 filesystems unmounted"
+  ignore_errors: yes
+
+# Remove fstab entries
+- name: Remove OCFS2 fstab entries
+  ansible.builtin.lineinfile:
+    path: /etc/fstab
+    regexp: ".*{{ item.mount_path }}.*ocfs2.*"
+    state: absent
+  loop: "{{ storage_iscsi_mounts }}"
+  when:
+    - item.enabled | bool
+    - item.mount_path is defined
+
+# Stop open-iscsi service
+- name: Stop open-iscsi service
+  ansible.builtin.systemd:
+    name: open-iscsi
+    state: stopped
+  ignore_errors: true
+
+# Logout from iSCSI sessions
+- name: Logout from iSCSI targets
+  community.general.open_iscsi:
+    target: "{{ item.iqn }}"
+    portal: "{{ iscsi_target_ip }}:{{ iscsi_target_port }}"
+    login: no
+    state: absent
+  loop: "{{ storage_iscsi_mounts }}"
+  when:
+    - item.enabled | bool
+    - item.iqn is defined
+  register: storage_iscsi_logout
+  failed_when: false
+
+# Verify no active iSCSI sessions
+- name: Check for active iSCSI sessions
+  ansible.builtin.command: iscsiadm -m session
+  register: storage_active_sessions
+  changed_when: false
+  failed_when: false
+
+- name: Verify no iSCSI sessions remain
+  ansible.builtin.assert:
+    that:
+      - storage_active_sessions.rc != 0
+    fail_msg: "WARNING: iSCSI sessions still active: {{ storage_active_sessions.stdout }}"
+    success_msg: "✓ All iSCSI sessions terminated"
+  ignore_errors: yes
+
+# Remove iSCSI node configurations
+- name: Remove iSCSI node configurations
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: absent
+  loop:
+    - /etc/iscsi/nodes
+    - /etc/iscsi/send_targets
+  ignore_errors: true
+
+# Restart iscsid service (clean state)
+- name: Restart iscsid service
+  ansible.builtin.systemd:
+    name: iscsid
+    state: restarted
+    enabled: yes
+
+# Display unmount summary
+- name: Display unmount summary
+  ansible.builtin.debug:
+    msg: |
+      ✓ iSCSI/OCFS2 teardown complete:
+        - OCFS2 filesystems unmounted: {{ storage_unmount_result.results | selectattr('changed', 'equalto', true) | list | length }}
+        - iSCSI sessions logged out: {{ storage_iscsi_logout.results | selectattr('changed', 'equalto', true) | list | length }}
+        - Configuration cleaned
