@@ -75,7 +75,7 @@ A Docker Swarm-based homelab deployment platform that simplifies running multipl
 
     ---
 
-    Deploy everything with `task ansible:deploy:full` after a one-time setup.
+    Deploy everything with `task ansible:deploy` after a one-time setup.
 
 </div>
 
@@ -163,7 +163,7 @@ task ansible:install
 # 5. Deploy everything
 task ansible:bootstrap
 task ansible:cluster:init
-task ansible:deploy:full
+task ansible:deploy
 ```
 
 **That's it!** All services deploy automatically with:

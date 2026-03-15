@@ -433,6 +433,125 @@ volumes:
 
 **Solution:** SQLite database on OCFS2 cluster filesystem
 
+## Ansible Storage Role
+
+The `ansible/roles/storage` role automates the full iSCSI + OCFS2 setup across all cluster nodes. It is invoked during bootstrap and runs only when `iscsi_enabled` is `true`.
+
+### What the Role Does
+
+**`tasks/main.yml`** - Entry point that conditionally includes:
+1. `ocfs2-setup.yml` - Installs `ocfs2-tools`, configures the O2CB cluster daemon, and brings the `homelab` cluster online
+2. `iscsi-mount.yml` - Discovers iSCSI targets, logs in, creates OCFS2 filesystems (first run only), mounts them, and verifies cluster-wide access
+
+**`tasks/ocfs2-setup.yml`** - Configures the OCFS2 cluster stack:
+- Installs `ocfs2-tools` package
+- Writes `/etc/ocfs2/cluster.conf` from a Jinja2 template
+- Enables and starts the `o2cb` systemd service
+- Brings the `homelab` cluster online and verifies status
+
+**`tasks/iscsi-mount.yml`** - Loop-based iSCSI mounting (supports up to 3 mounts):
+- Discovers all iSCSI targets from the NAS via `iscsiadm`
+- Logs into each enabled target and verifies active sessions
+- Creates OCFS2 filesystems on first use (`mkfs.ocfs2`, runs once on manager)
+- Creates mount points and adds entries to `/etc/fstab`
+- Mounts OCFS2 filesystems and verifies write access on every node
+- Runs a cluster test to confirm the shared filesystem is visible across all nodes
+
+### Configuration Variables
+
+All variables are defined in `ansible/inventory/group_vars/all.yml` and sourced from the root `.env` file:
+
+#### Primary iSCSI Mount (`media-apps`)
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `iscsi_enabled` | `false` | Master switch - enables the storage role |
+| `iscsi_target_ip` | `192.168.86.189` | NAS IP address hosting the iSCSI target |
+| `iscsi_target_port` | `3260` | iSCSI target port |
+| `iscsi_target_iqn` | *(required)* | IQN of the iSCSI target for media-apps |
+| `iscsi_mount_path` | `/mnt/iscsi/media-apps` | Mount point on cluster nodes |
+
+#### Second iSCSI Mount (`app-data`)
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `iscsi_app_data_enabled` | `false` | Enable the app-data mount |
+| `iscsi_app_data_iqn` | *(required)* | IQN of the iSCSI target for app-data |
+| `iscsi_app_data_mount_path` | `/mnt/iscsi/app-data` | Mount point on cluster nodes |
+
+#### Third iSCSI Mount (`cache`)
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `iscsi_cache_enabled` | `false` | Enable the cache mount |
+| `iscsi_cache_iqn` | *(required)* | IQN of the iSCSI target for cache |
+| `iscsi_cache_mount_path` | `/mnt/iscsi/cache` | Mount point on cluster nodes |
+
+### How to Enable iSCSI Mounts
+
+**Step 1: Configure iSCSI targets on your NAS**
+
+Create iSCSI LUNs on your NAS (OpenMediaVault, TrueNAS, etc.) and note the IQN for each. Common IQN format:
+```
+iqn.2023-01.com.example:storage.media-apps
+```
+
+**Step 2: Add variables to your `.env` file**
+
+```bash
+# Enable iSCSI storage
+ISCSI_ENABLED=true
+NAS_IP=192.168.1.100               # Your NAS IP
+ISCSI_TARGET_PORT=3260             # Default iSCSI port
+ISCSI_TARGET_IQN=iqn.2023-01.com.example:storage.media-apps
+ISCSI_MOUNT_PATH=/mnt/iscsi/media-apps
+
+# Optional: app-data mount
+ISCSI_APP_DATA_ENABLED=true
+ISCSI_APP_DATA_IQN=iqn.2023-01.com.example:storage.app-data
+ISCSI_APP_DATA_MOUNT_PATH=/mnt/iscsi/app-data
+
+# Optional: cache mount
+ISCSI_CACHE_ENABLED=true
+ISCSI_CACHE_IQN=iqn.2023-01.com.example:storage.cache
+ISCSI_CACHE_MOUNT_PATH=/mnt/iscsi/cache
+```
+
+**Step 3: Run bootstrap to configure storage**
+
+```bash
+# Re-run bootstrap to apply storage configuration
+task ansible:bootstrap
+
+# Or run with the storage tag only
+task ansible:tags -- storage,iscsi
+```
+
+**Step 4: Verify mounts**
+
+```bash
+# Check active iSCSI sessions
+task ansible:cmd -- iscsiadm -m session
+
+# Verify OCFS2 mounts
+task ansible:cmd -- mount | grep ocfs2
+
+# Check iSCSI/OCFS2 reconfigure (if NAS IP changed)
+task ansible:iscsi:reconfigure -- -e "old_nas_ip=192.168.1.100"
+```
+
+### Role Tags
+
+The storage role tasks are tagged for selective execution:
+
+- `storage` - All storage-related tasks
+- `iscsi` - iSCSI-specific tasks (subset of `storage`)
+
+```bash
+# Run only storage tasks during bootstrap
+task ansible:tags -- storage
+```
+
 ## Summary
 
 The hybrid storage architecture provides:

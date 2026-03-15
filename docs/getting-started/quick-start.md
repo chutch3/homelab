@@ -105,7 +105,7 @@ task ansible:bootstrap
 task ansible:cluster:init
 
 # Deploy all services
-task ansible:deploy:full
+task ansible:deploy
 ```
 Or deploy specific services only:
 ```bash
@@ -162,7 +162,7 @@ The Homepage dashboard will show all your deployed services!
 
 ```bash
 # Deployment Commands
-task ansible:deploy:full                     # Deploy all services
+task ansible:deploy                     # Deploy all services
 task ansible:deploy:stack -- -e "stack_name=service1"  # Deploy a specific service
 
 # Cluster Management

@@ -84,8 +84,8 @@ Our mission is to create the ultimate self-hosting platform that makes running y
                          ║
 ```
 
-## ✅ MILE 2: Essential Services (25 Deployed)
-**Status:** COMPLETED • **Services Live:** 25
+## ✅ MILE 2: Essential Services (27 Deployed)
+**Status:** COMPLETED • **Services Live:** 27
 
 ### 🏗️ Infrastructure Layer
 - ✅ Technitium DNS - Local DNS server
@@ -120,6 +120,7 @@ Our mission is to create the ultimate self-hosting platform that makes running y
 
 ### 🛡️ Prepper & Resilience
 - ✅ Kiwix - Offline Wikipedia (119GB) + Project Gutenberg + Stack Overflow + Medical knowledge
+- ✅ Kolibri - Offline K-12 educational platform (Khan Academy, CK-12, and more)
 
 ### 🔐 Security & Privacy
 - ✅ Vaultwarden - Password manager (with Authentik SSO)
@@ -127,11 +128,12 @@ Our mission is to create the ultimate self-hosting platform that makes running y
 ### 🤖 AI & Development
 - ✅ LibreChat - AI chat interface
 - ✅ MLflow - ML experiment tracking
+- ✅ Forgejo - Self-hosted Git service with issue tracking and CI/CD
 
 ### 💾 Backup & Recovery
 - ✅ Kopia - Automated encrypted backups to Backblaze B2
 
-**Rest Stop Summary:** Production platform with 25 services ✅
+**Rest Stop Summary:** Production platform with 27 services ✅
 
 ---
 
@@ -196,16 +198,21 @@ Our mission is to create the ultimate self-hosting platform that makes running y
 
 ## 🗺️ The Road Ahead: Future Destinations
 
+### ✅ Recently Completed
+
+| Service | Details |
+|---------|---------|
+| **Forgejo** | Self-hosted Git service with PostgreSQL backend, Authentik OIDC SSO, SSH access on port 2222, and iSCSI storage. Deployed at `git.yourdomain.com` |
+| **Kolibri** | Offline K-12 educational platform with Khan Academy content, hybrid iSCSI + CIFS storage, optional Authentik OIDC. Deployed at `kolibri.yourdomain.com` |
+
 ### 🎯 NEEDS (High Priority - Real Gaps to Fill)
 
 | Need / Current Gap | Solution | Why It Matters |
 |-------------------|----------|----------------|
 | **Document Management & Archival**<br>No system for organizing scanned documents, PDFs, receipts, tax forms, contracts | **Paperless-ngx** | Long-term archival with OCR, tagging, full-text search, automated organization |
 | **File Sync, Calendar, & Contacts**<br>No unified cloud storage replacement or calendar/contacts synchronization | **NextCloud** | Self-hosted file sync across devices, calendar management, contacts storage, document collaboration |
-| **Source Code Hosting**<br>No local git repository with issue tracking and CI/CD capabilities | **Forgejo**<br>(community-driven Gitea fork) | Self-hosted git repos, issue tracking, pull requests, built-in CI/CD pipelines |
 | **Offline AI Assistance**<br>LibreChat requires external API calls - no true offline AI capability | **Ollama**<br>(integrates with LibreChat) | Run LLMs locally for offline AI assistance, privacy, no API costs |
 | **Offline Navigation Maps**<br>Kiwix has OSM Wiki documentation but not actual map tiles for GPS navigation | **OpenStreetMap Tile Server** | Render and serve map tiles locally for offline navigation and mapping apps |
-| **Offline Educational Content**<br>Wikipedia provides general knowledge but lacks structured K-12 curriculum with video lessons | **Kolibri**<br>(Khan Academy content) | Structured learning paths, video lessons, interactive exercises, progress tracking |
 | **Web Page Archiving**<br>No way to preserve important websites before they disappear or change | **ArchiveBox** | Archive critical web pages, articles, and sites for offline reference and preservation |
 
 ---

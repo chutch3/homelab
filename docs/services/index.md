@@ -86,13 +86,21 @@ Browse our comprehensive catalog of self-hosted services. Each service is pre-co
 
     **1 service available**
 
+- :material-source-branch: **[Development & CI/CD](#development-cicd)**
+
+    ---
+
+    Self-hosted source code hosting and collaboration
+
+    **1 service available**
+
 - :material-book-open-variant: **[Knowledge & Learning](#knowledge-learning)**
 
     ---
 
     Offline knowledge bases and reference materials
 
-    **1 service available**
+    **2 services available**
 
 - :material-view-dashboard: **[Core Infrastructure](#core-infrastructure)**
 
@@ -1102,6 +1110,52 @@ task ansible:deploy:stack -- -e "stack_name=mlflow"
 
 ---
 
+## Development & CI/CD
+
+### Forgejo {#forgejo}
+
+<div class="service-card">
+
+**Self-hosted lightweight software forge with Git hosting and CI/CD**
+
+- **Domain**: `git.yourdomain.com`
+- **Port**: `3000` (web), `2222` (SSH)
+- **Status**: ✅ Available
+- **Tags**: `development` `git` `ci-cd` `code` `sso`
+
+#### Features
+- Git repository hosting with web interface
+- Issue tracking and pull requests
+- Wiki and project management
+- SSH and HTTPS clone support
+- Built-in CI/CD pipeline (Forgejo Actions)
+- Lightweight Gitea fork by the community
+
+#### Authentik SSO Integration
+- **Method**: OAuth/OIDC
+- Group-based admin rights via `forgejo-admins` group
+- Users can link existing local accounts to SSO
+
+#### Storage Requirements
+- PostgreSQL data: iSCSI mount (`/mnt/iscsi/app-data/forgejo/postgresql`)
+- Git repositories: iSCSI mount (`/mnt/iscsi/app-data/forgejo/data`)
+- Configuration: iSCSI mount (`/mnt/iscsi/app-data/forgejo/config`)
+
+#### Prerequisites
+- iSCSI storage directories created and permissions set
+- PostgreSQL credentials configured
+
+#### Quick Deploy
+```bash
+task ansible:deploy:stack -- -e "stack_name=forgejo"
+```
+
+[Learn more about Forgejo →](https://forgejo.org/)
+
+</div>
+
+---
+
 ## Knowledge & Learning
 
 ### Kiwix {#kiwix}
@@ -1153,6 +1207,49 @@ task ansible:deploy:stack -- -e "stack_name=kiwix"
 **Prepper/Emergency Preparedness**: This service provides critical knowledge access during network outages or emergencies.
 
 [Learn more about Kiwix →](https://www.kiwix.org/)
+
+</div>
+
+### Kolibri {#kolibri}
+
+<div class="service-card">
+
+**Offline educational platform with structured K-12 curriculum content**
+
+- **Domain**: `kolibri.yourdomain.com`
+- **Port**: `8080`
+- **Status**: ✅ Available
+- **Tags**: `knowledge` `offline` `education` `k12` `sso`
+
+#### Features
+- Structured learning paths with video lessons and exercises
+- Khan Academy, CK-12, and other educational content channels
+- User management with learner, coach, and admin roles
+- Classroom and progress tracking for coaches
+- Full-text search across imported content
+- No internet required after content download
+
+#### Authentik SSO Integration
+- **Method**: OAuth/OIDC (via kolibri-oidc-client-plugin)
+- Auto-registration enabled for new users
+
+#### Storage Requirements
+- Application data (SQLite DB, user data): iSCSI mount (`/mnt/iscsi/app-data/kolibri`) - 5-10 GB
+- Educational content (videos, exercises): CIFS mount (`//${NAS_SERVER}/kolibri_content`) - 20-200 GB
+
+#### Prerequisites
+- iSCSI storage for application database
+- CIFS share on NAS for educational content
+- Authentik OIDC provider configured (optional, for SSO)
+
+#### Quick Deploy
+```bash
+task ansible:deploy:stack -- -e "stack_name=kolibri"
+```
+
+**Offline Education**: Provides structured K-12 curriculum access during network outages or for environments with limited connectivity.
+
+[Learn more about Kolibri →](https://learningequality.org/kolibri/)
 
 </div>
 
@@ -1260,9 +1357,10 @@ Consider contributing your service definition to help others!
 | Home Automation | 2 |
 | AI & Chat | 1 |
 | Development & ML | 1 |
-| Knowledge & Learning | 1 |
+| Development & CI/CD | 1 |
+| Knowledge & Learning | 2 |
 | Core Infrastructure | 1 |
-| **Total Application Services** | **25** |
+| **Total Application Services** | **27** |
 
 **Plus 4 Infrastructure Stacks:**
 - Traefik (Reverse Proxy)

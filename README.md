@@ -23,7 +23,7 @@ Most homelab setups require weeks of configuration, trial and error, and manual 
 
 | Feature | Description |
 |---------|-------------|
-| 🚀 **One-Command Deploy** | Entire infrastructure deployed with `task ansible:deploy:full` |
+| 🚀 **One-Command Deploy** | Entire infrastructure deployed with `task ansible:deploy` |
 | 🔐 **Centralized SSO** | Authentik integrated with 8+ services for unified authentication |
 | 📊 **Full Observability** | Prometheus + Grafana + Loki for metrics, dashboards, and logs |
 | 🔒 **Automatic SSL** | Traefik + Cloudflare for zero-config HTTPS certificates |
@@ -222,7 +222,7 @@ task ansible:bootstrap
 task ansible:cluster:init
 
 # Deploy all services
-task ansible:deploy:full
+task ansible:deploy
 ```
 
 ### 3. Access Your Services
