@@ -1,0 +1,49 @@
+---
+# ansible/roles/common/tasks/iscsi-cleanup.yml
+# Reusable iSCSI cleanup tasks
+# Used by: common role (during bootstrap) and iscsi-reconfigure.yml playbook
+
+- name: Stop OCFS2 cluster services
+  systemd:
+    name: "{{ item }}"
+    state: stopped
+  loop:
+    - o2cb
+    - ocfs2
+  ignore_errors: true
+
+- name: Unmount all OCFS2 filesystems
+  shell: |
+    for mount in $(mount | grep ocfs2 | awk '{print $3}'); do
+      umount $mount || true
+    done
+  ignore_errors: true
+  changed_when: false
+
+- name: Stop open-iscsi service
+  systemd:
+    name: open-iscsi
+    state: stopped
+  ignore_errors: true
+
+- name: Logout from all active iSCSI sessions
+  shell: |
+    iscsiadm -m session 2>/dev/null | while read line; do
+      target=$(echo $line | awk '{print $4}')
+      iscsiadm -m node -T $target --logout || true
+    done
+  ignore_errors: true
+  changed_when: false
+
+- name: Remove all iSCSI node configurations
+  shell: |
+    rm -rf /etc/iscsi/nodes/*
+    rm -rf /etc/iscsi/send_targets/*
+  ignore_errors: true
+  changed_when: false
+
+- name: Ensure iscsid service is enabled and restarted
+  systemd:
+    name: iscsid
+    state: restarted
+    enabled: yes
