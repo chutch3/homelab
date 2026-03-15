@@ -28,6 +28,8 @@ services:
       - immich-redis
       - immich-postgres
     restart: unless-stopped
+    healthcheck:
+      disable: true
     networks:
       - traefik-public
     deploy:
