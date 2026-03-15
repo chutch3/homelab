@@ -159,21 +159,8 @@ services:
         networks:
             - traefik-public
 
-    ## Watchtower upgrades services automatically (optional)
-    ## see https://docs.photoprism.app/getting-started/updates/#watchtower
-    ## activate via "COMPOSE_PROFILES=update docker compose up -d"
-    watchtower:
-        image: containrrr/watchtower
-        restart: unless-stopped
-        environment:
-            WATCHTOWER_CLEANUP: "true"
-            WATCHTOWER_POLL_INTERVAL: 7200 # checks for updates every 2 hours
-        volumes:
-            - "/var/run/docker.sock:/var/run/docker.sock"
-            # Docker config removed - not needed for public images
-            # Add back if Docker Hub authentication needed: - "~/.docker/config.json:/config.json"
-        networks:
-            - traefik-public
+    # Watchtower removed - not compatible with Docker Swarm mode
+    # Use 'task ansible:deploy:stack -- -e "stack_name=photoprism"' to update
 
 networks:
     traefik-public:
