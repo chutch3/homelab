@@ -34,7 +34,9 @@ iscsi_cache_iqn: "{{ lookup('env', 'ISCSI_CACHE_IQN') }}"
 iscsi_cache_mount_path: "{{ lookup('env', 'ISCSI_CACHE_MOUNT_PATH') | default('/mnt/iscsi/cache') }}"
 
 # DNS configuration
-dns_api_url: "http://dns.diyhub.dev:5380/api"
+# Use manager node IP for bootstrapping (hostname won't resolve until DNS is configured)
+# Docker Swarm ingress mode makes port 5380 accessible on any manager node
+dns_api_url: "http://{{ hostvars[groups['managers'][0]]['ansible_host'] }}:5380/api"
 dns_admin_username: "admin"
 dns_admin_password: lookup('env', 'DNS_ADMIN_PASSWORD')
 
@@ -55,7 +57,7 @@ uptime_kuma_username: "{{ lookup('env', 'UPTIME_KUMA_USERNAME') | default('admin
 
 # SSH configuration
 ansible_ssh_private_key_file: "~/.ssh/selfhosted_rsa"
-ssh_disable_password_auth: true
+ssh_disable_password_auth: false
 ssh_pubkey_authentication: true
 ssh_public_keys:
     - "/home/cody/.ssh/selfhosted_rsa.pub"
