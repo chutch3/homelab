@@ -20,3 +20,4 @@
 - name: Display CIFS version
   debug:
     msg: "CIFS version: {{ cifs_version.stdout_lines[0] }}"
+  when: cifs_version.stdout_lines | length > 0

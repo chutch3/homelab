@@ -1,74 +1,66 @@
-#!/usr/bin/env bash
-set -euo pipefail
+# ansible/inventory/group_vars/all.yml
+---
+# Common variables for all hosts
+# Safe to commit - no secrets!
 
-# Define the root of the dev environment
-DEV_ENV_ROOT="/mnt/iscsi/app-data/dev-env"
+# Bootstrap configuration
+bootstrap_state_dir: /var/lib/homelab
+bootstrap_version: "1.0.0"
 
-echo "Creating Dev Environment Directories..."
-mkdir -p "$DEV_ENV_ROOT/workspace"
-mkdir -p "$DEV_ENV_ROOT/code-server/config"
-mkdir -p "$DEV_ENV_ROOT/shared-ssh"
-mkdir -p "$DEV_ENV_ROOT/ai-configs/claude"
-mkdir -p "$DEV_ENV_ROOT/ai-configs/gemini"
-mkdir -p "$DEV_ENV_ROOT/ai-configs/cloudcli"
-mkdir -p "$DEV_ENV_ROOT/ai-configs/forge"
+# Docker configuration
+docker_users:
+    - "{{ ansible_user }}"
 
-echo "Setting Ownership to 1000:1000..."
-chown -R 1000:1000 "$DEV_ENV_ROOT"
+# CIFS configuration
+cifs_packages:
+    - cifs-utils
+    - nfs-common
 
-echo "Setting specific permissions for SSH folder..."
-chmod 700 "$DEV_ENV_ROOT/shared-ssh"
+# iSCSI configuration - shared block storage for Docker volumes
+iscsi_enabled: "{{ lookup('env', 'ISCSI_ENABLED') | default('false') | bool }}"
+iscsi_target_ip: "{{ lookup('env', 'NAS_IP') | default('192.168.86.189') }}"
+iscsi_target_port: "{{ lookup('env', 'ISCSI_TARGET_PORT') | default('3260') | int }}"
+iscsi_target_iqn: "{{ lookup('env', 'ISCSI_TARGET_IQN') }}"
+iscsi_mount_path: "{{ lookup('env', 'ISCSI_MOUNT_PATH') | default('/mnt/iscsi/media-apps') }}"
 
-# Load environment variables if available
-if [ -f "../../../.env" ]; then
-    source "../../../.env"
-fi
+# Second iSCSI mount for app-data
+iscsi_app_data_enabled: "{{ lookup('env', 'ISCSI_APP_DATA_ENABLED') | default('false') | bool }}"
+iscsi_app_data_iqn: "{{ lookup('env', 'ISCSI_APP_DATA_IQN') }}"
+iscsi_app_data_mount_path: "{{ lookup('env', 'ISCSI_APP_DATA_MOUNT_PATH') | default('/mnt/iscsi/app-data') }}"
 
-# Determine the real user's home directory (in case the script is run with sudo)
-REAL_USER="${SUDO_USER:-$USER}"
-REAL_HOME=$(eval echo "~$REAL_USER")
+# Third iSCSI mount for cache storage
+iscsi_cache_enabled: "{{ lookup('env', 'ISCSI_CACHE_ENABLED') | default('false') | bool }}"
+iscsi_cache_iqn: "{{ lookup('env', 'ISCSI_CACHE_IQN') }}"
+iscsi_cache_mount_path: "{{ lookup('env', 'ISCSI_CACHE_MOUNT_PATH') | default('/mnt/iscsi/cache') }}"
 
-# Determine the source SSH key and derive the destination name from it
-SSH_KEY_SRC="${SSH_KEY_FILE:-$REAL_HOME/.ssh/homelab_rsa}"
-SSH_KEY_NAME="$(basename "$SSH_KEY_SRC")"
-SSH_DEST="$DEV_ENV_ROOT/shared-ssh"
+# DNS configuration
+# Use manager node IP for bootstrapping (hostname won't resolve until DNS is configured)
+# Docker Swarm ingress mode makes port 5380 accessible on any manager node
+dns_api_url: "http://{{ hostvars[groups['managers'][0]]['ansible_host'] }}:5380/api"
+dns_admin_username: "admin"
+dns_admin_password: lookup('env', 'DNS_ADMIN_PASSWORD')
 
-echo "Copying SSH key to Shared SSH Volume..."
-if [ -f "$SSH_KEY_SRC" ]; then
-    # Copy private key
-    cp "$SSH_KEY_SRC" "$SSH_DEST/$SSH_KEY_NAME"
-    chmod 600 "$SSH_DEST/$SSH_KEY_NAME"
-    chown 1000:1000 "$SSH_DEST/$SSH_KEY_NAME"
+# Uptime Kuma configuration
+uptime_kuma_api_url: "https://uptime.{{ lookup('env', 'BASE_DOMAIN') }}"
+uptime_kuma_username: "{{ lookup('env', 'UPTIME_KUMA_USERNAME') | default('admin', true) }}"
 
-    # Copy public key if it exists
-    if [ -f "${SSH_KEY_SRC}.pub" ]; then
-        cp "${SSH_KEY_SRC}.pub" "$SSH_DEST/${SSH_KEY_NAME}.pub"
-        chmod 644 "$SSH_DEST/${SSH_KEY_NAME}.pub"
-        chown 1000:1000 "$SSH_DEST/${SSH_KEY_NAME}.pub"
-    fi
-    echo "SSH key copied successfully."
-else
-    echo "Warning: SSH key not found at $SSH_KEY_SRC."
-    echo "You may need to manually copy your key or generate a new one inside the Web IDE."
-fi
+# Firewall configuration (Commented out as per user's request)
+# firewall_allowed_ports:
+#   - { port: 22, proto: tcp, comment: 'SSH' }
+#   - { port: 80, proto: tcp, comment: 'HTTP' }
+#   - { port: 443, proto: tcp, comment: 'HTTPS' }
+#   - { port: 2377, proto: tcp, comment: 'Docker Swarm management' }
+#   - { port: 7946, proto: tcp, comment: 'Docker Swarm communication' }
+#   - { port: 7946, proto: udp, comment: 'Docker Swarm communication' }
+#   - { port: 4789, proto: udp, comment: 'Docker overlay network' }
+#   - { port: "{{ node_exporter_port }}", proto: tcp, comment: 'Node Exporter' }
 
-# Setup SSH config file
-SSH_CONFIG_DEST="$SSH_DEST/config"
-echo "Creating default SSH config..."
-
-DOMAIN_PATTERN="${BASE_DOMAIN:+*.${BASE_DOMAIN}}"
-SSH_HOST_PATTERN="192.168.* 10.* ${DOMAIN_PATTERN} ${SSH_EXTRA_HOSTS:-}"
-
-cat > "$SSH_CONFIG_DEST" <<EOF
-Host ${SSH_HOST_PATTERN}
-    StrictHostKeyChecking accept-new
-    IdentityFile ~/.ssh/${SSH_KEY_NAME}
-
-Host *
-    StrictHostKeyChecking accept-new
-EOF
-
-chmod 644 "$SSH_CONFIG_DEST"
-chown 1000:1000 "$SSH_CONFIG_DEST"
-
-echo "Setup complete! You can now deploy the dev environment stacks."
+# SSH configuration
+ansible_ssh_private_key_file: "~/.ssh/selfhosted_rsa"
+ssh_disable_password_auth: false
+ssh_pubkey_authentication: true
+ssh_public_keys:
+    - "/home/cody/.ssh/selfhosted_rsa.pub"
+# Reference secrets (actual values in all.secret.yml)
+# cloudflare_token: "{{ vault_cloudflare_token }}"
+# aws_access_key: "{{ vault_aws_access_key }}"
