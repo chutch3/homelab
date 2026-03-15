@@ -1,7 +1,9 @@
-# ansible/roles/dns/tasks/add-service-cnames.yml
 ---
+# ansible/roles/dns/tasks/add-service-cnames.yml
+# Add DNS CNAME records with verification
+
 - name: Find all docker-compose.yml files
-  find:
+  ansible.builtin.find:
     paths: "{{ playbook_dir }}/../../stacks/apps"
     patterns: "docker-compose.yml"
     recurse: yes
@@ -10,30 +12,30 @@
   when: stack_name is not defined
 
 - name: Use specific compose file when stack_name is defined
-  set_fact:
+  ansible.builtin.set_fact:
     dns_compose_files:
       files:
         - path: "{{ compose_file_path }}"
   when: stack_name is defined
 
 - name: Get only compose files with Traefik Host() rules
-  shell: "grep -l 'Host(' {{ item.path }}"
+  ansible.builtin.shell: "grep -l 'Host(' {{ item.path }}"
   loop: "{{ dns_compose_files.files }}"
   register: dns_traefik_compose_files
   changed_when: false
-  failed_when: false # Ignore rc=1 when no matches
+  failed_when: false
   delegate_to: localhost
 
 - name: Extract Traefik Host() rules
-  shell: "grep -o 'Host(`.*`)' {{ item.path }}"
+  ansible.builtin.shell: "grep -o 'Host(`[^`]*`)' {{ item.path }}"
   loop: "{{ dns_traefik_compose_files.results | selectattr('rc', '==', 0) | map(attribute='item') | list }}"
   register: dns_traefik_rules
   changed_when: false
-  failed_when: false # Ignore rc=1 when no matches
+  failed_when: false
   delegate_to: localhost
 
 - name: Process and set discovered domains
-  set_fact:
+  ansible.builtin.set_fact:
     dns_discovered_domains: >
       {{ dns_traefik_rules.results |
          map(attribute='stdout_lines') | flatten |
@@ -42,16 +44,19 @@
          map('regex_replace', '\$\{BASE_DOMAIN\}', base_domain) |
          unique | list }}
 
-- name: Display Discovered Domains
-  debug:
-    msg: "Discovered {{ dns_discovered_domains | length }} domains: {{ dns_discovered_domains }}"
+- name: Display discovered domains
+  ansible.builtin.debug:
+    msg: "Discovered {{ dns_discovered_domains | length }} domain(s): {{ dns_discovered_domains | join(', ') }}"
 
 - name: Get manager hostname
-  set_fact:
+  ansible.builtin.set_fact:
     dns_manager_hostname: "{{ groups['managers'][0] }}"
 
-- name: Add CNAME record for each discovered service
-  uri:
+# =========================================================================
+# PHASE 1: Create DNS Records
+# =========================================================================
+- name: "[DNS] Add CNAME record for each discovered service"
+  ansible.builtin.uri:
     url: "{{ dns_api_url }}/zones/records/add"
     method: POST
     body_format: form-urlencoded
@@ -65,8 +70,94 @@
     status_code: 200
   loop: "{{ dns_discovered_domains }}"
   register: dns_add_cname_result
+  delegate_to: localhost
 
-- name: Display CNAME record addition status
-  debug:
-    msg: "CNAME for {{ item.item }}: {{ 'Record already exists' if item.json.status == 'error' and 'already exists' in item.json.get('errorMessage', '') else 'Created/Updated' }}"
+- name: "[DNS] Display CNAME record creation status"
+  ansible.builtin.debug:
+    msg: "CNAME for {{ item.item }}: {{ 'Already exists' if (item.json.status == 'error' and 'already exists' in item.json.get('errorMessage', '')) else 'Created/Updated' }}"
   loop: "{{ dns_add_cname_result.results }}"
+
+# =========================================================================
+# PHASE 2: Verify DNS Records
+# =========================================================================
+- name: "[VERIFY] Wait for DNS propagation"
+  ansible.builtin.pause:
+    seconds: 3
+  when: dns_discovered_domains | length > 0
+
+- name: "[VERIFY] Query DNS to verify records exist"
+  ansible.builtin.command: "dig +short {{ item }} @{{ dns_api_url | urlsplit('hostname') }}"
+  loop: "{{ dns_discovered_domains }}"
+  register: dns_verification
+  changed_when: false
+  failed_when: false
+  delegate_to: localhost
+
+- name: "[VERIFY] Check DNS resolution results"
+  ansible.builtin.set_fact:
+    dns_failed_records: "{{ dns_verification.results | selectattr('stdout', 'equalto', '') | map(attribute='item') | list }}"
+
+- name: "[VERIFY] Display DNS verification summary"
+  ansible.builtin.debug:
+    msg: |
+      DNS Verification Summary:
+      ========================
+      Total records: {{ dns_discovered_domains | length }}
+      Verified:      {{ (dns_discovered_domains | length) - (dns_failed_records | length) }}
+      Failed:        {{ dns_failed_records | length }}
+      {% if dns_failed_records | length > 0 %}
+      Failed domains: {{ dns_failed_records | join(', ') }}
+      {% endif %}
+
+- name: "[VERIFY] Warn about failed DNS records"
+  ansible.builtin.debug:
+    msg: "⚠ WARNING: {{ dns_failed_records | length }} DNS record(s) failed to resolve"
+  when: dns_failed_records | length > 0
+
+- name: "[VERIFY] Display successful DNS resolutions"
+  ansible.builtin.debug:
+    msg: "✓ DNS record for {{ item.item }} resolves to: {{ item.stdout }}"
+  loop: "{{ dns_verification.results }}"
+  when: item.stdout != ""
+
+# =========================================================================
+# PHASE 3: Query DNS Records via API for Additional Verification
+# =========================================================================
+- name: "[API-VERIFY] Get DNS records from Technitium API"
+  ansible.builtin.uri:
+    url: "{{ dns_api_url }}/zones/records/get"
+    method: GET
+    body_format: form-urlencoded
+    body:
+      token: "{{ dns_api_token }}"
+      domain: "{{ item }}"
+      zone: "{{ base_domain }}"
+    status_code: 200
+  loop: "{{ dns_discovered_domains }}"
+  register: dns_api_verification
+  delegate_to: localhost
+  failed_when: false
+
+- name: "[API-VERIFY] Display API verification results"
+  ansible.builtin.debug:
+    msg: "✓ API confirms record for {{ item.item }} exists"
+  loop: "{{ dns_api_verification.results }}"
+  when: item.json.status == 'ok'
+
+- name: "[SUMMARY] Display final DNS summary"
+  ansible.builtin.debug:
+    msg: |
+
+      ╔══════════════════════════════════════════════════════════════╗
+      ║          DNS REGISTRATION COMPLETE
+      ╚══════════════════════════════════════════════════════════════╝
+
+      Services Registered: {{ dns_discovered_domains | length }}
+      DNS Verified:        {{ (dns_discovered_domains | length) - (dns_failed_records | length) }}
+      API Verified:        {{ dns_api_verification.results | selectattr('json.status', 'equalto', 'ok') | list | length }}
+
+      {% if dns_failed_records | length > 0 %}
+      ⚠ WARNINGS: {{ dns_failed_records | length }} record(s) failed verification
+      {% else %}
+      ✅ All DNS records created and verified
+      {% endif %}

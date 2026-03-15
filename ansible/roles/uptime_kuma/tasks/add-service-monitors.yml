@@ -1,21 +1,21 @@
 ---
-# ansible/roles/uptime-kuma/tasks/add-service-monitors.yml
-# Discover services from docker-compose files and create HTTP monitors
+# ansible/roles/uptime_kuma/tasks/add-service-monitors.yml
+# Create Uptime Kuma monitors with verification
 
 - name: Find all docker-compose.yml files
   ansible.builtin.find:
-      paths: "{{ playbook_dir }}/../../stacks/apps"
-      patterns: "docker-compose.yml"
-      recurse: yes
+    paths: "{{ playbook_dir }}/../../stacks/apps"
+    patterns: "docker-compose.yml"
+    recurse: yes
   register: uptime_kuma_compose_files
   delegate_to: localhost
   when: stack_name is not defined
 
 - name: Use specific compose file when stack_name is defined
   ansible.builtin.set_fact:
-      uptime_kuma_compose_files:
-          files:
-              - path: "{{ compose_file_path }}"
+    uptime_kuma_compose_files:
+      files:
+        - path: "{{ compose_file_path }}"
   when: stack_name is defined
 
 - name: Get only compose files with Traefik Host() rules
@@ -36,28 +36,31 @@
 
 - name: Process and set discovered domains
   ansible.builtin.set_fact:
-      uptime_kuma_discovered_domains: >
-          {{ uptime_kuma_traefik_rules.results |
-             map(attribute='stdout_lines') | flatten |
-             map('regex_search', 'Host\(`([^`]+)`\)', '\1') |
-             flatten | select('ne', '') |
-             map('regex_replace', '\$\{BASE_DOMAIN\}', base_domain) |
-             unique | list }}
+    uptime_kuma_discovered_domains: >
+      {{ uptime_kuma_traefik_rules.results |
+         map(attribute='stdout_lines') | flatten |
+         map('regex_search', 'Host\(`([^`]+)`\)', '\1') |
+         flatten | select('ne', '') |
+         map('regex_replace', '\$\{BASE_DOMAIN\}', base_domain) |
+         unique | list }}
 
 - name: Display discovered services
   ansible.builtin.debug:
-      msg: "Discovered {{ uptime_kuma_discovered_domains | length }} services to monitor: {{ uptime_kuma_discovered_domains | join(', ') }}"
+    msg: "Discovered {{ uptime_kuma_discovered_domains | length }} service(s) to monitor: {{ uptime_kuma_discovered_domains | join(', ') }}"
 
-- name: Add HTTP monitor for each discovered service
+# =========================================================================
+# PHASE 1: Create Monitors
+# =========================================================================
+- name: "[MONITOR] Add HTTP monitor for each discovered service"
   lucasheld.uptime_kuma.monitor:
-      api_url: "{{ uptime_kuma_api_url }}"
-      api_token: "{{ uptime_kuma_api_token }}"
-      name: "{{ item }}"
-      type: http
-      url: "https://{{ item }}"
-      parent_name: Services
-      interval: 60
-      state: present
+    api_url: "{{ uptime_kuma_api_url }}"
+    api_token: "{{ uptime_kuma_api_token }}"
+    name: "{{ item }}"
+    type: http
+    url: "https://{{ item }}"
+    parent_name: Services
+    interval: 60
+    state: present
   loop: "{{ uptime_kuma_discovered_domains }}"
   register: uptime_kuma_add_service_monitor_result
   delegate_to: localhost
@@ -65,9 +68,130 @@
   delay: 5
   until: uptime_kuma_add_service_monitor_result is succeeded
 
-- name: Display service monitor status
+- name: "[MONITOR] Display monitor creation status"
   ansible.builtin.debug:
-      msg: "Monitor for {{ item.item }}: {{ 'Created' if item.changed else 'Already exists' }}"
+    msg: "Monitor for {{ item.item }}: {{ 'Created' if item.changed else 'Already exists' }}"
   loop: "{{ uptime_kuma_add_service_monitor_result.results }}"
-  loop_control:
-      label: "{{ item.item }}"
+
+# =========================================================================
+# PHASE 2: Wait for Monitors to Initialize
+# =========================================================================
+- name: "[VERIFY] Wait for monitors to initialize"
+  ansible.builtin.pause:
+    seconds: 10
+  when: uptime_kuma_discovered_domains | length > 0
+
+# =========================================================================
+# PHASE 3: Verify Monitors Exist and Are Active
+# =========================================================================
+- name: "[VERIFY] Get all monitors from Uptime Kuma"
+  lucasheld.uptime_kuma.monitor_info:
+    api_url: "{{ uptime_kuma_api_url }}"
+    api_token: "{{ uptime_kuma_api_token }}"
+  register: uptime_kuma_all_monitors
+  delegate_to: localhost
+
+- name: "[VERIFY] Extract created monitor names"
+  ansible.builtin.set_fact:
+    uptime_kuma_created_monitor_names: "{{ uptime_kuma_all_monitors.monitors | map(attribute='name') | list }}"
+
+- name: "[VERIFY] Check which monitors were successfully created"
+  ansible.builtin.set_fact:
+    uptime_kuma_verified_monitors: "{{ uptime_kuma_discovered_domains | select('in', uptime_kuma_created_monitor_names) | list }}"
+    uptime_kuma_missing_monitors: "{{ uptime_kuma_discovered_domains | reject('in', uptime_kuma_created_monitor_names) | list }}"
+
+- name: "[VERIFY] Display verification summary"
+  ansible.builtin.debug:
+    msg: |
+      Monitor Verification Summary:
+      ============================
+      Total monitors: {{ uptime_kuma_discovered_domains | length }}
+      Verified:       {{ uptime_kuma_verified_monitors | length }}
+      Missing:        {{ uptime_kuma_missing_monitors | length }}
+      {% if uptime_kuma_missing_monitors | length > 0 %}
+      Missing monitors: {{ uptime_kuma_missing_monitors | join(', ') }}
+      {% endif %}
+
+- name: "[VERIFY] Warn about missing monitors"
+  ansible.builtin.debug:
+    msg: "⚠ WARNING: {{ uptime_kuma_missing_monitors | length }} monitor(s) not found in Uptime Kuma"
+  when: uptime_kuma_missing_monitors | length > 0
+
+# =========================================================================
+# PHASE 4: Verify Monitor Configuration
+# =========================================================================
+- name: "[VERIFY-CONFIG] Get detailed monitor info for each service"
+  ansible.builtin.set_fact:
+    uptime_kuma_service_monitors: "{{ uptime_kuma_all_monitors.monitors | selectattr('name', 'in', uptime_kuma_discovered_domains) | list }}"
+
+- name: "[VERIFY-CONFIG] Verify monitor is active"
+  ansible.builtin.debug:
+    msg: "✓ Monitor '{{ item.name }}': Active={{ item.active | default(false) }}, Type={{ item.type }}, URL={{ item.url }}"
+  loop: "{{ uptime_kuma_service_monitors }}"
+
+- name: "[VERIFY-CONFIG] Check for inactive monitors"
+  ansible.builtin.set_fact:
+    uptime_kuma_inactive_monitors: "{{ uptime_kuma_service_monitors | rejectattr('active', 'equalto', true) | map(attribute='name') | list }}"
+
+- name: "[VERIFY-CONFIG] Warn about inactive monitors"
+  ansible.builtin.debug:
+    msg: "⚠ WARNING: Monitor '{{ item }}' exists but is INACTIVE"
+  loop: "{{ uptime_kuma_inactive_monitors }}"
+  when: uptime_kuma_inactive_monitors | length > 0
+
+# =========================================================================
+# PHASE 5: Check Monitor Status (if available)
+# =========================================================================
+- name: "[STATUS] Get monitor heartbeats (latest status)"
+  lucasheld.uptime_kuma.monitor_info:
+    api_url: "{{ uptime_kuma_api_url }}"
+    api_token: "{{ uptime_kuma_api_token }}"
+    id: "{{ item.id }}"
+  loop: "{{ uptime_kuma_service_monitors }}"
+  register: uptime_kuma_monitor_heartbeats
+  delegate_to: localhost
+  failed_when: false
+
+- name: "[STATUS] Display monitor status"
+  ansible.builtin.debug:
+    msg: "Monitor '{{ item.item.name }}': Last Status={{ item.monitor.status | default('pending') }}"
+  loop: "{{ uptime_kuma_monitor_heartbeats.results }}"
+  when: item.monitor is defined
+
+# =========================================================================
+# PHASE 6: Final Summary
+# =========================================================================
+- name: "[SUMMARY] Calculate summary statistics"
+  ansible.builtin.set_fact:
+    uptime_kuma_total_monitors: "{{ uptime_kuma_discovered_domains | length }}"
+    uptime_kuma_created_count: "{{ uptime_kuma_add_service_monitor_result.results | selectattr('changed', 'equalto', true) | list | length }}"
+    uptime_kuma_existing_count: "{{ uptime_kuma_add_service_monitor_result.results | rejectattr('changed', 'equalto', true) | list | length }}"
+    uptime_kuma_active_count: "{{ uptime_kuma_service_monitors | selectattr('active', 'equalto', true) | list | length }}"
+
+- name: "[SUMMARY] Display final summary"
+  ansible.builtin.debug:
+    msg: |
+
+      ╔══════════════════════════════════════════════════════════════╗
+      ║          UPTIME KUMA REGISTRATION COMPLETE
+      ╚══════════════════════════════════════════════════════════════╝
+
+      Services Discovered: {{ uptime_kuma_total_monitors }}
+      Newly Created:       {{ uptime_kuma_created_count }}
+      Already Existed:     {{ uptime_kuma_existing_count }}
+      Active Monitors:     {{ uptime_kuma_active_count }}
+
+      {% if uptime_kuma_missing_monitors | length > 0 %}
+      ⚠ Missing:  {{ uptime_kuma_missing_monitors | length }} ({{ uptime_kuma_missing_monitors | join(', ') }})
+      {% endif %}
+      {% if uptime_kuma_inactive_monitors | length > 0 %}
+      ⚠ Inactive: {{ uptime_kuma_inactive_monitors | length }} ({{ uptime_kuma_inactive_monitors | join(', ') }})
+      {% endif %}
+
+      {% if uptime_kuma_missing_monitors | length == 0 and uptime_kuma_inactive_monitors | length == 0 %}
+      ✅ All monitors created, verified, and active
+      {% else %}
+      ⚠ Some monitors require attention
+      {% endif %}
+
+      Access Uptime Kuma: {{ uptime_kuma_api_url }}
