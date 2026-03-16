@@ -2,6 +2,43 @@
 
 <!-- version list -->
 
+## v3.6.0 (2026-03-16)
+
+### Bug Fixes
+
+- Correct base_domain variable name and add orphaned container cleanup to teardown
+  ([`56e352f`](https://github.com/chutch3/homelab/commit/56e352fbae2f42df2fce8a1a5b49d0336703f0d3))
+
+- Correct CIFS mounts and remove incompatible watchtower after NAS rebuild
+  ([`ed8cefe`](https://github.com/chutch3/homelab/commit/ed8cefef7cc74790e86547c00ff11549cb505173))
+
+- Replace deprecated uptime_kuma api module, fix dns regex, and remove ssh password auth enforcement
+  ([`d11c937`](https://github.com/chutch3/homelab/commit/d11c93703be13a65c5132f5bc87b220cca1b3522))
+
+- Use venv ansible binaries in taskfile and pin collection versions
+  ([`eaeeec8`](https://github.com/chutch3/homelab/commit/eaeeec81d4e6b4db05e4da658e6ba02ee7658b8b))
+
+### Chores
+
+- Update emby to 4.10.0.5, fix cert-sync mode format
+  ([`0f585d9`](https://github.com/chutch3/homelab/commit/0f585d95b7ff96c032166f5660c74bca2c9b71b4))
+
+### Documentation
+
+- Updated documentation
+  ([`2ae0f58`](https://github.com/chutch3/homelab/commit/2ae0f5843b0351133c59783b1e84d6c159d249c7))
+
+### Features
+
+- Add cluster teardown, iSCSI reconfigure, and NAS IP fix playbooks
+  ([`4b9d89b`](https://github.com/chutch3/homelab/commit/4b9d89b0d1c0655e4c9def86af1b5fddbdeb4293))
+
+### Refactoring
+
+- Move iSCSI setup from common role to dedicated storage role
+  ([`12d6279`](https://github.com/chutch3/homelab/commit/12d62798793d8f3d1694cc76c586bd35e0fd87e2))
+
+
 ## v3.5.0 (2026-02-02)
 
 ### Bug Fixes
