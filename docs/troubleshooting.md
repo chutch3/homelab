@@ -458,6 +458,74 @@ docker node ls
    docker swarm join --token <token> <manager-ip>:2377
    ```
 
+### Traefik 502 Bad Gateway — Overlay ARP FAILED (Stale Entries)
+
+**Symptoms:**
+- Most or all services return `502 Bad Gateway`
+- Traefik logs show repeated `"no route to host"` errors:
+  ```
+  502 Bad Gateway error="dial tcp 10.0.1.32:9000: connect: no route to host"
+  ```
+- Restarting Traefik does not fix it
+- Services show as healthy in `docker service ls`
+
+**Root Cause:** A known Docker bug ([moby #50232](https://github.com/moby/moby/issues/50232)) where ARP entries in the overlay network namespace are never garbage collected. After containers restart or get rescheduled (getting new IPs), their old IPs remain in the ARP table and become `FAILED`. Traefik keeps routing to these dead IPs.
+
+**Identify:**
+```bash
+# Check for FAILED ARP entries inside Traefik's network namespace
+docker exec $(docker ps -q --filter name=reverse-proxy_traefik) ip neigh show | grep FAILED
+
+# Example output showing stale entries:
+# 10.0.1.32 dev eth2  used 0/0/0 probes 6 FAILED
+# 10.0.1.7  dev eth2  used 0/0/0 probes 6 FAILED
+
+# Cross-reference with which services own those IPs
+docker network inspect traefik-public --format '{{json .Containers}}' | \
+  python3 -c "import json,sys; d=json.load(sys.stdin); [print(v['IPv4Address'], v['Name']) for v in d.values()]"
+```
+
+**Fix:**
+
+1. **Force-update the affected backend services** (not Traefik) to get fresh IPs:
+   ```bash
+   docker service update --force <service_name>
+   ```
+   Run this for each service whose IP shows as `FAILED`. Docker tears down and recreates the container with a new IP, clearing the stale ARP state.
+
+2. **If only a few services are affected**, you can identify them by matching FAILED IPs to the network inspect output above, then force-update only those services.
+
+3. **If all services are affected**, force-update the most critical ones first (e.g. `authentik_server` since it handles SSO for everything else).
+
+4. **Verify recovery:**
+   ```bash
+   # Should drop to 0 within ~30 seconds of force-updates completing
+   docker service logs reverse-proxy_traefik --since 30s 2>&1 | grep -c "no route to host"
+   ```
+
+**Last Resort — Docker Daemon Restart:**
+
+If force-updates don't fix it, restart Docker on the affected node:
+```bash
+# 1. Drain the node first to avoid split-brain
+docker node update --availability drain <node-hostname>
+
+# 2. Wait for tasks to migrate, then restart Docker
+sudo systemctl restart docker
+
+# 3. Restore node to active
+docker node update --availability active <node-hostname>
+
+# 4. Force-update Traefik to reconnect to overlay
+docker service update --force reverse-proxy_traefik
+```
+
+**Prevention:** This is an unfixed upstream Docker bug. To reduce frequency:
+- Avoid frequent service restarts/updates during peak hours
+- Consider pinning services to specific nodes with placement constraints to reduce IP churn across the overlay
+
+---
+
 ### Network Not Found
 
 **Symptoms:**
