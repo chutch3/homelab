@@ -33,7 +33,7 @@ services:
                 - "traefik.http.routers.homeassistant-hubitat-events.entrypoints=hubitat"
                 - "traefik.http.routers.homeassistant-hubitat-events.tls=true" # Assuming TLS is desired for 8181
                 - "traefik.http.routers.homeassistant-hubitat-events.tls.certresolver=dns"
-                - "traefik.http.services.homeassistant-hubitat-events.loadbalancer.server.port=8181"
+                - "traefik.http.services.homeassistant-hubitat-events.loadbalancer.server.port=8123"
                 - "traefik.http.routers.homeassistant-hubitat-events.service=homeassistant-hubitat-events"
 
 networks:
