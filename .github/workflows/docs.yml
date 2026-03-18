@@ -81,9 +81,10 @@ jobs:
     build-and-deploy:
         name: 🏗️ Build & Deploy Documentation
         if: >-
-            github.ref == 'refs/heads/main' &&
-            (github.event_name == 'workflow_call' ||
-             (github.event_name == 'workflow_dispatch' && inputs.deploy == true))
+            github.event_name == 'workflow_call' ||
+            (github.event_name == 'workflow_dispatch' &&
+             github.ref == 'refs/heads/main' &&
+             inputs.deploy == true)
         needs: validate
         runs-on: ubuntu-latest
         environment:
