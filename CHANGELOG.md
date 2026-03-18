@@ -2,6 +2,43 @@
 
 <!-- version list -->
 
+## v3.7.0 (2026-03-18)
+
+### Bug Fixes
+
+- Home assistant hubitat service endpoint
+  ([`a3d9e95`](https://github.com/chutch3/homelab/commit/a3d9e95732c2dc01911cbcbe9e1dd022e5223207))
+
+- When teardown of dns stack skip dns registration removeal
+  ([`f95e8a7`](https://github.com/chutch3/homelab/commit/f95e8a7ac2022ae2fdec7be4e5c6984fd9cf74aa))
+
+### Chores
+
+- Clean up .env.example
+  ([`917b88c`](https://github.com/chutch3/homelab/commit/917b88c19724d1979496929b8145cb1322fcaa5f))
+
+- Simplified README.md
+  ([`ac551a0`](https://github.com/chutch3/homelab/commit/ac551a06a619f55ef3520e334f807e1ae42922f8))
+
+### Continuous Integration
+
+- Docs now in sync with release so that they are in lock step
+  ([`0f456d9`](https://github.com/chutch3/homelab/commit/0f456d939bc1baf050acf5757ac6daa34f4b159f))
+
+### Documentation
+
+- Added troubleshooting for stale entries in the overlay networks ARP table
+  ([`c27c895`](https://github.com/chutch3/homelab/commit/c27c895a531a1d17ab94899fd77f20c6123543e5))
+
+- Updated the docs
+  ([`b00c461`](https://github.com/chutch3/homelab/commit/b00c4612cba8fdb9f816a01e1c7967fee3703311))
+
+### Features
+
+- Add Pi-hole secondary DNS sync
+  ([`604581f`](https://github.com/chutch3/homelab/commit/604581fe653590e6f52147698a812141fc82234c))
+
+
 ## v3.6.0 (2026-03-16)
 
 ### Bug Fixes
