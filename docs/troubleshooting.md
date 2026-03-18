@@ -212,7 +212,7 @@ Service shows as running but marked unhealthy in `docker service ps`.
 
 1. **Check Traefik logs:**
    ```bash
-   docker service logs traefik_traefik --tail 100 --follow
+   docker service logs reverse-proxy_traefik --tail 100 --follow
    # Look for ACME challenge errors
    ```
 
@@ -246,7 +246,7 @@ Service shows as running but marked unhealthy in `docker service ps`.
      - traefik.enable=true
      - traefik.http.routers.myservice.rule=Host(`myapp.${BASE_DOMAIN}`)
      - traefik.http.routers.myservice.tls=true
-     - traefik.http.routers.myservice.tls.certresolver=letsencrypt
+     - traefik.http.routers.myservice.tls.certresolver=dns
    ```
 
 ### Certificate Expired or Invalid
@@ -261,7 +261,7 @@ Service shows as running but marked unhealthy in `docker service ps`.
    ```bash
    # Remove old certificate from acme.json
    # Traefik will automatically request a new one
-   docker service update --force traefik_traefik
+   docker service update --force reverse-proxy_traefik
    ```
 
 2. **Check Let's Encrypt rate limits:**
@@ -299,7 +299,7 @@ ping myapp.yourdomain.com
 1. **Check Technitium DNS status:**
    ```bash
    docker service ls | grep dns
-   docker service logs dns_dns --tail 50
+   docker service logs dns_dns-server --tail 50
    ```
 
 2. **Verify DNS records in Technitium:**
@@ -338,7 +338,7 @@ dig @<server-ip> yourdomain.com
 
 1. **Check DNS service is running:**
    ```bash
-   docker service ps dns_dns
+   docker service ps dns_dns-server
    ```
 
 2. **Verify port 53 is open:**
@@ -503,9 +503,36 @@ docker network inspect traefik-public --format '{{json .Containers}}' | \
    docker service logs reverse-proxy_traefik --since 30s 2>&1 | grep -c "no route to host"
    ```
 
+**Deeper Fix — Overlay Sandbox Veth Repair (no downtime):**
+
+If force-updates don't fix it, the overlay sandbox bridge may have veth pairs stuck in the host
+namespace (never attached to the sandbox). Symptoms: container's `eth2` shows `NO-CARRIER/DOWN`
+even in a freshly started container. Fix without restarting Docker:
+
+```bash
+# 1. Identify the overlay sandbox namespace for traefik-public
+#    (first 12 chars of network ID, prefixed with "4-")
+docker network inspect traefik-public --format '{{.Id}}'
+# e.g. v8mwtol6eu6h... → sandbox is "4-v8mwtol6eu"
+
+# 2. Attach all broken overlay veths to the sandbox bridge
+docker run --rm --privileged --pid=host --net=host -v /run/docker/netns:/netns alpine sh -c "
+apk add -q iproute2 &&
+for veth in \$(ip link | grep 'mtu 1450' | grep 'state DOWN' | grep -v 'M-DOWN' | awk -F': ' '{print \$2}' | awk -F'@' '{print \$1}'); do
+  ip link set \$veth netns /netns/4-v8mwtol6eu &&
+  nsenter --net=/netns/4-v8mwtol6eu -- ip link set \$veth master br0 &&
+  nsenter --net=/netns/4-v8mwtol6eu -- ip link set \$veth up &&
+  echo \"OK: \$veth\" || echo \"FAILED: \$veth\"
+done
+"
+
+# 3. Verify — should show 0
+docker exec \$(docker ps -q --filter name=reverse-proxy_traefik) ip neigh show | grep -c FAILED
+```
+
 **Last Resort — Docker Daemon Restart:**
 
-If force-updates don't fix it, restart Docker on the affected node:
+If the sandbox veth repair doesn't work, restart Docker on the affected node:
 ```bash
 # 1. Drain the node first to avoid split-brain
 docker node update --availability drain <node-hostname>

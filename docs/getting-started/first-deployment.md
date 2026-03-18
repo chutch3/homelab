@@ -143,7 +143,7 @@ Each application is deployed as a separate stack:
 ```bash
 # Deploy specific applications
 task ansible:deploy:stack -- -e "stack_name=homeassistant"
-task ansible:deploy:stack -- -e "stack_name=actual"
+task ansible:deploy:stack -- -e "stack_name=actual_server"
 
 # List available applications
 ls stacks/apps/
@@ -291,7 +291,7 @@ To add a new service:
          - traefik.enable=true
          - traefik.http.routers.newservice.rule=Host(`newservice.${BASE_DOMAIN}`)
          - traefik.http.routers.newservice.tls=true
-         - traefik.http.routers.newservice.tls.certresolver=letsencrypt
+         - traefik.http.routers.newservice.tls.certresolver=dns
          - traefik.http.services.newservice.loadbalancer.server.port=8080
 
    volumes:
