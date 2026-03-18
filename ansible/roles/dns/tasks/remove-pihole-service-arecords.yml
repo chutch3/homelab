@@ -1,0 +1,74 @@
+# ansible/roles/dns/tasks/remove-pihole-service-arecords.yml
+# One-off cleanup: removes incorrectly added service A records from Pi-hole.
+# Services should be CNAMEs (via dnsmasq), not A records via the API.
+---
+- name: Find all docker-compose.yml files
+  find:
+    paths: "{{ playbook_dir }}/../../stacks/apps"
+    patterns: "docker-compose.yml"
+    recurse: yes
+  register: dns_compose_files
+  delegate_to: localhost
+
+- name: Get only compose files with Traefik Host() rules
+  shell: "grep -l 'Host(' {{ item.path }}"
+  loop: "{{ dns_compose_files.files }}"
+  register: dns_traefik_compose_files
+  changed_when: false
+  failed_when: false
+  delegate_to: localhost
+  when: dns_compose_files is defined and dns_compose_files.files is defined
+
+- name: Extract Traefik Host() rules
+  shell: "grep -o 'Host(`[^`]*`)' {{ item.path }}"
+  loop: "{{ dns_traefik_compose_files.results | selectattr('rc', '==', 0) | map(attribute='item') | list }}"
+  register: dns_traefik_rules
+  changed_when: false
+  failed_when: false
+  delegate_to: localhost
+  when: dns_traefik_compose_files is defined and dns_traefik_compose_files.results is defined
+
+- name: Process and set discovered domains
+  set_fact:
+    dns_discovered_domains: >
+      {{ dns_traefik_rules.results |
+         map(attribute='stdout_lines') | flatten |
+         map('regex_search', 'Host\(`([^`]+)`\)', '\1') |
+         flatten | select('ne', '') |
+         map('regex_replace', '\$\{BASE_DOMAIN\}', base_domain) |
+         unique | list }}
+  when: dns_traefik_rules is defined and dns_traefik_rules.results is defined
+
+- name: Set manager IP
+  set_fact:
+    dns_manager_ip: "{{ hostvars[groups['managers'][0]]['ansible_host'] }}"
+  when: secondary_dns_enabled | bool and dns_discovered_domains is defined
+
+- name: Display records to be removed
+  debug:
+    msg: "Removing {{ dns_discovered_domains | length }} service A records from Pi-hole ({{ dns_manager_ip }})"
+  when: secondary_dns_enabled | bool and dns_discovered_domains is defined and dns_discovered_domains | length > 0
+
+- name: Delete service A records from Pi-hole
+  uri:
+    url: "{{ pihole_api_url }}/config/dns/hosts/{{ dns_manager_ip }}%20{{ item }}"
+    method: DELETE
+    headers:
+      sid: "{{ dns_pihole_session_id }}"
+    status_code: [200, 204, 404]
+  loop: "{{ dns_discovered_domains }}"
+  register: dns_pihole_cleanup_result
+  ignore_errors: yes
+  delegate_to: localhost
+  when:
+    - secondary_dns_enabled | bool
+    - dns_pihole_session_id is defined
+    - dns_discovered_domains is defined
+    - dns_discovered_domains | length > 0
+
+- name: Display cleanup results
+  debug:
+    msg:
+      deleted: "{{ dns_pihole_cleanup_result.results | selectattr('status', 'in', [200, 204]) | list | length }}"
+      not_found: "{{ dns_pihole_cleanup_result.results | selectattr('status', 'equalto', 404) | list | length }}"
+  when: dns_pihole_cleanup_result is defined and dns_pihole_cleanup_result.results is defined

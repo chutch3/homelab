@@ -68,6 +68,17 @@ DNS_ADMIN_PASSWORD=your_secure_dns_password
 
 # DNS forwarders (comma-separated)
 DNS_SERVER_FORWARDERS=1.1.1.1,1.0.0.1
+
+# ===========================================
+# SECONDARY DNS (Pi-hole) — OPTIONAL
+# ===========================================
+# Enable to keep a Pi-hole in sync so services resolve when the primary is down.
+# Requires Pi-hole v6.3+ (uses the REST API at http://<ip>/api).
+# IMPORTANT: Pi-hole must have app_sudo enabled to allow API writes:
+#   sudo pihole-FTL --config webserver.api.app_sudo true
+SECONDARY_DNS_ENABLED=false
+SECONDARY_DNS_IP=192.168.1.x
+PIHOLE_API_PASSWORD=your_pihole_api_password
 ```
 
 ### Service-Specific Configuration
@@ -228,6 +239,9 @@ networks:
 | `GID` | Group ID for file permissions | `1000` | Docker volume ownership |
 | `DNS_ADMIN_PASSWORD` | DNS server admin password | `admin` | DNS web interface access |
 | `DNS_SERVER_FORWARDERS` | Upstream DNS servers | `1.1.1.1,1.0.0.1` | DNS resolution |
+| `SECONDARY_DNS_ENABLED` | Enable Pi-hole secondary DNS sync | `false` | Keep Pi-hole in sync with Technitium |
+| `SECONDARY_DNS_IP` | Pi-hole IP address | _(none)_ | Required when secondary DNS is enabled |
+| `PIHOLE_API_PASSWORD` | Pi-hole web UI / API password | _(none)_ | Required when secondary DNS is enabled |
 
 ### Service Passwords
 
