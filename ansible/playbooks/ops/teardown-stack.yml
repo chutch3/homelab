@@ -8,6 +8,7 @@
     # Optional: Set to true to remove associated volumes
     remove_volumes: false
     # Optional: Set to false to preserve DNS records (default: true)
+    # Note: automatically skipped when tearing down the dns stack itself
     remove_dns: true
     # Optional: Set to false to preserve uptime monitoring (default: true)
     remove_uptime: true
@@ -83,13 +84,13 @@
       ansible.builtin.include_role:
         name: dns
         tasks_from: get-token
-      when: remove_dns | bool
+      when: remove_dns | bool and stack_name != 'dns'
 
     - name: Remove DNS records for stack
       ansible.builtin.include_role:
         name: dns
         tasks_from: remove-service-cnames
-      when: remove_dns | bool
+      when: remove_dns | bool and stack_name != 'dns'
 
     - name: Get uptime API token
       ansible.builtin.include_role:
