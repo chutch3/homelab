@@ -198,7 +198,7 @@ services:
       - traefik.enable=true
       - traefik.http.routers.service.rule=Host(`service.${BASE_DOMAIN}`)
       - traefik.http.routers.service.tls=true
-      - traefik.http.routers.service.tls.certresolver=letsencrypt
+      - traefik.http.routers.service.tls.certresolver=dns
       - traefik.http.services.service.loadbalancer.server.port=8080
 
 volumes:
