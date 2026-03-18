@@ -31,3 +31,13 @@ jobs:
               uses: python-semantic-release/python-semantic-release@v10.3.1
               with:
                   github_token: ${{ secrets.GITHUB_TOKEN }}
+
+    deploy-docs:
+        name: Deploy Documentation
+        needs: release
+        if: needs.release.outputs.released == 'true'
+        uses: ./.github/workflows/docs.yml
+        permissions:
+            contents: read
+            pages: write
+            id-token: write
