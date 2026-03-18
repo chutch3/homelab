@@ -37,7 +37,17 @@ graph LR
 ### Services
 - **`stacks/apps/`** - Each folder contains a Docker Compose file for one service
 - **`stacks/reverse-proxy/`** - Traefik handles SSL certificates and routing
-- **`stacks/dns/`** - Technitium DNS server for internal resolution
+- **`stacks/dns/`** - Technitium DNS server for internal resolution (primary)
+
+### DNS Architecture
+
+Technitium is the **primary DNS** server, deployed in Docker Swarm. It automatically registers:
+- **A records** for each cluster node (e.g. `manager.yourdomain.com → 192.168.1.10`)
+- **CNAME records** for each service discovered via Traefik `Host()` labels (e.g. `grafana.yourdomain.com → manager.yourdomain.com`)
+
+An optional **secondary DNS** (Pi-hole v6) can be kept in sync. When `SECONDARY_DNS_ENABLED=true`, every DNS registration operation (add or remove) is mirrored to Pi-hole via its REST API. Your router handles failover — if Technitium goes down, clients switch to Pi-hole and services remain accessible.
+
+See [Secondary DNS / Pi-hole Sync](../troubleshooting.md#secondary-dns--pi-hole-sync) for Pi-hole requirements and configuration.
 
 ### Storage
 

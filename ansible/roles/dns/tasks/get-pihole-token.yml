@@ -1,0 +1,23 @@
+# ansible/roles/dns/tasks/get-pihole-token.yml
+# Authenticate with Pi-hole v6 REST API
+---
+- name: Authenticate with Pi-hole API
+  ansible.builtin.uri:
+    url: "{{ pihole_api_url }}/auth"
+    method: POST
+    body_format: json
+    body:
+      password: "{{ pihole_api_password }}"
+    status_code: 200
+    return_content: yes
+  register: dns_pihole_auth_response
+  delegate_to: localhost
+
+- name: Fail if Pi-hole authentication failed
+  ansible.builtin.fail:
+    msg: "Failed to authenticate with Pi-hole API at {{ pihole_api_url }}. Response: {{ dns_pihole_auth_response.json }}"
+  when: dns_pihole_auth_response.json.session is not defined or dns_pihole_auth_response.json.session.sid is not defined
+
+- name: Set Pi-hole session ID
+  ansible.builtin.set_fact:
+    dns_pihole_session_id: "{{ dns_pihole_auth_response.json.session.sid }}"

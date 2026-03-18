@@ -179,22 +179,28 @@ tasks:
             - "{{.VENV_ANSIBLE_PLAYBOOK}} -i ansible/inventory/ ansible/playbooks/dns.yml -e \"dns_action=create_zone\" {{.CLI_ARGS}}"
 
     dns:add-machines:
-        desc: "[Step 3] Add machine A records to Technitium DNS"
+        desc: "[Step 3] Add machine A records to primary DNS (and secondary if SECONDARY_DNS_ENABLED=true)"
         dir: "{{.ROOT_DIR}}"
         cmds:
             - "{{.VENV_ANSIBLE_PLAYBOOK}} -i ansible/inventory/ ansible/playbooks/dns.yml -e \"dns_action=add_machine_records\" {{.CLI_ARGS}}"
 
     dns:add-services:
-        desc: "[Step 4] Add CNAME records for all services (with verification)"
+        desc: "[Step 4] Add CNAME records for all services (and secondary if SECONDARY_DNS_ENABLED=true)"
         dir: "{{.ROOT_DIR}}"
         cmds:
             - "{{.VENV_ANSIBLE_PLAYBOOK}} -i ansible/inventory/ ansible/playbooks/dns.yml -e \"dns_action=add_service_records\" {{.CLI_ARGS}}"
 
     dns:configure:
-        desc: "[Complete] Full Technitium DNS setup"
+        desc: "[Complete] Full DNS setup - primary + secondary (set SECONDARY_DNS_ENABLED=true to sync Pi-hole)"
         dir: "{{.ROOT_DIR}}"
         cmds:
             - "{{.VENV_ANSIBLE_PLAYBOOK}} -i ansible/inventory/ ansible/playbooks/dns.yml -e \"dns_action=configure\" {{.CLI_ARGS}}"
+
+    dns:pihole-cleanup:
+        desc: "One-off: remove incorrectly added service A records from Pi-hole (run after switching to CNAME approach)"
+        dir: "{{.ROOT_DIR}}"
+        cmds:
+            - "{{.VENV_ANSIBLE_PLAYBOOK}} -i ansible/inventory/ ansible/playbooks/dns.yml -e \"dns_action=pihole_cleanup_service_arecords\" {{.CLI_ARGS}}"
 
     configure:dns:
         desc: 'Configure DNS for all services or specific stack (usage: task ansible:configure:dns -- -e "stack_name=kolibri")'
