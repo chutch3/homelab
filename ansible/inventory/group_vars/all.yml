@@ -43,6 +43,13 @@ dns_api_url: "http://{{ hostvars[groups['managers'][0]]['ansible_host'] }}:5380/
 dns_admin_username: "admin"
 dns_admin_password: lookup('env', 'DNS_ADMIN_PASSWORD')
 
+# Secondary DNS (Pi-hole) configuration
+# Set SECONDARY_DNS_ENABLED=true and provide SECONDARY_DNS_IP + PIHOLE_API_PASSWORD to sync records
+secondary_dns_enabled: "{{ lookup('env', 'SECONDARY_DNS_ENABLED') | default('false') | bool }}"
+secondary_dns_ip: "{{ lookup('env', 'SECONDARY_DNS_IP') | default('') }}"
+pihole_api_url: "http://{{ lookup('env', 'SECONDARY_DNS_IP') | default('') }}/api"
+pihole_api_password: "{{ lookup('env', 'PIHOLE_API_PASSWORD') | default('') }}"
+
 # Uptime Kuma configuration
 uptime_kuma_api_url: "https://uptime.{{ lookup('env', 'BASE_DOMAIN') }}"
 uptime_kuma_username: "{{ lookup('env', 'UPTIME_KUMA_USERNAME') | default('admin', true) }}"

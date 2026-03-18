@@ -8,10 +8,11 @@ Common issues and solutions for your homelab deployment. This guide covers the m
 2. [Service Deployment Failures](#service-deployment-failures)
 3. [SSL Certificate Issues](#ssl-certificate-issues)
 4. [DNS Resolution Problems](#dns-resolution-problems)
-5. [Docker Swarm Networking](#docker-swarm-networking)
-6. [Authentik SSO Integration](#authentik-sso-integration)
-7. [Storage Mount Failures](#storage-mount-failures)
-8. [Database Performance Issues](#database-performance-issues)
+5. [Secondary DNS / Pi-hole Sync](#secondary-dns--pi-hole-sync)
+6. [Docker Swarm Networking](#docker-swarm-networking)
+7. [Authentik SSO Integration](#authentik-sso-integration)
+8. [Storage Mount Failures](#storage-mount-failures)
+9. [Database Performance Issues](#database-performance-issues)
 
 ---
 
@@ -365,6 +366,76 @@ dig @<server-ip> yourdomain.com
 - Use wildcard DNS records (*.yourdomain.com) for easier management
 - Monitor DNS service with Uptime Kuma
 - Document all DNS records
+
+---
+
+## Secondary DNS / Pi-hole Sync
+
+Issues specific to the optional Pi-hole secondary DNS feature (`SECONDARY_DNS_ENABLED=true`).
+
+**Prerequisites** before enabling:
+- Pi-hole v6.3+ (`sudo pihole -up` to upgrade)
+- API writes enabled: `sudo pihole-FTL --config webserver.api.app_sudo true`
+
+**Verify sync after registration:**
+```bash
+# Query Pi-hole directly
+dig @<pihole-ip> grafana.yourdomain.com
+
+# Or check Pi-hole Admin UI → Local DNS → CNAME Records
+```
+
+### Pi-hole API Returns 403 Forbidden
+
+**Symptoms:**
+```
+fatal: [localhost]: FAILED! => {"status": 403, "json": {"error": {"key": "app_sudo_disabled", ...}}}
+```
+
+**Cause:** Pi-hole's API write permission (`app_sudo`) is disabled.
+
+**Fix:**
+```bash
+ssh user@<pihole-ip> "sudo pihole-FTL --config webserver.api.app_sudo true"
+```
+
+### Connection Refused During DNS Registration
+
+**Symptoms:**
+```
+fatal: [localhost]: FAILED! => {"msg": "Connection refused"}
+```
+A few CNAMEs register successfully, then subsequent ones fail with connection refused.
+
+**Cause:** Pi-hole below v6.3 restarts its FTL resolver after every CNAME change via the API. Each restart takes ~5 seconds, during which the API is unreachable. The playbooks use `?restart=false` to prevent this, which requires v6.3+.
+
+**Fix:** Upgrade Pi-hole, then re-run DNS registration:
+```bash
+sudo pihole -up
+task ansible:dns:register
+```
+
+### Pi-hole Has A Records Instead of CNAMEs for Services
+
+**Symptoms:** Pi-hole's custom DNS list shows service hostnames (e.g. `grafana.yourdomain.com`) with IP addresses instead of CNAME targets.
+
+**Fix:** Run the cleanup task, then re-register:
+```bash
+task ansible:dns:pihole-cleanup
+task ansible:dns:register
+```
+
+### Pi-hole Not Resolving Services When Primary is Down
+
+**Symptoms:** Technitium is unreachable, but Pi-hole also fails to resolve service hostnames.
+
+**Checklist:**
+1. Check Pi-hole Admin UI → Local DNS → CNAME Records — service hostnames should be listed
+2. Confirm your router falls back to Pi-hole when Technitium is unreachable
+3. Re-run DNS registration if records are missing:
+   ```bash
+   task ansible:dns:register
+   ```
 
 ---
 

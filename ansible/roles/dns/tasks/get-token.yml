@@ -10,13 +10,13 @@
       pass: "{{ lookup('env', 'DNS_ADMIN_PASSWORD') }}"
     status_code: 200
     return_content: yes
-  register: auth_response
+  register: dns_auth_response
 
 - name: Fail if authentication failed or token not found
   fail:
-    msg: "Failed to obtain API token from Technitium DNS server. Response: {{ auth_response.json }}"
-  when: auth_response.json.token is not defined
+    msg: "Failed to obtain API token from Technitium DNS server. Response: {{ dns_auth_response.json }}"
+  when: dns_auth_response.json.token is not defined
 
 - name: Set DNS API token
   set_fact:
-    dns_api_token: "{{ auth_response.json.token }}"
+    dns_api_token: "{{ dns_auth_response.json.token }}"

@@ -77,3 +77,23 @@
     msg: "CNAME for {{ item.item }}: {{ 'Removed' if item.json.status == 'ok' else 'Not found or already removed' }}"
   loop: "{{ dns_remove_cname_result.results }}"
   when: dns_remove_cname_result is defined and dns_remove_cname_result.results is defined
+
+# =========================================================================
+# SECONDARY DNS: Remove Pi-hole CNAME Records via API
+# =========================================================================
+- name: "[SECONDARY] Remove CNAME record from Pi-hole for each discovered service"
+  ansible.builtin.uri:
+    url: "{{ pihole_api_url }}/config/dns/cnameRecords/{{ item }},{{ dns_manager_hostname | default(groups['managers'][0]) }}.{{ base_domain }},0?restart=false"
+    method: DELETE
+    headers:
+      sid: "{{ dns_pihole_session_id }}"
+    status_code: [200, 204, 404]
+  loop: "{{ dns_discovered_domains }}"
+  register: dns_pihole_remove_cname_result
+  ignore_errors: yes
+  delegate_to: localhost
+  when:
+    - secondary_dns_enabled | bool
+    - dns_pihole_session_id is defined
+    - dns_discovered_domains is defined
+    - dns_discovered_domains | length > 0

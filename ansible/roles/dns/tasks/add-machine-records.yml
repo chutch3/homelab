@@ -14,10 +14,32 @@
       ttl: "3600"
     status_code: 200
   loop: "{{ groups['all'] }}"
-  register: add_a_record_result
+  register: dns_add_a_record_result
   ignore_errors: yes
 
 - name: Display A record addition status
   debug:
     msg: "A record for {{ item.item }}.{{ base_domain }} ({{ hostvars[item.item].ansible_host }}) added/updated. Response: {{ item.json }}"
-  loop: "{{ add_a_record_result.results }}"
+  loop: "{{ dns_add_a_record_result.results }}"
+
+# =========================================================================
+# SECONDARY DNS: Pi-hole A Records
+# =========================================================================
+- name: "[SECONDARY] Add A record to Pi-hole for each machine"
+  ansible.builtin.uri:
+    url: "{{ pihole_api_url }}/config/dns/hosts/{{ hostvars[item].ansible_host }}%20{{ item }}.{{ base_domain }}"
+    method: PUT
+    headers:
+      sid: "{{ dns_pihole_session_id }}"
+    status_code: [200, 201, 400]
+  loop: "{{ groups['all'] }}"
+  register: dns_pihole_add_a_result
+  ignore_errors: yes
+  delegate_to: localhost
+  when: secondary_dns_enabled | bool and dns_pihole_session_id is defined
+
+- name: "[SECONDARY] Display Pi-hole A record status"
+  ansible.builtin.debug:
+    msg: "Pi-hole A record for {{ item.item }}.{{ base_domain }}: {{ 'Already exists' if item.status == 400 else 'Added' }}"
+  loop: "{{ dns_pihole_add_a_result.results }}"
+  when: secondary_dns_enabled | bool and dns_pihole_add_a_result is defined

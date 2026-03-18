@@ -3,6 +3,10 @@
 - name: Get API Token
   ansible.builtin.include_tasks: get-token.yml
 
+- name: Get Pi-hole API Token
+  ansible.builtin.include_tasks: get-pihole-token.yml
+  when: secondary_dns_enabled | bool
+
 - name: Perform DNS Action
   block:
     - name: Include Create Zone Task
@@ -16,6 +20,10 @@
     - name: Include Add Service CNAME Records Task
       ansible.builtin.include_tasks: add-service-cnames.yml
       when: dns_action == 'add_service_records'
+
+    - name: Include Remove Pi-hole Service A Records (cleanup) Task
+      ansible.builtin.include_tasks: remove-pihole-service-arecords.yml
+      when: dns_action == 'pihole_cleanup_service_arecords'
 
     - name: Include Configure All DNS Records Task
       when: dns_action == 'configure'

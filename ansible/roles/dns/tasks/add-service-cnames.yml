@@ -78,8 +78,27 @@
   loop: "{{ dns_add_cname_result.results }}"
 
 # =========================================================================
-# PHASE 2: Verify DNS Records
+# SECONDARY DNS: Pi-hole CNAME Records via API
 # =========================================================================
+- name: "[SECONDARY] Add CNAME record to Pi-hole for each discovered service"
+  ansible.builtin.uri:
+    url: "{{ pihole_api_url }}/config/dns/cnameRecords/{{ item }},{{ dns_manager_hostname }}.{{ base_domain }},0?restart=false"
+    method: PUT
+    headers:
+      sid: "{{ dns_pihole_session_id }}"
+    status_code: [200, 201, 400]
+  loop: "{{ dns_discovered_domains }}"
+  register: dns_pihole_add_cname_result
+  ignore_errors: yes
+  delegate_to: localhost
+  when: secondary_dns_enabled | bool and dns_pihole_session_id is defined
+
+- name: "[SECONDARY] Display Pi-hole CNAME status"
+  ansible.builtin.debug:
+    msg: "Pi-hole CNAME for {{ item.item }}: {{ 'Already exists' if item.status == 400 else 'Added' }}"
+  loop: "{{ dns_pihole_add_cname_result.results }}"
+  when: secondary_dns_enabled | bool and dns_pihole_add_cname_result is defined
+
 - name: "[VERIFY] Wait for DNS propagation"
   ansible.builtin.pause:
     seconds: 3
@@ -146,18 +165,12 @@
 
 - name: "[SUMMARY] Display final DNS summary"
   ansible.builtin.debug:
-    msg: |
-
-      ╔══════════════════════════════════════════════════════════════╗
-      ║          DNS REGISTRATION COMPLETE
-      ╚══════════════════════════════════════════════════════════════╝
-
-      Services Registered: {{ dns_discovered_domains | length }}
-      DNS Verified:        {{ (dns_discovered_domains | length) - (dns_failed_records | length) }}
-      API Verified:        {{ dns_api_verification.results | selectattr('json.status', 'equalto', 'ok') | list | length }}
-
-      {% if dns_failed_records | length > 0 %}
-      ⚠ WARNINGS: {{ dns_failed_records | length }} record(s) failed verification
-      {% else %}
-      ✅ All DNS records created and verified
-      {% endif %}
+    msg:
+      status: "{{ 'failed' if dns_failed_records | length > 0 else 'ok' }}"
+      services_registered: "{{ dns_discovered_domains | length }}"
+      dns_verified: "{{ (dns_discovered_domains | length) - (dns_failed_records | length) }}"
+      api_verified: "{{ dns_api_verification.results | selectattr('json.status', 'equalto', 'ok') | list | length }}"
+      failed_records: "{{ dns_failed_records }}"
+      secondary_dns_synced: "{{ secondary_dns_enabled | bool }}"
+      secondary_dns_added: "{{ dns_pihole_add_cname_result.results | selectattr('status', 'in', [200, 201]) | list | length if secondary_dns_enabled | bool and dns_pihole_add_cname_result is defined else 'n/a' }}"
+      secondary_dns_already_existed: "{{ dns_pihole_add_cname_result.results | selectattr('status', 'equalto', 400) | list | length if secondary_dns_enabled | bool and dns_pihole_add_cname_result is defined else 'n/a' }}"
