@@ -1,0 +1,29 @@
+---
+# ansible/roles/swarm/tasks/ensure-networks.yml
+# Ensures required overlay networks exist before deploying stacks.
+# Safe to run on an already-configured cluster — idempotent.
+
+- name: Ensure traefik-public overlay network exists
+  community.docker.docker_network:
+    name: traefik-public
+    driver: overlay
+    attachable: yes
+    state: present
+  delegate_to: "{{ groups['managers'][0] }}"
+  run_once: true
+  register: swarm_traefik_network
+
+- name: Verify traefik-public network is available
+  community.docker.docker_network_info:
+    name: traefik-public
+  delegate_to: "{{ groups['managers'][0] }}"
+  run_once: true
+  register: swarm_traefik_network_info
+  until: swarm_traefik_network_info.network is defined
+  retries: 5
+  delay: 2
+
+- name: Report network status
+  ansible.builtin.debug:
+    msg: "{{ '✓ traefik-public network created' if swarm_traefik_network.changed else '✓ traefik-public network already exists' }}"
+  run_once: true

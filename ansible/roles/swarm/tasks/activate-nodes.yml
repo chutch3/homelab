@@ -1,0 +1,46 @@
+---
+# ansible/roles/swarm/tasks/activate-nodes.yml
+# Checks for nodes in Drain availability and sets them back to Active.
+# Called from repair-storage.yml before redeploying stacks.
+
+- name: Get all swarm node availability states
+  community.docker.docker_node_info:
+  delegate_to: "{{ groups['managers'][0] }}"
+  run_once: true
+  register: swarm_all_nodes
+
+- name: Identify drained nodes
+  ansible.builtin.set_fact:
+    swarm_drained_nodes: "{{ swarm_all_nodes.nodes | selectattr('Spec.Availability', 'equalto', 'drain') | map(attribute='Description.Hostname') | list }}"
+  run_once: true
+
+- name: Report drained nodes
+  ansible.builtin.debug:
+    msg: "Found {{ swarm_drained_nodes | length }} drained node(s): {{ swarm_drained_nodes | join(', ') }}"
+  run_once: true
+  when: swarm_drained_nodes | length > 0
+
+- name: Set drained nodes back to active
+  community.docker.docker_node:
+    hostname: "{{ item }}"
+    availability: active
+  loop: "{{ swarm_drained_nodes }}"
+  delegate_to: "{{ groups['managers'][0] }}"
+  run_once: true
+  when: swarm_drained_nodes | length > 0
+
+- name: Verify all nodes are active
+  community.docker.docker_node_info:
+  delegate_to: "{{ groups['managers'][0] }}"
+  run_once: true
+  register: swarm_nodes_after
+  until: swarm_nodes_after.nodes | selectattr('Spec.Availability', 'equalto', 'drain') | list | length == 0
+  retries: 10
+  delay: 3
+  when: swarm_drained_nodes | length > 0
+
+- name: Report activation status
+  ansible.builtin.debug:
+    msg: "✓ All nodes are active"
+  run_once: true
+  when: swarm_drained_nodes | length > 0
