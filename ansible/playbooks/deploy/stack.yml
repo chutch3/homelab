@@ -95,6 +95,14 @@
             tasks_from: get-token
         when: should_register_dns | default(false)
 
+      - name: Get Pi-hole API token
+        ansible.builtin.include_role:
+            name: dns
+            tasks_from: get-pihole-token
+        when:
+            - should_register_dns | default(false)
+            - hostvars[groups['managers'][0]].secondary_dns_enabled | default(false) | bool
+
       - name: Register DNS for new stack
         ansible.builtin.include_role:
             name: dns
