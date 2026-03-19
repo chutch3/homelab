@@ -3,12 +3,29 @@ server:
   grpc_listen_port: 0
 
 positions:
-  filename: /tmp/positions.yaml
+  filename: /run/promtail/positions.yaml
 
 clients:
   - url: http://loki:3100/loki/api/v1/push
 
 scrape_configs:
+  # Scrape journalctl logs
+  - job_name: system_journal
+    journal:
+      max_age: 12h
+      path: /var/log/journal
+      labels:
+        job: system_journal
+    relabel_configs:
+      - source_labels: ['__journal__systemd_unit']
+        target_label: 'unit'
+      - source_labels: ['__journal__hostname']
+        target_label: 'hostname'
+      - source_labels: ['__journal__hostname']
+        target_label: 'instance' # Match Prometheus instance label
+      - source_labels: ['__journal_syslog_identifier']
+        target_label: 'syslog_identifier'
+
   # Scrape Docker container logs (filter for Traefik only)
   - job_name: traefik
     docker_sd_configs:
