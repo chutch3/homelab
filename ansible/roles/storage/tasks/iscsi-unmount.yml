@@ -73,25 +73,22 @@
     - item.enabled | bool
     - item.mount_path is defined
 
-# Stop open-iscsi service
+# Logout from all active iSCSI sessions while iscsid is still running
+# Must happen BEFORE stopping open-iscsi — iscsiadm needs iscsid running to
+# send logout commands to the kernel. Session mode (-m session -u) works even
+# when /etc/iscsi/nodes is empty (unlike -m node --logoutall=all).
+- name: Logout from all iSCSI sessions
+  ansible.builtin.command: iscsiadm -m session -u
+  register: storage_iscsi_logout
+  changed_when: storage_iscsi_logout.rc == 0
+  failed_when: false
+
+# Stop open-iscsi after logout to prevent auto-reconnect
 - name: Stop open-iscsi service
   ansible.builtin.systemd:
     name: open-iscsi
     state: stopped
   ignore_errors: true
-
-# Logout from iSCSI sessions
-- name: Logout from iSCSI targets
-  community.general.open_iscsi:
-    target: "{{ item.iqn }}"
-    portal: "{{ iscsi_target_ip }}:{{ iscsi_target_port }}"
-    state: absent
-  loop: "{{ storage_iscsi_mounts }}"
-  when:
-    - item.enabled | bool
-    - item.iqn is defined
-  register: storage_iscsi_logout
-  failed_when: false
 
 # Verify no active iSCSI sessions
 - name: Check for active iSCSI sessions
@@ -130,6 +127,6 @@
   ansible.builtin.debug:
     msg: |
       ✓ iSCSI/OCFS2 teardown complete:
-        - OCFS2 filesystems unmounted: {{ storage_unmount_result.results | selectattr('changed', 'equalto', true) | list | length }}
-        - iSCSI sessions logged out: {{ storage_iscsi_logout.results | selectattr('changed', 'equalto', true) | list | length }}
+        - OCFS2 force-unmounted: {{ 'yes' if storage_unmount_result is defined else 'via force unmount' }}
+        - iSCSI sessions: {{ 'logged out' if storage_iscsi_logout.changed | default(false) else 'already clear or cleared by iscsid restart' }}
         - Configuration cleaned

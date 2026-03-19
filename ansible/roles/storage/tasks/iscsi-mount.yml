@@ -50,6 +50,16 @@
     - item.enabled | bool
     - item.iqn is defined
 
+# Start OCFS2 cluster services before mounting
+- name: Start OCFS2 cluster services
+  ansible.builtin.systemd:
+    name: "{{ item }}"
+    state: started
+    enabled: yes
+  loop:
+    - o2cb
+    - ocfs2
+
 # Mount OCFS2 filesystems
 - name: Mount OCFS2 filesystems
   ansible.posix.mount:
