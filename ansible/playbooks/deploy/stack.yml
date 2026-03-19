@@ -86,8 +86,29 @@
 
       - name: Set uptime registration flag
         ansible.builtin.set_fact:
-            should_register_uptime: "{{ (register_uptime == 'auto' and is_new_stack) or (register_uptime | bool) }}"
+            should_register_uptime: "{{ ((register_uptime == 'auto' and is_new_stack) or (register_uptime | bool)) and stack_name != 'reverse-proxy' }}"
         when: register_uptime
+
+      - name: Wait for DNS server to initialize (dns stack only)
+        ansible.builtin.pause:
+            seconds: 20
+        when: stack_name == 'dns' and should_register_dns | default(false)
+
+      - name: Wait for DNS API to become available (dns stack only)
+        ansible.builtin.uri:
+            url: "{{ dns_api_url }}/user/login"
+            method: POST
+            body_format: form-urlencoded
+            body:
+                user: "{{ dns_admin_username }}"
+                pass: "{{ lookup('env', 'DNS_ADMIN_PASSWORD') }}"
+            status_code: 200
+        register: dns_api_ready_check
+        until: dns_api_ready_check.status | default(-1) == 200
+        retries: 12
+        delay: 5
+        delegate_to: localhost
+        when: stack_name == 'dns' and should_register_dns | default(false)
 
       - name: Get DNS API token
         ansible.builtin.include_role:
