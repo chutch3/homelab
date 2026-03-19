@@ -1,32 +1,65 @@
 # ansible/roles/gpu/tasks/main.yml
 ---
 - name: Check for NVIDIA GPU
-  shell: lspci | grep -i nvidia
+  ansible.builtin.shell: lspci | grep -i nvidia
   register: gpu_nvidia_check
   changed_when: false
   failed_when: false
 
 - name: Set GPU present fact
-  set_fact:
+  ansible.builtin.set_fact:
     gpu_present: "{{ gpu_nvidia_check.rc == 0 }}"
 
 - name: Display GPU detection result
-  debug:
+  ansible.builtin.debug:
     msg: "NVIDIA GPU {{ 'detected' if gpu_present else 'not detected' }}"
 
 - name: Skip GPU setup if no GPU present
-  meta: end_play
+  ansible.builtin.meta: end_play
   when: not gpu_present
 
+- name: Check nvidia-smi status
+  ansible.builtin.command: nvidia-smi
+  register: gpu_smi_check
+  changed_when: false
+  failed_when: false
+
+- name: Handle NVIDIA driver mismatch (requires reboot)
+  when: gpu_smi_check.rc != 0 and "Driver/library version mismatch" in gpu_smi_check.stderr
+  block:
+    - name: Warn about NVIDIA driver mismatch
+      ansible.builtin.debug:
+        msg: "⚠ WARNING: nvidia-smi failed on {{ inventory_hostname }} due to driver mismatch. Rebooting node to resolve..."
+
+    - name: Reboot node to resolve driver mismatch
+      ansible.builtin.reboot:
+        msg: "Rebooting to resolve NVIDIA driver version mismatch"
+        reboot_timeout: 600
+
+    - name: Re-check nvidia-smi status after reboot
+      ansible.builtin.command: nvidia-smi
+      register: gpu_smi_recheck
+      changed_when: false
+      failed_when: true
+
+    - name: Update smi check fact
+      ansible.builtin.set_fact:
+        gpu_smi_check: "{{ gpu_smi_recheck }}"
+
+- name: Warn about other NVIDIA failures
+  ansible.builtin.debug:
+    msg: "⚠ WARNING: nvidia-smi failed on {{ inventory_hostname }}. Missing drivers or hardware issue."
+  when: gpu_smi_check.rc != 0
+
 - name: Download and install NVIDIA Container Toolkit GPG key
-  shell: |
+  ansible.builtin.shell: |
     curl -fsSL https://nvidia.github.io/libnvidia-container/gpgkey | \
       gpg --dearmor -o /usr/share/keyrings/nvidia-container-toolkit-keyring.gpg
   args:
     creates: /usr/share/keyrings/nvidia-container-toolkit-keyring.gpg
 
 - name: Add NVIDIA Container Toolkit repository
-  shell: |
+  ansible.builtin.shell: |
     curl -s -L https://nvidia.github.io/libnvidia-container/stable/deb/nvidia-container-toolkit.list | \
     sed 's#deb https://#deb [signed-by=/usr/share/keyrings/nvidia-container-toolkit-keyring.gpg] https://#g' | \
     tee /etc/apt/sources.list.d/nvidia-container-toolkit.list
@@ -34,81 +67,89 @@
     creates: /etc/apt/sources.list.d/nvidia-container-toolkit.list
 
 - name: Install NVIDIA Container Toolkit
-  apt:
+  ansible.builtin.apt:
     name: nvidia-container-toolkit
     state: present
     update_cache: yes
 
-- name: Check if NVIDIA runtime is already configured
-  shell: grep -q '"nvidia"' /etc/docker/daemon.json || echo "not_configured"
-  register: gpu_nvidia_runtime_check
-  changed_when: false
-  failed_when: false
-
 - name: Configure Docker for NVIDIA runtime
-  command: nvidia-ctk runtime configure --runtime=docker
+  ansible.builtin.command: nvidia-ctk runtime configure --runtime=docker
   notify: restart docker
-  when: gpu_nvidia_runtime_check.stdout == "not_configured"
+  register: gpu_runtime_config
+  changed_when: "'Successfully configured' in gpu_runtime_config.stdout"
+
+- name: Generate CDI configuration for NVIDIA
+  ansible.builtin.command: nvidia-ctk cdi generate --output=/etc/cdi/nvidia.yaml
+  args:
+    creates: /etc/cdi/nvidia.yaml
+  when: gpu_smi_check.rc == 0
 
 - name: Get GPU UUIDs for Swarm generic resources
-  shell: |
+  ansible.builtin.shell: |
     nvidia-smi -L | grep -oP 'UUID: \K[^)]+' | awk '{print "NVIDIA-GPU="$1}' | paste -sd ','
   register: gpu_uuids
   changed_when: false
+  when: gpu_smi_check.rc == 0
 
 - name: Display detected GPU UUIDs
-  debug:
-    msg: "Detected GPUs: {{ gpu_uuids.stdout }}"
+  ansible.builtin.debug:
+    msg: "Detected GPUs: {{ gpu_uuids.stdout | default('None/Error') }}"
 
 - name: Read current Docker daemon.json
-  slurp:
+  ansible.builtin.slurp:
     src: /etc/docker/daemon.json
   register: gpu_daemon_json_content
   failed_when: false
 
 - name: Parse current daemon.json or create new
-  set_fact:
-    gpu_daemon_json: "{{ gpu_daemon_json_content.content | b64decode | from_json if gpu_daemon_json_content.content is defined else {} }}"
+  ansible.builtin.set_fact:
+    gpu_daemon_json: "{{ gpu_daemon_json_content.content | b64decode | from_json if (gpu_daemon_json_content.content is defined and gpu_daemon_json_content.content | b64decode | length > 0) else {} }}"
 
 - name: Add generic resources to daemon.json
-  set_fact:
+  ansible.builtin.set_fact:
     gpu_daemon_json: "{{ gpu_daemon_json | combine({'node-generic-resources': gpu_uuids.stdout.split(',')}, recursive=true) }}"
-  when: gpu_uuids.stdout | length > 0
+  when:
+    - gpu_smi_check.rc == 0
+    - gpu_uuids.stdout | length > 0
 
 - name: Ensure nvidia runtime is set as default
-  set_fact:
+  ansible.builtin.set_fact:
     gpu_daemon_json: "{{ gpu_daemon_json | combine({'default-runtime': 'nvidia'}, recursive=true) }}"
 
 - name: Write updated daemon.json
-  copy:
+  ansible.builtin.copy:
     content: "{{ gpu_daemon_json | to_nice_json }}\n"
     dest: /etc/docker/daemon.json
     mode: '0644'
   notify: restart docker
 
 - name: Configure NVIDIA Container Runtime for Swarm
-  lineinfile:
+  ansible.builtin.lineinfile:
     path: /etc/nvidia-container-runtime/config.toml
     regexp: '^#?\s*swarm-resource\s*='
     line: 'swarm-resource = "DOCKER_RESOURCE_NVIDIA-GPU"'
     state: present
+    create: yes
   notify: restart docker
 
 - name: Flush handlers to restart Docker
-  meta: flush_handlers
+  ansible.builtin.meta: flush_handlers
 
 - name: Test GPU in container
-  command: >
+  ansible.builtin.command: >
     docker run --rm --gpus all
     nvidia/cuda:12.0.0-base-ubuntu22.04
     nvidia-smi
   changed_when: false
   register: gpu_test
-  when: gpu_nvidia_runtime_check.stdout == "not_configured"
+  when:
+    - gpu_smi_check.rc == 0
+    - gpu_runtime_config.changed
 
 - name: Display GPU test result
-  debug:
+  ansible.builtin.debug:
     msg: "GPU test successful"
   when:
-    - gpu_nvidia_runtime_check.stdout == "not_configured"
+    - gpu_runtime_config.changed
+    - gpu_test.rc is defined
     - gpu_test.rc == 0
