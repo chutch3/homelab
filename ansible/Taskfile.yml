@@ -333,6 +333,13 @@ tasks:
         cmds:
             - "{{.VENV_ANSIBLE_PLAYBOOK}} -i ansible/inventory/ ansible/playbooks/ops/ocfs2-umount.yml {{.CLI_ARGS}}"
 
+    storage:repair:
+        desc: "Repair OCFS2 storage: stop Docker, unmount, fsck, remount, restart Docker on all nodes"
+        dir: "{{.ROOT_DIR}}"
+        interactive: true
+        cmds:
+            - "{{.VENV_ANSIBLE_PLAYBOOK}} --become -i ansible/inventory/ ansible/playbooks/ops/repair-storage.yml {{.CLI_ARGS}}"
+
     nodes:shutdown:
         desc: "Shut down cluster nodes (usage: task ansible:nodes:shutdown -- <group|all>)"
         dir: "{{.ROOT_DIR}}"

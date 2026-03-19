@@ -1,0 +1,160 @@
+# ansible/playbooks/ops/repair-storage.yml
+# Coordinated OCFS2 storage repair across all cluster nodes.
+#
+# USE WHEN: iSCSI volumes fail to mount due to OCFS2 journal inconsistencies
+# (typically after a node crash or NAS I/O failure).
+#
+# What it does:
+#   1. Stops Docker on all nodes (releases all OCFS2 volume mounts)
+#   2. Unmounts all OCFS2 filesystems and stops o2cb on all nodes
+#   3. Runs fsck.ocfs2 on all volumes from the manager (run_once)
+#   4. Restarts o2cb and remounts on all nodes
+#   5. Restarts Docker on all nodes
+#
+# Usage:
+#   task ansible:run -- ansible/playbooks/ops/repair-storage.yml
+#   task ansible:run -- ansible/playbooks/ops/repair-storage.yml -e "fsck_force=false"
+---
+# PHASE 1: Stop Docker on ALL nodes simultaneously before touching OCFS2
+- name: "[PHASE 1] Stop Docker on all nodes"
+  hosts: all
+  become: yes
+  gather_facts: false
+
+  vars:
+    fsck_force: true
+
+  tasks:
+    - name: "[PHASE 1] Stop Docker to release all volume mounts"
+      ansible.builtin.systemd:
+        name: docker
+        state: stopped
+      ignore_errors: yes
+
+    - name: "[PHASE 1] Wait for Docker to fully stop"
+      ansible.builtin.pause:
+        seconds: 5
+
+# PHASE 2: Unmount OCFS2 on ALL nodes simultaneously
+- name: "[PHASE 2] Unmount OCFS2 and stop cluster services on all nodes"
+  hosts: all
+  become: yes
+  gather_facts: false
+
+  vars:
+    fsck_force: true
+
+  tasks:
+    - name: "[PHASE 2] Unmount all OCFS2 filesystems and stop cluster services"
+      ansible.builtin.include_role:
+        name: storage
+        tasks_from: iscsi-unmount
+
+# Run fsck from the manager only, after all nodes are unmounted
+- name: Run fsck on all iSCSI volumes from manager
+  hosts: managers
+  become: yes
+  gather_facts: false
+
+  vars:
+    fsck_force: true
+
+  tasks:
+    - name: "[PHASE 3] Login to iSCSI targets and wait for block devices"
+      ansible.builtin.include_role:
+        name: storage
+        tasks_from: iscsi-login
+
+    - name: "[PHASE 3] Define iSCSI devices to check"
+      ansible.builtin.set_fact:
+        storage_fsck_devices:
+          - device: "/dev/disk/by-path/ip-{{ iscsi_target_ip }}:{{ iscsi_target_port }}-iscsi-{{ iscsi_target_iqn }}-lun-1"
+            label: "media-apps"
+            enabled: "{{ iscsi_enabled | default(false) }}"
+          - device: "/dev/disk/by-path/ip-{{ iscsi_target_ip }}:{{ iscsi_target_port }}-iscsi-{{ iscsi_app_data_iqn }}-lun-1"
+            label: "app-data"
+            enabled: "{{ iscsi_app_data_enabled | default(false) }}"
+          - device: "/dev/disk/by-path/ip-{{ iscsi_target_ip }}:{{ iscsi_target_port }}-iscsi-{{ iscsi_cache_iqn }}-lun-1"
+            label: "cache"
+            enabled: "{{ iscsi_cache_enabled | default(false) }}"
+
+    - name: "[PHASE 3] Run fsck.ocfs2 on each enabled volume"
+      ansible.builtin.command: >
+        fsck.ocfs2 -f -F -y {{ item.device }}
+      loop: "{{ storage_fsck_devices }}"
+      when:
+        - item.enabled | bool
+        - fsck_force | bool
+      register: storage_fsck_result
+      failed_when: false
+      changed_when: true
+
+    - name: "[PHASE 3] Display fsck results"
+      ansible.builtin.debug:
+        msg: "fsck {{ item.item.label }}: {{ 'PASSED' if item.rc == 0 else 'FAILED (rc=' + (item.rc | string) + ')' }}"
+      loop: "{{ storage_fsck_result.results }}"
+      when:
+        - fsck_force | bool
+        - storage_fsck_result is defined
+        - storage_fsck_result.results is defined
+        - item.rc is defined
+
+    - name: "[PHASE 3] Fail if any fsck did not pass"
+      ansible.builtin.fail:
+        msg: "fsck.ocfs2 failed for {{ item.item.label }} — do not remount until this is resolved"
+      loop: "{{ storage_fsck_result.results }}"
+      when:
+        - fsck_force | bool
+        - storage_fsck_result is defined
+        - storage_fsck_result.results is defined
+        - item.rc is defined
+        - item.rc != 0
+
+# Remount and restart Docker on all nodes
+- name: Remount OCFS2 and restart Docker on all nodes
+  hosts: all
+  become: yes
+  gather_facts: true
+  gather_subset: ["min"]
+  # gather_facts needed for ansible_date_time used in iscsi-mount cluster test
+
+  tasks:
+    # =========================================================================
+    # PHASE 4: Restart o2cb and remount (reuse existing task)
+    # =========================================================================
+    - name: "[PHASE 4] Restart o2cb cluster service"
+      ansible.builtin.systemd:
+        name: o2cb
+        state: restarted
+
+    - name: "[PHASE 4] Wait for o2cb to be ready"
+      ansible.builtin.pause:
+        seconds: 5
+
+    - name: "[PHASE 4] Remount all OCFS2 filesystems"
+      ansible.builtin.include_role:
+        name: storage
+        tasks_from: iscsi-mount
+
+    # =========================================================================
+    # PHASE 5: Restart Docker
+    # =========================================================================
+    - name: "[PHASE 5] Start Docker"
+      ansible.builtin.systemd:
+        name: docker
+        state: started
+
+    - name: "[PHASE 5] Wait for Docker to be ready"
+      ansible.builtin.command: docker info
+      register: storage_docker_ready
+      until: storage_docker_ready.rc == 0
+      retries: 10
+      delay: 3
+      changed_when: false
+
+    - name: "[PHASE 5] Summary"
+      ansible.builtin.debug:
+        msg: |
+          ✅ Storage repair complete on {{ inventory_hostname }}
+             - OCFS2 filesystems remounted
+             - Docker restarted
