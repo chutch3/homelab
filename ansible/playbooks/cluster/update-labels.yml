@@ -3,6 +3,7 @@
 - name: Update Docker Swarm node labels from inventory
   hosts: managers
   gather_facts: no
+  tags: [labels]
 
   tasks:
     - name: Check if swarm is active
