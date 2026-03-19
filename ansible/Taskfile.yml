@@ -74,13 +74,13 @@ tasks:
 
     # Ansible Ad-hoc command
     cmd:
-        desc: "Run ad-hoc command on the giant node"
+        desc: "Run ad-hoc ansible command on all nodes (or HOST=<pattern>). Usage: task ansible:cmd -- -m shell -a 'uptime'"
         dir: "{{.ROOT_DIR}}"
         interactive: true
         cmds:
-            - "{{.VENV_ANSIBLE}} -i ansible/inventory/ {{ .HOST }} -m shell -a {{ .CLI_ARGS | q }}"
+            - "{{.VENV_ANSIBLE}} -i ansible/inventory/ {{ .HOST }} {{.CLI_ARGS}}"
         vars:
-            HOST: "{{ .HOST | default all }}"
+            HOST: '{{ .HOST | default "all" }}'
 
     # Ansible Show inventory
     inventory:
