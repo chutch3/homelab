@@ -96,8 +96,10 @@
 - name: "[SECONDARY] Display Pi-hole CNAME status"
   ansible.builtin.debug:
     msg: "Pi-hole CNAME for {{ item.item }}: {{ 'Already exists' if item.status == 400 else 'Added' }}"
-  loop: "{{ dns_pihole_add_cname_result.results }}"
-  when: secondary_dns_enabled | bool and dns_pihole_add_cname_result is defined
+  loop: "{{ dns_pihole_add_cname_result.results | default([]) | selectattr('status', 'defined') | list }}"
+  when:
+    - secondary_dns_enabled | bool
+    - dns_pihole_add_cname_result.results is defined
 
 - name: "[VERIFY] Wait for DNS propagation"
   ansible.builtin.pause:
@@ -172,5 +174,5 @@
       api_verified: "{{ dns_api_verification.results | selectattr('json.status', 'equalto', 'ok') | list | length }}"
       failed_records: "{{ dns_failed_records }}"
       secondary_dns_synced: "{{ secondary_dns_enabled | bool }}"
-      secondary_dns_added: "{{ dns_pihole_add_cname_result.results | selectattr('status', 'in', [200, 201]) | list | length if secondary_dns_enabled | bool and dns_pihole_add_cname_result is defined else 'n/a' }}"
-      secondary_dns_already_existed: "{{ dns_pihole_add_cname_result.results | selectattr('status', 'equalto', 400) | list | length if secondary_dns_enabled | bool and dns_pihole_add_cname_result is defined else 'n/a' }}"
+      secondary_dns_added: "{{ dns_pihole_add_cname_result.results | default([]) | selectattr('status', 'defined') | selectattr('status', 'in', [200, 201]) | list | length if (secondary_dns_enabled | bool and dns_pihole_add_cname_result.results is defined) else 'n/a' }}"
+      secondary_dns_already_existed: "{{ dns_pihole_add_cname_result.results | default([]) | selectattr('status', 'defined') | selectattr('status', 'equalto', 400) | list | length if (secondary_dns_enabled | bool and dns_pihole_add_cname_result.results is defined) else 'n/a' }}"
