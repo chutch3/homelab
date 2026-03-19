@@ -1,0 +1,136 @@
+---
+# ansible/playbooks/cluster.yml
+# Full idempotent cluster setup — safe to run on an already-running cluster or a fresh one.
+# Each phase is tagged; use --tags <phase> to run only that phase.
+#
+# Phases:
+#   init    — Verify Docker, initialize swarm on manager (skipped if already active)
+#   join    — Join worker nodes to swarm, verify Ready from manager (skipped if already joined)
+#   labels  — Apply node labels from inventory
+#   storage — Mount iSCSI/OCFS2 on all nodes (skipped if already mounted)
+#   deploy  — Activate drained nodes, ensure overlay networks, deploy all stacks
+#
+# Usage:
+#   task ansible:deploy               # full idempotent deploy
+#   task ansible:deploy:services      # redeploy stacks only
+
+# PHASE 1: Initialize Docker Swarm on manager if not already active
+- name: Initialize Docker Swarm if needed
+  hosts: managers
+  become: yes
+  gather_facts: false
+  tags: [init]
+
+  tasks:
+    - name: Verify Docker is running
+      community.docker.docker_host_info:
+      register: docker_info
+      failed_when: docker_info.host_info is not defined
+
+    - name: Check current swarm state
+      community.docker.docker_swarm_info:
+      register: swarm_info
+      failed_when: false
+
+    - name: Initialize Docker Swarm
+      community.docker.docker_swarm:
+        state: present
+        advertise_addr: "{{ ansible_host }}"
+      when: not swarm_info.docker_swarm_active | default(false)
+      register: swarm_init
+
+    - name: Wait for swarm to stabilize
+      ansible.builtin.pause:
+        seconds: 3
+      when: swarm_init.changed | default(false)
+
+    - name: Get worker join token
+      community.docker.docker_swarm_info:
+      register: swarm_tokens
+
+    - name: Expose token and manager IP for workers
+      ansible.builtin.set_fact:
+        swarm_worker_token: "{{ swarm_tokens.swarm_facts.JoinTokens.Worker }}"
+        swarm_manager_ip: "{{ ansible_host }}"
+
+# PHASE 2: Join workers if not already in swarm
+# Note: depends on facts set by the init phase — always run init before join
+- name: Join worker nodes if needed
+  hosts: workers
+  become: yes
+  gather_facts: false
+  tags: [join]
+
+  tasks:
+    - name: Ensure docker Python SDK is installed
+      ansible.builtin.apt:
+        name: python3-docker
+        state: present
+
+    - name: Check current swarm state
+      community.docker.docker_swarm_info:
+      register: swarm_info
+      failed_when: false
+
+    - name: Join swarm as worker
+      community.docker.docker_swarm:
+        state: join
+        advertise_addr: "{{ ansible_host }}"
+        join_token: "{{ hostvars[groups['managers'][0]].swarm_worker_token }}"
+        remote_addrs:
+          - "{{ hostvars[groups['managers'][0]].swarm_manager_ip }}:2377"
+      when: not swarm_info.docker_swarm_active | default(false)
+      register: swarm_join
+
+    - name: Wait for node to stabilize after joining
+      ansible.builtin.pause:
+        seconds: 5
+      when: swarm_join.changed | default(false)
+
+    - name: Verify node is visible and Ready from manager
+      community.docker.docker_node_info:
+        name: "{{ inventory_hostname }}"
+      delegate_to: "{{ groups['managers'][0] }}"
+      register: node_info
+      until: node_info.nodes | default([]) | length > 0 and node_info.nodes[0].Status.State == 'ready'
+      retries: 10
+      delay: 3
+      when: swarm_join.changed | default(false)
+
+# PHASE 3: Apply node labels from inventory
+- name: Apply node labels from inventory
+  ansible.builtin.import_playbook: cluster/update-labels.yml
+
+# PHASE 4: Mount iSCSI/OCFS2 storage on all nodes if needed
+- name: Mount storage if needed
+  hosts: all
+  become: yes
+  gather_facts: true
+  gather_subset: ["min"]
+  tags: [storage]
+
+  tasks:
+    - name: Mount iSCSI/OCFS2 filesystems
+      ansible.builtin.include_role:
+        name: storage
+        tasks_from: iscsi-mount
+      when: iscsi_enabled | default(false) or iscsi_app_data_enabled | default(false) or iscsi_cache_enabled | default(false)
+
+# PHASE 5: Activate any drained nodes before deploying
+# Nodes left in 'drain' state (e.g., after a storage repair) won't receive
+# new tasks — this ensures all nodes are active before stack deployment.
+- name: Activate any drained nodes
+  hosts: managers
+  become: yes
+  gather_facts: false
+  tags: [deploy]
+
+  tasks:
+    - name: Activate drained nodes
+      ansible.builtin.include_role:
+        name: swarm
+        tasks_from: activate-nodes
+
+# PHASE 6: Deploy all Swarm stacks
+- name: Deploy all Swarm stacks
+  ansible.builtin.import_playbook: deploy/stacks.yml
