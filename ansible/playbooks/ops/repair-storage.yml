@@ -5,27 +5,39 @@
 # (typically after a node crash or NAS I/O failure).
 #
 # What it does:
-#   1. Stops Docker on all nodes (releases all OCFS2 volume mounts)
+#   0. Gracefully removes all Swarm stacks (lets containers stop cleanly)
+#   1. Stops Docker on all nodes (mounts should now be free)
 #   2. Unmounts all OCFS2 filesystems and stops o2cb on all nodes
 #   3. Runs fsck.ocfs2 on all volumes from the manager (run_once)
 #   4. Restarts o2cb and remounts on all nodes
 #   5. Restarts Docker on all nodes
+#   6. Redeploys all Swarm stacks
 #
 # Usage:
-#   task ansible:run -- ansible/playbooks/ops/repair-storage.yml
-#   task ansible:run -- ansible/playbooks/ops/repair-storage.yml -e "fsck_force=false"
+#   task ansible:storage:repair
+#   task ansible:storage:repair -- -e "fsck_force=false"
 ---
-# PHASE 1: Stop Docker on ALL nodes simultaneously before touching OCFS2
+# PHASE 0: Gracefully remove all Swarm stacks from manager
+# This lets containers shut down cleanly and release OCFS2 volume mounts
+- name: "[PHASE 0] Remove all Docker Swarm stacks"
+  hosts: managers
+  become: yes
+  gather_facts: false
+
+  tasks:
+    - name: "[PHASE 0] Remove all Docker Swarm stacks"
+      ansible.builtin.include_role:
+        name: swarm
+        tasks_from: remove-stacks
+
+# PHASE 1: Stop Docker on ALL nodes simultaneously
 - name: "[PHASE 1] Stop Docker on all nodes"
   hosts: all
   become: yes
   gather_facts: false
 
-  vars:
-    fsck_force: true
-
   tasks:
-    - name: "[PHASE 1] Stop Docker to release all volume mounts"
+    - name: "[PHASE 1] Stop Docker daemon"
       ansible.builtin.systemd:
         name: docker
         state: stopped
@@ -41,17 +53,14 @@
   become: yes
   gather_facts: false
 
-  vars:
-    fsck_force: true
-
   tasks:
     - name: "[PHASE 2] Unmount all OCFS2 filesystems and stop cluster services"
       ansible.builtin.include_role:
         name: storage
         tasks_from: iscsi-unmount
 
-# Run fsck from the manager only, after all nodes are unmounted
-- name: Run fsck on all iSCSI volumes from manager
+# PHASE 3: Run fsck from manager only, after all nodes are cleanly unmounted
+- name: "[PHASE 3] Run fsck on all iSCSI volumes from manager"
   hosts: managers
   become: yes
   gather_facts: false
@@ -79,8 +88,7 @@
             enabled: "{{ iscsi_cache_enabled | default(false) }}"
 
     - name: "[PHASE 3] Run fsck.ocfs2 on each enabled volume"
-      ansible.builtin.command: >
-        fsck.ocfs2 -f -F -y {{ item.device }}
+      ansible.builtin.shell: "echo y | fsck.ocfs2 -f -F -y {{ item.device }}"
       loop: "{{ storage_fsck_devices }}"
       when:
         - item.enabled | bool
@@ -110,8 +118,8 @@
         - item.rc is defined
         - item.rc != 0
 
-# Remount and restart Docker on all nodes
-- name: Remount OCFS2 and restart Docker on all nodes
+# PHASE 4: Remount OCFS2 and restart Docker on all nodes
+- name: "[PHASE 4] Remount OCFS2 and restart Docker on all nodes"
   hosts: all
   become: yes
   gather_facts: true
@@ -119,9 +127,6 @@
   # gather_facts needed for ansible_date_time used in iscsi-mount cluster test
 
   tasks:
-    # =========================================================================
-    # PHASE 4: Restart o2cb and remount (reuse existing task)
-    # =========================================================================
     - name: "[PHASE 4] Restart o2cb cluster service"
       ansible.builtin.systemd:
         name: o2cb
@@ -136,9 +141,6 @@
         name: storage
         tasks_from: iscsi-mount
 
-    # =========================================================================
-    # PHASE 5: Restart Docker
-    # =========================================================================
     - name: "[PHASE 5] Start Docker"
       ansible.builtin.systemd:
         name: docker
@@ -158,3 +160,19 @@
           ✅ Storage repair complete on {{ inventory_hostname }}
              - OCFS2 filesystems remounted
              - Docker restarted
+
+# PHASE 6: Ensure all nodes are active before redeploying
+- name: "[PHASE 6] Activate any drained nodes"
+  hosts: managers
+  become: yes
+  gather_facts: false
+
+  tasks:
+    - name: "[PHASE 6] Check and activate drained nodes"
+      ansible.builtin.include_role:
+        name: swarm
+        tasks_from: activate-nodes
+
+# PHASE 7: Redeploy all Swarm stacks
+- name: Redeploy all Swarm stacks
+  ansible.builtin.import_playbook: ../deploy/stacks.yml
