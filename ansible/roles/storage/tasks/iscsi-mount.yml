@@ -2,69 +2,9 @@
 # ansible/roles/storage/tasks/iscsi-mount.yml
 # Loop-based iSCSI mounting - eliminates 427 lines of duplication!
 
-# Define iSCSI mounts as a data structure
-- name: Define iSCSI mount configurations
-  ansible.builtin.set_fact:
-    storage_iscsi_mounts:
-      - name: media-apps
-        enabled: "{{ iscsi_enabled | default(false) }}"
-        iqn: "{{ iscsi_target_iqn }}"
-        mount_path: "{{ iscsi_mount_path }}"
-        label: "media-apps"
-      - name: app-data
-        enabled: "{{ iscsi_app_data_enabled | default(false) }}"
-        iqn: "{{ iscsi_app_data_iqn }}"
-        mount_path: "{{ iscsi_app_data_mount_path }}"
-        label: "app-data"
-      - name: cache
-        enabled: "{{ iscsi_cache_enabled | default(false) }}"
-        iqn: "{{ iscsi_cache_iqn }}"
-        mount_path: "{{ iscsi_cache_mount_path }}"
-        label: "cache"
-
-# Discovery only needs to run once per host (discovers all targets)
-- name: Discover iSCSI targets from NAS
-  ansible.builtin.command: "iscsiadm -m discovery -t st -p {{ iscsi_target_ip }}:{{ iscsi_target_port }}"
-  register: storage_iscsi_discovery
-  changed_when: storage_iscsi_discovery.rc == 0
-  when: storage_iscsi_mounts | selectattr('enabled') | list | length > 0
-
-# Login to each enabled iSCSI target
-- name: Login to iSCSI targets
-  community.general.open_iscsi:
-    target: "{{ item.iqn }}"
-    portal: "{{ iscsi_target_ip }}:{{ iscsi_target_port }}"
-    login: yes
-    automatic: yes
-    state: present
-  loop: "{{ storage_iscsi_mounts }}"
-  when:
-    - item.enabled | bool
-    - item.iqn is defined
-  register: storage_iscsi_login
-
-# Verify iSCSI sessions are active
-- name: Verify iSCSI sessions are active
-  ansible.builtin.command: iscsiadm -m session
-  register: storage_active_sessions
-  changed_when: false
-  failed_when:
-    - storage_iscsi_mounts | selectattr('enabled') | list | length > 0
-    - item.iqn not in storage_active_sessions.stdout
-  loop: "{{ storage_iscsi_mounts }}"
-  when: item.enabled | bool
-
-# Wait for block devices to appear
-- name: Wait for iSCSI block devices to appear
-  ansible.builtin.wait_for:
-    path: "/dev/disk/by-path/ip-{{ iscsi_target_ip }}:{{ iscsi_target_port }}-iscsi-{{ item.iqn }}-lun-1"
-    state: present
-    timeout: 30
-  loop: "{{ storage_iscsi_mounts }}"
-  when:
-    - item.enabled | bool
-    - item.iqn is defined
-  ignore_errors: yes
+# Login and wait for block devices (shared with repair-storage.yml)
+- name: Login to iSCSI targets and wait for block devices
+  ansible.builtin.include_tasks: iscsi-login.yml
 
 # Check current filesystem types
 - name: Check if iSCSI devices have filesystems
@@ -102,6 +42,7 @@
 - name: Add OCFS2 devices to /etc/fstab
   ansible.builtin.lineinfile:
     path: /etc/fstab
+    regexp: "^/dev/disk/by-path/ip-{{ iscsi_target_ip }}:{{ iscsi_target_port }}-iscsi-{{ item.iqn }}-lun-1 "
     line: "/dev/disk/by-path/ip-{{ iscsi_target_ip }}:{{ iscsi_target_port }}-iscsi-{{ item.iqn }}-lun-1 {{ item.mount_path }} ocfs2 _netdev,heartbeat=local 0 0"
     state: present
   loop: "{{ storage_iscsi_mounts }}"
@@ -131,7 +72,7 @@
   register: storage_mount_stat
   failed_when:
     - item.enabled | bool
-    - not storage_mount_stat.results[ansible_loop.index0].stat.exists
+    - not storage_mount_stat.stat.exists
   when: item.enabled | bool
 
 # Test write access to mounts
