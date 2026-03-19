@@ -1,0 +1,8 @@
+---
+# ansible/roles/swarm/tasks/main.yml
+# Docker Swarm cluster management tasks.
+# Use tasks_from to include specific operations:
+#   - remove-stacks: gracefully remove all running stacks
+#   - load-env: load and parse root .env file into env_vars fact
+#   - ensure-networks: ensure required overlay networks exist (traefik-public)
+#   - activate-nodes: check for drained nodes and set them back to active
