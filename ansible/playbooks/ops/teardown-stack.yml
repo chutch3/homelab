@@ -96,13 +96,13 @@
       ansible.builtin.include_role:
         name: uptime_kuma
         tasks_from: get-token
-      when: remove_uptime | bool
+      when: remove_uptime | bool and stack_name != 'reverse-proxy'
 
     - name: Remove uptime monitors for stack
       ansible.builtin.include_role:
         name: uptime_kuma
         tasks_from: remove-service-monitors
-      when: remove_uptime | bool
+      when: remove_uptime | bool and stack_name != 'reverse-proxy'
 
     - name: Teardown summary
       ansible.builtin.debug:
@@ -111,4 +111,4 @@
              - Stack removed: Yes
              - Volumes removed: {{ 'Yes (' + (stack_volumes | default([]) | join(', ')) + ')' if remove_volumes and stack_volumes | default([]) | length > 0 else ('No' if not remove_volumes else 'None found') }}
              - DNS records removed: {{ 'Yes' if remove_dns | bool else 'No (preserved)' }}
-             - Uptime monitors removed: {{ 'Yes' if remove_uptime | bool else 'No (preserved)' }}
+             - Uptime monitors removed: {{ 'Skipped (reverse-proxy teardown)' if stack_name == 'reverse-proxy' else ('Yes' if remove_uptime | bool else 'No (preserved)') }}
