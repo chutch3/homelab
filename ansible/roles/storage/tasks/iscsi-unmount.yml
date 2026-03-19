@@ -19,6 +19,13 @@
         iqn: "{{ iscsi_cache_iqn }}"
         mount_path: "{{ iscsi_cache_mount_path }}"
 
+# Force lazy-unmount ALL OCFS2 mounts (including Docker volume bind mounts)
+# This handles cases where Docker was killed and left volume mounts behind
+- name: Force unmount all OCFS2 mounts
+  ansible.builtin.command: umount -a -t ocfs2 -l
+  ignore_errors: yes
+  changed_when: true
+
 # Stop OCFS2 cluster services
 - name: Stop OCFS2 cluster services
   ansible.builtin.systemd:
@@ -78,7 +85,6 @@
   community.general.open_iscsi:
     target: "{{ item.iqn }}"
     portal: "{{ iscsi_target_ip }}:{{ iscsi_target_port }}"
-    login: no
     state: absent
   loop: "{{ storage_iscsi_mounts }}"
   when:
