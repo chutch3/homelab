@@ -2,6 +2,7 @@
 ---
 - name: Deploy all Docker Swarm stacks
   hosts: managers
+  tags: [deploy]
   vars:
     # If set, only deploy these specific apps (comma-separated list)
     only_apps: ""
@@ -11,17 +12,24 @@
     skip_infrastructure: false
     # Path to the base directory containing app stacks
     stacks_base_path: "stacks"
+    base_domain: "{{ lookup('env', 'BASE_DOMAIN') }}"
 
   tasks:
+    - name: Verify Docker Swarm is active
+      community.docker.docker_swarm_info:
+      register: swarm_info
+      failed_when: not swarm_info.docker_swarm_active
+      run_once: true
+
     - name: Get list of stack directories
-      find:
+      ansible.builtin.find:
         paths: "{{ playbook_dir }}/../../../{{ stacks_base_path }}/apps"
         file_type: directory
       delegate_to: localhost
       register: app_stack_dirs
 
     - name: Get list of infrastructure stack directories
-      find:
+      ansible.builtin.find:
         paths: "{{ playbook_dir }}/../../../{{ stacks_base_path }}"
         file_type: directory
         patterns: ["monitoring", "reverse-proxy", "dns"]
@@ -29,27 +37,31 @@
       register: infra_stack_dirs
 
     - name: Prepare list of stacks to deploy
-      set_fact:
+      ansible.builtin.set_fact:
         all_stacks: "{{ (infra_stack_dirs.files | map(attribute='path') | list) + (app_stack_dirs.files | map(attribute='path') | list) }}"
 
     - name: Filter stacks based on only_apps
       ansible.builtin.set_fact:
         filtered_stacks: "{{ all_stacks }}"
-      when: only_apps is not defined or only_apps == ''
+      when: only_apps == ''
+
+    - name: Initialize filtered_stacks for only_apps mode
+      ansible.builtin.set_fact:
+        filtered_stacks: []
+      when: only_apps != ''
 
     - name: Filter to only specified apps
       ansible.builtin.set_fact:
-        filtered_stacks: >-
-          {{ all_stacks | select('match', '.*/' + item + '$') | list }}
+        filtered_stacks: "{{ filtered_stacks + (all_stacks | select('match', '.*/' + item.strip() + '$') | list) }}"
       loop: "{{ only_apps.split(',') }}"
-      when: only_apps is defined and only_apps != ''
+      when: only_apps != ''
 
     - name: Exclude skipped apps
       ansible.builtin.set_fact:
         filtered_stacks: >-
-          {{ filtered_stacks | reject('match', '.*/' + item + '$') | list }}
+          {{ filtered_stacks | reject('match', '.*/' + item.strip() + '$') | list }}
       loop: "{{ skip_apps.split(',') }}"
-      when: skip_apps is defined and skip_apps != ''
+      when: skip_apps != ''
 
     - name: Exclude infrastructure stacks if requested
       ansible.builtin.set_fact:
@@ -61,29 +73,53 @@
       when: skip_infrastructure | default(false) | bool
 
     - name: Load .env file
-      ansible.builtin.slurp:
-        src: "{{ playbook_dir }}/../../../.env"
-      register: env_file_content
+      ansible.builtin.include_role:
+        name: swarm
+        tasks_from: load-env
 
-    - name: Parse environment variables from .env
-      ansible.builtin.set_fact:
-        env_vars: "{{ dict(env_file_content.content | b64decode | regex_findall('^([A-Z_0-9]+)=(.*)$', multiline=True)) }}"
+    - name: Ensure required overlay networks exist
+      ansible.builtin.include_role:
+        name: swarm
+        tasks_from: ensure-networks
 
     - name: Deploy Docker stack
       community.docker.docker_stack:
         state: present
-        name: "{{ item.split('/')[-1] }}" # Stack name is the directory name
+        name: "{{ item.split('/')[-1] }}"
         compose:
           - "{{ item }}/docker-compose.yml"
-      environment: "{{ env_vars }}"
+      environment: "{{ swarm_env_vars }}"
       loop: "{{ filtered_stacks }}"
-      loop_control:
-        loop_var: item
       register: deploy_results
 
     - name: Report deployment status
-      debug:
-        msg: "Stack {{ item.item.split('/')[-1] }} deployment {{ 'succeeded' if item.changed or item.failed == false else 'failed' }}"
+      ansible.builtin.debug:
+        msg: "Stack {{ item.item.split('/')[-1] }} deployment {{ 'succeeded' if item.changed or not item.failed else 'failed' }}"
       loop: "{{ deploy_results.results }}"
-      loop_control:
-        loop_var: item
+
+    - name: Get DNS API token
+      ansible.builtin.include_role:
+        name: dns
+        tasks_from: get-token
+
+    - name: Get Pi-hole API token
+      ansible.builtin.include_role:
+        name: dns
+        tasks_from: get-pihole-token
+      when: secondary_dns_enabled | default(false) | bool
+      ignore_errors: yes
+
+    - name: Register DNS records for all services
+      ansible.builtin.include_role:
+        name: dns
+        tasks_from: add-service-cnames
+
+    - name: Get Uptime Kuma API token
+      ansible.builtin.include_role:
+        name: uptime_kuma
+        tasks_from: get-token
+
+    - name: Register Uptime Kuma monitors for all services
+      ansible.builtin.include_role:
+        name: uptime_kuma
+        tasks_from: add-service-monitors

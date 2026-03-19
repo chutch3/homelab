@@ -1,0 +1,368 @@
+---
+# ansible/playbooks/teardown.yml
+# Tagged cluster teardown — run specific phases with --tags <phase>.
+# Always requires: -e "confirm_teardown=true"
+#
+# Phases (run individually with --tags, or omit for full teardown):
+#   stacks     — Remove all Docker Swarm stacks
+#   containers — Remove orphaned containers
+#   networks   — Remove custom overlay networks
+#   volumes    — Remove Docker volumes (also requires -e "remove_volumes=true")
+#   storage    — Unmount iSCSI/OCFS2 filesystems
+#   swarm      — Force all nodes to leave swarm
+#
+# Usage:
+#   task ansible:teardown                      # full teardown
+#   task ansible:teardown:services             # stacks only
+
+# ============================================================================
+# GUARD: Always runs first — confirms intent before any destructive action
+# ============================================================================
+- name: Teardown guard
+  hosts: localhost
+  gather_facts: false
+  tags: [always]
+
+  vars:
+    confirm_teardown: false
+    remove_volumes: false
+    leave_swarm: true
+
+  tasks:
+    - name: Require explicit confirmation
+      ansible.builtin.fail:
+        msg: |
+          ⚠️  DANGER: This will destroy the entire cluster!
+          To proceed, run with: -e "confirm_teardown=true"
+      when: not (confirm_teardown | bool)
+      run_once: true
+
+    - name: Display teardown scope
+      ansible.builtin.debug:
+        msg: |
+          🔥 TEARDOWN STARTING
+          =====================
+          Volumes:  {{ 'will be removed' if remove_volumes | bool else 'will be preserved (use -e remove_volumes=true to remove)' }}
+          Swarm:    {{ 'nodes will leave' if leave_swarm | bool else 'preserved (use -e leave_swarm=false to skip)' }}
+      run_once: true
+
+# ============================================================================
+# PHASE: stacks — Clean up uptime and DNS before removing stacks
+# Uptime must be removed first (needs Uptime Kuma running via reverse-proxy),
+# then DNS (primary + secondary), then stacks are removed.
+# ============================================================================
+- name: "[stacks] Remove uptime monitors and DNS records before stack teardown"
+  hosts: managers
+  become: yes
+  gather_facts: false
+  tags: [stacks]
+
+  vars:
+    base_domain: "{{ lookup('env', 'BASE_DOMAIN') }}"
+
+  tasks:
+    - name: Get Uptime Kuma API token
+      ansible.builtin.include_role:
+        name: uptime_kuma
+        tasks_from: get-token
+      ignore_errors: yes
+
+    - name: Remove all Uptime Kuma service monitors
+      ansible.builtin.include_role:
+        name: uptime_kuma
+        tasks_from: remove-service-monitors
+      when: uptime_kuma_api_token is defined
+
+    - name: Get DNS API token
+      ansible.builtin.include_role:
+        name: dns
+        tasks_from: get-token
+      ignore_errors: yes
+
+    - name: Get Pi-hole API token
+      ansible.builtin.include_role:
+        name: dns
+        tasks_from: get-pihole-token
+      when: secondary_dns_enabled | default(false) | bool
+      ignore_errors: yes
+
+    - name: Remove all DNS service records
+      ansible.builtin.include_role:
+        name: dns
+        tasks_from: remove-service-cnames
+      when: dns_api_token is defined
+
+# ============================================================================
+# PHASE: stacks — Remove all Docker Swarm stacks
+# ============================================================================
+- name: "[stacks] Remove all Docker Swarm stacks"
+  hosts: managers
+  become: yes
+  gather_facts: false
+  tags: [stacks]
+
+  tasks:
+    - name: Remove all Docker Swarm stacks
+      ansible.builtin.include_role:
+        name: swarm
+        tasks_from: remove-stacks
+
+# ============================================================================
+# PHASE: containers — Remove orphaned containers
+# ============================================================================
+- name: "[containers] Remove orphaned containers"
+  hosts: all
+  become: yes
+  gather_facts: false
+  tags: [containers]
+
+  tasks:
+    - name: Get list of all containers
+      community.docker.docker_host_info:
+        containers: yes
+      register: all_containers
+
+    - name: Filter orphaned containers
+      ansible.builtin.set_fact:
+        orphaned_containers: "{{ all_containers.containers | rejectattr('Status', 'match', '^Up') | map(attribute='Id') | list }}"
+
+    - name: Remove orphaned containers
+      community.docker.docker_container:
+        name: "{{ item }}"
+        state: absent
+        force_kill: yes
+      loop: "{{ orphaned_containers }}"
+      when: orphaned_containers | length > 0
+      failed_when: false
+
+    - name: Report container removal
+      ansible.builtin.debug:
+        msg: "✓ Removed {{ orphaned_containers | length }} orphaned container(s)"
+      when: orphaned_containers | length > 0
+
+# ============================================================================
+# PHASE: networks — Remove custom overlay networks
+# ============================================================================
+- name: "[networks] Remove custom overlay networks"
+  hosts: managers
+  become: yes
+  gather_facts: false
+  tags: [networks]
+
+  tasks:
+    - name: Get all overlay networks
+      community.docker.docker_host_info:
+        networks: yes
+      register: all_networks
+      run_once: true
+
+    - name: Filter custom overlay networks
+      ansible.builtin.set_fact:
+        custom_overlays: >-
+          {{ all_networks.networks
+             | selectattr('Driver', 'equalto', 'overlay')
+             | rejectattr('Name', 'in', ['ingress', 'docker_gwbridge'])
+             | list }}
+      run_once: true
+
+    - name: Remove custom overlay networks
+      community.docker.docker_network:
+        name: "{{ item.Name }}"
+        state: absent
+        force: yes
+      loop: "{{ custom_overlays }}"
+      run_once: true
+      register: network_removal
+      failed_when: false
+
+    - name: Wait for VIP release
+      ansible.builtin.pause:
+        seconds: 5
+      when: custom_overlays | length > 0
+      run_once: true
+
+    - name: Verify networks removed
+      community.docker.docker_host_info:
+        networks: yes
+      register: remaining_networks
+      run_once: true
+      retries: 5
+      delay: 3
+      until: >-
+        remaining_networks.networks
+        | selectattr('Driver', 'equalto', 'overlay')
+        | rejectattr('Name', 'in', ['ingress', 'docker_gwbridge'])
+        | list | length == 0
+
+    - name: Check for remaining custom overlays
+      ansible.builtin.set_fact:
+        remaining_overlays: >-
+          {{ remaining_networks.networks
+             | selectattr('Driver', 'equalto', 'overlay')
+             | rejectattr('Name', 'in', ['ingress', 'docker_gwbridge'])
+             | list }}
+      run_once: true
+
+    - name: Report network removal
+      ansible.builtin.debug:
+        msg: >-
+          {{ '✓ All custom overlay networks removed'
+             if remaining_overlays | length == 0
+             else ('(check mode) Would remove: ' + (remaining_overlays | map(attribute='Name') | list | join(', '))
+                   if ansible_check_mode
+                   else '⚠ WARNING: ' + (remaining_overlays | length | string) + ' network(s) still present: '
+                        + (remaining_overlays | map(attribute='Name') | list | join(', '))
+                        + ' — stale vxlan interfaces may require a full cluster restart') }}
+      run_once: true
+
+# Flush stale kernel vxlan interfaces on all nodes after overlay networks are
+# removed. Docker has a known race condition where it doesn't clean these up,
+# causing "error creating vxlan interface: file exists" on the next deploy.
+- name: "[networks] Flush stale vxlan interfaces on all nodes"
+  hosts: all
+  become: yes
+  gather_facts: false
+  tags: [networks]
+
+  tasks:
+    - name: Delete DOWN vxlan interfaces
+      ansible.builtin.shell: |
+        ip -o link show type vxlan | awk -F': ' '{print $2}' | while read iface; do
+          state=$(ip -o link show "$iface" | awk '{print $3}' | tr -d '<>,')
+          echo "$state" | grep -q DOWN && ip link delete "$iface" && echo "deleted $iface"
+        done
+      register: vxlan_cleanup
+      changed_when: vxlan_cleanup.stdout != ""
+      failed_when: false
+
+# ============================================================================
+# PHASE: volumes — Remove Docker volumes (requires -e "remove_volumes=true")
+# ============================================================================
+- name: "[volumes] Remove Docker volumes"
+  hosts: all
+  become: yes
+  gather_facts: false
+  tags: [volumes]
+
+  vars:
+    remove_volumes: false
+
+  tasks:
+    - name: Skip if remove_volumes not set
+      ansible.builtin.debug:
+        msg: "ℹ Volume removal skipped (use -e remove_volumes=true to enable)"
+      when: not (remove_volumes | bool)
+
+    - name: Get list of all Docker volumes
+      community.docker.docker_host_info:
+        volumes: yes
+      register: all_volumes
+      when: remove_volumes | bool
+
+    - name: Remove all Docker volumes
+      community.docker.docker_volume:
+        name: "{{ item.Name }}"
+        state: absent
+        force: yes
+      loop: "{{ all_volumes.volumes | default([]) }}"
+      when: remove_volumes | bool
+      failed_when: false
+
+    - name: Report volume removal
+      ansible.builtin.debug:
+        msg: "✓ Removed {{ all_volumes.volumes | default([]) | length }} volume(s)"
+      when: remove_volumes | bool
+
+# ============================================================================
+# PHASE: storage — Unmount iSCSI/OCFS2 filesystems
+# ============================================================================
+- name: "[storage] Unmount iSCSI/OCFS2 filesystems"
+  hosts: all
+  become: yes
+  gather_facts: false
+  tags: [storage]
+
+  tasks:
+    - name: Unmount iSCSI/OCFS2 filesystems
+      ansible.builtin.include_role:
+        name: storage
+        tasks_from: iscsi-unmount
+      when: iscsi_enabled | default(false) or iscsi_app_data_enabled | default(false) or iscsi_cache_enabled | default(false)
+
+# ============================================================================
+# PHASE: swarm — Force all nodes to leave Docker Swarm
+# Workers leave first, then manager prunes Down entries before leaving.
+# This ensures nodes can rejoin cleanly without ambiguous node errors.
+# ============================================================================
+- name: "[swarm] Force worker nodes to leave Docker Swarm"
+  hosts: workers
+  become: yes
+  gather_facts: false
+  tags: [swarm]
+
+  vars:
+    leave_swarm: true
+
+  tasks:
+    - name: Check swarm state
+      community.docker.docker_swarm_info:
+      register: swarm_state
+      failed_when: false
+      ignore_errors: yes
+
+    - name: Force worker to leave swarm
+      community.docker.docker_swarm:
+        state: absent
+        force: yes
+      when:
+        - leave_swarm | bool
+        - swarm_state.docker_swarm_active | default(false)
+      failed_when: false
+      ignore_errors: yes
+
+- name: "[swarm] Prune Down nodes and remove manager from Docker Swarm"
+  hosts: managers
+  become: yes
+  gather_facts: false
+  tags: [swarm]
+
+  vars:
+    leave_swarm: true
+
+  tasks:
+    - name: Wait for workers to appear as Down
+      ansible.builtin.command: docker node ls --format "{{ '{{' }}.Status{{ '}}' }}"
+      register: node_statuses
+      until: node_statuses.stdout_lines | reject('equalto', 'Down') | reject('equalto', 'Ready') | list | length == 0
+      retries: 10
+      delay: 3
+      changed_when: false
+      failed_when: false
+      when: leave_swarm | bool
+
+    - name: Remove Down worker nodes from swarm
+      ansible.builtin.shell: |
+        docker node ls --format "{{ '{{' }}.ID{{ '}}' }} {{ '{{' }}.Status{{ '}}' }}" \
+          | awk '$2=="Down" {print $1}' \
+          | xargs -r docker node rm
+      register: prune_nodes
+      changed_when: prune_nodes.stdout != ""
+      failed_when: false
+      when: leave_swarm | bool
+
+    - name: Force manager to leave swarm
+      community.docker.docker_swarm:
+        state: absent
+        force: yes
+      register: swarm_state
+      failed_when: false
+      ignore_errors: yes
+      when: leave_swarm | bool
+
+    - name: Report swarm leave
+      ansible.builtin.debug:
+        msg: >-
+          {{ 'ℹ Swarm leave disabled (leave_swarm=false)' if not (leave_swarm | bool)
+             else ('✓ (check mode) Would leave swarm' if ansible_check_mode
+                   else ('✓ Swarm torn down cleanly' if not swarm_state.failed | default(false)
+                         else '⚠ Could not verify swarm leave')) }}
