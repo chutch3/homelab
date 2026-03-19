@@ -8,7 +8,6 @@
     # Optional: Set to true to remove associated volumes
     remove_volumes: false
     # Optional: Set to false to preserve DNS records (default: true)
-    # Note: automatically skipped when tearing down the dns stack itself
     remove_dns: true
     # Optional: Set to false to preserve uptime monitoring (default: true)
     remove_uptime: true
@@ -60,6 +59,39 @@
         stack_volumes: "{{ (stack_volumes_by_label.stdout_lines | default([])) + (stack_volumes_by_name.stdout_lines | default([])) + (stack_volumes_from_compose | default([])) }}"
       when: remove_volumes
 
+    - name: Get uptime API token
+      ansible.builtin.include_role:
+        name: uptime_kuma
+        tasks_from: get-token
+      when: remove_uptime | bool and stack_name != 'reverse-proxy'
+
+    - name: Remove uptime monitors for stack
+      ansible.builtin.include_role:
+        name: uptime_kuma
+        tasks_from: remove-service-monitors
+      when: remove_uptime | bool and stack_name != 'reverse-proxy'
+
+    - name: Get DNS API token
+      ansible.builtin.include_role:
+        name: dns
+        tasks_from: get-token
+      when: remove_dns | bool
+
+    - name: Get Pi-hole API token
+      ansible.builtin.include_role:
+        name: dns
+        tasks_from: get-pihole-token
+      when:
+        - remove_dns | bool
+        - hostvars[groups['managers'][0]].secondary_dns_enabled | default(false) | bool
+      ignore_errors: yes
+
+    - name: Remove DNS records for stack
+      ansible.builtin.include_role:
+        name: dns
+        tasks_from: remove-service-cnames
+      when: remove_dns | bool
+
     - name: Remove the Docker Swarm stack
       ansible.builtin.command:
         cmd: "docker stack rm {{ stack_name }}"
@@ -80,30 +112,6 @@
       register: volume_removal
       failed_when: false
 
-    - name: Get DNS API token
-      ansible.builtin.include_role:
-        name: dns
-        tasks_from: get-token
-      when: remove_dns | bool and stack_name != 'dns'
-
-    - name: Remove DNS records for stack
-      ansible.builtin.include_role:
-        name: dns
-        tasks_from: remove-service-cnames
-      when: remove_dns | bool and stack_name != 'dns'
-
-    - name: Get uptime API token
-      ansible.builtin.include_role:
-        name: uptime_kuma
-        tasks_from: get-token
-      when: remove_uptime | bool and stack_name != 'reverse-proxy'
-
-    - name: Remove uptime monitors for stack
-      ansible.builtin.include_role:
-        name: uptime_kuma
-        tasks_from: remove-service-monitors
-      when: remove_uptime | bool and stack_name != 'reverse-proxy'
-
     - name: Teardown summary
       ansible.builtin.debug:
         msg: |
@@ -111,4 +119,4 @@
              - Stack removed: Yes
              - Volumes removed: {{ 'Yes (' + (stack_volumes | default([]) | join(', ')) + ')' if remove_volumes and stack_volumes | default([]) | length > 0 else ('No' if not remove_volumes else 'None found') }}
              - DNS records removed: {{ 'Yes' if remove_dns | bool else 'No (preserved)' }}
-             - Uptime monitors removed: {{ 'Skipped (reverse-proxy teardown)' if stack_name == 'reverse-proxy' else ('Yes' if remove_uptime | bool else 'No (preserved)') }}
+             - Uptime monitors removed: {{ 'Skipped (not registered)' if stack_name == 'reverse-proxy' else ('Yes' if remove_uptime | bool else 'No (preserved)') }}
