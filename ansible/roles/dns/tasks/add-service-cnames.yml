@@ -165,6 +165,40 @@
   loop: "{{ dns_api_verification.results }}"
   when: item.json.status == 'ok'
 
+# =========================================================================
+# DNS STACK: A record for Pi-hole (direct IP, not via reverse proxy)
+# =========================================================================
+- name: "[DNS STACK] Add A record for Pi-hole in Technitium"
+  ansible.builtin.uri:
+    url: "{{ dns_api_url }}/zones/records/add"
+    method: POST
+    body_format: form-urlencoded
+    body:
+      token: "{{ dns_api_token }}"
+      domain: "pi.{{ base_domain }}"
+      zone: "{{ base_domain }}"
+      type: "A"
+      ipAddress: "{{ secondary_dns_ip }}"
+      ttl: "3600"
+    status_code: 200
+  register: dns_pihole_a_result
+  delegate_to: localhost
+  when: stack_name is defined and stack_name == 'dns' and secondary_dns_enabled | bool
+
+- name: "[DNS STACK] Add A record for Pi-hole in Pi-hole"
+  ansible.builtin.uri:
+    url: "{{ pihole_api_url }}/config/dns/hosts/{{ secondary_dns_ip }}%20pi.{{ base_domain }}"
+    method: PUT
+    headers:
+      sid: "{{ dns_pihole_session_id }}"
+    status_code: [200, 201, 400]
+  ignore_errors: yes
+  delegate_to: localhost
+  when:
+    - stack_name is defined and stack_name == 'dns'
+    - secondary_dns_enabled | bool
+    - dns_pihole_session_id is defined
+
 - name: "[SUMMARY] Display final DNS summary"
   ansible.builtin.debug:
     msg:
