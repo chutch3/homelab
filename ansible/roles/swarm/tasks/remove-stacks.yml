@@ -1,0 +1,44 @@
+---
+# ansible/roles/swarm/tasks/remove-stacks.yml
+# Gracefully remove all Docker Swarm stacks and wait for containers to drain.
+# Called by teardown.yml and repair-storage.yml.
+# Always delegates to the first manager — safe to include from any play.
+
+- name: Get list of all running stacks
+  community.docker.docker_stack_info:
+  register: swarm_current_stacks
+  delegate_to: "{{ groups['managers'][0] }}"
+  run_once: true
+
+- name: Display stacks to be removed
+  ansible.builtin.debug:
+    msg: "Removing {{ swarm_current_stacks.results | length }} stack(s): {{ swarm_current_stacks.results | map(attribute='Name') | list | join(', ') }}"
+  run_once: true
+  when: swarm_current_stacks.results | length > 0
+
+- name: Remove all Docker Swarm stacks
+  community.docker.docker_stack:
+    state: absent
+    name: "{{ item.Name }}"
+  loop: "{{ swarm_current_stacks.results }}"
+  delegate_to: "{{ groups['managers'][0] }}"
+  run_once: true
+  when: swarm_current_stacks.results | length > 0
+
+- name: Wait for all stacks and containers to fully drain
+  community.docker.docker_stack_info:
+  register: swarm_remaining_stacks
+  delegate_to: "{{ groups['managers'][0] }}"
+  run_once: true
+  until: swarm_remaining_stacks.results | length == 0
+  retries: 20
+  delay: 5
+  failed_when: false
+  when:
+    - swarm_current_stacks.results | length > 0
+    - not ansible_check_mode
+
+- name: Report stack removal status
+  ansible.builtin.debug:
+    msg: "{{ '✓ All stacks removed — Docker volume mounts released' if swarm_remaining_stacks.results | default([]) | length == 0 else '⚠ WARNING: ' + (swarm_remaining_stacks.results | length | string) + ' stack(s) still present' }}"
+  run_once: true
