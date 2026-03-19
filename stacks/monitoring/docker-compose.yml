@@ -141,9 +141,14 @@ services:
     promtail:
         image: grafana/promtail:3.0.0
         command: -config.file=/etc/promtail/config.yml
+        user: "0:0" # Run as root to read /var/log/journal
         volumes:
             - /var/lib/docker/containers:/var/lib/docker/containers:ro
             - /var/run/docker.sock:/var/run/docker.sock:ro
+            - /var/log/journal:/var/log/journal:ro
+            - /run/log/journal:/run/log/journal:ro # Handle volatile journals
+            - /etc/machine-id:/etc/machine-id:ro
+            - promtail_positions:/run/promtail # Persist position data
         configs:
             - source: promtail_config
               target: /etc/promtail/config.yml
@@ -238,6 +243,7 @@ volumes:
     prometheus_data:
     grafana_data:
     loki_data:
+    promtail_positions:
     grafana_dashboards:
         driver: local
         driver_opts:
