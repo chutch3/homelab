@@ -129,19 +129,19 @@ tasks:
 
     # Ansible Application Deployment
     deploy:
-        desc: Deploy all Docker Swarm stacks
+        desc: "Full idempotent cluster deploy: init swarm → join workers → labels → storage → stacks"
         dir: "{{.ROOT_DIR}}"
         cmds:
-            - "{{.VENV_ANSIBLE_PLAYBOOK}} -i ansible/inventory/ ansible/playbooks/deploy/stacks.yml {{.CLI_ARGS}}"
+            - "{{.VENV_ANSIBLE_PLAYBOOK}} -i ansible/inventory/ ansible/playbooks/cluster.yml {{.CLI_ARGS}}"
 
-    deploy:quick:
-        desc: Deploy apps only (skip infrastructure stacks)
+    deploy:services:
+        desc: "Redeploy all Swarm stacks (cluster must already be running; use deploy for full setup)"
         dir: "{{.ROOT_DIR}}"
         cmds:
-            - "{{.VENV_ANSIBLE_PLAYBOOK}} -i ansible/inventory/ ansible/playbooks/deploy/stacks.yml -e \"skip_infrastructure=true\" {{.CLI_ARGS}}"
+            - "{{.VENV_ANSIBLE_PLAYBOOK}} -i ansible/inventory/ ansible/playbooks/cluster.yml --tags deploy {{.CLI_ARGS}}"
 
-    deploy:stack:
-        desc: 'Deploy a single Docker Swarm stack (usage: task ansible:deploy:stack -- -e "stack_name=my_app")'
+    deploy:service:
+        desc: 'Deploy a single Docker Swarm stack (usage: task ansible:deploy:service -- -e "stack_name=my_app")'
         dir: "{{.ROOT_DIR}}"
         cmds:
             - "{{.VENV_ANSIBLE_PLAYBOOK}} -i ansible/inventory/ ansible/playbooks/deploy/stack.yml {{.CLI_ARGS}}"
@@ -333,8 +333,8 @@ tasks:
         cmds:
             - "{{.VENV_ANSIBLE_PLAYBOOK}} -i ansible/inventory/ ansible/playbooks/ops/ocfs2-umount.yml {{.CLI_ARGS}}"
 
-    storage:repair:
-        desc: "Repair OCFS2 storage: stop Docker, unmount, fsck, remount, restart Docker on all nodes"
+    storage:recover:
+        desc: "Recover OCFS2 storage: remove stacks, unmount, fsck, remount, redeploy"
         dir: "{{.ROOT_DIR}}"
         interactive: true
         cmds:
@@ -351,25 +351,31 @@ tasks:
     # TEARDOWN OPERATIONS
     # ========================================================================
     teardown:
-        desc: "Remove all Docker Swarm stacks (preserve volumes)"
+        desc: "Full cluster teardown: stacks → containers → networks → storage → leave swarm (preserves volumes)"
         dir: "{{.ROOT_DIR}}"
         cmds:
-            - "{{.VENV_ANSIBLE_PLAYBOOK}} -i ansible/inventory/ ansible/playbooks/cluster/teardown.yml {{.CLI_ARGS}}"
+            - "{{.VENV_ANSIBLE_PLAYBOOK}} -i ansible/inventory/ ansible/playbooks/teardown.yml -e \"confirm_teardown=true\" {{.CLI_ARGS}}"
 
-    teardown:full:
-        desc: "Complete teardown (stacks, volumes, networks, storage, swarm)"
+    teardown:with-volumes:
+        desc: "Full cluster teardown including volume removal (DESTRUCTIVE)"
         dir: "{{.ROOT_DIR}}"
         cmds:
-            - "{{.VENV_ANSIBLE_PLAYBOOK}} -i ansible/inventory/ ansible/playbooks/cluster/teardown.yml -e \"confirm_teardown=true remove_volumes=true leave_swarm=true\" {{.CLI_ARGS}}"
+            - "{{.VENV_ANSIBLE_PLAYBOOK}} -i ansible/inventory/ ansible/playbooks/teardown.yml -e \"confirm_teardown=true remove_volumes=true\" {{.CLI_ARGS}}"
+
+    teardown:services:
+        desc: "Remove all Docker Swarm stacks (preserves networks, volumes, swarm membership)"
+        dir: "{{.ROOT_DIR}}"
+        cmds:
+            - "{{.VENV_ANSIBLE_PLAYBOOK}} -i ansible/inventory/ ansible/playbooks/teardown.yml -e \"confirm_teardown=true\" --tags stacks {{.CLI_ARGS}}"
 
     teardown:check:
-        desc: "Dry run of teardown (shows what would be removed)"
+        desc: "Dry run of full teardown (shows what would be removed)"
         dir: "{{.ROOT_DIR}}"
         cmds:
-            - "{{.VENV_ANSIBLE_PLAYBOOK}} -i ansible/inventory/ ansible/playbooks/cluster/teardown.yml -e \"confirm_teardown=true\" --check {{.CLI_ARGS}}"
+            - "{{.VENV_ANSIBLE_PLAYBOOK}} -i ansible/inventory/ ansible/playbooks/teardown.yml -e \"confirm_teardown=true\" --check {{.CLI_ARGS}}"
 
-    teardown:stack:
-        desc: 'Tear down a single stack (usage: task ansible:teardown:stack -- -e "stack_name=profilarr remove_volumes=true")'
+    teardown:service:
+        desc: 'Tear down a single stack (usage: task ansible:teardown:service -- -e "stack_name=profilarr remove_volumes=true")'
         dir: "{{.ROOT_DIR}}"
         cmds:
             - "{{.VENV_ANSIBLE_PLAYBOOK}} -i ansible/inventory/ ansible/playbooks/ops/teardown-stack.yml {{.CLI_ARGS}}"
