@@ -8,8 +8,19 @@ dotenv: [".env"]
 
 includes:
     ansible: ansible/Taskfile.yml
+    kolibri:
+        taskfile: stacks/apps/kolibri/Taskfile.yml
+        dir: stacks/apps/kolibri
+    takeout-manager:
+        taskfile: stacks/apps/takeout-manager/Taskfile.yml
+        dir: stacks/apps/takeout-manager
 
 tasks:
+    registry:login:
+        desc: Login to container registry (ghcr.io) using GITHUB_TOKEN from .env
+        cmds:
+            - echo "$GITHUB_TOKEN" | docker login "$REGISTRY_URL" -u "$REGISTRY_NAMESPACE" --password-stdin
+
     install:
         desc: Install project dependencies
         cmds:
