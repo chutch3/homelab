@@ -1,0 +1,66 @@
+version: "3.9"
+
+services:
+  kolibri:
+    image: ${REGISTRY_URL:-ghcr.io}/${REGISTRY_NAMESPACE:-your-username}/kolibri-oidc:${IMAGE_TAG:-latest}
+
+    environment:
+      - TZ=${TZ:-UTC}
+      - PUID=${PUID:-1000}
+      - PGID=${PGID:-1000}
+      - KOLIBRI_HTTP_PORT=8080
+      # OIDC/Authentik Configuration
+      - CLIENT_ID=${KOLIBRI_OAUTH_CLIENT_ID}
+      - CLIENT_SECRET=${KOLIBRI_OAUTH_CLIENT_SECRET}
+      - KOLIBRI_OIDC_AUTHORIZATION_ENDPOINT=https://auth.${BASE_DOMAIN}/application/o/authorize/
+      - KOLIBRI_OIDC_TOKEN_ENDPOINT=https://auth.${BASE_DOMAIN}/application/o/token/
+      - KOLIBRI_OIDC_USERINFO_ENDPOINT=https://auth.${BASE_DOMAIN}/application/o/userinfo/
+      - KOLIBRI_OIDC_JWKS_ENDPOINT=https://auth.${BASE_DOMAIN}/application/o/kolibri/jwks/
+      - KOLIBRI_OIDC_ENDSESSION_ENDPOINT=https://auth.${BASE_DOMAIN}/application/o/kolibri/end-session/
+      - KOLIBRI_OIDC_CLIENT_URL=https://kolibri.${BASE_DOMAIN}
+    volumes:
+      # Application data (SQLite DB, user data, config) on iSCSI for performance
+      - kolibri_data:/kolibrihome
+      # Educational content (channels, videos, documents) on CIFS for capacity
+      - kolibri_content:/kolibrihome/content
+    networks:
+      - traefik-public
+    deploy:
+      replicas: 1
+      labels:
+        # Traefik routing and SSL
+        - "traefik.enable=true"
+        - "traefik.http.routers.kolibri.rule=Host(`kolibri.${BASE_DOMAIN}`)"
+        - "traefik.http.routers.kolibri.entrypoints=websecure"
+        - "traefik.http.routers.kolibri.tls.certresolver=dns"
+        - "traefik.http.services.kolibri.loadbalancer.server.port=8080"
+
+        # Homepage dashboard
+        - "homepage.group=Knowledge"
+        - "homepage.name=Kolibri"
+        - "homepage.icon=mdi-school"
+        - "homepage.href=https://kolibri.${BASE_DOMAIN}/"
+        - "homepage.description=Offline Educational Platform"
+
+networks:
+  traefik-public:
+    external: true
+
+volumes:
+  # iSCSI volume for application data (SQLite DB, user data, settings)
+  # High performance storage for database operations
+  kolibri_data:
+    driver: local
+    driver_opts:
+      type: "none"
+      o: "bind"
+      device: "/mnt/iscsi/app-data/kolibri"
+
+  # CIFS volume for educational content (videos, documents, channels)
+  # Large capacity network storage for content delivery
+  kolibri_content:
+    driver: local
+    driver_opts:
+      type: "cifs"
+      o: "username=${SMB_USERNAME},password=${SMB_PASSWORD},domain=${SMB_DOMAIN},vers=3.0,file_mode=0770,dir_mode=0770,uid=${PUID:-1000},gid=${PGID:-1000},soft,actimeo=30"
+      device: "//${NAS_SERVER}/kolibri_content"

@@ -1,7 +1,5 @@
 version: "3"
 
-dotenv: ["../../../.env"]
-
 vars:
     STACK_DIR: "{{.TASKFILE_DIR}}"
     REGISTRY_URL: '{{.REGISTRY_URL | default "ghcr.io"}}'
@@ -130,25 +128,6 @@ tasks:
                         echo "  docker login {{.REGISTRY_URL}}"
                     fi
                     echo ""
-                fi
-
-    # Login to registry
-    login:
-        desc: Login to container registry (interactive)
-        cmds:
-            - |
-                echo "🔑 Logging in to {{.REGISTRY_URL}}..."
-                if [ "{{.REGISTRY_URL}}" = "ghcr.io" ]; then
-                    echo "For GitHub Container Registry, use a Personal Access Token"
-                    echo "Token scopes needed: write:packages, read:packages"
-                    echo ""
-                    echo "Username: {{.REGISTRY_NAMESPACE}}"
-                    echo "Password: (paste your GitHub PAT)"
-                    docker login ghcr.io -u {{.REGISTRY_NAMESPACE}}
-                elif [ "{{.REGISTRY_URL}}" = "docker.io" ] || [ "{{.REGISTRY_URL}}" = "" ]; then
-                    docker login
-                else
-                    docker login {{.REGISTRY_URL}}
                 fi
 
     # Test images locally

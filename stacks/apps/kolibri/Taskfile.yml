@@ -1,0 +1,61 @@
+version: "3"
+
+vars:
+    STACK_DIR: "{{.TASKFILE_DIR}}"
+    REGISTRY_URL: '{{.REGISTRY_URL | default "ghcr.io"}}'
+    REGISTRY_NAMESPACE: '{{.REGISTRY_NAMESPACE | default "your-username"}}'
+    IMAGE_TAG: '{{.IMAGE_TAG | default "latest"}}'
+    PLATFORM: '{{.PLATFORM | default "linux/amd64"}}'
+
+tasks:
+    build:
+        desc: Build Kolibri OIDC image locally
+        cmds:
+            - |
+                docker build \
+                  --platform {{.PLATFORM}} \
+                  --tag {{.REGISTRY_URL}}/{{.REGISTRY_NAMESPACE}}/kolibri-oidc:{{.IMAGE_TAG}} \
+                  --file {{.STACK_DIR}}/Dockerfile \
+                  {{.STACK_DIR}}
+
+    push:
+        desc: Push Kolibri OIDC image to registry
+        deps: [check-registry]
+        cmds:
+            - docker push {{.REGISTRY_URL}}/{{.REGISTRY_NAMESPACE}}/kolibri-oidc:{{.IMAGE_TAG}}
+
+    publish:
+        desc: Build and push Kolibri OIDC image
+        deps: [check-registry]
+        cmds:
+            - task: build
+            - task: push
+
+    release:
+        desc: Build, tag with version, and push
+        deps: [check-registry]
+        vars:
+            VERSION: '{{.VERSION | default "latest"}}'
+        cmds:
+            - task: build
+              vars:
+                IMAGE_TAG: '{{.VERSION}}'
+            - task: push
+              vars:
+                IMAGE_TAG: '{{.VERSION}}'
+
+    check-registry:
+        desc: Verify registry login
+        internal: true
+        silent: true
+        cmds:
+            - |
+                if ! docker info 2>&1 | grep -q "Registry"; then
+                    echo "⚠️  Warning: You may not be logged in to {{.REGISTRY_URL}}"
+                    echo "  Run: task login"
+                fi
+
+    clean:
+        desc: Remove locally built image
+        cmds:
+            - docker rmi {{.REGISTRY_URL}}/{{.REGISTRY_NAMESPACE}}/kolibri-oidc:{{.IMAGE_TAG}} 2>/dev/null || true
