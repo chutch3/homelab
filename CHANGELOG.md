@@ -2,6 +2,95 @@
 
 <!-- version list -->
 
+## v3.8.0 (2026-03-23)
+
+### Bug Fixes
+
+- Configure Loki to listen on all interfaces instead of localhost
+  ([`082cc20`](https://github.com/chutch3/homelab/commit/082cc205bdb7eeb2891085d3daa56c72eda5b742))
+
+- Correct cmd task description and HOST default quoting
+  ([`4e59ef2`](https://github.com/chutch3/homelab/commit/4e59ef28b64d08264d68f75d4e25128294ab445a))
+
+- Extract iscsi-login, fix unmount order, and start OCFS2 services before mount
+  ([`acce6a4`](https://github.com/chutch3/homelab/commit/acce6a4243ae35b053f64baf676ffe47a089c512))
+
+- Force lazy-unmount all OCFS2 mounts before stopping cluster
+  ([`fb4b089`](https://github.com/chutch3/homelab/commit/fb4b0897cee3126862a9c4d20f07a75a3193b640))
+
+- Pin explicit UIDs to Grafana datasources and update dashboard panel
+  ([`2c67b73`](https://github.com/chutch3/homelab/commit/2c67b73839f96cdf9d0018f80b4a044fd03df03a))
+
+- Resolve ansible-lint violations in cluster playbook and swarm role
+  ([`f0c00e7`](https://github.com/chutch3/homelab/commit/f0c00e70e266903413765edbb71c73e3abaf9133))
+
+- Run DNS and uptime cleanup before stack removal in teardown
+  ([`bb18ad7`](https://github.com/chutch3/homelab/commit/bb18ad75ce3708904b0d937d9b4493818b9911c6))
+
+- Update DNS removal to handle infrastructure stacks correctly
+  ([`d66abf1`](https://github.com/chutch3/homelab/commit/d66abf1661ad7c76da9a6b5e2582408e4eba328f))
+
+- **dns**: Guard Pi-hole result loops against undefined/missing status attributes
+  ([`0785146`](https://github.com/chutch3/homelab/commit/078514624689df0493f0762effedc8a54a3edd33))
+
+- **immich**: Exclude database nodes from server placement and use env vars in healthcheck
+  ([`e4072a5`](https://github.com/chutch3/homelab/commit/e4072a574bf2a89e1dda3426395709936b80619e))
+
+- **teardown**: Skip Uptime Kuma steps when tearing down reverse-proxy stack
+  ([`1472b3d`](https://github.com/chutch3/homelab/commit/1472b3d59b9b2a1e973012063999af914dac624b))
+
+### Continuous Integration
+
+- Fix a bug in the documentation build and deploy job
+  ([`07b2d70`](https://github.com/chutch3/homelab/commit/07b2d70448c4e5d14e784c288e56566160ca99ad))
+
+### Features
+
+- Add DNS API readiness polling before record registration on dns
+  ([`6d52b07`](https://github.com/chutch3/homelab/commit/6d52b070f8837fde70bdfa214a170e893d0358df))
+
+- Add docker Python SDK dependency for community.docker collection
+  ([`74b7605`](https://github.com/chutch3/homelab/commit/74b7605c67b4a9e80226a7859ec0881d5727be39))
+
+- Add kolibri stack with custom OIDC image build and consolidate registry tasks
+  ([`28c1eee`](https://github.com/chutch3/homelab/commit/28c1eeebae8b79f16432f6bd4bbdc528e5dcb5c0))
+
+- Add storage repair playbook and task for OCFS2 fsck recovery
+  ([`d1c7367`](https://github.com/chutch3/homelab/commit/d1c736788964d897eecebc36bf0b82f8c577824c))
+
+- Add swarm role tasks for stack and node management
+  ([`ef50487`](https://github.com/chutch3/homelab/commit/ef504873e7ef4dfb130dff90a7003e24412b5d9b))
+
+- Add system-logs Grafana dashboard
+  ([`215c3b3`](https://github.com/chutch3/homelab/commit/215c3b30648387736fc44ca92342f2573b9fb651))
+
+- Add systemd journal log collection to promtail with persistent positions
+  ([`bf79a54`](https://github.com/chutch3/homelab/commit/bf79a5410f1ec7fdd2f4bd3c0d45a480c65f9d2c))
+
+- Register and remove Pi-hole A record and fix compose path lookup
+  ([`bd79d91`](https://github.com/chutch3/homelab/commit/bd79d918458464cba8e0f9847aedf06e16fb8781))
+
+- Update repair-storage to gracefully remove and redeploy stacks
+  ([`64aae9f`](https://github.com/chutch3/homelab/commit/64aae9fcc51bfb732c44a32867116b930d209236))
+
+- **dns**: Fetch Pi-hole token before DNS registration when secondary DNS is enabled
+  ([`630902e`](https://github.com/chutch3/homelab/commit/630902e92b78e9f91cb74d21f68cd66b5c35769a))
+
+- **gpu**: Add driver mismatch detection with auto-reboot and CDI config generation
+  ([`76f42cf`](https://github.com/chutch3/homelab/commit/76f42cfeecba3e79a65124da7a46b0d6d31ffd29))
+
+### Refactoring
+
+- Extract iSCSI login steps into shared task file and fix mount
+  ([`e10a68c`](https://github.com/chutch3/homelab/commit/e10a68c5889ef3afefd11141106e4568081aa993))
+
+- Move teardown to top-level playbook and add remove-stacks role task
+  ([`93c7ae2`](https://github.com/chutch3/homelab/commit/93c7ae2087c58b9f24a6b8e45b3e24aa06e3c91f))
+
+- Simplify Taskfile with new deploy/teardown task interface
+  ([`29a9994`](https://github.com/chutch3/homelab/commit/29a9994515000b2392b20de43ca81382131e2e2c))
+
+
 ## v3.7.0 (2026-03-18)
 
 ### Bug Fixes
