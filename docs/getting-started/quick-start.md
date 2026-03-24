@@ -3,230 +3,99 @@
 !!! tip "Goal"
     Deploy your first self-hosted services in under 10 minutes!
 
-## Prerequisites Check
+## 🚀 One-Command Deployment
+
+Once you have your prerequisites ready, you can deploy your entire homelab with these simple steps:
+
+```bash
+# 1. Clone the repository
+git clone https://github.com/chutch3/homelab.git
+cd homelab
+
+# 2. Configure your environment
+cp .env.example .env
+nano .env  # Set your domain, Cloudflare credentials, etc.
+
+# 3. Configure your hosts
+nano ansible/inventory/02-hosts.yml # Define your manager node
+
+# 4. Install Ansible and dependencies
+task ansible:install
+
+# 5. Bootstrap and Deploy
+task ansible:bootstrap
+task ansible:deploy
+```
+
+**That's it!** All **28+ services** deploy automatically with SSL certificates, DNS registration, and dashboard integration.
+
+---
+
+## 📋 Prerequisites Check
 
 Before we begin, make sure you have:
 
-- [x] **Docker Engine 24.0+** with Docker Compose v2
-- [x] **Ansible** installed on your control machine
-- [x] **Domain name** with Cloudflare DNS management
-- [x] **Cloudflare API credentials** (Global API Key or API Token)
-- [x] **Linux/Unix environment** (Ubuntu 20.04+, Debian 11+, or similar)
-- [x] **Network storage** (optional - for persistent data via SMB/CIFS)
+- [x] **Docker Engine 24.0+** on target nodes
+- [x] **Ansible** installed on your control machine (`task ansible:install`)
+- [x] **Domain name** managed via Cloudflare
+- [x] **Cloudflare API Token** with DNS permissions
+- [x] **Linux environment** (Ubuntu 22.04+ or Debian 11+)
 
-!!! warning "Don't have these yet?"
-    Check out our [detailed installation guide](installation.md) for step-by-step setup instructions.
+---
 
-## 🚀 Quick Deployment
+## 🛠️ Step-by-Step Details
 
-### Step 1: Clone and Setup
+### Step 1: Configure Your Domain
+The platform uses Traefik for SSL. You need a domain on Cloudflare. Set your `BASE_DOMAIN` and `CF_Token` in the `.env` file.
 
-```bash
-git clone https://github.com/yourusername/homelab.git
-cd homelab
+### Step 2: Configure Your Hosts
+Define your target server in `ansible/inventory/02-hosts.yml`. For a single-node setup, just add one manager:
 
-# Copy environment template
-cp .env.example .env
+```yaml title="ansible/inventory/02-hosts.yml"
+all:
+  children:
+    managers:
+      hosts:
+        my-server:
+          ansible_host: 192.168.1.10
+          ansible_user: youruser
 ```
 
-### Step 2: Configure Your Environment
-
-Edit your `.env` file with your domain and credentials:
-
-```bash
-nano .env
-```
-
-**Essential Configuration:**
-
-```bash title=".env"
-# Your domain
-BASE_DOMAIN=yourdomain.com
-
-# Cloudflare API credentials (choose one method)
-CF_Token=your_cloudflare_api_token          # ✅ Recommended method
-# OR
-CF_Email=your@email.com                     # Legacy method
-CF_Key=your_global_api_key                  # Legacy method
-
-# Email for SSL certificates
-ACME_EMAIL=your-email@example.com
-
-# Network storage (if you have NAS/SMB shares)
-NAS_SERVER=nas.yourdomain.com
-SMB_USERNAME=your_smb_username
-SMB_PASSWORD=your_smb_password
-```
-
-!!! tip "Getting Cloudflare API Token"
-    1. Go to [Cloudflare API Tokens](https://dash.cloudflare.com/profile/api-tokens)
-    2. Click "Create Token"
-    3. Use "Custom token" template
-    4. Add permissions: `Zone:DNS:Edit` and `Zone:Zone:Read`
-    5. Include your domain in "Zone Resources"
-
-### Step 3: See Available Services
-
-Check what services are available to deploy:
-
+### Step 3: Choose Your Services
+The platform comes with **28+ pre-configured stacks**. You can see them all in:
 ```bash
 ls stacks/apps/
 ```
+By default, `task ansible:deploy` will deploy all available services.
 
-Expected output:
-```
-actual_server  cryptpad      downloads     emby          homeassistant
-homepage       librechat     photoprism    prowlarr      radarr
-sonarr
-```
-
-All these services have Docker Compose files and will be deployed automatically!
-
-### Step 4: Configure Multi-Node Setup
-
-Create and edit the Ansible inventory file:
-
-```bash
-nano ansible/inventory/02-hosts.yml
-```
-For single-machine setup, you can just configure the `manager` host. For a multi-node setup, add `workers`.
-
-### Step 5: Deploy Everything
-
-Deploy all available services:
-```bash
-# Install Ansible and dependencies
-task ansible:install
-
-# Bootstrap all nodes
-task ansible:bootstrap
-
-# Initialize the Docker Swarm cluster
-task ansible:cluster:init
-
-# Deploy all services
-task ansible:deploy
-```
-Or deploy specific services only:
-```bash
-# Deploy only homepage and actual budget
-task ansible:deploy:stack -- -e "stack_name=homepage"
-task ansible:deploy:stack -- -e "stack_name=actual_server"
-```
-
-### Step 6: Access Your Services
-
-Once deployment completes, access your services at:
-
+### Step 4: Access Your Services
+Once deployment completes, visit your new dashboard:
 - **Homepage Dashboard**: `https://homepage.yourdomain.com`
-- **Actual Budget**: `https://actual.yourdomain.com`
-- **Home Assistant**: `https://homeassistant.yourdomain.com`
-- **And many more...**
 
-The Homepage dashboard will show all your deployed services!
+From here, you can access all other services like Home Assistant, PhotoPrism, and more.
 
-!!! success "🎉 Congratulations!"
-    You now have a complete self-hosted infrastructure running on Docker Swarm with automatic SSL certificates!
+---
 
-## What's Next?
+## 📚 What's Next?
 
 <div class="grid cards" markdown>
+
+- :material-book-open-page-variant: **[Full Installation Guide](installation.md)**
+
+    ---
+
+    Detailed guide for multi-node setup and storage.
+
+- :material-view-list: **[Services Catalog](../services/index.md)**
+
+    ---
+
+    Explore all 28+ pre-configured application stacks.
 
 - :material-cog: **[Service Management](../user-guide/service-management.md)**
 
     ---
 
-    Learn how to add, remove, and configure services
-
-- :material-certificate: **SSL & Domains** - Automatic SSL via Traefik + Cloudflare
-
-    ---
-
-    Configure automatic SSL certificates and custom domains
-
-- :material-harddisk: **Volume Management** - Network storage with NAS/OMV
-
-    ---
-
-    Set up persistent storage and backups with SMB/CIFS
-
-- :material-monitor-multiple: **Multi-Node Setup** - Docker Swarm cluster configuration
-
-    ---
-
-    Scale across multiple machines with Docker Swarm
+    Learn how to add, remove, and update services.
 
 </div>
-
-## Essential Commands Reference
-
-```bash
-# Deployment Commands
-task ansible:deploy                     # Deploy all services
-task ansible:deploy:stack -- -e "stack_name=service1"  # Deploy a specific service
-
-# Cluster Management
-task ansible:cluster:init                   # Initialize Docker Swarm
-task ansible:cluster:status                 # Check cluster status
-task ansible:teardown:full                  # Destroy entire cluster (including data)
-
-# Check Available Services
-ls stacks/apps/                                # See all available services
-
-# Docker Swarm Management
-docker stack ls                                # List deployed stacks
-docker stack services <stack-name>            # Show services in a stack
-docker stack ps <stack-name>                  # Show tasks/containers for a stack
-
-# Monitoring
-task ansible:cluster:status                     # Cluster health check
-```
-
-## Troubleshooting Quick Fixes
-
-??? question "Service won't start or keeps restarting?"
-
-    Check the service logs:
-    ```bash
-    # Find the service name first
-    docker stack services <stack-name>
-
-    # Check specific service logs
-    docker service logs <service-name> --tail 50 --follow
-    ```
-
-??? question "Domain not resolving?"
-
-    Verify your DNS settings:
-    ```bash
-    # Check if domain points to your server
-    dig yourdomain.com
-
-    # Test specific service subdomain
-    dig homepage.yourdomain.com
-    ```
-
-??? question "SSL certificate issues?"
-
-    Check Traefik and certificate status:
-    ```bash
-    # Check reverse-proxy stack logs
-    docker stack services reverse-proxy
-    docker service logs reverse-proxy_traefik --tail 50
-
-    # Check if certificates are being generated
-    docker exec -it $(docker ps -q -f name=reverse-proxy_traefik) ls -la /letsencrypt/
-    ```
-
-??? question "Volume/storage issues?"
-
-    Check SMB/CIFS connection:
-    ```bash
-    # Test SMB connection manually
-    smbclient -L //${NAS_SERVER} -U ${SMB_USERNAME}
-
-    # Check volume mount status
-    docker volume ls | grep <service-name>
-    ```
-
-Need more help? Check the [First Deployment](first-deployment.md) guide for detailed troubleshooting.

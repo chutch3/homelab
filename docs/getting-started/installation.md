@@ -1,37 +1,35 @@
-# Installation Guide
+# Full Installation Guide
 
-This guide walks through installing the homelab platform.
+This guide walks through the complete installation of the homelab platform, from initial configuration to full deployment of infrastructure and applications.
 
 !!! info "Prerequisites Required"
-    Before installing, complete the [Prerequisites](prerequisites.md) guide to set up:
-
-    - Docker with sudoless access
+    Before installing, ensure you have completed the [Prerequisites](prerequisites.md) guide to set up:
+    - Target nodes with compatible OS (Ubuntu 22.04+ or Debian 11+)
+    - SSH key-based access between your control machine and all nodes
     - Cloudflare domain and API token
-    - Network storage (optional)
-    - SSH keys between nodes
+    - (Optional) Network storage (NAS/OMV with CIFS/iSCSI)
 
-## Quick Requirements Check
+---
 
-Verify you have:
+## Step 1: Clone and Prepare
 
-- [ ] Docker installed on all nodes
-- [ ] User in `docker` group (sudoless access)
-- [ ] Cloudflare domain with wildcard DNS record
-- [ ] Cloudflare API token with DNS permissions
-- [ ] SSH access configured between nodes
-- [ ] (Optional) NAS/OMV with CIFS share
+1.  **Clone the repository:**
+    ```bash
+    git clone https://github.com/chutch3/homelab.git
+    cd homelab
+    ```
 
-## Install Platform
+2.  **Install dependencies:**
+    The project uses Ansible for automation. Install it and other requirements via Task:
+    ```bash
+    task ansible:install
+    ```
 
-### 1. Clone Repository
+---
 
-```bash
-git clone https://github.com/chutch3/homelab.git
-cd homelab
-```
+## Step 2: Configuration
 
-### 2. Configure Host Inventory
-
+### 1. Configure Host Inventory
 Create your cluster configuration in the Ansible inventory:
 
 ```bash
@@ -39,9 +37,8 @@ Create your cluster configuration in the Ansible inventory:
 nano ansible/inventory/02-hosts.yml
 ```
 
-Example configuration:
-
-```yaml
+Example multi-node configuration:
+```yaml title="ansible/inventory/02-hosts.yml"
 all:
   children:
     managers:
@@ -49,8 +46,6 @@ all:
         manager-01:
           ansible_host: 192.168.1.100
           ansible_user: ubuntu
-          node_labels:
-            storage: true
     workers:
       hosts:
         worker-01:
@@ -60,105 +55,141 @@ all:
             gpu: true
 ```
 
-### 3. Configure Environment
-
-Create your `.env` file:
+### 2. Configure Environment Variables
+Create your `.env` file from the provided example:
 
 ```bash
 cp .env.example .env
 nano .env
 ```
 
-Essential configuration:
-
-```bash
+**Essential Configuration:**
+```bash title=".env"
 # Domain Configuration
 BASE_DOMAIN=yourdomain.com
-CF_Token=your_cloudflare_api_token_here
+CF_Token=your_cloudflare_api_token
 ACME_EMAIL=admin@yourdomain.com
 
-# Network Storage (if using NAS)
-NAS_SERVER=192.168.1.50
-SMB_USERNAME=homelab
-SMB_PASSWORD=your_nas_password
+# User IDs (usually 1000 for the first user)
+UID=1000
+GID=1000
 
-# Service Credentials
-DNS_ADMIN_PASSWORD=secure_dns_password
-GRAFANA_ADMIN_PASSWORD=secure_grafana_password
+# Service Credentials (generate secure values)
+DNS_ADMIN_PASSWORD=secure_password
+GRAFANA_ADMIN_PASSWORD=secure_password
 ```
 
-See [Configuration Guide](configuration.md) for all available options.
+See the [Configuration Guide](configuration.md) for a full list of available variables.
 
-### 4. Deploy
+---
 
-Initialize the cluster and deploy services using Ansible:
+## Step 3: Deployment
 
-```bash
-# Install Ansible and dependencies
-task ansible:install
+The deployment process is split into bootstrapping the nodes and then deploying the cluster.
 
-# Bootstrap all nodes
-task ansible:bootstrap
+1.  **Bootstrap Nodes:**
+    Prepares all nodes with Docker, dependencies, and security hardening.
+    ```bash
+    task ansible:bootstrap
+    ```
 
-# Initialize the Docker Swarm cluster
-task ansible:cluster:init
+2.  **Initialize Cluster & Deploy:**
+    Initializes Docker Swarm and deploys all infrastructure and application stacks.
+    ```bash
+    task ansible:deploy
+    ```
 
-# Deploy all services
-task ansible:deploy:full
-```
+### What Happens During Deployment?
+- **Docker Swarm**: A multi-node cluster is initialized and joined.
+- **Networking**: An overlay network (`traefik-public`) is created for service communication.
+- **Core Infrastructure**:
+    - **Traefik**: Reverse proxy with automatic SSL (Let's Encrypt).
+    - **Technitium DNS**: Internal DNS resolution.
+    - **Monitoring**: Prometheus, Grafana, Loki, and Promtail.
+- **Applications**: All services in `stacks/apps/` are deployed according to their configurations.
+- **DNS Registration**: A/CNAME records are automatically added for all services.
 
-The deployment will:
+---
 
-1. Bootstrap each node with Docker and other dependencies.
-2. Initialize Docker Swarm on the manager node.
-3. Create overlay networks.
-4. Deploy core infrastructure (Traefik, DNS, Monitoring).
-5. Deploy application services.
-6. Configure SSL certificates automatically.
+## Step 4: Verification
 
-### 5. Verify Deployment
+Check that all services are running correctly:
 
-Check that services are running:
+1.  **Check Stack Status:**
+    ```bash
+    docker stack ls
+    ```
 
-```bash
-# Check cluster status
-task ansible:cluster:status
+2.  **Check Individual Services:**
+    ```bash
+    docker service ls
+    ```
 
-# List deployed stacks
-docker stack ls
+3.  **View Logs (example for Traefik):**
+    ```bash
+    docker service logs reverse-proxy_traefik --tail 50 -f
+    ```
 
-# Check specific service
-docker service logs reverse-proxy_traefik --tail 50
-```
+---
 
-### 6. Access Services
+## Step 5: Access Your Services
 
-Access your services via their domains:
+Once deployment completes, access your services via their configured domains:
 
 - **Homepage Dashboard**: `https://homepage.yourdomain.com`
 - **Traefik Dashboard**: `https://traefik.yourdomain.com`
 - **Grafana Monitoring**: `https://grafana.yourdomain.com`
-- **DNS Server**: `http://yourdomain.com:5380`
+- **DNS Server**: `http://dns.yourdomain.com:5380`
 
-!!! success "Installation Complete!"
-    Your homelab is now running! Check the [Service Management](../user-guide/service-management.md) guide to learn how to manage your services.
+---
+
+## Management Commands
+
+### Service Operations
+```bash
+# Deploy or update a specific service
+task ansible:deploy:service -- -e "stack_name=homeassistant"
+
+# Tear down a specific service (preserves volumes)
+task ansible:teardown:service -- -e "stack_name=homeassistant"
+
+# Tear down a service and DELETE its data (Destructive)
+task ansible:teardown:service -- -e "stack_name=homeassistant remove_volumes=true"
+```
+
+### Cluster Operations
+```bash
+# Check cluster health
+task ansible:cluster:status
+
+# Full cluster teardown (preserves volumes)
+task ansible:teardown
+
+# Full cluster teardown including volumes (Destructive)
+task ansible:teardown:with-volumes
+```
+
+---
 
 ## Troubleshooting
 
-**Docker permission denied?**
-```bash
-sudo usermod -aG docker $USER
-newgrp docker
-```
+??? question "Docker permission denied?"
+    Ensure your user is in the `docker` group:
+    ```bash
+    sudo usermod -aG docker $USER
+    newgrp docker
+    ```
 
-**Services won't start?**
-```bash
-docker service logs service_name --tail 50
-```
+??? question "Services stuck in 'Pending'?"
+    Check service status for placement constraints or resource issues:
+    ```bash
+    docker service ps <service_name>
+    ```
 
-**SSL certificate issues?**
-Test your Cloudflare token:
-```bash
-curl -X GET "https://api.cloudflare.com/client/v4/zones" \
-     -H "Authorization: Bearer YOUR_TOKEN"
-```
+??? question "SSL certificate issues?"
+    Verify your Cloudflare token and check Traefik logs:
+    ```bash
+    docker service logs reverse-proxy_traefik | grep -i acme
+    ```
+
+For more detailed issues, see the [Troubleshooting Guide](../troubleshooting.md).
