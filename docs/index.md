@@ -1,4 +1,4 @@
-# 🏠 Selfhosted
+# 🏠 Homelab
 
 **Unified • Automated • Production-Ready**
 
@@ -30,7 +30,7 @@
 
 </div>
 
-## What is Selfhosted?
+## What is Homelab?
 
 A Docker Swarm-based homelab platform that simplifies running multiple self-hosted services. With pre-configured compose files for **28+ popular services**, automatic SSL certificates via Traefik, centralized SSO via Authentik, and automated backups, you can have a complete production-ready homelab infrastructure running in minutes.
 

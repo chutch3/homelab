@@ -7,7 +7,7 @@ Automatically syncs SSL certificates from Traefik to OpenMediaVault NAS using te
 1. Runs as a Docker Swarm service with cron
 2. Uses tested functions from `scripts/common/cert.sh` and `scripts/common/nas_cert.sh`
 3. Extracts wildcard certificate from Traefik's `acme.json`
-4. Copies certificate to NAS via SSH (using existing `selfhosted_rsa` key)
+4. Copies certificate to NAS via SSH (using existing `homelab_rsa` key)
 5. Installs certificate in OpenMediaVault via OMV RPC
 6. Runs weekly (Sundays at 3 AM) + immediate sync on deployment
 
@@ -31,7 +31,7 @@ The setup script automatically creates the Docker secret from your existing SSH 
 ./homelab deploy --only-apps cert-sync-nas
 ```
 
-**Note:** The init script reuses your existing `~/.ssh/selfhosted_rsa` key (from machines.yaml setup), so no additional SSH configuration is needed!
+**Note:** The init script reuses your existing `~/.ssh/homelab_rsa` key (from machines.yaml setup), so no additional SSH configuration is needed!
 
 ### Verify Deployment
 

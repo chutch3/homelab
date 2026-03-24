@@ -66,11 +66,11 @@ uptime_kuma_username: "{{ lookup('env', 'UPTIME_KUMA_USERNAME') | default('admin
 #   - { port: "{{ node_exporter_port }}", proto: tcp, comment: 'Node Exporter' }
 
 # SSH configuration
-ansible_ssh_private_key_file: "~/.ssh/selfhosted_rsa"
+ansible_ssh_private_key_file: "~/.ssh/homelab_rsa"
 ssh_disable_password_auth: false
 ssh_pubkey_authentication: true
 ssh_public_keys:
-    - "/home/cody/.ssh/selfhosted_rsa.pub"
+    - "/home/cody/.ssh/homelab_rsa.pub"
 # Reference secrets (actual values in all.secret.yml)
 # cloudflare_token: "{{ vault_cloudflare_token }}"
 # aws_access_key: "{{ vault_aws_access_key }}"

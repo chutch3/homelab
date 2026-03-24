@@ -64,7 +64,7 @@ The script reads `NAS_SERVER`, `NAS_USER`, and `SSH_KEY_FILE` from your `.env` f
 ```
 NAS hostname or IP [nas.local]: <enter your NAS IP or hostname>
 SSH username for NAS [root]: <enter your NAS username>
-SSH key path [~/.ssh/selfhosted_rsa]: <enter path to your SSH key>
+SSH key path [~/.ssh/homelab_rsa]: <enter path to your SSH key>
 ZIM data directory on NAS [/srv/kiwix_data]: <press enter for default>
 Log directory on NAS [/var/log/kiwix]: <press enter for default>
 Email address for notifications [admin@example.com]: <enter your email>
