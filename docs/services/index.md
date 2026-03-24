@@ -76,7 +76,7 @@ Browse our comprehensive catalog of self-hosted services. Each service is pre-co
 
     Self-hosted AI chat interfaces
 
-    **1 service available**
+    **2 services available**
 
 - :material-brain: **[Development & ML](#development-ml)**
 
@@ -1022,6 +1022,39 @@ task ansible:deploy:stack -- -e "stack_name=node-red"
 
 ## AI & Chat
 
+### Ollama {#ollama}
+
+<div class="service-card">
+
+**Local LLM runner with GPU acceleration**
+
+- **Domain**: `ollama.yourdomain.com`
+- **Port**: `11434`
+- **Status**: ✅ Available
+- **Tags**: `ai` `llm` `privacy` `gpu`
+
+#### Features
+- Run large language models locally (Llama 3, Mistral, Gemma, etc.)
+- GPU acceleration with NVIDIA support
+- Simple REST API for model interaction
+- Automatic model downloading and management
+- Minimal overhead
+- Easy integration with LibreChat and other interfaces
+
+#### Prerequisites
+- Node labeled for LLM: `docker node update --label-add llm=true giant`
+- NVIDIA GPU with drivers and Container Toolkit installed
+- iSCSI storage for models (`/mnt/iscsi/app-data/ollama`)
+
+#### Quick Deploy
+```bash
+task ansible:deploy:stack -- -e "stack_name=ollama"
+```
+
+[Learn more about Ollama →](https://ollama.com/)
+
+</div>
+
 ### LibreChat {#librechat}
 
 <div class="service-card">
@@ -1355,12 +1388,12 @@ Consider contributing your service definition to help others!
 | Download Clients | 4 (+ VPN) |
 | Productivity & Collaboration | 2 |
 | Home Automation | 2 |
-| AI & Chat | 1 |
+| AI & Chat | 2 |
 | Development & ML | 1 |
 | Development & CI/CD | 1 |
 | Knowledge & Learning | 2 |
 | Core Infrastructure | 1 |
-| **Total Application Services** | **27** |
+| **Total Application Services** | **28** |
 
 **Plus 4 Infrastructure Stacks:**
 - Traefik (Reverse Proxy)
