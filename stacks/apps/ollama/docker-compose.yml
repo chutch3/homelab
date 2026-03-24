@@ -1,0 +1,45 @@
+version: "3.9"
+
+services:
+  ollama:
+    image: ollama/ollama:latest
+    container_name: ollama
+    volumes:
+      - ollama-data:/root/.ollama
+    networks:
+      - traefik-public
+    environment:
+      - OLLAMA_HOST=0.0.0.0
+      - OLLAMA_ORIGINS=*
+      - OLLAMA_DEBUG=1
+      - NVIDIA_VISIBLE_DEVICES=all
+      - NVIDIA_DRIVER_CAPABILITIES=compute,utility
+    deploy:
+      replicas: 1
+      placement:
+        constraints:
+          - node.labels.llm == true
+      labels:
+        - "traefik.enable=true"
+        - "traefik.http.routers.ollama.rule=Host(`ollama.${BASE_DOMAIN}`)"
+        - "traefik.http.routers.ollama.entrypoints=websecure"
+        - "traefik.http.routers.ollama.tls.certresolver=dns"
+        - "traefik.http.services.ollama.loadbalancer.server.port=11434"
+
+        - "homepage.group=AI & Chat"
+        - "homepage.name=Ollama"
+        - "homepage.icon=ollama.png"
+        - "homepage.href=https://ollama.${BASE_DOMAIN}/"
+        - "homepage.description=Local LLM Runner"
+
+networks:
+  traefik-public:
+    external: true
+
+volumes:
+  ollama-data:
+    driver: local
+    driver_opts:
+      type: "none"
+      o: "bind"
+      device: "/mnt/iscsi/app-data/ollama"
