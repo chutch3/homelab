@@ -1,4 +1,4 @@
-// Custom JavaScript for Selfhosted documentation
+// Custom JavaScript for Homelab documentation
 
 document.addEventListener('DOMContentLoaded', function() {
     // Add copy button functionality for code blocks
