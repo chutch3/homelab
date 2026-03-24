@@ -1,7 +1,13 @@
 name: 📚 Documentation
 
 on:
-    workflow_call: {}
+    workflow_call:
+        inputs:
+            deploy:
+                description: "Deploy to GitHub Pages"
+                required: false
+                default: true
+                type: boolean
     workflow_dispatch:
         inputs:
             deploy:
@@ -81,10 +87,8 @@ jobs:
     build-and-deploy:
         name: 🏗️ Build & Deploy Documentation
         if: >-
-            github.event_name == 'workflow_call' ||
-            (github.event_name == 'workflow_dispatch' &&
-             github.ref == 'refs/heads/main' &&
-             inputs.deploy == true)
+            github.ref == 'refs/heads/main' &&
+            inputs.deploy == true
         needs: validate
         runs-on: ubuntu-latest
         environment:
