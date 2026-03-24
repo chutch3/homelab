@@ -32,152 +32,57 @@
 
 ## What is Selfhosted?
 
-A Docker Swarm-based homelab deployment platform that simplifies running multiple self-hosted services. With pre-configured compose files for 25+ popular services, automatic SSL certificates via Traefik, centralized SSO via Authentik, automated backups, and network storage integration, you can have a complete homelab infrastructure running in minutes.
+A Docker Swarm-based homelab platform that simplifies running multiple self-hosted services. With pre-configured compose files for **28+ popular services**, automatic SSL certificates via Traefik, centralized SSO via Authentik, and automated backups, you can have a complete production-ready homelab infrastructure running in minutes.
 
 !!! tip "What is self-hosting?"
-    Self-hosting is the practice of running and maintaining your own services instead of relying on third-party providers, giving you control over your data and infrastructure. For more information, see [r/selfhosted](https://www.reddit.com/r/selfhosted/wiki/index).
+    Self-hosting is the practice of running and maintaining your own services instead of relying on third-party providers, giving you control over your data and infrastructure.
 
-## 🚀 Why This Homelab Platform?
-
-<div class="grid cards" markdown>
-
-- :package: **Pre-Configured Services**
-
-    ---
-
-    25+ ready-to-deploy services with Docker Compose files
-
-- :shield: **Automatic SSL**
-
-    ---
-
-    Traefik reverse proxy with Let's Encrypt + Cloudflare DNS
-
-- :network-wired: **Network Storage**
-
-    ---
-
-    Built-in SMB/CIFS support for persistent data on NAS
-
-- :material-kubernetes: **Docker Swarm Ready**
-
-    ---
-
-    Multi-node orchestration and high availability
-
-- :material-test-tube: **Battle-Tested**
-
-    ---
-
-    Comprehensive linting, static analysis, and validation playbooks
-
-- :material-rocket-launch-outline: **One-Command Deploy**
-
-    ---
-
-    Deploy everything with `task ansible:deploy` after a one-time setup.
-
-</div>
+---
 
 ## ✨ Key Features
 
-### :material-file-code: Environment-Based Configuration
-Single `.env` file contains all configuration - domains, credentials, storage paths, and API keys.
+<div class="grid cards" markdown>
 
-### :material-package: Pre-Built Service Stack
-25+ popular services with production-ready Docker Compose configurations including Traefik labels and Authentik SSO integration.
+- :package: **28+ Pre-Configured Services**
 
-### :material-console: Simple Deployment Interface
-A simple `Taskfile.yml` provides a clean and consistent interface for all management commands, powered by Ansible.
+    ---
 
-### :material-certificate: SSL Certificate Automation
-Traefik reverse proxy with Let's Encrypt certificates via Cloudflare DNS challenge - fully automated.
+    Ready-to-deploy stacks for media, finance, AI, and more.
+    **[Browse the Catalog →](services/index.md)**
 
-### :material-dns: Reverse Proxy Integration
-Every service pre-configured with Traefik labels for automatic routing and SSL termination.
+- :shield: **Automatic SSL & Proxy**
 
-### :material-kubernetes: Docker Swarm Orchestration
-Multi-node deployment with automatic service placement, health checks, and rolling updates.
+    ---
 
-## 📋 Available Services
+    Traefik reverse proxy with Let's Encrypt + Cloudflare DNS automation.
 
-Pre-configured Docker Compose stacks ready for deployment:
+- :material-account-key: **Centralized SSO**
 
-=== "📊 Finance & Budgeting"
+    ---
 
-    - **[Actual Budget](https://actualbudget.org/)** - Personal finance and budgeting application
+    Identity management and single sign-on via Authentik integrated with 10+ apps.
 
-=== "📸 Media & Entertainment"
+- :material-harddisk: **Hybrid Storage**
 
-    - **[PhotoPrism](https://photoprism.app/)** - AI-powered photo management and organization
-    - **[Emby](https://emby.media/)** - Media server for streaming movies and TV shows
+    ---
 
-=== "🏠 Smart Home & Automation"
+    iSCSI for databases and CIFS/SMB for media, ensuring performance and stability.
 
-    - **[Home Assistant](https://www.home-assistant.io/)** - Open source home automation platform
+- :material-test-tube: **Production Ready**
 
-=== "📝 Collaboration & Productivity"
+    ---
 
-    - **[CryptPad](https://cryptpad.fr/)** - Encrypted collaborative document editing
-    - **[LibreChat](https://librechat.ai/)** - AI chat interface supporting multiple LLM providers
+    Docker Swarm orchestration with health checks and rolling updates.
 
-=== "🌐 Core Infrastructure"
+- :material-rocket-launch: **One-Command Deploy**
 
-    - **[Homepage](https://gethomepage.dev/)** - Centralized dashboard for all services
-    - **[Traefik](https://traefik.io/)** - Reverse proxy with automatic SSL certificates
-    - **[Technitium DNS](https://technitium.com/dns/)** - Local DNS server for internal service resolution
+    ---
 
-=== "🎬 Media Automation"
+    Deploy your entire stack with `task ansible:deploy` after a simple setup.
 
-    - **[Sonarr](https://sonarr.tv/)** - TV series management and automation
-    - **[Radarr](https://radarr.video/)** - Movie management and automation
-    - **[Prowlarr](https://prowlarr.com/)** - Indexer manager for media automation
-    - **Downloads Stack** - Unified qBittorrent, Deluge, and VPN setup with SOCKS5 proxy
+</div>
 
-**Total: 25+ pre-configured services** with more being added regularly!
-
-**New in v3.4.0:**
-- :material-account-key: **Authentik** - Identity provider and SSO (integrated with 8+ services)
-- :material-backup-restore: **Kopia** - Automated encrypted backups to cloud storage
-- :material-harddisk: **iSCSI Storage** - Enhanced storage backend for media services
-
-## 🎯 Quick Example
-
-Deploy your entire homelab with just a few commands:
-
-```bash
-# 1. Clone and setup
-git clone https://github.com/chutch3/homelab.git
-cd homelab
-
-# 2. Configure your environment
-cp .env.example .env
-nano .env  # Set your domain, Cloudflare credentials, etc.
-
-# 3. Configure your hosts
-nano ansible/inventory/02-hosts.yml # Add your hosts and their roles
-
-# 4. Install Ansible and dependencies
-task ansible:install
-
-# 5. Deploy everything
-task ansible:bootstrap
-task ansible:cluster:init
-task ansible:deploy
-```
-
-**That's it!** All services deploy automatically with:
-- ✅ Automatic SSL certificates via Let's Encrypt + Cloudflare
-- ✅ Traefik reverse proxy routing
-- ✅ SMB/CIFS network storage integration
-- ✅ Docker Swarm orchestration across multiple nodes
-- ✅ Homepage dashboard showing all services
-
-Or deploy specific services only:
-```bash
-# Deploy only the homepage service
-task ansible:deploy:stack -- -e "stack_name=homepage"
-```
+---
 
 ## 🏗️ Architecture Overview
 
@@ -213,6 +118,8 @@ graph TB
     MANAGER -- "runs" --> APPS
 ```
 
+---
+
 ## 🚀 Getting Started
 
 Ready to start your self-hosting journey? Choose your path:
@@ -223,21 +130,22 @@ Ready to start your self-hosting journey? Choose your path:
 
     ---
 
-    Get your first service running in 5 minutes
+    Get up and running on a single machine in 5 minutes.
 
 - :material-book-open-page-variant: **[Full Installation Guide →](getting-started/installation.md)**
 
     ---
 
-    Complete setup with all configuration options
+    Complete multi-node setup with network storage and SSO.
 
-- :material-account-group: **[Contributing →](https://github.com/chutch3/homelab/issues)**
+- :material-view-list: **[Services Catalog →](services/index.md)**
 
     ---
 
-    Help improve the platform - report issues or contribute code
+    Explore all 28+ pre-configured application stacks.
 
 </div>
+
 
 ## 🏷️ Tags
 

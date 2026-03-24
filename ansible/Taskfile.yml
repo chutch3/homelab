@@ -146,6 +146,13 @@ tasks:
         cmds:
             - "{{.VENV_ANSIBLE_PLAYBOOK}} -i ansible/inventory/ ansible/playbooks/deploy/stack.yml {{.CLI_ARGS}}"
 
+    deploy:stack:
+        desc: "Alias for deploy:service"
+        dir: "{{.ROOT_DIR}}"
+        cmds:
+            - task: deploy:service
+              vars: {CLI_ARGS: "{{.CLI_ARGS}}"}
+
     # Ansible Volume Management
     volume:ls:
         desc: List all Docker volumes
@@ -379,6 +386,13 @@ tasks:
         dir: "{{.ROOT_DIR}}"
         cmds:
             - "{{.VENV_ANSIBLE_PLAYBOOK}} -i ansible/inventory/ ansible/playbooks/ops/teardown-stack.yml {{.CLI_ARGS}}"
+
+    teardown:stack:
+        desc: "Alias for teardown:service"
+        dir: "{{.ROOT_DIR}}"
+        cmds:
+            - task: teardown:service
+              vars: {CLI_ARGS: "{{.CLI_ARGS}}"}
 
     # Docker System Prune Operations
     ops:system-prune:

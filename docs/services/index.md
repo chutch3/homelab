@@ -20,7 +20,7 @@ Browse our comprehensive catalog of self-hosted services. Each service is pre-co
 
     Backups, monitoring, and certificate management
 
-    **3 services available**
+    **4 services available**
 
 - :material-chart-line: **[Finance & Budgeting](#finance-budgeting)**
 
@@ -1381,7 +1381,7 @@ Consider contributing your service definition to help others!
 | Category | Services |
 |----------|----------|
 | Identity & Security | 2 |
-| Infrastructure & Monitoring | 3 |
+| Infrastructure & Monitoring | 4 |
 | Finance & Budgeting | 1 |
 | Media Management | 4 |
 | Media Automation | 6 |
@@ -1393,7 +1393,7 @@ Consider contributing your service definition to help others!
 | Development & CI/CD | 1 |
 | Knowledge & Learning | 2 |
 | Core Infrastructure | 1 |
-| **Total Application Services** | **28** |
+| **Total Application Services** | **31** |
 
 **Plus 4 Infrastructure Stacks:**
 - Traefik (Reverse Proxy)
@@ -1447,6 +1447,5 @@ New to self-hosting? Start here:
 1. **[Quick Start](../getting-started/quick-start.md)** - Get running in 5 minutes
 2. **[Installation Guide](../getting-started/installation.md)** - Complete setup
 3. **[Service Management](../user-guide/service-management.md)** - Learn the CLI
-4. **[First Deployment](../getting-started/first-deployment.md)** - Deploy your services
 
 **Want to add a new service?** Check the example services in `stacks/apps/` directory for reference.
