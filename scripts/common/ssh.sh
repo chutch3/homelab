@@ -1,6 +1,6 @@
 #!/bin/bash
 
-SSH_KEY_FILE="${SSH_KEY_FILE:-$HOME/.ssh/selfhosted_rsa}"
+SSH_KEY_FILE="${SSH_KEY_FILE:-$HOME/.ssh/homelab_rsa}"
 SSH_TIMEOUT="${SSH_TIMEOUT:-5}"
 
 export SSH_KEY_FILE

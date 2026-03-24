@@ -115,7 +115,7 @@ get_nas_connection_info() {
 
     # Use SSH_KEY_FILE from .env if available, otherwise prompt
     if [ -z "${SSH_KEY_FILE:-}" ]; then
-        prompt SSH_KEY_FILE "SSH key path" "$HOME/.ssh/selfhosted_rsa"
+        prompt SSH_KEY_FILE "SSH key path" "$HOME/.ssh/homelab_rsa"
         log_warn "Consider adding SSH_KEY_FILE=$SSH_KEY_FILE to .env file"
     else
         log_info "Using SSH_KEY_FILE from .env: $SSH_KEY_FILE"
