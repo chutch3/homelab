@@ -8,7 +8,7 @@ Common issues and solutions for your homelab deployment. This guide covers the m
 2. [Service Deployment Failures](#service-deployment-failures)
 3. [SSL Certificate Issues](#ssl-certificate-issues)
 4. [DNS Resolution Problems](#dns-resolution-problems)
-5. [Secondary DNS / Pi-hole Sync](#secondary-dns--pi-hole-sync)
+5. [Secondary DNS and Pi-hole Sync](#secondary-dns-and-pi-hole-sync)
 6. [Docker Swarm Networking](#docker-swarm-networking)
 7. [Authentik SSO Integration](#authentik-sso-integration)
 8. [Storage Mount Failures](#storage-mount-failures)
@@ -369,7 +369,7 @@ dig @<server-ip> yourdomain.com
 
 ---
 
-## Secondary DNS / Pi-hole Sync
+## Secondary DNS and Pi-hole Sync
 
 Issues specific to the optional Pi-hole secondary DNS feature (`SECONDARY_DNS_ENABLED=true`).
 

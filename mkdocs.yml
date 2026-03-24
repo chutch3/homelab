@@ -2,11 +2,11 @@ site_name: Homelab
 site_url: https://chutch3.github.io/homelab/
 repo_url: https://github.com/chutch3/homelab
 edit_uri: edit/main/docs/
-site_description: "A Docker Swarm homelab platform with 14+ pre-configured services, automatic SSL certificates via Traefik, and network storage integration."
+site_description: "A Docker Swarm homelab platform with 28+ pre-configured services, automatic SSL certificates via Traefik, and network storage integration."
 site_author: "Cody Hutchens"
 
 theme:
-  name: null
+  name: material
   custom_dir: "docs/overrides"
   features:
     - content.code.copy
@@ -45,14 +45,17 @@ nav:
   - Home: index.md
   - "Getting Started":
       - "Quick Start": "getting-started/quick-start.md"
-      - "Installation": "getting-started/installation.md"
+      - "Full Installation": "getting-started/installation.md"
       - "Configuration": "getting-started/configuration.md"
       - "Prerequisites": "getting-started/prerequisites.md"
   - "User Guide":
       - "Service Management": "user-guide/service-management.md"
       - "Shutdown and Startup": "user-guide/shutdown-startup.md"
+      - "Troubleshooting": "troubleshooting.md"
   - "Architecture":
       - "Overview": "architecture/overview.md"
       - "Storage": "architecture/storage.md"
+  - "Services Catalog": "services/index.md"
   - "Development":
       - "Roadmap": "roadmap.md"
+      - "Tags": "tags.md"

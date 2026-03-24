@@ -336,7 +336,7 @@ Once all prerequisites are complete:
 
 1. [Configure your inventory](configuration.md) - Define your cluster nodes in `ansible/inventory/02-hosts.yml`.
 2. [Configure .env](configuration.md) - Set environment variables.
-3. [First Deployment](first-deployment.md) - Deploy your homelab.
+3. [Full Installation](installation.md) - Deploy your homelab.
 
 ---
 

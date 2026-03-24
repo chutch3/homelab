@@ -331,4 +331,4 @@ all:
           ansible_user: admin
 ```
 
-[Next: Deploy your homelab →](first-deployment.md)
+[Next: Deploy your homelab →](installation.md)
