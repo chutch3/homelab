@@ -1,0 +1,81 @@
+version: "3.9"
+
+services:
+  database:
+    image: postgres:15-alpine
+    environment:
+      - POSTGRES_USER=prefect
+      - POSTGRES_PASSWORD=${PREFECT_DB_PASSWORD}
+      - POSTGRES_DB=prefect
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    networks:
+      prefect-internal:
+        aliases:
+          - database
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -d prefect -U prefect"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    deploy:
+      placement:
+        constraints:
+          - node.labels.database == true
+      restart_policy:
+        condition: any
+
+  server:
+    image: prefecthq/prefect:2-python3.11
+    command: prefect server start
+    environment:
+      - PREFECT_UI_API_URL=https://prefect.${BASE_DOMAIN}/api
+      - PREFECT_API_DATABASE_CONNECTION_URL=postgresql+asyncpg://prefect:${PREFECT_DB_PASSWORD}@database:5432/prefect
+      - PREFECT_SERVER_API_HOST=0.0.0.0
+      # Allow ephemeral containers to be created on the host
+      - PREFECT_DOCKER_MODE=true
+    volumes:
+      - prefect-config:/root/.prefect
+    networks:
+      - prefect-internal
+      - traefik-public
+    ports:
+      - "4200:4200"
+    depends_on:
+      - database
+    deploy:
+      labels:
+        - "traefik.enable=true"
+        - "traefik.http.routers.prefect.rule=Host(`prefect.${BASE_DOMAIN}`)"
+        - "traefik.http.routers.prefect.entrypoints=websecure"
+        - "traefik.http.routers.prefect.tls.certresolver=dns"
+        - "traefik.http.services.prefect.loadbalancer.server.port=4200"
+        - "traefik.swarm.network=traefik-public"
+
+        - "homepage.group=Development"
+        - "homepage.name=Prefect"
+        - "homepage.icon=prefect.png"
+        - "homepage.href=https://prefect.${BASE_DOMAIN}/"
+        - "homepage.description=Workflow Orchestration & ML Pipelines"
+      restart_policy:
+        condition: any
+
+networks:
+  prefect-internal:
+    driver: overlay
+  traefik-public:
+    external: true
+
+volumes:
+  db-data:
+    driver: local
+    driver_opts:
+      type: "none"
+      o: "bind"
+      device: "/mnt/iscsi/app-data/prefect/postgresql"
+  prefect-config:
+    driver: local
+    driver_opts:
+      type: "none"
+      o: "bind"
+      device: "/mnt/iscsi/app-data/prefect/config"

@@ -143,13 +143,14 @@ Used for databases and high-I/O applications. These directories must be created 
 
 ```bash
 # 1. Create the directory
-sudo mkdir -p /mnt/iscsi/app-data/myservice
+sudo mkdir -p /mnt/iscsi/app-data/prefect/postgresql
+sudo mkdir -p /mnt/iscsi/app-data/prefect/config
 
 # 2. Set ownership (1000:1000 is the default for most containers in this lab)
-sudo chown -R 1000:1000 /mnt/iscsi/app-data/myservice
+sudo chown -R 1000:1000 /mnt/iscsi/app-data/prefect
 
 # 3. For databases (e.g., PostgreSQL), use 999:999
-sudo chown -R 999:999 /mnt/iscsi/app-data/myservice/db
+sudo chown -R 999:999 /mnt/iscsi/app-data/prefect/postgresql
 ```
 
 ### CIFS/SMB (Bulk Storage)
