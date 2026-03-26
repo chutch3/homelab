@@ -1141,6 +1141,37 @@ task ansible:deploy:stack -- -e "stack_name=mlflow"
 
 </div>
 
+### Prefect {#prefect}
+
+<div class="service-card">
+
+**Modern workflow orchestration for data and ML pipelines**
+
+- **Domain**: `prefect.yourdomain.com`
+- **Port**: `4200`
+- **Status**: ✅ Available
+- **Tags**: `orchestration` `ml` `data` `pipelines` `python`
+
+#### Features
+- Python-native workflow definition (using decorators)
+- Dynamic DAGs and real-time monitoring
+- Ephemeral Docker task execution
+- Beautiful UI for flow runs and observability
+- Built-in scheduling and error handling
+
+#### Storage Requirements
+- PostgreSQL data: iSCSI mount (`/mnt/iscsi/app-data/prefect/postgresql`)
+- Server config: iSCSI mount (`/mnt/iscsi/app-data/prefect/config`)
+
+#### Quick Deploy
+```bash
+task ansible:deploy:stack -- -e "stack_name=prefect"
+```
+
+[Learn more about Prefect →](https://www.prefect.io/)
+
+</div>
+
 ---
 
 ## Development & CI/CD
