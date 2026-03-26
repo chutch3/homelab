@@ -203,6 +203,7 @@ Our mission is to create the ultimate self-hosting platform that makes running y
 | Service | Details |
 |---------|---------|
 | **Forgejo** | Self-hosted Git service with PostgreSQL backend, Authentik OIDC SSO, SSH access on port 2222, and iSCSI storage. Deployed at `git.yourdomain.com` |
+| **CI/CD Runners** | Dual runner setup: **Forgejo Runner** for local Git projects and **GitHub Runner** for building/testing GitHub.com repositories on homelab hardware. |
 | **Kolibri** | Offline K-12 educational platform with Khan Academy content, hybrid iSCSI + CIFS storage, optional Authentik OIDC. Deployed at `kolibri.yourdomain.com` |
 
 ### 🎯 NEEDS (High Priority - Real Gaps to Fill)
