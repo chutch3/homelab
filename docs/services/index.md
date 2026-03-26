@@ -1187,6 +1187,51 @@ task ansible:deploy:stack -- -e "stack_name=forgejo"
 
 </div>
 
+### CI/CD Runner (Forgejo) {#cicd}
+
+<div class="service-card">
+
+**Self-hosted Forgejo Actions runner for local CI/CD automation**
+
+- **Domain**: `cicd.yourdomain.com` (Metrics/Status API)
+- **Status**: ✅ Available
+- **Tags**: `development` `ci-cd` `automation` `runners`
+
+#### Features
+- Executes Forgejo Actions (compatible with GitHub Actions)
+- Support for Docker-based builds
+- Connects to local `git.${BASE_DOMAIN}` instance
+- Built-in metrics and status API
+
+#### Quick Deploy
+```bash
+task ansible:deploy:stack -- -e "stack_name=cicd"
+```
+
+</div>
+
+### GitHub Actions Runner {#github-runner}
+
+<div class="service-card">
+
+**Self-hosted GitHub runner for external CI/CD automation**
+
+- **Status**: ✅ Available
+- **Tags**: `development` `ci-cd` `automation` `runners` `github`
+
+#### Features
+- Executes GitHub.com workflows on homelab hardware
+- Docker-in-Docker support for building images
+- Secure HTTPS-only connectivity (no inbound ports required)
+- Direct access to local GHCR registry
+
+#### Quick Deploy
+```bash
+task ansible:deploy:stack -- -e "stack_name=github-runner"
+```
+
+</div>
+
 ---
 
 ## Knowledge & Learning
