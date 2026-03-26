@@ -25,6 +25,18 @@ task ansible:deploy:quick
 task ansible:deploy:stack -- -e "stack_name=homepage"
 ```
 
+## Advanced Deployment Filters
+
+You can filter which applications are deployed during a full run using `only_apps` or `skip_apps`.
+
+```bash
+# Deploy ONLY the specified apps
+task ansible:deploy:services -- -e "only_apps=cicd,github-runner"
+
+# Deploy everything EXCEPT the specified apps
+task ansible:deploy:services -- -e "skip_apps=sonarr,radarr"
+```
+
 ## Check Service Status
 
 ```bash
@@ -120,6 +132,33 @@ task ansible:teardown:stack -- -e "stack_name=homepage remove_volumes=true"
    ```bash
    task ansible:deploy:stack -- -e "stack_name=myservice"
    ```
+
+## Storage Provisioning
+
+Before deploying a service that uses persistent storage, you must ensure the directories exist on your storage backend with the correct permissions.
+
+### iSCSI (High Performance)
+
+Used for databases and high-I/O applications. These directories must be created on a node where the iSCSI target is mounted (usually `/mnt/iscsi/app-data`).
+
+```bash
+# 1. Create the directory
+sudo mkdir -p /mnt/iscsi/app-data/myservice
+
+# 2. Set ownership (1000:1000 is the default for most containers in this lab)
+sudo chown -R 1000:1000 /mnt/iscsi/app-data/myservice
+
+# 3. For databases (e.g., PostgreSQL), use 999:999
+sudo chown -R 999:999 /mnt/iscsi/app-data/myservice/db
+```
+
+### CIFS/SMB (Bulk Storage)
+
+Used for media files and large data sets. These are typically managed on your NAS.
+
+1. Create the shared folder on your NAS.
+2. Ensure the user defined in `.env` (`SMB_USERNAME`) has read/write permissions.
+3. The Ansible deployment will automatically handle the creation of the Docker volume using these credentials.
 
 ## Remove a Service
 

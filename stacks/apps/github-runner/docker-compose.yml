@@ -1,0 +1,36 @@
+version: "3.9"
+
+services:
+  github-runner:
+    image: myoung34/github-runner:latest
+    environment:
+      - REPO_URL=https://github.com/${GITHUB_NAMESPACE}/${GITHUB_REPO}
+      - RUNNER_TOKEN=${GITHUB_RUNNER_TOKEN}
+      - RUNNER_NAME=homelab-gh-runner
+      - RUNNER_OPTIMIZE_REPOSITORY_CHECKOUT=true
+      - DOCKER_ENABLED=true
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - github-runner-data:/data
+    networks:
+      - traefik-public
+    restart: unless-stopped
+    deploy:
+      replicas: 1
+      labels:
+        - "homepage.group=Development"
+        - "homepage.name=GitHub Runner"
+        - "homepage.icon=github.png"
+        - "homepage.description=Self-hosted GitHub Actions Runner"
+
+networks:
+  traefik-public:
+    external: true
+
+volumes:
+  github-runner-data:
+    driver: local
+    driver_opts:
+      type: "none"
+      o: "bind"
+      device: "/mnt/iscsi/app-data/github-runner"
