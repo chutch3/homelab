@@ -63,19 +63,19 @@
       ansible.builtin.include_role:
         name: uptime_kuma
         tasks_from: get-token
-      when: remove_uptime | bool and stack_name != 'reverse-proxy'
+      when: remove_uptime | bool and stack_name not in ['reverse-proxy', 'uptime-kuma']
 
     - name: Remove uptime monitors for stack
       ansible.builtin.include_role:
         name: uptime_kuma
         tasks_from: remove-service-monitors
-      when: remove_uptime | bool and stack_name != 'reverse-proxy'
+      when: remove_uptime | bool and stack_name not in ['reverse-proxy', 'uptime-kuma']
 
     - name: Get DNS API token
       ansible.builtin.include_role:
         name: dns
         tasks_from: get-token
-      when: remove_dns | bool
+      when: remove_dns | bool and stack_name != 'dns'
 
     - name: Get Pi-hole API token
       ansible.builtin.include_role:
@@ -83,6 +83,7 @@
         tasks_from: get-pihole-token
       when:
         - remove_dns | bool
+        - stack_name != 'dns'
         - hostvars[groups['managers'][0]].secondary_dns_enabled | default(false) | bool
       ignore_errors: yes
 
@@ -90,7 +91,7 @@
       ansible.builtin.include_role:
         name: dns
         tasks_from: remove-service-cnames
-      when: remove_dns | bool
+      when: remove_dns | bool and stack_name != 'dns'
 
     - name: Remove the Docker Swarm stack
       ansible.builtin.command:
