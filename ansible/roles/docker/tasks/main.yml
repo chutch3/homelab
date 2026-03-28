@@ -16,7 +16,6 @@
     url: https://download.docker.com/linux/{{ ansible_distribution | lower }}/gpg
     state: present
     keyring: /etc/apt/keyrings/docker.gpg
-  when: docker_version_check.rc != 0
 
 - name: Add Docker repository
   apt_repository:
@@ -29,19 +28,32 @@
     filename: docker
   vars:
     dpkg_architecture: "{{ lookup('pipe', 'dpkg --print-architecture') }}"
-  when: docker_version_check.rc != 0
 
-- name: Install Docker packages
+- name: Resolve pinned Docker package version string
+  when: docker_version | default('') != ''
+  block:
+    - name: Find exact apt package version for docker-ce={{ docker_version }}
+      command: apt-cache madison docker-ce
+      register: docker_madison
+      changed_when: false
+
+    - name: Set docker package version suffix
+      set_fact:
+        docker_pkg_version: "{{ docker_madison.stdout_lines
+          | map('regex_search', '5:' + docker_version + '[^\\s|]*')
+          | select('string') | first }}"
+
+- name: Install Docker packages (pinned version)
   apt:
     name:
-      - docker-ce
-      - docker-ce-cli
+      - "docker-ce{% if docker_pkg_version is defined %}={{ docker_pkg_version }}{% endif %}"
+      - "docker-ce-cli{% if docker_pkg_version is defined %}={{ docker_pkg_version }}{% endif %}"
       - containerd.io
       - docker-buildx-plugin
       - docker-compose-plugin
     state: present
+    allow_downgrade: true
     update_cache: yes
-  when: docker_version_check.rc != 0
 
 - name: Install Docker Python SDK for Ansible modules
   ansible.builtin.apt:

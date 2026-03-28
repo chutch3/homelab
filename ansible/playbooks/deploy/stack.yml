@@ -77,7 +77,7 @@
 
       - name: Set uptime registration flag
         ansible.builtin.set_fact:
-            should_register_uptime: "{{ ((register_uptime == 'auto' and is_new_stack) or (register_uptime | bool)) and stack_name != 'reverse-proxy' }}"
+            should_register_uptime: "{{ ((register_uptime == 'auto' and is_new_stack) or (register_uptime | bool)) and stack_name not in ['reverse-proxy', 'dns', 'uptime-kuma'] }}"
         when: register_uptime
 
       - name: Wait for DNS server to initialize (dns stack only)

@@ -13,6 +13,9 @@ bootstrap_version: "1.0.0"
 # Docker configuration
 docker_users:
     - "{{ ansible_user }}"
+# Pin Docker version across all nodes to prevent version skew in Swarm
+# Format: major.minor.patch (e.g. 29.1.4). Leave empty to install latest.
+docker_version: "29.1.4"
 
 # CIFS configuration
 cifs_packages:
