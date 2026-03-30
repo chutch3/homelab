@@ -2,6 +2,36 @@
 
 <!-- version list -->
 
+## v3.9.0 (2026-03-30)
+
+### Bug Fixes
+
+- Documentation deployment condition
+  ([`f97aade`](https://github.com/chutch3/homelab/commit/f97aadeb8a9f28c0b05b2bbdf9d04d51c5e606ab))
+
+- Pin docker version across swarm nodes to prevent version skew and libnetwork crashes
+  ([`8bd7f13`](https://github.com/chutch3/homelab/commit/8bd7f13e4f4206b8fca51e173349bae1e7d55428))
+
+### Documentation
+
+- Overhaul documentation structure and refactor navigation
+  ([`862529f`](https://github.com/chutch3/homelab/commit/862529f4cbb31fd2d763027707c3e2151999609b))
+
+- Rename project from Selfhosted to Homelab across documentation and configuration
+  ([`21e24e6`](https://github.com/chutch3/homelab/commit/21e24e6b3007ee1680ee85d168e3de1a16831b8f))
+
+### Features
+
+- Add Forgejo and GitHub Actions runner stacks and update docs
+  ([`c36be9b`](https://github.com/chutch3/homelab/commit/c36be9b07c1d3c268902ada62bad0bd6a95d6459))
+
+- Added ollama for local llm support
+  ([`4c5e852`](https://github.com/chutch3/homelab/commit/4c5e852dac902dd46c83f2550958866c15ade36a))
+
+- Added prefect
+  ([`7a63292`](https://github.com/chutch3/homelab/commit/7a632928e269ab60b91735d55080882698d8cad9))
+
+
 ## v3.8.0 (2026-03-23)
 
 ### Bug Fixes
