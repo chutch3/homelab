@@ -51,6 +51,17 @@
     - "'already present' not in storage_iscsi_login.stderr"
   changed_when: storage_iscsi_login.rc == 0
 
+# Set targets to auto-login on boot so open-iscsi.service reconnects after reboot
+- name: Set iSCSI targets to auto-login on boot
+  ansible.builtin.command: >
+    iscsiadm -m node -T {{ item.iqn }} -p {{ iscsi_target_ip }}:{{ iscsi_target_port }} --op update -n node.startup -v automatic
+  loop: "{{ storage_iscsi_mounts }}"
+  when:
+    - item.enabled | bool
+    - item.iqn is defined
+  register: storage_iscsi_auto_login
+  changed_when: storage_iscsi_auto_login.rc == 0
+
 # Verify iSCSI sessions are active
 - name: Verify iSCSI sessions are active
   ansible.builtin.command: iscsiadm -m session
