@@ -151,6 +151,25 @@
   run_once: true
   delegate_to: "{{ groups['managers'][0] }}"
 
+# Ensure Docker waits for iSCSI mounts before starting
+# Without this, Docker can race the mounts on boot and containers using
+# iSCSI-backed volumes will fail to start.
+- name: Create Docker systemd drop-in directory
+  ansible.builtin.file:
+    path: /etc/systemd/system/docker.service.d
+    state: directory
+    mode: "0755"
+
+- name: Configure Docker to wait for iSCSI mounts
+  ansible.builtin.copy:
+    dest: /etc/systemd/system/docker.service.d/iscsi-wait.conf
+    content: |
+      [Unit]
+      After=remote-fs.target open-iscsi.service
+      Requires=open-iscsi.service
+    mode: "0644"
+  notify: reload systemd
+
 # Display mount summary
 - name: Display mount summary
   ansible.builtin.debug:
