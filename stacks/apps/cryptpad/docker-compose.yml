@@ -2,7 +2,7 @@ version: "3.9"
 
 services:
     cryptpad:
-        image: "cryptpad/cryptpad:version-2024.12.0"
+        image: "cryptpad/cryptpad:version-2026.2.2"
         hostname: cryptpad
         environment:
             - CPAD_MAIN_DOMAIN=https://cryptpad.${BASE_DOMAIN}
@@ -11,17 +11,18 @@ services:
             - CPAD_INSTALL_ONLYOFFICE=yes
         user: "4001:4001"
         volumes:
-            - cryptpad:/cryptpad/app_data
+            - cryptpad-config:/cryptpad/config
+            - cryptpad-data:/cryptpad/data
         ulimits:
             nofile:
                 soft: 1000000
                 hard: 1000000
         healthcheck:
-            test: "curl -sLf http://0.0.0.0:3000"
+            test: "curl -sf http://localhost:3000/api/config"
             interval: 30s
             timeout: 10s
             retries: 10
-            start_period: 120s
+            start_period: 300s
         restart: unless-stopped
         dns:
             - ${DNS_SERVER_1}
@@ -68,9 +69,15 @@ networks:
         external: true
 
 volumes:
-    cryptpad:
+    cryptpad-config:
         driver: local
         driver_opts:
             type: "none"
             o: "bind"
-            device: "/mnt/iscsi/app-data/cryptpad"
+            device: "/mnt/iscsi/app-data/cryptpad/config"
+    cryptpad-data:
+        driver: local
+        driver_opts:
+            type: "none"
+            o: "bind"
+            device: "/mnt/iscsi/app-data/cryptpad/data"
