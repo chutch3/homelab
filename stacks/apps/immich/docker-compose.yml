@@ -36,7 +36,7 @@ services:
       replicas: 1
       placement:
         constraints:
-          - node.labels.database != true
+          - node.labels.photos == true
       labels:
         - "traefik.enable=true"
         - "traefik.http.routers.immich.rule=Host(`photos.${BASE_DOMAIN}`)"
@@ -87,6 +87,13 @@ services:
 
   immich-postgres:
     image: registry.hub.docker.com/tensorchord/pgvecto-rs:pg14-v0.2.0@sha256:90724186f0a3517cf6914295b5ab410db9ce23190a2d9d0b9dd6463e3fa298f0
+    user: "999:999"
+    command: >
+      postgres
+      -c shared_preload_libraries=vectors.so
+      -c tcp_keepalives_idle=30
+      -c tcp_keepalives_interval=10
+      -c tcp_keepalives_count=3
     environment:
       POSTGRES_PASSWORD: ${IMMICH_DB_PASSWORD}
       POSTGRES_USER: ${IMMICH_DB_USERNAME:-postgres}
@@ -99,14 +106,14 @@ services:
       interval: 30s
       timeout: 10s
       retries: 5
+      start_period: 3m
     networks:
       - traefik-public
     deploy:
       replicas: 1
       placement:
         constraints:
-          # Centralized database node for all databases
-          - node.labels.database == true
+          - node.labels.photos == true
 
 networks:
   traefik-public:
@@ -127,9 +134,10 @@ volumes:
       device: "//${NAS_SERVER}/immich_upload"
   immich_pgdata:
     driver: local
-    # CRITICAL: Database volumes MUST be on local storage for performance
-    # Network storage (CIFS/NFS) causes severe performance degradation and timeouts
-    # This volume will be created on the node where immich-postgres is deployed
+    driver_opts:
+      type: "none"
+      o: "bind"
+      device: "/mnt/iscsi/app-data/immich-postgres"
   immich_model_cache:
     driver: local
     # ML model cache should be on local storage for performance
