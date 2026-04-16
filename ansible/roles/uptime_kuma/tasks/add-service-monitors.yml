@@ -78,7 +78,7 @@
 # =========================================================================
 - name: "[VERIFY] Wait for monitors to initialize"
   ansible.builtin.pause:
-    seconds: 10
+    seconds: 30
   when: uptime_kuma_discovered_domains | length > 0
 
 # =========================================================================
@@ -88,8 +88,12 @@
   lucasheld.uptime_kuma.monitor_info:
     api_url: "{{ uptime_kuma_api_url }}"
     api_token: "{{ uptime_kuma_api_token }}"
+    api_timeout: 30
   register: uptime_kuma_all_monitors
   delegate_to: localhost
+  retries: 3
+  delay: 15
+  until: uptime_kuma_all_monitors is succeeded
 
 - name: "[VERIFY] Extract created monitor names"
   ansible.builtin.set_fact:
@@ -146,10 +150,14 @@
   lucasheld.uptime_kuma.monitor_info:
     api_url: "{{ uptime_kuma_api_url }}"
     api_token: "{{ uptime_kuma_api_token }}"
+    api_timeout: 30
     id: "{{ item.id }}"
   loop: "{{ uptime_kuma_service_monitors }}"
   register: uptime_kuma_monitor_heartbeats
   delegate_to: localhost
+  retries: 3
+  delay: 15
+  until: uptime_kuma_monitor_heartbeats is succeeded
   failed_when: false
 
 - name: "[STATUS] Display monitor status"
