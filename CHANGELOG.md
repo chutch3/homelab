@@ -2,6 +2,31 @@
 
 <!-- version list -->
 
+## v3.10.0 (2026-04-20)
+
+### Bug Fixes
+
+- Correct cryptpad volume mounts, config path, and healthcheck
+  ([`2f546df`](https://github.com/chutch3/homelab/commit/2f546df83d7e95435b36993839a529d31dc7813a))
+
+- Set iscsi node.startup=automatic during bootstrap so targets reconnect on reboot
+  ([`d8ae518`](https://github.com/chutch3/homelab/commit/d8ae51834f3f8b8ac253a3245e38978caf43a3a3))
+
+- **ansible**: Add retry logic and increase timeouts for uptime kuma monitors
+  ([`3ca7474`](https://github.com/chutch3/homelab/commit/3ca7474fe7555f84ddc7a216aac19c6593cc0bfb))
+
+- **storage**: Add docker systemd drop-in to prevent race with iscsi mounts on boot
+  ([`00cb379`](https://github.com/chutch3/homelab/commit/00cb3796be56a9f1913f7f38a09beb5864b46812))
+
+### Features
+
+- Update the prefect stack
+  ([`711e44c`](https://github.com/chutch3/homelab/commit/711e44c33fbca689f76770248ab8db438eb954f8))
+
+- **immich**: Relocate to photos nodes with dedicated postgres storage
+  ([`018fcfe`](https://github.com/chutch3/homelab/commit/018fcfeaab0392e40784df07fb500a26cbb65e36))
+
+
 ## v3.9.0 (2026-03-30)
 
 ### Bug Fixes
