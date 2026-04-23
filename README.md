@@ -18,7 +18,7 @@ A Docker Swarm platform for self-hosted services. Deploys 25+ pre-configured ser
 - Kopia — encrypted backups to Backblaze B2
 
 **Applications**
-- Homepage, Actual Budget, Home Assistant, Node-RED, CryptPad, Mealie
+- Homepage, Actual Budget, Home Assistant, Node-RED, CryptPad, Mealie, Excalidraw
 - PhotoPrism, Immich, Emby
 - Sonarr, Radarr, Prowlarr, Profilarr, qBittorrent, Deluge, SABnzbd, NZBGet
 - Vaultwarden, LibreChat, Kiwix (offline Wikipedia + Stack Overflow)

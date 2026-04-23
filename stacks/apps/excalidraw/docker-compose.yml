@@ -1,0 +1,63 @@
+version: "3.9"
+
+services:
+  excalidraw:
+    image: excalidraw/excalidraw:latest
+    networks:
+      - traefik-public
+    environment:
+      - VITE_APP_WS_SERVER_URL=https://excalidraw-room.${BASE_DOMAIN}
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 3m
+    entrypoint: /bin/sh
+    command: >
+      -c "grep -rl 'https://oss-collab.excalidraw.com' /usr/share/nginx/html | xargs -r sed -i 's|https://oss-collab.excalidraw.com|'$$VITE_APP_WS_SERVER_URL'|g'
+      && nginx -g 'daemon off;'"
+    restart: unless-stopped
+    deploy:
+      replicas: 1
+      labels:
+        - "traefik.enable=true"
+        - "traefik.http.routers.excalidraw.rule=Host(`excalidraw.${BASE_DOMAIN}`)"
+        - "traefik.http.routers.excalidraw.entrypoints=websecure"
+        - "traefik.http.routers.excalidraw.tls.certresolver=dns"
+        - "traefik.http.services.excalidraw.loadbalancer.server.port=80"
+
+        - "homepage.group=Productivity"
+        - "homepage.name=Excalidraw"
+        - "homepage.icon=mdi-pencil-ruler"
+        - "homepage.href=https://excalidraw.${BASE_DOMAIN}/"
+        - "homepage.description=Hand-drawn look diagrams"
+
+  excalidraw-room:
+    image: excalidraw/excalidraw-room:latest
+    networks:
+      - traefik-public
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "wget --spider http://localhost:80 2>&1 | grep -q '404 Not Found' || wget --spider http://localhost:80"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    deploy:
+      replicas: 1
+      labels:
+        - "traefik.enable=true"
+        - "traefik.http.routers.excalidraw-room.rule=Host(`excalidraw-room.${BASE_DOMAIN}`)"
+        - "traefik.http.routers.excalidraw-room.entrypoints=websecure"
+        - "traefik.http.routers.excalidraw-room.tls.certresolver=dns"
+        - "traefik.http.services.excalidraw-room.loadbalancer.server.port=80"
+
+        - "homepage.group=Productivity"
+        - "homepage.name=Excalidraw Collab"
+        - "homepage.icon=mdi-transit-connection-variant"
+        - "homepage.href=https://excalidraw-room.${BASE_DOMAIN}/"
+        - "homepage.description=Collaboration backend for Excalidraw"
+
+networks:
+  traefik-public:
+    external: true
