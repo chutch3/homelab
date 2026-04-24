@@ -1,63 +1,135 @@
 version: "3.9"
 
 services:
-  excalidraw:
-    image: excalidraw/excalidraw:latest
-    networks:
-      - traefik-public
-    environment:
-      - VITE_APP_WS_SERVER_URL=https://excalidraw-room.${BASE_DOMAIN}
-    healthcheck:
-      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 3m
-    entrypoint: /bin/sh
-    command: >
-      -c "grep -rl 'https://oss-collab.excalidraw.com' /usr/share/nginx/html | xargs -r sed -i 's|https://oss-collab.excalidraw.com|'$$VITE_APP_WS_SERVER_URL'|g'
-      && nginx -g 'daemon off;'"
-    restart: unless-stopped
-    deploy:
-      replicas: 1
-      labels:
-        - "traefik.enable=true"
-        - "traefik.http.routers.excalidraw.rule=Host(`excalidraw.${BASE_DOMAIN}`)"
-        - "traefik.http.routers.excalidraw.entrypoints=websecure"
-        - "traefik.http.routers.excalidraw.tls.certresolver=dns"
-        - "traefik.http.services.excalidraw.loadbalancer.server.port=80"
+    excalidraw-web:
+        image: excalidraw/excalidraw:latest
+        networks:
+            - traefik-public
+        environment:
+            - VITE_APP_WS_SERVER_URL=https://excalidraw-room.${BASE_DOMAIN}
+            - VITE_APP_HTTP_STORAGE_BACKEND_URL=https://excalidraw-storage.${BASE_DOMAIN}
+        healthcheck:
+            test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1"]
+            interval: 30s
+        entrypoint: /bin/sh
+        command:
+            - -c
+            - |
+                echo "--- Starting Global Patch ---"
+                # Loop through ALL .js files in assets to catch every minified chunk
+                find /usr/share/nginx/html/assets -name '*.js' | while read -r file; do
+                  echo "Patching $$file..."
+                  # 1. Replace the POST URL and remap to /scenes/
+                  sed -i "s|https://json.excalidraw.com/api/v2/post/|$$VITE_APP_HTTP_STORAGE_BACKEND_URL/api/v2/scenes/|g" "$$file"
+                  # 2. Replace the standard API URL and remap to /scenes/
+                  sed -i "s|https://json.excalidraw.com/api/v2/|$$VITE_APP_HTTP_STORAGE_BACKEND_URL/api/v2/scenes/|g" "$$file"
+                  # 3. Replace the Collaboration/WebSocket URL
+                  sed -i "s|https://oss-collab.excalidraw.com|$$VITE_APP_WS_SERVER_URL|g" "$$file"
+                done
 
-        - "homepage.group=Productivity"
-        - "homepage.name=Excalidraw"
-        - "homepage.icon=mdi-pencil-ruler"
-        - "homepage.href=https://excalidraw.${BASE_DOMAIN}/"
-        - "homepage.description=Hand-drawn look diagrams"
+                # Delete gzipped files so Nginx is forced to serve our patched versions
+                find /usr/share/nginx/html -name '*.gz' -delete
+                echo "--- Patching Complete ---"
+                nginx -g 'daemon off;'
+        deploy:
+            replicas: 1
+            labels:
+                - "traefik.enable=true"
+                - "traefik.http.routers.excalidraw.rule=Host(`excalidraw.${BASE_DOMAIN}`)"
+                - "traefik.http.routers.excalidraw.entrypoints=websecure"
+                - "traefik.http.routers.excalidraw.tls.certresolver=dns"
+                - "traefik.http.services.excalidraw.loadbalancer.server.port=80"
+                - "traefik.swarm.network=traefik-public"
+                - "homepage.group=Productivity"
+                - "homepage.name=Excalidraw"
+                - "homepage.href=https://excalidraw.${BASE_DOMAIN}/"
 
-  excalidraw-room:
-    image: excalidraw/excalidraw-room:latest
-    networks:
-      - traefik-public
-    restart: unless-stopped
-    healthcheck:
-      test: ["CMD-SHELL", "wget --spider http://localhost:80 2>&1 | grep -q '404 Not Found' || wget --spider http://localhost:80"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-    deploy:
-      replicas: 1
-      labels:
-        - "traefik.enable=true"
-        - "traefik.http.routers.excalidraw-room.rule=Host(`excalidraw-room.${BASE_DOMAIN}`)"
-        - "traefik.http.routers.excalidraw-room.entrypoints=websecure"
-        - "traefik.http.routers.excalidraw-room.tls.certresolver=dns"
-        - "traefik.http.services.excalidraw-room.loadbalancer.server.port=80"
+    excalidraw-room:
+        image: excalidraw/excalidraw-room:latest
+        networks:
+            - traefik-public
+        healthcheck:
+            test: ["CMD", "wget", "--spider", "http://localhost:80"]
+            interval: 30s
+        deploy:
+            replicas: 1
+            labels:
+                - "traefik.enable=true"
+                - "traefik.http.routers.excalidraw-room.rule=Host(`excalidraw-room.${BASE_DOMAIN}`)"
+                - "traefik.http.services.excalidraw-room.loadbalancer.server.port=80"
+                - "traefik.swarm.network=traefik-public"
 
-        - "homepage.group=Productivity"
-        - "homepage.name=Excalidraw Collab"
-        - "homepage.icon=mdi-transit-connection-variant"
-        - "homepage.href=https://excalidraw-room.${BASE_DOMAIN}/"
-        - "homepage.description=Collaboration backend for Excalidraw"
+    excalidraw-storage:
+        image: ghcr.io/kitsteam/excalidraw-storage-backend:latest
+        networks:
+            - excalidraw-internal
+            - traefik-public
+        environment:
+            - RAW_DB_PASSWORD=${EXCALIDRAW_DB_PASSWORD}
+            - STORAGE_TYPE=postgres
+            - PORT=8080
+            - ALLOWED_ORIGINS=https://excalidraw.${BASE_DOMAIN}
+        command:
+            - /bin/sh
+            - -c
+            - |
+                ENCODED_PW=$$(node -e "console.log(encodeURIComponent(process.env.RAW_DB_PASSWORD))")
+                export STORAGE_URI=postgresql://excalidraw:$$ENCODED_PW@excalidraw-db:5432/excalidraw
+                node dist/main
+        healthcheck:
+            # This list format handles the arguments cleanly without manual escaping
+            test:
+                - "CMD"
+                - "node"
+                - "-e"
+                - "require('http').get('http://localhost:8080/api/v2/health', (res) => { process.exit(res.statusCode === 200 ? 0 : 1); }).on('error', () => process.exit(1))"
+            interval: 20s
+            timeout: 5s
+            retries: 5
+            start_period: 60s
+        deploy:
+            replicas: 1
+            placement:
+                constraints:
+                    - node.labels.database == true
+            labels:
+                - "traefik.enable=true"
+                - "traefik.http.routers.excalidraw-storage.rule=Host(`excalidraw-storage.${BASE_DOMAIN}`)"
+                - "traefik.http.routers.excalidraw-storage.entrypoints=websecure"
+                - "traefik.http.routers.excalidraw-storage.tls.certresolver=dns"
+                - "traefik.http.services.excalidraw-storage.loadbalancer.server.port=8080"
+                - "traefik.swarm.network=traefik-public"
+
+    excalidraw-db:
+        image: postgres:16-alpine
+        environment:
+            - POSTGRES_USER=excalidraw
+            - POSTGRES_PASSWORD=${EXCALIDRAW_DB_PASSWORD}
+            - POSTGRES_DB=excalidraw
+        volumes:
+            - excalidraw_pgdata:/var/lib/postgresql/data
+        networks:
+            - excalidraw-internal
+        healthcheck:
+            test: ["CMD", "pg_isready", "-U", "excalidraw"]
+            interval: 10s
+        deploy:
+            replicas: 1
+            placement:
+                constraints:
+                    - node.labels.database == true
 
 networks:
-  traefik-public:
-    external: true
+    excalidraw-internal:
+        driver: overlay
+        attachable: true
+    traefik-public:
+        external: true
+
+volumes:
+    excalidraw_pgdata:
+        driver: local
+        driver_opts:
+            type: "none"
+            o: "bind"
+            device: "/mnt/iscsi/app-data/excalidraw/postgres"
