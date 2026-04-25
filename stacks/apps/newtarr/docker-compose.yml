@@ -1,0 +1,39 @@
+version: "3.9"
+
+services:
+    newtarr:
+        image: ghcr.io/elfhosted/newtarr:rolling
+        container_name: newtarr
+        environment:
+            - PUID=1000
+            - PGID=1000
+            - TZ=${TZ}
+        volumes:
+            - newtarr_config:/config
+        restart: unless-stopped
+        networks:
+            - traefik-public
+        deploy:
+            labels:
+                - "traefik.enable=true"
+                - "traefik.http.routers.newtarr.rule=Host(`newtarr.${BASE_DOMAIN}`)"
+                - "traefik.http.routers.newtarr.entrypoints=websecure"
+                - "traefik.http.routers.newtarr.tls.certresolver=dns"
+                - "traefik.http.services.newtarr.loadbalancer.server.port=9705"
+                - homepage.group=Downloads
+                - homepage.name=Newtarr
+                - homepage.icon=huntarr.png
+                - homepage.href=https://newtarr.${BASE_DOMAIN}/
+                - homepage.description=Missing Media Hunter
+
+networks:
+    traefik-public:
+        external: true
+
+volumes:
+    newtarr_config:
+        driver: local
+        driver_opts:
+            type: "none"
+            o: "bind"
+            device: "/mnt/iscsi/media-apps/newtarr"
