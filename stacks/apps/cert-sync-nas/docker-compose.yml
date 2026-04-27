@@ -23,15 +23,17 @@ services:
     command: >
       sh -c "
       apk add --no-cache openssh-client bash &&
-      mkdir -p ~/.ssh &&
+      mkdir -p /root/.ssh &&
       if [ -f /ssh-key/id_rsa ]; then
-        cp /ssh-key/id_rsa ~/.ssh/id_rsa &&
-        chmod 600 ~/.ssh/id_rsa;
+        cp /ssh-key/id_rsa /root/.ssh/id_rsa &&
+        chmod 600 /root/.ssh/id_rsa;
       fi &&
+      printf 'Host *\n  StrictHostKeyChecking no\n  IdentityFile /root/.ssh/id_rsa\n' > /root/.ssh/config &&
+      chmod 600 /root/.ssh/config &&
       echo 'Issuing certificate for nas.${BASE_DOMAIN:-diyhub.dev}...' &&
-      (acme.sh --issue --dns dns_cf -d nas.${BASE_DOMAIN:-diyhub.dev} --server letsencrypt --force || echo 'Certificate already exists, skipping...') &&
+      (acme.sh --issue --dns dns_cf -d nas.${BASE_DOMAIN:-diyhub.dev} --server letsencrypt || echo 'Certificate already exists, skipping...') &&
       echo 'Running initial sync to NAS...' &&
-      /scripts/sync-nas-cert.sh || exit 1 &&
+      (/scripts/sync-nas-cert.sh || echo 'Warning: Initial sync failed, crond will retry on schedule') &&
       echo 'Installing crontab for weekly renewal and sync...' &&
       echo '0 3 * * 0 acme.sh --renew -d nas.${BASE_DOMAIN:-diyhub.dev} && /scripts/sync-nas-cert.sh >> /var/log/cert-sync.log 2>&1 || exit 1' > /etc/crontabs/root &&
       echo 'Starting cron daemon...' &&
