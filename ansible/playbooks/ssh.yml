@@ -1,0 +1,9 @@
+# ansible/playbooks/ssh.yml
+---
+- name: Configure SSH on all nodes
+  hosts: all
+  become: yes
+
+  roles:
+    - role: ../roles/ssh
+      tags: ['ssh']
