@@ -1,6 +1,10 @@
 #!/bin/bash
 
-SSH_KEY_FILE="${SSH_KEY_FILE:-$HOME/.ssh/homelab_rsa}"
+if [ -z "${SSH_KEY_FILE:-}" ]; then
+    SSH_KEY_FILE="$HOME/.ssh/homelab_rsa"
+    echo "Warning: SSH_KEY_FILE not set, defaulting to $SSH_KEY_FILE" >&2
+    echo "  Add SSH_KEY_FILE=~/.ssh/homelab_rsa to your .env file to suppress this warning." >&2
+fi
 SSH_TIMEOUT="${SSH_TIMEOUT:-5}"
 
 export SSH_KEY_FILE
