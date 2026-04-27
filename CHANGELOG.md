@@ -2,6 +2,25 @@
 
 <!-- version list -->
 
+## v3.11.0 (2026-04-27)
+
+### Bug Fixes
+
+- Sync-nas-cert secret and infinite retry loop
+  ([`414757f`](https://github.com/chutch3/homelab/commit/414757fa1540e76cf0aad9983e1241f259ed3375))
+
+### Features
+
+- Added excalidraw
+  ([`ab0ff75`](https://github.com/chutch3/homelab/commit/ab0ff7569aa5d2519812a1dfc3a5270d7d2e785d))
+
+- Added excalidraw storage
+  ([`7321a6c`](https://github.com/chutch3/homelab/commit/7321a6cd9e7a32d417269b899038c51e79a0a4cf))
+
+- Added newtarr
+  ([`fa4131c`](https://github.com/chutch3/homelab/commit/fa4131c1e665478416bf74699f4323f98ffa16bb))
+
+
 ## v3.10.0 (2026-04-20)
 
 ### Bug Fixes
