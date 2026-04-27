@@ -1,0 +1,13 @@
+# ansible/inventory/group_vars/all/ssh.yml.example
+# Copy this file to ssh.yml (gitignored) and set your key path.
+# ssh.yml is the single source of truth for SSH identity in Ansible.
+#
+# Generate the key if you don't have one:
+#   task ansible:ssh:generate
+#
+# Push the public key to all nodes:
+#   task ansible:ssh:distribute
+---
+ansible_ssh_private_key_file: "~/.ssh/homelab_rsa"
+ssh_public_keys:
+    - "~/.ssh/homelab_rsa.pub"

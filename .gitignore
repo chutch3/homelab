@@ -175,7 +175,6 @@ ansible/inventory/*-private.yml
 
 # Ansible secrets
 ansible/inventory/*.secret.yml
-ansible/inventory/secrets.yml
 ansible/.vault_pass
 ansible/*.vault.yml
 
@@ -210,4 +209,4 @@ plan.md
 plan-*.md
 coverage/
 homeassistant/.storage/auth
-ansible/inventory/group_vars/secrets.yml
+ansible/inventory/group_vars/all/ssh.yml
