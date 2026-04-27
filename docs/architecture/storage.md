@@ -459,7 +459,7 @@ The `ansible/roles/storage` role automates the full iSCSI + OCFS2 setup across a
 
 ### Configuration Variables
 
-All variables are defined in `ansible/inventory/group_vars/all.yml` and sourced from the root `.env` file:
+All variables are defined in `ansible/inventory/group_vars/all/main.yml` and sourced from the root `.env` file:
 
 #### Primary iSCSI Mount (`media-apps`)
 

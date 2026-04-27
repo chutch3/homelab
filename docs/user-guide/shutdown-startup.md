@@ -88,9 +88,9 @@ This task mounts all configured OCFS2 filesystems.
 task ansible:ocfs2:mount
 ```
 
-> **Configuration Note:** For this step to work reliably, you must define the UUIDs of your OCFS2 filesystems in your Ansible inventory (e.g., `inventory/group_vars/all.yml`). This ensures the correct devices are mounted every time.
+> **Configuration Note:** For this step to work reliably, you must define the UUIDs of your OCFS2 filesystems in your Ansible inventory (e.g., `inventory/group_vars/all/main.yml`). This ensures the correct devices are mounted every time.
 > ```yaml
-> # inventory/group_vars/all.yml
+> # inventory/group_vars/all/main.yml
 > OCFS2_MEDIA_UUID: "your-media-partition-uuid"
 > OCFS2_APP_DATA_UUID: "your-app-data-partition-uuid"
 > ```
