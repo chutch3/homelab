@@ -9,6 +9,36 @@ env:
     ANSIBLE_CONFIG: "ansible/ansible.cfg"
 
 tasks:
+    # SSH Key Management
+    ssh:generate:
+        desc: Generate homelab SSH key pair if it does not already exist (reads SSH_KEY_FILE from .env)
+        cmds:
+            - |
+                KEY_FILE="${SSH_KEY_FILE:-$HOME/.ssh/homelab_rsa}"
+                KEY_FILE="${KEY_FILE/#\~/$HOME}"
+                if [ -f "$KEY_FILE" ]; then
+                  echo "SSH key already exists at $KEY_FILE"
+                  ssh-keygen -lf "$KEY_FILE"
+                else
+                  mkdir -p "$(dirname "$KEY_FILE")"
+                  ssh-keygen -t rsa -b 4096 -f "$KEY_FILE" -N "" -C "homelab"
+                  echo "SSH key generated at $KEY_FILE"
+                  echo "Next: task ansible:ssh:distribute"
+                fi
+
+    ssh:distribute:
+        desc: Push SSH public key to all homelab nodes (runs the ssh role)
+        dir: "{{.ROOT_DIR}}"
+        preconditions:
+            - sh: test -f ansible/inventory/group_vars/all/ssh.yml
+              msg: |
+                  ansible/inventory/group_vars/all/ssh.yml not found.
+                  Copy the example and configure your key path:
+                    cp ansible/inventory/group_vars/all/ssh.yml.example ansible/inventory/group_vars/all/ssh.yml
+        interactive: true
+        cmds:
+            - "{{.VENV_ANSIBLE_PLAYBOOK}} --become -i ansible/inventory/ ansible/playbooks/ssh.yml {{.CLI_ARGS}}"
+
     # Ansible Install Ansible (setup)
     install:
         desc: Install Ansible and dependencies
