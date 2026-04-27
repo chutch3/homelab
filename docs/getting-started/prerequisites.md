@@ -207,49 +207,43 @@ nslookup traefik.yourdomain.com
 
 ## 4. SSH Key Setup
 
-The Ansible playbooks use SSH to communicate between nodes.
+The Ansible playbooks use SSH to communicate between nodes. The key path is configured in two places:
+
+- **`.env`** — `SSH_KEY_FILE` used by all homelab scripts
+- **`ansible/inventory/group_vars/ssh.yml`** — gitignored, used by Ansible (copy from `ssh.yml.example`)
 
 ### Generate SSH Key
 
 On your **control machine** (where you will run `task`):
 
 ```bash
-# Generate SSH key (if you don't have one)
-ssh-keygen -t rsa -b 4096 -f ~/.ssh/id_rsa -N ""
-
-# This creates:
-# - ~/.ssh/id_rsa (private key)
-# - ~/.ssh/id_rsa.pub (public key)
+task ansible:ssh:generate
 ```
 
-### Copy SSH Key to All Nodes
-
-The `ansible:bootstrap` command will automatically copy your public key to all nodes in your inventory. However, for this to work, you must be able to SSH into each node with a password for the *first time*.
-
-Alternatively, you can manually copy the key:
-```bash
-# For each homelab node
-ssh-copy-id -i ~/.ssh/id_rsa.pub user@homelab-node-ip
-```
+This creates `~/.ssh/homelab_rsa` and `~/.ssh/homelab_rsa.pub` (or whatever path `SSH_KEY_FILE` is set to in `.env`).
 
 ### Configure Ansible for SSH
 
-The Ansible inventory is pre-configured to use your default SSH key (`~/.ssh/id_rsa`). If you use a different key, you can specify it in `ansible/inventory/group_vars/all.yml`:
+Copy the example file and verify the key path matches your `.env`:
 
-```yaml
-ansible_ssh_private_key_file: '~/.ssh/your_custom_key'
+```bash
+cp ansible/inventory/group_vars/ssh.yml.example ansible/inventory/group_vars/ssh.yml
 ```
+
+### Distribute SSH Key to All Nodes
+
+The first run requires password authentication to each node. Once you can SSH in with a password:
+
+```bash
+task ansible:ssh:distribute
+```
+
+This pushes your public key to `~/.ssh/authorized_keys` on every node so subsequent connections are passwordless.
 
 ### Test SSH Access
 
-Verify passwordless SSH works from your control machine to each homelab node:
-
 ```bash
-# Should connect without password prompt
-ssh user@homelab-node-ip
-
-# Test command execution
-ssh user@homelab-node-ip "docker ps"
+task ansible:ping
 ```
 
 ---
