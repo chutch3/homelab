@@ -111,13 +111,13 @@ omv_cert_copy_files() {
     fi
 
     # Copy files via SCP
-    scp -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+    scp -i "$SSH_KEY_FILE" -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
         "${cert_dir}/cert.pem" "root@${nas_host}:/tmp/nas_cert.pem" || {
         echo "Error: Failed to copy certificate to NAS" >&2
         return 1
     }
 
-    scp -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+    scp -i "$SSH_KEY_FILE" -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
         "${cert_dir}/key.pem" "root@${nas_host}:/tmp/nas_key.pem" || {
         echo "Error: Failed to copy private key to NAS" >&2
         return 1
@@ -169,7 +169,7 @@ omv_cert_install() {
     fi
 
     # Install certificate via SSH
-    ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+    ssh -i "$SSH_KEY_FILE" -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
         "root@${nas_host}" << 'ENDSSH' || {
         # Generate UUID for the certificate
         CERT_UUID=$(cat /proc/sys/kernel/random/uuid)
