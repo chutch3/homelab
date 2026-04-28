@@ -22,3 +22,4 @@
   ansible.builtin.debug:
     msg: "A record for {{ item.item }}.{{ base_domain }} ({{ hostvars[item.item].ansible_host }}): {{ item.json }}"
   loop: "{{ dns_add_a_record_result.results }}"
+  when: not (item.skipped | default(false))

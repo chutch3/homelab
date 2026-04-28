@@ -13,8 +13,8 @@
 
 - name: Check if zone already exists
   set_fact:
-    dns_zone_exists: "{{ base_domain in dns_existing_zones.json }}"
-  when: primary_dns_type == 'technitium'
+    dns_zone_exists: "{{ base_domain in dns_existing_zones.json | default([]) }}"
+  when: primary_dns_type == 'technitium' and not ansible_check_mode
 
 - name: Create primary DNS zone
   uri:
@@ -26,7 +26,7 @@
       zone: "{{ base_domain }}"
       type: "Primary"
     status_code: 200
-  when: primary_dns_type == 'technitium' and not dns_zone_exists
+  when: primary_dns_type == 'technitium' and not ansible_check_mode and not (dns_zone_exists | default(false))
   register: dns_create_zone_result
 
 - name: Display zone creation status
@@ -34,9 +34,9 @@
     msg: |
       {% if primary_dns_type != 'technitium' %}
       Zone creation skipped — not applicable for {{ primary_dns_type }}.
-      {% elif not dns_zone_exists %}
+      {% elif not (dns_zone_exists | default(false)) %}
       Zone '{{ base_domain }}' created successfully.
-      Response: {{ dns_create_zone_result.json }}
+      Response: {{ dns_create_zone_result.json | default('(check mode)') }}
       {% else %}
       Zone '{{ base_domain }}' already exists.
       {% endif %}

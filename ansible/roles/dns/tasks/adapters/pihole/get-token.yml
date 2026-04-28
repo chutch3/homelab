@@ -16,9 +16,10 @@
   ansible.builtin.fail:
     msg: "Failed to authenticate with Pi-hole API at {{ secondary_dns_host }}. Response: {{ dns_pihole_auth_response.json }}"
   when: >
+    not ansible_check_mode and (
     dns_pihole_auth_response.json.session is not defined or
-    dns_pihole_auth_response.json.session.sid is not defined
+    dns_pihole_auth_response.json.session.sid is not defined)
 
 - name: Set Pi-hole session ID
   ansible.builtin.set_fact:
-    dns_pihole_session_id: "{{ dns_pihole_auth_response.json.session.sid }}"
+    dns_pihole_session_id: "{{ dns_pihole_auth_response.json.session.sid | default('check-mode-sid') }}"

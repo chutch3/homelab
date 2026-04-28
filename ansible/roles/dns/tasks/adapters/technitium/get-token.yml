@@ -16,8 +16,8 @@
 - name: Fail if authentication failed
   ansible.builtin.fail:
     msg: "Failed to authenticate with Technitium DNS at {{ primary_dns_host }}. Response: {{ dns_auth_response.json }}"
-  when: dns_auth_response.json.token is not defined
+  when: not ansible_check_mode and dns_auth_response.json.token is not defined
 
 - name: Set Technitium API token
   ansible.builtin.set_fact:
-    dns_api_token: "{{ dns_auth_response.json.token }}"
+    dns_api_token: "{{ dns_auth_response.json.token | default('check-mode-token') }}"
