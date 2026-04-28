@@ -21,6 +21,7 @@
   ansible.builtin.debug:
     msg: "CNAME for {{ item.item }}: {{ 'Already exists' if (item.json.status == 'error' and 'already exists' in item.json.get('errorMessage', '')) else 'Created/Updated' }}"
   loop: "{{ dns_add_cname_result.results }}"
+  when: not (item.skipped | default(false))
 
 - name: "[TECHNITIUM] Add A record for Pi-hole"
   ansible.builtin.uri:
@@ -58,4 +59,4 @@
   ansible.builtin.debug:
     msg: "✓ API confirms record for {{ item.item }} exists"
   loop: "{{ dns_api_verification.results }}"
-  when: item.json.status == 'ok'
+  when: not (item.skipped | default(false)) and item.json.status == 'ok'

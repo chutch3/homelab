@@ -16,4 +16,4 @@
   ansible.builtin.debug:
     msg: "Pi-hole A record for {{ item.item }}.{{ base_domain }}: {{ 'Already exists' if item.status == 400 else 'Added' }}"
   loop: "{{ dns_pihole_add_a_result.results }}"
-  when: dns_pihole_add_a_result is defined
+  when: dns_pihole_add_a_result is defined and not (item.skipped | default(false))

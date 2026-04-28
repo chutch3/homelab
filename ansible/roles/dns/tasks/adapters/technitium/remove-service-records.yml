@@ -19,7 +19,7 @@
   ansible.builtin.debug:
     msg: "CNAME for {{ item.item }}: {{ 'Removed' if item.json.status == 'ok' else 'Not found or already removed' }}"
   loop: "{{ dns_remove_cname_result.results }}"
-  when: dns_remove_cname_result.results is defined
+  when: dns_remove_cname_result.results is defined and not (item.skipped | default(false))
 
 - name: "[TECHNITIUM] Remove A record for Pi-hole"
   ansible.builtin.uri:
