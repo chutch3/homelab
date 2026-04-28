@@ -70,6 +70,10 @@
 # =========================================================================
 # REMOVAL: Delegate to primary and secondary DNS adapters
 # =========================================================================
+- name: Get manager hostname
+  ansible.builtin.set_fact:
+    dns_manager_hostname: "{{ groups['managers'][0] }}"
+
 - name: Remove records from primary DNS
   ansible.builtin.include_tasks: "adapters/{{ primary_dns_type }}/remove-service-records.yml"
   when: dns_discovered_domains is defined and dns_discovered_domains | length > 0
@@ -78,5 +82,6 @@
   ansible.builtin.include_tasks: "adapters/{{ secondary_dns_type }}/remove-service-records.yml"
   when:
     - secondary_dns_enabled | bool
+    - dns_pihole_session_id is defined
     - dns_discovered_domains is defined
     - dns_discovered_domains | length > 0

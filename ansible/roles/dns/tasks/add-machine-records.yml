@@ -5,4 +5,4 @@
 
 - name: Add machine records to secondary DNS
   ansible.builtin.include_tasks: "adapters/{{ secondary_dns_type }}/add-machine-records.yml"
-  when: secondary_dns_enabled | bool
+  when: secondary_dns_enabled | bool and dns_pihole_session_id is defined

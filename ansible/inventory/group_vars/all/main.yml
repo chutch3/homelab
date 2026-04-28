@@ -44,7 +44,7 @@ iscsi_cache_mount_path: "{{ lookup('env', 'ISCSI_CACHE_MOUNT_PATH') | default('/
 # primary_dns_managed=false: bring your own DNS server (set PRIMARY_DNS_HOST)
 primary_dns_type: "{{ lookup('env', 'PRIMARY_DNS_TYPE') | default('technitium') }}"
 primary_dns_managed: "{{ lookup('env', 'PRIMARY_DNS_MANAGED') | default('true') | bool }}"
-primary_dns_host: "{{ lookup('env', 'PRIMARY_DNS_HOST') | default(hostvars[groups['managers'][0]]['ansible_host']) }}"
+primary_dns_host: "{{ lookup('env', 'PRIMARY_DNS_HOST') | default(hostvars[groups['managers'][0]]['ansible_host'], true) }}"
 primary_dns_api_key: "{{ lookup('env', 'PRIMARY_DNS_API_KEY') | default('') }}"
 
 # Derived API base URL — used by adapters and readiness checks
