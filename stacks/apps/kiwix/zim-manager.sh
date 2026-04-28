@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # Kiwix ZIM Manager - Runs on NAS for downloads and updates
 # Designed for OpenMediaVault but works on any Linux system
 

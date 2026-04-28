@@ -1,4 +1,5 @@
 #!/bin/sh
+set -e
 
 echo "Backup scheduler started..."
 apk add --no-cache tzdata

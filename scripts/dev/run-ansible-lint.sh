@@ -1,5 +1,5 @@
-#!/bin/bash
-set -e
+#!/usr/bin/env bash
+set -euo pipefail
 
 export ANSIBLE_CONFIG=ansible/ansible.cfg
 
