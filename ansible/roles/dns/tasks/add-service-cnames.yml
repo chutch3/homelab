@@ -1,7 +1,11 @@
 ---
 # ansible/roles/dns/tasks/add-service-cnames.yml
-# Add DNS CNAME records with verification
+# Discovers services from docker-compose files and registers DNS records.
+# Delegates record creation to the appropriate primary/secondary adapter.
 
+# =========================================================================
+# DISCOVERY: Find services from Traefik Host() rules (type-agnostic)
+# =========================================================================
 - name: Find all docker-compose.yml files
   ansible.builtin.find:
     paths: "{{ playbook_dir }}/../../stacks/apps"
@@ -53,61 +57,25 @@
     dns_manager_hostname: "{{ groups['managers'][0] }}"
 
 # =========================================================================
-# PHASE 1: Create DNS Records
+# REGISTRATION: Delegate to primary and secondary DNS adapters
 # =========================================================================
-- name: "[DNS] Add CNAME record for each discovered service"
-  ansible.builtin.uri:
-    url: "{{ dns_api_url }}/zones/records/add"
-    method: POST
-    body_format: form-urlencoded
-    body:
-      token: "{{ dns_api_token }}"
-      domain: "{{ item }}"
-      zone: "{{ base_domain }}"
-      type: "CNAME"
-      cname: "{{ dns_manager_hostname }}.{{ base_domain }}"
-      ttl: "3600"
-    status_code: 200
-  loop: "{{ dns_discovered_domains }}"
-  register: dns_add_cname_result
-  delegate_to: localhost
+- name: Register records in primary DNS
+  ansible.builtin.include_tasks: "adapters/{{ primary_dns_type }}/add-service-records.yml"
 
-- name: "[DNS] Display CNAME record creation status"
-  ansible.builtin.debug:
-    msg: "CNAME for {{ item.item }}: {{ 'Already exists' if (item.json.status == 'error' and 'already exists' in item.json.get('errorMessage', '')) else 'Created/Updated' }}"
-  loop: "{{ dns_add_cname_result.results }}"
+- name: Register records in secondary DNS
+  ansible.builtin.include_tasks: "adapters/{{ secondary_dns_type }}/add-service-records.yml"
+  when: secondary_dns_enabled | bool
 
 # =========================================================================
-# SECONDARY DNS: Pi-hole CNAME Records via API
+# VERIFICATION: dig-based check (type-agnostic)
 # =========================================================================
-- name: "[SECONDARY] Add CNAME record to Pi-hole for each discovered service"
-  ansible.builtin.uri:
-    url: "{{ pihole_api_url }}/config/dns/cnameRecords/{{ item }},{{ dns_manager_hostname }}.{{ base_domain }},0?restart=false"
-    method: PUT
-    headers:
-      sid: "{{ dns_pihole_session_id }}"
-    status_code: [200, 201, 400]
-  loop: "{{ dns_discovered_domains }}"
-  register: dns_pihole_add_cname_result
-  ignore_errors: yes
-  delegate_to: localhost
-  when: secondary_dns_enabled | bool and dns_pihole_session_id is defined
-
-- name: "[SECONDARY] Display Pi-hole CNAME status"
-  ansible.builtin.debug:
-    msg: "Pi-hole CNAME for {{ item.item }}: {{ 'Already exists' if item.status == 400 else 'Added' }}"
-  loop: "{{ dns_pihole_add_cname_result.results | default([]) | selectattr('status', 'defined') | list }}"
-  when:
-    - secondary_dns_enabled | bool
-    - dns_pihole_add_cname_result.results is defined
-
 - name: "[VERIFY] Wait for DNS propagation"
   ansible.builtin.pause:
     seconds: 3
   when: dns_discovered_domains | length > 0
 
 - name: "[VERIFY] Query DNS to verify records exist"
-  ansible.builtin.command: "dig +short {{ item }} @{{ dns_api_url | urlsplit('hostname') }}"
+  ansible.builtin.command: "dig +short {{ item }} @{{ dns_primary_api_url | urlsplit('hostname') }}"
   loop: "{{ dns_discovered_domains }}"
   register: dns_verification
   changed_when: false
@@ -132,7 +100,7 @@
 
 - name: "[VERIFY] Warn about failed DNS records"
   ansible.builtin.debug:
-    msg: "⚠ WARNING: {{ dns_failed_records | length }} DNS record(s) failed to resolve"
+    msg: "WARNING: {{ dns_failed_records | length }} DNS record(s) failed to resolve"
   when: dns_failed_records | length > 0
 
 - name: "[VERIFY] Display successful DNS resolutions"
@@ -141,72 +109,12 @@
   loop: "{{ dns_verification.results }}"
   when: item.stdout != ""
 
-# =========================================================================
-# PHASE 3: Query DNS Records via API for Additional Verification
-# =========================================================================
-- name: "[API-VERIFY] Get DNS records from Technitium API"
-  ansible.builtin.uri:
-    url: "{{ dns_api_url }}/zones/records/get"
-    method: GET
-    body_format: form-urlencoded
-    body:
-      token: "{{ dns_api_token }}"
-      domain: "{{ item }}"
-      zone: "{{ base_domain }}"
-    status_code: 200
-  loop: "{{ dns_discovered_domains }}"
-  register: dns_api_verification
-  delegate_to: localhost
-  failed_when: false
-
-- name: "[API-VERIFY] Display API verification results"
-  ansible.builtin.debug:
-    msg: "✓ API confirms record for {{ item.item }} exists"
-  loop: "{{ dns_api_verification.results }}"
-  when: item.json.status == 'ok'
-
-# =========================================================================
-# DNS STACK: A record for Pi-hole (direct IP, not via reverse proxy)
-# =========================================================================
-- name: "[DNS STACK] Add A record for Pi-hole in Technitium"
-  ansible.builtin.uri:
-    url: "{{ dns_api_url }}/zones/records/add"
-    method: POST
-    body_format: form-urlencoded
-    body:
-      token: "{{ dns_api_token }}"
-      domain: "pi.{{ base_domain }}"
-      zone: "{{ base_domain }}"
-      type: "A"
-      ipAddress: "{{ secondary_dns_ip }}"
-      ttl: "3600"
-    status_code: 200
-  register: dns_pihole_a_result
-  delegate_to: localhost
-  when: stack_name is defined and stack_name == 'dns' and secondary_dns_enabled | bool
-
-- name: "[DNS STACK] Add A record for Pi-hole in Pi-hole"
-  ansible.builtin.uri:
-    url: "{{ pihole_api_url }}/config/dns/hosts/{{ secondary_dns_ip }}%20pi.{{ base_domain }}"
-    method: PUT
-    headers:
-      sid: "{{ dns_pihole_session_id }}"
-    status_code: [200, 201, 400]
-  ignore_errors: yes
-  delegate_to: localhost
-  when:
-    - stack_name is defined and stack_name == 'dns'
-    - secondary_dns_enabled | bool
-    - dns_pihole_session_id is defined
-
 - name: "[SUMMARY] Display final DNS summary"
   ansible.builtin.debug:
     msg:
       status: "{{ 'failed' if dns_failed_records | length > 0 else 'ok' }}"
+      primary_dns_type: "{{ primary_dns_type }}"
+      secondary_dns_type: "{{ secondary_dns_type if secondary_dns_enabled | bool else 'disabled' }}"
       services_registered: "{{ dns_discovered_domains | length }}"
       dns_verified: "{{ (dns_discovered_domains | length) - (dns_failed_records | length) }}"
-      api_verified: "{{ dns_api_verification.results | selectattr('json.status', 'equalto', 'ok') | list | length }}"
       failed_records: "{{ dns_failed_records }}"
-      secondary_dns_synced: "{{ secondary_dns_enabled | bool }}"
-      secondary_dns_added: "{{ dns_pihole_add_cname_result.results | default([]) | selectattr('status', 'defined') | selectattr('status', 'in', [200, 201]) | list | length if (secondary_dns_enabled | bool and dns_pihole_add_cname_result.results is defined) else 'n/a' }}"
-      secondary_dns_already_existed: "{{ dns_pihole_add_cname_result.results | default([]) | selectattr('status', 'defined') | selectattr('status', 'equalto', 400) | list | length if (secondary_dns_enabled | bool and dns_pihole_add_cname_result.results is defined) else 'n/a' }}"

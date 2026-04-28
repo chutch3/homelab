@@ -1,0 +1,19 @@
+# ansible/roles/dns/tasks/adapters/pihole/add-machine-records.yml
+---
+- name: "[PIHOLE] Add A record for each machine"
+  ansible.builtin.uri:
+    url: "{{ dns_secondary_api_url }}/config/dns/hosts/{{ hostvars[item].ansible_host }}%20{{ item }}.{{ base_domain }}"
+    method: PUT
+    headers:
+      sid: "{{ dns_pihole_session_id }}"
+    status_code: [200, 201, 400]
+  loop: "{{ groups['all'] }}"
+  register: dns_pihole_add_a_result
+  ignore_errors: yes
+  delegate_to: localhost
+
+- name: "[PIHOLE] Display A record status"
+  ansible.builtin.debug:
+    msg: "Pi-hole A record for {{ item.item }}.{{ base_domain }}: {{ 'Already exists' if item.status == 400 else 'Added' }}"
+  loop: "{{ dns_pihole_add_a_result.results }}"
+  when: dns_pihole_add_a_result is defined

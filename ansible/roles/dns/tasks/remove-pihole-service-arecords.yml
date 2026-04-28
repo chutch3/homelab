@@ -46,12 +46,12 @@
 
 - name: Display records to be removed
   debug:
-    msg: "Removing {{ dns_discovered_domains | length }} service A records from Pi-hole ({{ dns_manager_ip }})"
+    msg: "Removing {{ dns_discovered_domains | length }} service A records from Pi-hole at {{ secondary_dns_host }} ({{ dns_manager_ip }})"
   when: secondary_dns_enabled | bool and dns_discovered_domains is defined and dns_discovered_domains | length > 0
 
 - name: Delete service A records from Pi-hole
   uri:
-    url: "{{ pihole_api_url }}/config/dns/hosts/{{ dns_manager_ip }}%20{{ item }}"
+    url: "{{ dns_secondary_api_url }}/config/dns/hosts/{{ dns_manager_ip }}%20{{ item }}"
     method: DELETE
     headers:
       sid: "{{ dns_pihole_session_id }}"

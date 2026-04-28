@@ -87,19 +87,19 @@
 
       - name: Wait for DNS API to become available (dns stack only)
         ansible.builtin.uri:
-            url: "{{ dns_api_url }}/user/login"
+            url: "{{ dns_primary_api_url }}/user/login"
             method: POST
             body_format: form-urlencoded
             body:
-                user: "{{ dns_admin_username }}"
-                pass: "{{ lookup('env', 'DNS_ADMIN_PASSWORD') }}"
+                user: "admin"
+                pass: "{{ primary_dns_api_key }}"
             status_code: 200
         register: dns_api_ready_check
         until: dns_api_ready_check.status | default(-1) == 200
         retries: 12
         delay: 5
         delegate_to: localhost
-        when: stack_name == 'dns' and should_register_dns | default(false)
+        when: stack_name == 'dns' and should_register_dns | default(false) and primary_dns_managed | bool
 
       - name: Get DNS API token
         ansible.builtin.include_role:

@@ -40,17 +40,28 @@ iscsi_cache_iqn: "{{ lookup('env', 'ISCSI_CACHE_IQN') }}"
 iscsi_cache_mount_path: "{{ lookup('env', 'ISCSI_CACHE_MOUNT_PATH') | default('/mnt/iscsi/cache') }}"
 
 # DNS configuration
-# Use manager node IP for bootstrapping (hostname won't resolve until DNS is configured)
-# Docker Swarm ingress mode makes port 5380 accessible on any manager node
-dns_api_url: "http://{{ hostvars[groups['managers'][0]]['ansible_host'] }}:5380/api"
-dns_admin_username: "admin"
+# primary_dns_managed=true: this repo deploys and manages the DNS server (stacks/dns)
+# primary_dns_managed=false: bring your own DNS server (set PRIMARY_DNS_HOST)
+primary_dns_type: "{{ lookup('env', 'PRIMARY_DNS_TYPE') | default('technitium') }}"
+primary_dns_managed: "{{ lookup('env', 'PRIMARY_DNS_MANAGED') | default('true') | bool }}"
+primary_dns_host: "{{ lookup('env', 'PRIMARY_DNS_HOST') | default(hostvars[groups['managers'][0]]['ansible_host']) }}"
+primary_dns_api_key: "{{ lookup('env', 'PRIMARY_DNS_API_KEY') | default('') }}"
 
-# Secondary DNS (Pi-hole) configuration
-# Set SECONDARY_DNS_ENABLED=true and provide SECONDARY_DNS_IP + PIHOLE_API_PASSWORD to sync records
+# Derived API base URL — used by adapters and readiness checks
+dns_primary_api_url: >-
+  {{ 'http://' ~ primary_dns_host ~ ':5380/api'
+     if primary_dns_type == 'technitium'
+     else 'http://' ~ primary_dns_host ~ '/api' }}
+
+# Secondary DNS configuration
+# Set SECONDARY_DNS_ENABLED=true and provide SECONDARY_DNS_HOST + SECONDARY_DNS_API_KEY to sync records
 secondary_dns_enabled: "{{ lookup('env', 'SECONDARY_DNS_ENABLED') | default('false') | bool }}"
-secondary_dns_ip: "{{ lookup('env', 'SECONDARY_DNS_IP') | default('') }}"
-pihole_api_url: "http://{{ lookup('env', 'SECONDARY_DNS_IP') | default('') }}/api"
-pihole_api_password: "{{ lookup('env', 'PIHOLE_API_PASSWORD') | default('') }}"
+secondary_dns_type: "{{ lookup('env', 'SECONDARY_DNS_TYPE') | default('pihole') }}"
+secondary_dns_host: "{{ lookup('env', 'SECONDARY_DNS_HOST') | default('') }}"
+secondary_dns_api_key: "{{ lookup('env', 'SECONDARY_DNS_API_KEY') | default('') }}"
+
+# Derived secondary API base URL
+dns_secondary_api_url: "http://{{ secondary_dns_host }}/api"
 
 # Uptime Kuma configuration
 uptime_kuma_api_url: "https://uptime.{{ lookup('env', 'BASE_DOMAIN') }}"

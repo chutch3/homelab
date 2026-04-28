@@ -1,45 +1,8 @@
 # ansible/roles/dns/tasks/add-machine-records.yml
 ---
-- name: Add A record for each machine
-  uri:
-    url: "{{ dns_api_url }}/zones/records/add"
-    method: POST
-    body_format: form-urlencoded
-    body:
-      token: "{{ dns_api_token }}"
-      domain: "{{ item }}.{{ base_domain }}"
-      zone: "{{ base_domain }}"
-      type: "A"
-      ipAddress: "{{ hostvars[item].ansible_host }}"
-      ttl: "3600"
-    status_code: 200
-  loop: "{{ groups['all'] }}"
-  register: dns_add_a_record_result
-  ignore_errors: yes
+- name: Add machine records to primary DNS
+  ansible.builtin.include_tasks: "adapters/{{ primary_dns_type }}/add-machine-records.yml"
 
-- name: Display A record addition status
-  debug:
-    msg: "A record for {{ item.item }}.{{ base_domain }} ({{ hostvars[item.item].ansible_host }}) added/updated. Response: {{ item.json }}"
-  loop: "{{ dns_add_a_record_result.results }}"
-
-# =========================================================================
-# SECONDARY DNS: Pi-hole A Records
-# =========================================================================
-- name: "[SECONDARY] Add A record to Pi-hole for each machine"
-  ansible.builtin.uri:
-    url: "{{ pihole_api_url }}/config/dns/hosts/{{ hostvars[item].ansible_host }}%20{{ item }}.{{ base_domain }}"
-    method: PUT
-    headers:
-      sid: "{{ dns_pihole_session_id }}"
-    status_code: [200, 201, 400]
-  loop: "{{ groups['all'] }}"
-  register: dns_pihole_add_a_result
-  ignore_errors: yes
-  delegate_to: localhost
-  when: secondary_dns_enabled | bool and dns_pihole_session_id is defined
-
-- name: "[SECONDARY] Display Pi-hole A record status"
-  ansible.builtin.debug:
-    msg: "Pi-hole A record for {{ item.item }}.{{ base_domain }}: {{ 'Already exists' if item.status == 400 else 'Added' }}"
-  loop: "{{ dns_pihole_add_a_result.results }}"
-  when: secondary_dns_enabled | bool and dns_pihole_add_a_result is defined
+- name: Add machine records to secondary DNS
+  ansible.builtin.include_tasks: "adapters/{{ secondary_dns_type }}/add-machine-records.yml"
+  when: secondary_dns_enabled | bool

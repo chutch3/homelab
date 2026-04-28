@@ -1,22 +1,4 @@
 # ansible/roles/dns/tasks/get-token.yml
 ---
-- name: Authenticate with DNS API
-  uri:
-    url: "{{ dns_api_url }}/user/login"
-    method: POST
-    body_format: form-urlencoded
-    body:
-      user: "{{ dns_admin_username }}"
-      pass: "{{ lookup('env', 'DNS_ADMIN_PASSWORD') }}"
-    status_code: 200
-    return_content: yes
-  register: dns_auth_response
-
-- name: Fail if authentication failed or token not found
-  fail:
-    msg: "Failed to obtain API token from Technitium DNS server. Response: {{ dns_auth_response.json }}"
-  when: dns_auth_response.json.token is not defined
-
-- name: Set DNS API token
-  set_fact:
-    dns_api_token: "{{ dns_auth_response.json.token }}"
+- name: Get primary DNS API token
+  ansible.builtin.include_tasks: "adapters/{{ primary_dns_type }}/get-token.yml"
