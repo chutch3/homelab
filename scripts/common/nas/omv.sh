@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+set -euo pipefail
 
 # OpenMediaVault Certificate Installation Functions
 # Handles installation of SSL certificates on OpenMediaVault NAS via OMV RPC

@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+set -euo pipefail
 
 if [ -z "${SSH_KEY_FILE:-}" ]; then
     SSH_KEY_FILE="$HOME/.ssh/homelab_rsa"

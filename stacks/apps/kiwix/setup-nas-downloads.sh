@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # Kiwix NAS Setup Script
 # Configures OpenMediaVault NAS for automated ZIM downloads
 

@@ -1,8 +1,8 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # Install and enable Kolibri OIDC plugin at startup
 # pip install is idempotent — safe to run on every container start
 
-set -e
+set -euo pipefail
 
 echo "Installing Kolibri OIDC client plugin..."
 pip install kolibri-oidc-client-plugin

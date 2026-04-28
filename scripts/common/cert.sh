@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+set -euo pipefail
 
 # Certificate management functions
 # Handles validation of SSL certificate files
