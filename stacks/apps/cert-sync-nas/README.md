@@ -1,74 +1,144 @@
-#!/usr/bin/env bash
-set -euo pipefail
+# Certificate Sync for NAS
 
-# Define the root of the dev environment
-DEV_ENV_ROOT="/mnt/iscsi/app-data/dev-env"
+Automatically issues and renews an SSL certificate for the NAS via `acme.sh` (Cloudflare DNS challenge) and installs it into OpenMediaVault.
 
-echo "Creating Dev Environment Directories..."
-mkdir -p "$DEV_ENV_ROOT/workspace"
-mkdir -p "$DEV_ENV_ROOT/code-server/config"
-mkdir -p "$DEV_ENV_ROOT/shared-ssh"
-mkdir -p "$DEV_ENV_ROOT/ai-configs/claude"
-mkdir -p "$DEV_ENV_ROOT/ai-configs/gemini"
-mkdir -p "$DEV_ENV_ROOT/ai-configs/cloudcli"
-mkdir -p "$DEV_ENV_ROOT/ai-configs/forge"
+## How It Works
 
-echo "Setting Ownership to 1000:1000..."
-chown -R 1000:1000 "$DEV_ENV_ROOT"
+On every container start, the startup script:
 
-echo "Setting specific permissions for SSH folder..."
-chmod 700 "$DEV_ENV_ROOT/shared-ssh"
+1. Copies the SSH key from the Docker secret (`/ssh-key/id_rsa`) to `/root/.ssh/id_rsa` so that `ssh`/`scp` can find it (the `neilpang/acme.sh` image sets `$HOME=/acme.sh`, but OpenSSH resolves default key paths from the passwd home `/root`)
+2. Runs `acme.sh --issue` via Cloudflare DNS challenge — skips silently if the cert isn't due for renewal yet
+3. Runs `/scripts/sync-nas-cert.sh` to copy the certificate from the `acme_certs` volume and install it on the NAS via OMV RPC over SSH — if this fails the container exits and Swarm restarts it
+4. Installs a weekly crontab (Sundays at 3 AM) to renew and re-sync
+5. Starts `crond` to keep the container running
 
-# Load environment variables if available
-if [ -f "../../../.env" ]; then
-    source "../../../.env"
-fi
+`sync-nas-cert.sh` calls `omv_cert_install` from `scripts/common/nas/omv.sh`, which:
+- SCPs the cert and key to `/tmp/` on the NAS
+- SSHes in and runs `omv-rpc CertificateMgmt set` to import the cert
+- Applies dirty config modules and restarts nginx
 
-# Determine the real user's home directory (in case the script is run with sudo)
-REAL_USER="${SUDO_USER:-$USER}"
-REAL_HOME=$(eval echo "~$REAL_USER")
+## Setup & Deployment
 
-# Determine the source SSH key and derive the destination name from it
-SSH_KEY_SRC="${SSH_KEY_FILE:-$REAL_HOME/.ssh/homelab_rsa}"
-SSH_KEY_NAME="$(basename "$SSH_KEY_SRC")"
-SSH_DEST="$DEV_ENV_ROOT/shared-ssh"
+```bash
+# 1. Create the Docker secret from your SSH key
+./stacks/apps/cert-sync-nas/init-secrets.sh
 
-echo "Copying SSH key to Shared SSH Volume..."
-if [ -f "$SSH_KEY_SRC" ]; then
-    # Copy private key
-    cp "$SSH_KEY_SRC" "$SSH_DEST/$SSH_KEY_NAME"
-    chmod 600 "$SSH_DEST/$SSH_KEY_NAME"
-    chown 1000:1000 "$SSH_DEST/$SSH_KEY_NAME"
+# 2. Deploy the stack
+docker stack deploy -c stacks/apps/cert-sync-nas/docker-compose.yml cert-sync-nas
+```
 
-    # Copy public key if it exists
-    if [ -f "${SSH_KEY_SRC}.pub" ]; then
-        cp "${SSH_KEY_SRC}.pub" "$SSH_DEST/${SSH_KEY_NAME}.pub"
-        chmod 644 "$SSH_DEST/${SSH_KEY_NAME}.pub"
-        chown 1000:1000 "$SSH_DEST/${SSH_KEY_NAME}.pub"
-    fi
-    echo "SSH key copied successfully."
-else
-    echo "Warning: SSH key not found at $SSH_KEY_SRC."
-    echo "You may need to manually copy your key or generate a new one inside the Web IDE."
-fi
+The init script reads the key at `$SSH_KEY_FILE` (via `scripts/common/ssh.sh`) and stores it as the `cert_sync_ssh_key` Docker secret. The corresponding public key must already be in `root@nas.<your-domain>:~/.ssh/authorized_keys`.
 
-# Setup SSH config file
-SSH_CONFIG_DEST="$SSH_DEST/config"
-echo "Creating default SSH config..."
+### Verify Deployment
 
-DOMAIN_PATTERN="${BASE_DOMAIN:+*.${BASE_DOMAIN}}"
-SSH_HOST_PATTERN="192.168.* 10.* ${DOMAIN_PATTERN} ${SSH_EXTRA_HOSTS:-}"
+```bash
+# Check service status
+docker service ls | grep cert-sync
 
-cat > "$SSH_CONFIG_DEST" <<EOF
-Host ${SSH_HOST_PATTERN}
-    StrictHostKeyChecking accept-new
-    IdentityFile ~/.ssh/${SSH_KEY_NAME}
+# View logs
+docker service logs cert-sync-nas_nas-cert --tail 50
 
-Host *
-    StrictHostKeyChecking accept-new
-EOF
+# Check restart count (should stay at 0-1 after initial deploy)
+docker service ps cert-sync-nas_nas-cert
+```
 
-chmod 644 "$SSH_CONFIG_DEST"
-chown 1000:1000 "$SSH_CONFIG_DEST"
+## Failure Handling
 
-echo "Setup complete! You can now deploy the dev environment stacks."
+All failures are fatal — if the initial sync or a cron-triggered sync fails, the container exits and Docker Swarm restarts it (`condition: any, delay: 5s`). This means the container will keep retrying until the sync succeeds.
+
+To diagnose a failure:
+
+```bash
+docker service logs cert-sync-nas_nas-cert --tail 100
+docker service ps cert-sync-nas_nas-cert --no-trunc
+```
+
+## Configuration
+
+Environment variables (set via `.env` and passed through `docker-compose.yml`):
+
+| Variable | Default | Description |
+|---|---|---|
+| `CLOUDFLARE_DNS_API_TOKEN` | *(required)* | Cloudflare API token for DNS challenge |
+| `BASE_DOMAIN` | *(required)* | Base domain — NAS host and cert domain are derived from this |
+| `SSH_KEY_FILE` | `~/.ssh/homelab_rsa` | Path to the SSH private key used by `init-secrets.sh` |
+| `NAS_HOST` | `nas.${BASE_DOMAIN}` | NAS hostname for SSH/SCP (overrides the derived value) |
+| `CERT_DOMAIN` | `nas.${BASE_DOMAIN}` | Domain for the certificate (overrides the derived value) |
+| `TZ` | `America/New_York` | Timezone for cron schedule |
+
+## SSH Key Rotation
+
+If you rename or regenerate the SSH key, the Docker secret will be stale and SSH auth will fail. Steps to fix:
+
+```bash
+# 1. Scale down the service so Swarm releases the secret
+docker service scale cert-sync-nas_nas-cert=0
+
+# 2. Detach the secret from the service (required before deletion)
+docker service update --secret-rm cert_sync_ssh_key cert-sync-nas_nas-cert
+
+# 3. Remove and recreate the secret with the current key
+docker secret rm cert_sync_ssh_key
+docker secret create cert_sync_ssh_key "$SSH_KEY_FILE"
+
+# 4. Redeploy
+docker stack deploy -c docker-compose.yml cert-sync-nas
+```
+
+Also ensure the new public key is in `root@nas.<your-domain>:~/.ssh/authorized_keys`:
+
+```bash
+ssh-copy-id -i "$SSH_KEY_FILE" root@nas.<your-domain>
+```
+
+## Troubleshooting
+
+### SSH auth fails (`Permission denied (publickey,password)`)
+
+Most likely cause: the Docker secret is stale (see SSH Key Rotation above). To confirm the right key is in the secret, check the fingerprint:
+
+```bash
+# Fingerprint of the key on the host
+ssh-keygen -lf "$SSH_KEY_FILE"
+
+# Fingerprint of the key currently in the container
+docker exec $(docker ps -q -f name=cert-sync-nas_nas-cert) ssh-keygen -lf /root/.ssh/id_rsa
+```
+
+If they don't match, recreate the secret.
+
+### Certificate not syncing
+
+```bash
+# View recent logs
+docker service logs cert-sync-nas_nas-cert --tail 50
+
+# Trigger an immediate sync manually
+docker exec $(docker ps -q -f name=cert-sync-nas_nas-cert) /scripts/sync-nas-cert.sh
+```
+
+### Let's Encrypt rate limit errors
+
+The `--force` flag was intentionally removed from the `acme.sh --issue` command. If you see rate limit errors (429), the container was restarting in a loop and hit the 5-cert/week limit. Wait for the window to pass (the error message shows the exact retry time) — the cert will renew automatically on the next Sunday cron run.
+
+### Certificate not applying in OMV
+
+```bash
+ssh root@nas.<your-domain>
+
+# List certificates in OMV
+omv-rpc -u admin "CertificateMgmt" "getList" | jq
+
+# Check which cert the web UI is using
+omv-rpc -u admin "WebGui" "getSettings" | jq .sslcertificateref
+
+# Manually apply nginx config
+omv-salt deploy run nginx
+```
+
+## Security Notes
+
+- SSH private key is stored as a Docker secret (encrypted in the Swarm raft store)
+- The secret is mounted read-only at `/ssh-key/id_rsa` inside the container
+- No password authentication — key-only SSH access to the NAS (`StrictHostKeyChecking=accept-new`)
+- Consider using a dedicated NAS SSH key with restricted permissions rather than the shared `homelab_rsa`
