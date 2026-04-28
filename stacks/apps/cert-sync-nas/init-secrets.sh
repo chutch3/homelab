@@ -1,5 +1,5 @@
-#!/bin/bash
-set -e
+#!/usr/bin/env bash
+set -euo pipefail
 
 # Init script for cert-sync-nas stack
 # Creates Docker secret for SSH authentication
