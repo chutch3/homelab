@@ -5,19 +5,16 @@
 load test_helper
 
 setup() {
-    # Source the script we're testing
     export TEST=true
     # shellcheck disable=SC1091
-    source "$(dirname "$BATS_TEST_DIRNAME")/../../../scripts/common/cert.sh"
+    source "${BATS_TEST_DIRNAME}/../../../scripts/common/cert.sh"
 
-    # Create temporary test directory
-    TEST_DIR="$(mktemp -d)"
+    TEST_DIR="$(temp_make)"
     export TEST_DIR
 }
 
 teardown() {
-    # Clean up test directory
-    rm -rf "${TEST_DIR}"
+    temp_del "${TEST_DIR}"
 }
 
 @test "cert_validate_files exists as a function" {
@@ -25,7 +22,6 @@ teardown() {
 }
 
 @test "cert_validate_files succeeds with valid certificate files" {
-    # Create valid cert files
     echo "cert content" > "${TEST_DIR}/cert.pem"
     echo "key content" > "${TEST_DIR}/key.pem"
 
