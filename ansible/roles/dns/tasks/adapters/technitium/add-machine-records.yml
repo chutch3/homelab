@@ -16,6 +16,7 @@
   loop: "{{ groups['all'] }}"
   register: dns_add_a_record_result
   ignore_errors: yes
+  delegate_to: localhost
 
 - name: "[TECHNITIUM] Display A record addition status"
   ansible.builtin.debug:
