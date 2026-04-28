@@ -33,7 +33,7 @@ tasks:
             - echo "🧪 Running unit tests with coverage..."
             - mkdir -p coverage
             - rm -rf /tmp/bats-run-* 2>/dev/null || true
-            - kcov --bash-method=DEBUG --include-pattern=scripts,stacks --exclude-pattern=/usr,/tmp,/var coverage/unit bats --jobs 1 stacks/apps/*/tests/*.bats
+            - kcov --bash-method=DEBUG --include-pattern=scripts,stacks --exclude-pattern=/usr,/tmp,/var coverage/unit bats --jobs 1 stacks/apps/*/tests/*.bats tests/unit/scripts/*.bats
             - echo "🧪 Unit tests completed successfully"
             - echo "📊 Merging coverage reports..."
             - kcov --merge coverage/merged coverage/unit
@@ -43,7 +43,7 @@ tasks:
         desc: Run core tests with faster execution
         cmds:
             - echo "🧪 Running unit tests..."
-            - bats --tap stacks/apps/*/tests/*.bats
+            - bats --tap stacks/apps/*/tests/*.bats tests/unit/scripts/*.bats
 
     test-local:
         desc: Run local-only tests (requires Docker)
