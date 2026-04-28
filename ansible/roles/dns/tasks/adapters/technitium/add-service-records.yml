@@ -1,0 +1,61 @@
+# ansible/roles/dns/tasks/adapters/technitium/add-service-records.yml
+---
+- name: "[TECHNITIUM] Add CNAME record for each discovered service"
+  ansible.builtin.uri:
+    url: "{{ dns_primary_api_url }}/zones/records/add"
+    method: POST
+    body_format: form-urlencoded
+    body:
+      token: "{{ dns_api_token }}"
+      domain: "{{ item }}"
+      zone: "{{ base_domain }}"
+      type: "CNAME"
+      cname: "{{ dns_manager_hostname }}.{{ base_domain }}"
+      ttl: "3600"
+    status_code: 200
+  loop: "{{ dns_discovered_domains }}"
+  register: dns_add_cname_result
+  delegate_to: localhost
+
+- name: "[TECHNITIUM] Display CNAME record creation status"
+  ansible.builtin.debug:
+    msg: "CNAME for {{ item.item }}: {{ 'Already exists' if (item.json.status == 'error' and 'already exists' in item.json.get('errorMessage', '')) else 'Created/Updated' }}"
+  loop: "{{ dns_add_cname_result.results }}"
+
+- name: "[TECHNITIUM] Add A record for Pi-hole"
+  ansible.builtin.uri:
+    url: "{{ dns_primary_api_url }}/zones/records/add"
+    method: POST
+    body_format: form-urlencoded
+    body:
+      token: "{{ dns_api_token }}"
+      domain: "pi.{{ base_domain }}"
+      zone: "{{ base_domain }}"
+      type: "A"
+      ipAddress: "{{ secondary_dns_host }}"
+      ttl: "3600"
+    status_code: 200
+  register: dns_pihole_a_result
+  delegate_to: localhost
+  when: stack_name is defined and stack_name == 'dns' and secondary_dns_enabled | bool
+
+- name: "[TECHNITIUM] Verify records via API"
+  ansible.builtin.uri:
+    url: "{{ dns_primary_api_url }}/zones/records/get"
+    method: GET
+    body_format: form-urlencoded
+    body:
+      token: "{{ dns_api_token }}"
+      domain: "{{ item }}"
+      zone: "{{ base_domain }}"
+    status_code: 200
+  loop: "{{ dns_discovered_domains }}"
+  register: dns_api_verification
+  delegate_to: localhost
+  failed_when: false
+
+- name: "[TECHNITIUM] Display API verification results"
+  ansible.builtin.debug:
+    msg: "✓ API confirms record for {{ item.item }} exists"
+  loop: "{{ dns_api_verification.results }}"
+  when: item.json.status == 'ok'

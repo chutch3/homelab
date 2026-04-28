@@ -36,6 +36,12 @@
       delegate_to: localhost
       register: infra_stack_dirs
 
+    - name: Exclude unmanaged dns stack from infrastructure
+      ansible.builtin.set_fact:
+        infra_stack_dirs:
+          files: "{{ infra_stack_dirs.files | rejectattr('path', 'search', '/dns$') | list }}"
+      when: not primary_dns_managed | bool
+
     - name: Prepare list of stacks to deploy
       ansible.builtin.set_fact:
         all_stacks: "{{ (infra_stack_dirs.files | map(attribute='path') | list) + (app_stack_dirs.files | map(attribute='path') | list) }}"

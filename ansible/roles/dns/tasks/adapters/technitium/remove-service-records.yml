@@ -1,0 +1,36 @@
+# ansible/roles/dns/tasks/adapters/technitium/remove-service-records.yml
+---
+- name: "[TECHNITIUM] Remove CNAME record for each service"
+  ansible.builtin.uri:
+    url: "{{ dns_primary_api_url }}/zones/records/delete"
+    method: POST
+    body_format: form-urlencoded
+    body:
+      token: "{{ dns_api_token }}"
+      domain: "{{ item }}"
+      zone: "{{ base_domain }}"
+      type: "CNAME"
+    status_code: [200, 400]
+  loop: "{{ dns_discovered_domains }}"
+  register: dns_remove_cname_result
+  delegate_to: localhost
+
+- name: "[TECHNITIUM] Display CNAME removal status"
+  ansible.builtin.debug:
+    msg: "CNAME for {{ item.item }}: {{ 'Removed' if item.json.status == 'ok' else 'Not found or already removed' }}"
+  loop: "{{ dns_remove_cname_result.results }}"
+  when: dns_remove_cname_result.results is defined
+
+- name: "[TECHNITIUM] Remove A record for Pi-hole"
+  ansible.builtin.uri:
+    url: "{{ dns_primary_api_url }}/zones/records/delete"
+    method: POST
+    body_format: form-urlencoded
+    body:
+      token: "{{ dns_api_token }}"
+      domain: "pi.{{ base_domain }}"
+      zone: "{{ base_domain }}"
+      type: "A"
+    status_code: [200, 400]
+  delegate_to: localhost
+  when: stack_name is defined and stack_name == 'dns' and secondary_dns_enabled | bool

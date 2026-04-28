@@ -1,0 +1,23 @@
+# ansible/roles/dns/tasks/adapters/technitium/get-token.yml
+---
+- name: Authenticate with Technitium DNS API
+  ansible.builtin.uri:
+    url: "{{ dns_primary_api_url }}/user/login"
+    method: POST
+    body_format: form-urlencoded
+    body:
+      user: "admin"
+      pass: "{{ primary_dns_api_key }}"
+    status_code: 200
+    return_content: yes
+  register: dns_auth_response
+  delegate_to: localhost
+
+- name: Fail if authentication failed
+  ansible.builtin.fail:
+    msg: "Failed to authenticate with Technitium DNS at {{ primary_dns_host }}. Response: {{ dns_auth_response.json }}"
+  when: dns_auth_response.json.token is not defined
+
+- name: Set Technitium API token
+  ansible.builtin.set_fact:
+    dns_api_token: "{{ dns_auth_response.json.token }}"
