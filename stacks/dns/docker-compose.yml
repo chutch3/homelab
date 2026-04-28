@@ -1,6 +1,6 @@
 services:
     dns-server:
-        image: technitium/dns-server:14.3.0
+        image: technitium/dns-server:15.0.1
         hostname: "dns-server"
         ports:
             # Ingress mode - accessible via any swarm node through routing mesh
