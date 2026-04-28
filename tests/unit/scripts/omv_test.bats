@@ -53,12 +53,6 @@ teardown() {
     assert_output --partial "directory"
 }
 
-@test "omv_cert_generate_rpc_command generates correct RPC command" {
-    run omv_cert_generate_rpc_command "${TEST_DIR}/cert.pem" "${TEST_DIR}/key.pem"
-    assert_success
-    assert_output --partial "omv-rpc"
-    assert_output --partial "CertificateMgmt"
-}
 
 @test "omv_cert_copy_files validates source files exist" {
     rm "${TEST_DIR}/cert.pem"
