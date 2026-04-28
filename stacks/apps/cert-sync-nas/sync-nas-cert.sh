@@ -12,6 +12,7 @@ source "${COMMON_DIR}/nas/omv.sh"
 
 # Configuration
 NAS_HOST="${NAS_HOST:-nas.example.com}"
+NAS_USER="${NAS_USER:-root}"
 CERT_DOMAIN="${CERT_DOMAIN:-nas.example.com}"
 ACME_DIR="${ACME_DIR:-/acme.sh}"
 

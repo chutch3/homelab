@@ -66,3 +66,29 @@ teardown() {
     run omv_cert_copy_files "test_host" "${TEST_DIR}"
     assert_failure
 }
+
+@test "omv_cert_copy_files uses NAS_USER for the connection" {
+    NAS_USER="admin" run omv_cert_copy_files "nas.example.com" "${TEST_DIR}"
+    assert_success
+    assert_output --partial "admin@nas.example.com"
+}
+
+@test "omv_cert_copy_files defaults NAS_USER to root" {
+    unset NAS_USER
+    run omv_cert_copy_files "nas.example.com" "${TEST_DIR}"
+    assert_success
+    assert_output --partial "root@nas.example.com"
+}
+
+@test "omv_cert_install uses NAS_USER for the connection" {
+    NAS_USER="admin" run omv_cert_install "nas.example.com" "${TEST_DIR}"
+    assert_success
+    assert_output --partial "admin@nas.example.com"
+}
+
+@test "omv_cert_install defaults NAS_USER to root" {
+    unset NAS_USER
+    run omv_cert_install "nas.example.com" "${TEST_DIR}"
+    assert_success
+    assert_output --partial "root@nas.example.com"
+}
