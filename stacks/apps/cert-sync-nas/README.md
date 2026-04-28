@@ -8,7 +8,7 @@ On every container start, the startup script:
 
 1. Copies the SSH key from the Docker secret (`/ssh-key/id_rsa`) to `/root/.ssh/id_rsa` so that `ssh`/`scp` can find it (the `neilpang/acme.sh` image sets `$HOME=/acme.sh`, but OpenSSH resolves default key paths from the passwd home `/root`)
 2. Runs `acme.sh --issue` via Cloudflare DNS challenge — skips silently if the cert isn't due for renewal yet
-3. Runs `/scripts/sync-nas-cert.sh` to copy the certificate from the `acme_certs` volume and install it on the NAS via OMV RPC over SSH — logs a warning and continues if this fails (crond will retry on schedule)
+3. Runs `/scripts/sync-nas-cert.sh` to copy the certificate from the `acme_certs` volume and install it on the NAS via OMV RPC over SSH — if this fails the container exits and Swarm restarts it
 4. Installs a weekly crontab (Sundays at 3 AM) to renew and re-sync
 5. Starts `crond` to keep the container running
 
@@ -27,7 +27,7 @@ On every container start, the startup script:
 docker stack deploy -c stacks/apps/cert-sync-nas/docker-compose.yml cert-sync-nas
 ```
 
-The init script reads `~/.ssh/homelab_rsa` (via `scripts/common/ssh.sh`) and stores it as the `cert_sync_ssh_key` Docker secret. The corresponding public key must already be in `root@nas.diyhub.dev:~/.ssh/authorized_keys`.
+The init script reads the key at `$SSH_KEY_FILE` (via `scripts/common/ssh.sh`) and stores it as the `cert_sync_ssh_key` Docker secret. The corresponding public key must already be in `root@nas.<your-domain>:~/.ssh/authorized_keys`.
 
 ### Verify Deployment
 
@@ -44,7 +44,7 @@ docker service ps cert-sync-nas_nas-cert
 
 ## Failure Handling
 
-Initial sync failures are non-fatal — the container logs a warning and crond starts anyway. Only a cron-triggered failure will cause crond to exit (and Swarm to restart the container).
+All failures are fatal — if the initial sync or a cron-triggered sync fails, the container exits and Docker Swarm restarts it (`condition: any, delay: 5s`). This means the container will keep retrying until the sync succeeds.
 
 To diagnose a failure:
 
@@ -55,20 +55,20 @@ docker service ps cert-sync-nas_nas-cert --no-trunc
 
 ## Configuration
 
-Environment variables (set via `docker-compose.yml`):
+Environment variables (set via `.env` and passed through `docker-compose.yml`):
 
 | Variable | Default | Description |
 |---|---|---|
-| `CF_Token` | *(required)* | Cloudflare API token for DNS challenge |
-| `NAS_HOST` | `nas.diyhub.dev` | NAS hostname for SSH/SCP |
-| `CERT_DOMAIN` | `nas.diyhub.dev` | Domain for the certificate |
+| `CLOUDFLARE_DNS_API_TOKEN` | *(required)* | Cloudflare API token for DNS challenge |
+| `BASE_DOMAIN` | *(required)* | Base domain — NAS host and cert domain are derived from this |
+| `SSH_KEY_FILE` | `~/.ssh/homelab_rsa` | Path to the SSH private key used by `init-secrets.sh` |
+| `NAS_HOST` | `nas.${BASE_DOMAIN}` | NAS hostname for SSH/SCP (overrides the derived value) |
+| `CERT_DOMAIN` | `nas.${BASE_DOMAIN}` | Domain for the certificate (overrides the derived value) |
 | `TZ` | `America/New_York` | Timezone for cron schedule |
-
-`CF_Token` is injected from the `CLOUDFLARE_DNS_API_TOKEN` environment variable at deploy time.
 
 ## SSH Key Rotation
 
-If you rename or regenerate the `homelab_rsa` key, the Docker secret will be stale and SSH auth will fail. Steps to fix:
+If you rename or regenerate the SSH key, the Docker secret will be stale and SSH auth will fail. Steps to fix:
 
 ```bash
 # 1. Scale down the service so Swarm releases the secret
@@ -79,16 +79,16 @@ docker service update --secret-rm cert_sync_ssh_key cert-sync-nas_nas-cert
 
 # 3. Remove and recreate the secret with the current key
 docker secret rm cert_sync_ssh_key
-docker secret create cert_sync_ssh_key ~/.ssh/homelab_rsa
+docker secret create cert_sync_ssh_key "$SSH_KEY_FILE"
 
 # 4. Redeploy
 docker stack deploy -c docker-compose.yml cert-sync-nas
 ```
 
-Also ensure the new public key is in `root@nas.diyhub.dev:~/.ssh/authorized_keys`:
+Also ensure the new public key is in `root@nas.<your-domain>:~/.ssh/authorized_keys`:
 
 ```bash
-ssh-copy-id -i ~/.ssh/homelab_rsa root@nas.diyhub.dev
+ssh-copy-id -i "$SSH_KEY_FILE" root@nas.<your-domain>
 ```
 
 ## Troubleshooting
@@ -99,7 +99,7 @@ Most likely cause: the Docker secret is stale (see SSH Key Rotation above). To c
 
 ```bash
 # Fingerprint of the key on the host
-ssh-keygen -lf ~/.ssh/homelab_rsa
+ssh-keygen -lf "$SSH_KEY_FILE"
 
 # Fingerprint of the key currently in the container
 docker exec $(docker ps -q -f name=cert-sync-nas_nas-cert) ssh-keygen -lf /root/.ssh/id_rsa
@@ -124,7 +124,7 @@ The `--force` flag was intentionally removed from the `acme.sh --issue` command.
 ### Certificate not applying in OMV
 
 ```bash
-ssh root@nas.diyhub.dev
+ssh root@nas.<your-domain>
 
 # List certificates in OMV
 omv-rpc -u admin "CertificateMgmt" "getList" | jq
@@ -140,5 +140,5 @@ omv-salt deploy run nginx
 
 - SSH private key is stored as a Docker secret (encrypted in the Swarm raft store)
 - The secret is mounted read-only at `/ssh-key/id_rsa` inside the container
-- No password authentication — key-only SSH access to the NAS
+- No password authentication — key-only SSH access to the NAS (`StrictHostKeyChecking=accept-new`)
 - Consider using a dedicated NAS SSH key with restricted permissions rather than the shared `homelab_rsa`
