@@ -1,151 +1,151 @@
 version: "3.9"
 
 services:
-  immich-server:
-    image: ghcr.io/immich-app/immich-server:${IMMICH_VERSION:-release}
-    command: ["start.sh", "immich"]
-    volumes:
-      - immich_upload:/usr/src/app/upload
-      - all_data:/mnt/media/photos:ro
-      - /etc/localtime:/etc/localtime:ro
-    environment:
-      DB_HOSTNAME: immich-postgres
-      DB_USERNAME: ${IMMICH_DB_USERNAME:-postgres}
-      DB_PASSWORD: ${IMMICH_DB_PASSWORD}
-      DB_DATABASE_NAME: ${IMMICH_DB_DATABASE_NAME:-immich}
-      REDIS_HOSTNAME: immich-redis
-      TZ: ${TZ:-UTC}
-      UPLOAD_LOCATION: /usr/src/app/upload
-      # Authentik OIDC Configuration
-      OAUTH_ENABLED: "true"
-      OAUTH_ISSUER_URL: https://auth.${BASE_DOMAIN}/application/o/immich/
-      OAUTH_CLIENT_ID: ${IMMICH_OAUTH_CLIENT_ID}
-      OAUTH_CLIENT_SECRET: ${IMMICH_OAUTH_CLIENT_SECRET}
-      OAUTH_AUTO_REGISTER: "true"
-      OAUTH_BUTTON_TEXT: "Login with Authentik"
-      OAUTH_SCOPE: "openid email profile"
-    depends_on:
-      - immich-redis
-      - immich-postgres
-    restart: unless-stopped
-    healthcheck:
-      disable: true
-    networks:
-      - traefik-public
-    deploy:
-      replicas: 1
-      placement:
-        constraints:
-          - node.labels.photos == true
-      labels:
-        - "traefik.enable=true"
-        - "traefik.http.routers.immich.rule=Host(`photos.${BASE_DOMAIN}`)"
-        - "traefik.http.routers.immich.entrypoints=websecure"
-        - "traefik.http.routers.immich.tls.certresolver=dns"
-        - "traefik.http.services.immich.loadbalancer.server.port=2283"
-        - "traefik.http.services.immich.loadbalancer.server.scheme=http"
-        - homepage.group=Media
-        - homepage.name=Immich
-        - homepage.icon=immich.png
-        - homepage.href=https://photos.${BASE_DOMAIN}/
-        - homepage.description=Photo & Video Management
+    immich-server:
+        image: ghcr.io/immich-app/immich-server:${IMMICH_VERSION:-release}
+        volumes:
+            - immich_upload:/usr/src/app/upload
+            - all_data:/mnt/media/photos:ro
+            - /etc/localtime:/etc/localtime:ro
+        environment:
+            DB_HOSTNAME: immich-postgres
+            DB_USERNAME: ${IMMICH_DB_USERNAME:-postgres}
+            DB_PASSWORD: ${IMMICH_DB_PASSWORD}
+            DB_DATABASE_NAME: ${IMMICH_DB_DATABASE_NAME:-immich}
+            REDIS_HOSTNAME: valkey
+            TZ: ${TZ:-UTC}
+            UPLOAD_LOCATION: /usr/src/app/upload
+            # Authentik OIDC Configuration
+            OAUTH_ENABLED: "true"
+            OAUTH_ISSUER_URL: https://auth.${BASE_DOMAIN}/application/o/immich/
+            OAUTH_CLIENT_ID: ${IMMICH_OAUTH_CLIENT_ID}
+            OAUTH_CLIENT_SECRET: ${IMMICH_OAUTH_CLIENT_SECRET}
+            OAUTH_AUTO_REGISTER: "true"
+            OAUTH_BUTTON_TEXT: "Login with Authentik"
+            OAUTH_SCOPE: "openid email profile"
+        depends_on:
+            - valkey
+            - immich-postgres
+        restart: unless-stopped
+        healthcheck:
+            disable: true
+        networks:
+            - traefik-public
+        deploy:
+            replicas: 1
+            placement:
+                constraints:
+                    - node.labels.photos == true
+            labels:
+                - "traefik.enable=true"
+                - "traefik.http.routers.immich.rule=Host(`photos.${BASE_DOMAIN}`)"
+                - "traefik.http.routers.immich.entrypoints=websecure"
+                - "traefik.http.routers.immich.tls.certresolver=dns"
+                - "traefik.http.services.immich.loadbalancer.server.port=2283"
+                - "traefik.http.services.immich.loadbalancer.server.scheme=http"
+                - homepage.group=Media
+                - homepage.name=Immich
+                - homepage.icon=immich.png
+                - homepage.href=https://photos.${BASE_DOMAIN}/
+                - homepage.description=Photo & Video Management
 
-  immich-machine-learning:
-    image: ghcr.io/immich-app/immich-machine-learning:${IMMICH_VERSION:-release}-cuda
-    volumes:
-      - immich_model_cache:/cache
-    environment:
-      NVIDIA_VISIBLE_DEVICES: "all"
-    restart: unless-stopped
-    healthcheck:
-      test: ["CMD-SHELL", "python /usr/src/healthcheck.py || exit 1"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-    networks:
-      - traefik-public
-    deploy:
-      replicas: 1
-      placement:
-        constraints:
-          - node.labels.gpu == true
+    immich-machine-learning:
+        image: ghcr.io/immich-app/immich-machine-learning:${IMMICH_VERSION:-release}-cuda
+        volumes:
+            - immich_model_cache:/cache
+        environment:
+            NVIDIA_VISIBLE_DEVICES: "all"
+        restart: unless-stopped
+        healthcheck:
+            test: ["CMD-SHELL", "python /usr/src/healthcheck.py || exit 1"]
+            interval: 30s
+            timeout: 10s
+            retries: 3
+        networks:
+            - traefik-public
+        deploy:
+            replicas: 1
+            placement:
+                constraints:
+                    - node.labels.gpu == true
 
-  immich-redis:
-    image: registry.hub.docker.com/library/redis:6.2-alpine@sha256:84882e87b54734154586e5f8abd4dce69fe7311315e2fc6d67c29614c8de2672
-    volumes:
-      - immich_redis_data:/data
-    restart: unless-stopped
-    healthcheck:
-      test: ["CMD-SHELL", "redis-cli ping || exit 1"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-    networks:
-      - traefik-public
-    deploy:
-      replicas: 1
+    valkey:
+        image: docker.io/valkey/valkey:9@sha256:3b55fbaa0cd93cf0d9d961f405e4dfcc70efe325e2d84da207a0a8e6d8fde4f9
+        command: valkey-server --stop-writes-on-bgsave-error no
+        volumes:
+            - immich_redis_data:/data
+        restart: unless-stopped
+        healthcheck:
+            test: ["CMD-SHELL", "valkey-cli ping || exit 1"]
+            interval: 30s
+            timeout: 10s
+            retries: 3
+        networks:
+            - traefik-public
+        deploy:
+            replicas: 1
 
-  immich-postgres:
-    image: registry.hub.docker.com/tensorchord/pgvecto-rs:pg14-v0.2.0@sha256:90724186f0a3517cf6914295b5ab410db9ce23190a2d9d0b9dd6463e3fa298f0
-    user: "999:999"
-    command: >
-      postgres
-      -c shared_preload_libraries=vectors.so
-      -c tcp_keepalives_idle=30
-      -c tcp_keepalives_interval=10
-      -c tcp_keepalives_count=3
-    environment:
-      POSTGRES_PASSWORD: ${IMMICH_DB_PASSWORD}
-      POSTGRES_USER: ${IMMICH_DB_USERNAME:-postgres}
-      POSTGRES_DB: ${IMMICH_DB_DATABASE_NAME:-immich}
-    volumes:
-      - immich_pgdata:/var/lib/postgresql/data
-    restart: unless-stopped
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -d $${POSTGRES_DB} -U $${POSTGRES_USER} || exit 1"]
-      interval: 30s
-      timeout: 10s
-      retries: 5
-      start_period: 3m
-    networks:
-      - traefik-public
-    deploy:
-      replicas: 1
-      placement:
-        constraints:
-          - node.labels.photos == true
+    immich-postgres:
+        image: ghcr.io/immich-app/postgres:14-vectorchord0.4.3-pgvectors0.2.0@sha256:bcf63357191b76a916ae5eb93464d65c07511da41e3bf7a8416db519b40b1c23
+        user: "999:999"
+        environment:
+            POSTGRES_PASSWORD: ${IMMICH_DB_PASSWORD}
+            POSTGRES_USER: ${IMMICH_DB_USERNAME:-postgres}
+            POSTGRES_DB: ${IMMICH_DB_DATABASE_NAME:-immich}
+            POSTGRES_INITDB_ARGS: "--data-checksums"
+        shm_size: 128mb
+        volumes:
+            - immich_pgdata:/var/lib/postgresql/data
+        restart: unless-stopped
+        healthcheck:
+            test:
+                [
+                    "CMD-SHELL",
+                    "pg_isready -d $${POSTGRES_DB} -U $${POSTGRES_USER} || exit 1",
+                ]
+            interval: 30s
+            timeout: 10s
+            retries: 5
+            start_period: 3m
+        networks:
+            - traefik-public
+        deploy:
+            replicas: 1
+            placement:
+                constraints:
+                    - node.labels.photos == true
 
 networks:
-  traefik-public:
-    external: true
+    traefik-public:
+        external: true
 
 volumes:
-  all_data:
-    driver: local
-    driver_opts:
-      type: "cifs"
-      o: "username=${SMB_USERNAME},password=${SMB_PASSWORD},domain=${SMB_DOMAIN},vers=3.0,nobrl,uid=0,gid=100,file_mode=0777,dir_mode=0777,ro,soft,actimeo=30"
-      device: "//${NAS_SERVER}/all_data"
-  immich_upload:
-    driver: local
-    driver_opts:
-      type: "cifs"
-      o: "username=${SMB_USERNAME},password=${SMB_PASSWORD},domain=${SMB_DOMAIN},vers=3.0,nobrl,uid=${PUID},gid=${PGID},file_mode=0644,dir_mode=0770,soft,actimeo=30"
-      device: "//${NAS_SERVER}/immich_upload"
-  immich_pgdata:
-    driver: local
-    driver_opts:
-      type: "none"
-      o: "bind"
-      device: "/mnt/iscsi/app-data/immich-postgres"
-  immich_model_cache:
-    driver: local
-    # ML model cache should be on local storage for performance
-    # Network storage would add latency to face detection and object recognition
-    # This volume will be created on the node where immich-machine-learning is deployed
-  immich_redis_data:
-    driver: local
-    driver_opts:
-      type: "none"
-      o: "bind"
-      device: "/mnt/iscsi/cache/immich-redis"
+    all_data:
+        driver: local
+        driver_opts:
+            type: "cifs"
+            o: "username=${SMB_USERNAME},password=${SMB_PASSWORD},domain=${SMB_DOMAIN},vers=3.0,nobrl,uid=0,gid=100,file_mode=0777,dir_mode=0777,ro,soft,actimeo=30"
+            device: "//${NAS_SERVER}/all_data"
+    immich_upload:
+        driver: local
+        driver_opts:
+            type: "cifs"
+            o: "username=${SMB_USERNAME},password=${SMB_PASSWORD},domain=${SMB_DOMAIN},vers=3.0,nobrl,uid=${PUID},gid=${PGID},file_mode=0644,dir_mode=0770,soft,actimeo=30"
+            device: "//${NAS_SERVER}/immich_upload"
+    immich_pgdata:
+        driver: local
+        driver_opts:
+            type: "none"
+            o: "bind"
+            device: "/mnt/iscsi/app-data/immich-postgres"
+    immich_model_cache:
+        driver: local
+        # ML model cache should be on local storage for performance
+        # Network storage would add latency to face detection and object recognition
+        # This volume will be created on the node where immich-machine-learning is deployed
+    immich_redis_data:
+        driver: local
+        driver_opts:
+            type: "none"
+            o: "bind"
+            device: "/mnt/iscsi/cache/immich-redis"
