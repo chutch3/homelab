@@ -1,74 +1,65 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Define the root of the dev environment
-DEV_ENV_ROOT="/mnt/iscsi/app-data/dev-env"
+# Sync SSL Certificate from acme.sh to NAS
+# This script copies certificates from acme.sh and installs them on OMV
 
-echo "Creating Dev Environment Directories..."
-mkdir -p "$DEV_ENV_ROOT/workspace"
-mkdir -p "$DEV_ENV_ROOT/code-server/config"
-mkdir -p "$DEV_ENV_ROOT/shared-ssh"
-mkdir -p "$DEV_ENV_ROOT/ai-configs/claude"
-mkdir -p "$DEV_ENV_ROOT/ai-configs/gemini"
-mkdir -p "$DEV_ENV_ROOT/ai-configs/cloudcli"
-mkdir -p "$DEV_ENV_ROOT/ai-configs/forge"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+COMMON_DIR="${COMMON_DIR:-${SCRIPT_DIR}/common}"
 
-echo "Setting Ownership to 1000:1000..."
-chown -R 1000:1000 "$DEV_ENV_ROOT"
+# shellcheck disable=SC1091
+source "${COMMON_DIR}/nas/omv.sh"
 
-echo "Setting specific permissions for SSH folder..."
-chmod 700 "$DEV_ENV_ROOT/shared-ssh"
+# Configuration
+NAS_HOST="${NAS_HOST:-nas.example.com}"
+CERT_DOMAIN="${CERT_DOMAIN:-nas.example.com}"
+ACME_DIR="${ACME_DIR:-/acme.sh}"
 
-# Load environment variables if available
-if [ -f "../../../.env" ]; then
-    source "../../../.env"
-fi
+TEMP_DIR=$(mktemp -d)
+trap 'rm -rf "${TEMP_DIR}"' EXIT
 
-# Determine the real user's home directory (in case the script is run with sudo)
-REAL_USER="${SUDO_USER:-$USER}"
-REAL_HOME=$(eval echo "~$REAL_USER")
+echo "🔐 Starting NAS certificate sync at $(date)"
+echo "   NAS Host: ${NAS_HOST}"
+echo "   Certificate Domain: ${CERT_DOMAIN}"
+echo "   Acme Directory: ${ACME_DIR}"
 
-# Determine the source SSH key and derive the destination name from it
-SSH_KEY_SRC="${SSH_KEY_FILE:-$REAL_HOME/.ssh/homelab_rsa}"
-SSH_KEY_NAME="$(basename "$SSH_KEY_SRC")"
-SSH_DEST="$DEV_ENV_ROOT/shared-ssh"
+echo ""
+echo "📄 Copying certificates from acme.sh..."
 
-echo "Copying SSH key to Shared SSH Volume..."
-if [ -f "$SSH_KEY_SRC" ]; then
-    # Copy private key
-    cp "$SSH_KEY_SRC" "$SSH_DEST/$SSH_KEY_NAME"
-    chmod 600 "$SSH_DEST/$SSH_KEY_NAME"
-    chown 1000:1000 "$SSH_DEST/$SSH_KEY_NAME"
+CERT_PATH="${ACME_DIR}/${CERT_DOMAIN}_ecc"
 
-    # Copy public key if it exists
-    if [ -f "${SSH_KEY_SRC}.pub" ]; then
-        cp "${SSH_KEY_SRC}.pub" "$SSH_DEST/${SSH_KEY_NAME}.pub"
-        chmod 644 "$SSH_DEST/${SSH_KEY_NAME}.pub"
-        chown 1000:1000 "$SSH_DEST/${SSH_KEY_NAME}.pub"
+if [[ ! -d "${CERT_PATH}" ]]; then
+    CERT_PATH="${ACME_DIR}/${CERT_DOMAIN}"
+    if [[ ! -d "${CERT_PATH}" ]]; then
+        echo "❌ Certificate directory not found: ${CERT_PATH}" >&2
+        exit 1
     fi
-    echo "SSH key copied successfully."
+    echo "   Using non-ECC cert path: ${CERT_PATH}"
 else
-    echo "Warning: SSH key not found at $SSH_KEY_SRC."
-    echo "You may need to manually copy your key or generate a new one inside the Web IDE."
+    echo "   Using ECC cert path: ${CERT_PATH}"
 fi
 
-# Setup SSH config file
-SSH_CONFIG_DEST="$SSH_DEST/config"
-echo "Creating default SSH config..."
+if [[ ! -f "${CERT_PATH}/fullchain.cer" ]]; then
+    echo "❌ Certificate file not found: ${CERT_PATH}/fullchain.cer" >&2
+    exit 1
+fi
 
-DOMAIN_PATTERN="${BASE_DOMAIN:+*.${BASE_DOMAIN}}"
-SSH_HOST_PATTERN="192.168.* 10.* ${DOMAIN_PATTERN} ${SSH_EXTRA_HOSTS:-}"
+if [[ ! -f "${CERT_PATH}/${CERT_DOMAIN}.key" ]]; then
+    echo "❌ Key file not found: ${CERT_PATH}/${CERT_DOMAIN}.key" >&2
+    exit 1
+fi
 
-cat > "$SSH_CONFIG_DEST" <<EOF
-Host ${SSH_HOST_PATTERN}
-    StrictHostKeyChecking accept-new
-    IdentityFile ~/.ssh/${SSH_KEY_NAME}
+cp "${CERT_PATH}/fullchain.cer" "${TEMP_DIR}/cert.pem"
+cp "${CERT_PATH}/${CERT_DOMAIN}.key" "${TEMP_DIR}/key.pem"
 
-Host *
-    StrictHostKeyChecking accept-new
-EOF
+echo "✅ Certificates copied successfully"
 
-chmod 644 "$SSH_CONFIG_DEST"
-chown 1000:1000 "$SSH_CONFIG_DEST"
+echo ""
+echo "📤 Installing certificate on OMV NAS..."
+if ! omv_cert_install "${NAS_HOST}" "${TEMP_DIR}"; then
+    echo "❌ Failed to install certificate on OMV NAS" >&2
+    exit 1
+fi
 
-echo "Setup complete! You can now deploy the dev environment stacks."
+echo ""
+echo "🎉 Certificate sync completed successfully at $(date)"
