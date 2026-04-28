@@ -63,6 +63,7 @@ Environment variables (set via `.env` and passed through `docker-compose.yml`):
 | `BASE_DOMAIN` | *(required)* | Base domain — NAS host and cert domain are derived from this |
 | `SSH_KEY_FILE` | `~/.ssh/homelab_rsa` | Path to the SSH private key used by `init-secrets.sh` |
 | `NAS_HOST` | `nas.${BASE_DOMAIN}` | NAS hostname for SSH/SCP (overrides the derived value) |
+| `NAS_USER` | `root` | SSH user on the NAS |
 | `CERT_DOMAIN` | `nas.${BASE_DOMAIN}` | Domain for the certificate (overrides the derived value) |
 | `TZ` | `America/New_York` | Timezone for cron schedule |
 

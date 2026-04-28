@@ -10,6 +10,7 @@ source "${SCRIPT_DIR}/../cert.sh"
 # shellcheck disable=SC1091
 source "${SCRIPT_DIR}/../ssh.sh"
 
+
 # Get dirty modules from OMV dirty modules file
 # Args:
 #   $1: Path to dirtymodules.json file (default: /var/lib/openmediavault/dirtymodules.json)
@@ -104,16 +105,16 @@ omv_cert_copy_files() {
 
     # In test mode, skip actual SSH operations
     if [[ -n "${TEST:-}" ]]; then
-        echo "TEST MODE: Would copy files to $nas_host"
+        echo "TEST MODE: Would copy files to ${NAS_USER:-root}@${nas_host}"
         return 0
     fi
 
-    scp_copy_file "${cert_dir}/cert.pem" "root@${nas_host}:/tmp/nas_cert.pem" || {
+    scp_copy_file "${cert_dir}/cert.pem" "${NAS_USER:-root}@${nas_host}:/tmp/nas_cert.pem" || {
         echo "Error: Failed to copy certificate to NAS" >&2
         return 1
     }
 
-    scp_copy_file "${cert_dir}/key.pem" "root@${nas_host}:/tmp/nas_key.pem" || {
+    scp_copy_file "${cert_dir}/key.pem" "${NAS_USER:-root}@${nas_host}:/tmp/nas_key.pem" || {
         echo "Error: Failed to copy private key to NAS" >&2
         return 1
     }
@@ -151,7 +152,7 @@ omv_cert_install() {
 
     # In test mode, skip actual installation
     if [[ -n "${TEST:-}" ]]; then
-        echo "TEST MODE: Would install certificate on $nas_host"
+        echo "TEST MODE: Would install certificate on ${NAS_USER:-root}@${nas_host}"
         return 0
     fi
 
@@ -160,7 +161,7 @@ omv_cert_install() {
         return 1
     fi
 
-    if ! ssh_execute_script "root@${nas_host}" "${SCRIPT_DIR}/install-cert-remote.sh"; then
+    if ! ssh_execute_script "${NAS_USER:-root}@${nas_host}" "${SCRIPT_DIR}/install-cert-remote.sh"; then
         echo "Error: Failed to install certificate on NAS" >&2
         return 1
     fi

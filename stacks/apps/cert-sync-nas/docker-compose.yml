@@ -6,6 +6,7 @@ services:
     environment:
       - CF_Token=${CLOUDFLARE_DNS_API_TOKEN}
       - NAS_HOST=nas.${BASE_DOMAIN:-example.com}
+      - NAS_USER=${NAS_USER:-root}
       - CERT_DOMAIN=nas.${BASE_DOMAIN:-example.com}
       - SSH_KEY_FILE=/root/.ssh/id_rsa
       - TZ=${TZ:-America/New_York}
