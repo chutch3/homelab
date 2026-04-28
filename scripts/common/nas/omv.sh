@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 # OpenMediaVault Certificate Installation Functions
 # Handles installation of SSL certificates on OpenMediaVault NAS via OMV RPC
@@ -18,7 +18,7 @@ source "${SCRIPT_DIR}/../ssh.sh"
 omv_get_dirty_modules() {
     local dirty_file="${1:-/var/lib/openmediavault/dirtymodules.json}"
 
-    if [ -f "$dirty_file" ]; then
+    if [[ -f "$dirty_file" ]]; then
         jq -c '.' < "$dirty_file"
     else
         echo "[]"
@@ -33,7 +33,7 @@ omv_get_dirty_modules() {
 omv_apply_changes() {
     local modules_json="$1"
 
-    if [ "$modules_json" != "[]" ]; then
+    if [[ "$modules_json" != "[]" ]]; then
         omv-rpc -u admin "Config" "applyChanges" "{\"modules\":${modules_json},\"force\":false}"
     else
         echo "No pending changes to apply."
@@ -50,7 +50,7 @@ omv_cert_generate_rpc_command() {
     local cert_file="$1"
     local key_file="$2"
 
-    if [ ! -f "$cert_file" ] || [ ! -f "$key_file" ]; then
+    if [[ ! -f "$cert_file" ]] || [[ ! -f "$key_file" ]]; then
         echo "Error: Certificate or key file not found" >&2
         return 1
     fi
@@ -88,37 +88,32 @@ omv_cert_copy_files() {
     local nas_host="$1"
     local cert_dir="$2"
 
-    # Validate inputs
-    if [ -z "$nas_host" ]; then
+    if [[ -z "$nas_host" ]]; then
         echo "Error: NAS hostname not provided" >&2
         return 1
     fi
 
-    if [ -z "$cert_dir" ]; then
+    if [[ -z "$cert_dir" ]]; then
         echo "Error: Certificate directory not provided" >&2
         return 1
     fi
 
-    # Validate certificate files exist
     if ! cert_validate_files "$cert_dir"; then
         return 1
     fi
 
     # In test mode, skip actual SSH operations
-    if [ -n "${TEST:-}" ]; then
+    if [[ -n "${TEST:-}" ]]; then
         echo "TEST MODE: Would copy files to $nas_host"
         return 0
     fi
 
-    # Copy files via SCP
-    scp -i "$SSH_KEY_FILE" -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
-        "${cert_dir}/cert.pem" "root@${nas_host}:/tmp/nas_cert.pem" || {
+    scp_copy_file "${cert_dir}/cert.pem" "root@${nas_host}:/tmp/nas_cert.pem" || {
         echo "Error: Failed to copy certificate to NAS" >&2
         return 1
     }
 
-    scp -i "$SSH_KEY_FILE" -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
-        "${cert_dir}/key.pem" "root@${nas_host}:/tmp/nas_key.pem" || {
+    scp_copy_file "${cert_dir}/key.pem" "root@${nas_host}:/tmp/nas_key.pem" || {
         echo "Error: Failed to copy private key to NAS" >&2
         return 1
     }
@@ -128,7 +123,7 @@ omv_cert_copy_files() {
 
 # Install certificate on OpenMediaVault NAS
 # Args:
-#   $1: NAS hostname (e.g., nas.diyhub.dev)
+#   $1: NAS hostname (e.g., nas.example.com)
 #   $2: Directory containing cert.pem and key.pem
 # Returns:
 #   0 on success, 1 on failure
@@ -136,20 +131,18 @@ omv_cert_install() {
     local nas_host="$1"
     local cert_dir="$2"
 
-    # Validate inputs
-    if [ -z "$nas_host" ]; then
+    if [[ -z "$nas_host" ]]; then
         echo "Error: NAS hostname not provided" >&2
         echo "Usage: omv_cert_install <nas_hostname> <cert_directory>" >&2
         return 1
     fi
 
-    if [ -z "$cert_dir" ]; then
+    if [[ -z "$cert_dir" ]]; then
         echo "Error: Certificate directory not provided" >&2
         echo "Usage: omv_cert_install <nas_hostname> <cert_directory>" >&2
         return 1
     fi
 
-    # Validate certificate files
     if ! cert_validate_files "$cert_dir"; then
         return 1
     fi
@@ -157,83 +150,20 @@ omv_cert_install() {
     echo "Installing certificate on OMV NAS: $nas_host"
 
     # In test mode, skip actual installation
-    if [ -n "${TEST:-}" ]; then
+    if [[ -n "${TEST:-}" ]]; then
         echo "TEST MODE: Would install certificate on $nas_host"
         return 0
     fi
 
-    # Copy certificate files to NAS
     if ! omv_cert_copy_files "$nas_host" "$cert_dir"; then
         echo "Error: Failed to copy certificate files" >&2
         return 1
     fi
 
-    # Install certificate via SSH
-    ssh -i "$SSH_KEY_FILE" -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
-        "root@${nas_host}" << 'ENDSSH' || {
-        # Generate UUID for the certificate
-        CERT_UUID=$(cat /proc/sys/kernel/random/uuid)
-
-        # Read certificate and key, create JSON payload with jq
-        JSON_PAYLOAD=$(jq -n \
-            --arg uuid "$CERT_UUID" \
-            --rawfile cert /tmp/nas_cert.pem \
-            --rawfile key /tmp/nas_key.pem \
-            --arg comment "Auto-synced from acme.sh - $(date)" \
-            '{uuid: $uuid, certificate: $cert, privatekey: $key, comment: $comment}')
-
-        # Try to import certificate
-        if ! omv-rpc -u admin "CertificateMgmt" "set" "$JSON_PAYLOAD"; then
-            echo "Failed to create new certificate, trying to update existing..."
-
-            # Get current certificate UUID
-            CURRENT_UUID=$(omv-rpc -u admin "WebGui" "getSettings" | jq -r '.sslcertificateref')
-
-            if [ -n "$CURRENT_UUID" ] && [ "$CURRENT_UUID" != "null" ]; then
-                JSON_PAYLOAD=$(jq -n \
-                    --arg uuid "$CURRENT_UUID" \
-                    --rawfile cert /tmp/nas_cert.pem \
-                    --rawfile key /tmp/nas_key.pem \
-                    --arg comment "Auto-synced from acme.sh - $(date)" \
-                    '{uuid: $uuid, certificate: $cert, privatekey: $key, comment: $comment}')
-
-                omv-rpc -u admin "CertificateMgmt" "set" "$JSON_PAYLOAD" || exit 1
-            else
-                exit 1
-            fi
-        fi
-
-        # Apply pending configuration changes for all dirty modules
-        echo "Applying OMV configuration changes..."
-        MODULES_JSON=$(if [ -f /var/lib/openmediavault/dirtymodules.json ]; then \
-            cat /var/lib/openmediavault/dirtymodules.json | jq -c '.'; \
-        else \
-            echo "[]"; \
-        fi)
-
-        if [ "$MODULES_JSON" != "[]" ]; then
-            omv-rpc -u admin "Config" "applyChanges" "{\"modules\":${MODULES_JSON},\"force\":false}"
-        else
-            echo "No pending changes to apply."
-        fi
-
-        # Write certificate files to disk
-        omv-salt deploy run certificates
-
-        # Apply nginx configuration
-        omv-salt deploy run nginx
-
-        # Restart nginx to pick up new certificate
-        systemctl restart nginx
-
-        # Clean up temporary files
-        rm -f /tmp/nas_cert.pem /tmp/nas_key.pem
-
-        echo "Certificate installed successfully"
-ENDSSH
+    if ! ssh_execute_script "root@${nas_host}" "${SCRIPT_DIR}/install-cert-remote.sh"; then
         echo "Error: Failed to install certificate on NAS" >&2
         return 1
-    }
+    fi
 
     echo "Certificate installation completed"
     return 0

@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 # Certificate management functions
 # Handles validation of SSL certificate files
@@ -11,22 +11,22 @@
 cert_validate_files() {
     local cert_dir="$1"
 
-    if [ ! -f "$cert_dir/cert.pem" ]; then
+    if [[ ! -f "$cert_dir/cert.pem" ]]; then
         echo "Error: Certificate file not found: $cert_dir/cert.pem" >&2
         return 1
     fi
 
-    if [ ! -f "$cert_dir/key.pem" ]; then
+    if [[ ! -f "$cert_dir/key.pem" ]]; then
         echo "Error: Private key file not found: $cert_dir/key.pem" >&2
         return 1
     fi
 
-    if [ ! -s "$cert_dir/cert.pem" ]; then
+    if [[ ! -s "$cert_dir/cert.pem" ]]; then
         echo "Error: Certificate file is empty: $cert_dir/cert.pem" >&2
         return 1
     fi
 
-    if [ ! -s "$cert_dir/key.pem" ]; then
+    if [[ ! -s "$cert_dir/key.pem" ]]; then
         echo "Error: Private key file is empty: $cert_dir/key.pem" >&2
         return 1
     fi
