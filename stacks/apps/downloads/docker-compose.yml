@@ -1,248 +1,355 @@
 version: "3.9"
 
 services:
-  vpn:
-    image: qmcgaw/gluetun:latest
-    container_name: downloads-vpn
-    cap_add:
-      - NET_ADMIN
-    devices:
-      - /dev/net/tun:/dev/net/tun
-    entrypoint: ["/bin/sh", "/scripts/init-vpn.sh"]
-    configs:
-      - source: vpn_init_script
-        target: /scripts/init-vpn.sh
-        mode: 493
-    environment:
-      - VPN_SERVICE_PROVIDER=nordvpn
-      - VPN_TYPE=openvpn
-      - OPENVPN_USER=${NORDVPN_USER}
-      - OPENVPN_PASSWORD=${NORDVPN_PASS}
-      - SERVER_COUNTRIES=United States
-      - SERVER_CATEGORIES=P2P
-      - SERVER_CITIES=New York,Los Angeles,Chicago,Dallas,Miami
-      - FIREWALL_OUTBOUND_SUBNETS=${LOCAL_SUBNET},10.0.0.0/8
-      - DNS_ADDRESS=192.168.86.1
-      - HTTPPROXY=on
-      - HTTPPROXY_LISTENING_ADDRESS=:8888
-      - TZ=${TZ}
-    ports:
-      - "1080:1080"   # dante SOCKS5 proxy port (TCP + UDP)
-      - "8888:8888"   # HTTP proxy port
-    networks:
-      - traefik-public
-      - downloads-internal
-    restart: unless-stopped
-    deploy:
-      placement:
-        constraints:
-          - node.labels.downloads == true
+    vpn:
+        image: qmcgaw/gluetun:latest
+        container_name: downloads-vpn
+        cap_add:
+            - NET_ADMIN
+        devices:
+            - /dev/net/tun:/dev/net/tun
+        entrypoint: ["/bin/sh", "/scripts/init-vpn.sh"]
+        configs:
+            - source: vpn_init_script
+              target: /scripts/init-vpn.sh
+              mode: 493
+        environment:
+            - VPN_SERVICE_PROVIDER=${DOWNLOADS_VPN_SERVICE_PROVIDER}
+            - VPN_TYPE=${DOWNLOADS_VPN_TYPE}
+            - OPENVPN_USER=${DOWNLOADS_OPENVPN_USER}
+            - OPENVPN_PASSWORD=${DOWNLOADS_OPENVPN_PASSWORD}
+            - SERVER_COUNTRIES=${DOWNLOADS_VPN_SERVER_COUNTRIES}
+            - SERVER_CATEGORIES=${DOWNLOADS_VPN_SERVER_CATEGORIES}
+            - SERVER_CITIES=${DOWNLOADS_VPN_SERVER_CITIES}
+            - FIREWALL_OUTBOUND_SUBNETS=${LOCAL_SUBNET},${DOWNLOADS_DOCKER_SUBNET}
+            - DNS_ADDRESS=${DOWNLOADS_GATEWAY_IP}
+            - HTTPPROXY=on
+            - HTTPPROXY_LISTENING_ADDRESS=:8888
+            - TZ=${TZ}
+        ports:
+            - "1080:1080" # dante SOCKS5 proxy port (TCP + UDP)
+            - "8888:8888" # HTTP proxy port
+        networks:
+            - traefik-public
+            - downloads-internal
+        restart: unless-stopped
+        deploy:
+            placement:
+                constraints:
+                    - node.labels.downloads == true
 
-  qbittorrent:
-    image: lscr.io/linuxserver/qbittorrent:latest
-    container_name: qbittorrent
-    environment:
-      - PUID=1000
-      - PGID=1000
-      - TZ=${TZ}
-      - WEBUI_PORT=8080
-    volumes:
-      - qbittorrent:/config
-      - torrents:/data/torrents
-    networks:
-      - traefik-public
-      - downloads-internal
-    expose:
-      - "8080"
-    restart: unless-stopped
-    depends_on:
-      - vpn
-    deploy:
-      placement:
-        constraints:
-          - node.labels.downloads == true
-      labels:
-        - "traefik.enable=true"
-        - "traefik.swarm.network=traefik-public"
-        - "traefik.http.routers.qbittorrent.rule=Host(`qbittorrent.${BASE_DOMAIN}`)"
-        - "traefik.http.routers.qbittorrent.entrypoints=websecure"
-        - "traefik.http.routers.qbittorrent.tls.certresolver=dns"
-        - "traefik.http.routers.qbittorrent.middlewares=authentik@swarm"
-        - "traefik.http.services.qbittorrent.loadbalancer.server.port=8080"
-        - homepage.group=Downloads
-        - homepage.name=qBittorrent
-        - homepage.icon=qbittorrent.png
-        - homepage.href=https://qbittorrent.${BASE_DOMAIN}/
-        - homepage.description=qBittorrent Torrent Client
+    qbittorrent:
+        image: lscr.io/linuxserver/qbittorrent:latest
+        container_name: qbittorrent
+        environment:
+            - PUID=${PUID}
+            - PGID=${PGID}
+            - TZ=${TZ}
+            - WEBUI_PORT=8080
+        volumes:
+            - qbittorrent:/config
+            - torrents:/data/torrents
+        networks:
+            - traefik-public
+            - downloads-internal
+        expose:
+            - "8080"
+        restart: unless-stopped
+        depends_on:
+            - vpn
+        deploy:
+            placement:
+                constraints:
+                    - node.labels.downloads == true
+            labels:
+                - "traefik.enable=true"
+                - "traefik.swarm.network=traefik-public"
+                - "traefik.http.routers.qbittorrent.rule=Host(`qbittorrent.${BASE_DOMAIN}`)"
+                - "traefik.http.routers.qbittorrent.entrypoints=websecure"
+                - "traefik.http.routers.qbittorrent.tls.certresolver=dns"
+                - "traefik.http.routers.qbittorrent.middlewares=authentik@swarm"
+                - "traefik.http.services.qbittorrent.loadbalancer.server.port=8080"
+                - homepage.group=Downloads
+                - homepage.name=qBittorrent
+                - homepage.icon=qbittorrent.png
+                - homepage.href=https://qbittorrent.${BASE_DOMAIN}/
+                - homepage.description=qBittorrent Torrent Client
 
-  deluge:
-    image: lscr.io/linuxserver/deluge:latest
-    container_name: deluge
-    volumes:
-      - deluge:/config
-      - torrents:/data/torrents
-    environment:
-      - PUID=1000
-      - PGID=1000
-      - UMASK=002
-      - DELUGE_LOGLEVEL=info
-    networks:
-      - traefik-public
-      - downloads-internal
-    expose:
-      - "8112"
-      - "58846"
-    restart: unless-stopped
-    depends_on:
-      - vpn
-    deploy:
-      placement:
-        constraints:
-          - node.labels.downloads == true
-      labels:
-        - "traefik.enable=true"
-        - "traefik.swarm.network=traefik-public"
-        - "traefik.http.routers.deluge.rule=Host(`deluge.${BASE_DOMAIN}`)"
-        - "traefik.http.routers.deluge.entrypoints=websecure"
-        - "traefik.http.routers.deluge.tls.certresolver=dns"
-        - "traefik.http.routers.deluge.middlewares=authentik@swarm"
-        - "traefik.http.services.deluge.loadbalancer.server.port=8112"
-        - homepage.group=Downloads
-        - homepage.name=Deluge
-        - homepage.icon=deluge.png
-        - homepage.href=https://deluge.${BASE_DOMAIN}/
-        - homepage.description=Deluge Torrent Client
+    deluge:
+        image: lscr.io/linuxserver/deluge:latest
+        container_name: deluge
+        volumes:
+            - deluge:/config
+            - torrents:/data/torrents
+        environment:
+            - PUID=${PUID}
+            - PGID=${PGID}
+            - UMASK=002
+            - DELUGE_LOGLEVEL=info
+        networks:
+            - traefik-public
+            - downloads-internal
+        expose:
+            - "8112"
+            - "58846"
+        restart: unless-stopped
+        depends_on:
+            - vpn
+        deploy:
+            placement:
+                constraints:
+                    - node.labels.downloads == true
+            labels:
+                - "traefik.enable=true"
+                - "traefik.swarm.network=traefik-public"
+                - "traefik.http.routers.deluge.rule=Host(`deluge.${BASE_DOMAIN}`)"
+                - "traefik.http.routers.deluge.entrypoints=websecure"
+                - "traefik.http.routers.deluge.tls.certresolver=dns"
+                - "traefik.http.routers.deluge.middlewares=authentik@swarm"
+                - "traefik.http.services.deluge.loadbalancer.server.port=8112"
+                - homepage.group=Downloads
+                - homepage.name=Deluge
+                - homepage.icon=deluge.png
+                - homepage.href=https://deluge.${BASE_DOMAIN}/
+                - homepage.description=Deluge Torrent Client
 
-  sabnzbd:
-    image: lscr.io/linuxserver/sabnzbd:latest
-    container_name: sabnzbd
-    hostname: sabnzbd.${BASE_DOMAIN}
-    configs:
-      - source: sabnzbd_fix_whitelist
-        target: /custom-cont-init.d/99-fix-whitelist
-        mode: 493
-    environment:
-      - PUID=1000
-      - PGID=1000
-      - TZ=${TZ}
-      - BASE_DOMAIN=${BASE_DOMAIN}
-    volumes:
-      - sabnzbd:/config
-      - usenet:/data/usenet
-    networks:
-      - traefik-public
-      - downloads-internal
-    expose:
-      - "8080"
-    restart: unless-stopped
-    depends_on:
-      - vpn
-    deploy:
-      placement:
-        constraints:
-          - node.labels.downloads == true
-      labels:
-        - "traefik.enable=true"
-        - "traefik.swarm.network=traefik-public"
-        - "traefik.http.routers.sabnzbd.rule=Host(`sabnzbd.${BASE_DOMAIN}`)"
-        - "traefik.http.routers.sabnzbd.entrypoints=websecure"
-        - "traefik.http.routers.sabnzbd.tls.certresolver=dns"
-        - "traefik.http.routers.sabnzbd.middlewares=authentik@swarm"
-        - "traefik.http.services.sabnzbd.loadbalancer.server.port=8080"
-        - homepage.group=Downloads
-        - homepage.name=SABnzbd
-        - homepage.icon=sabnzbd.png
-        - homepage.href=https://sabnzbd.${BASE_DOMAIN}/
-        - homepage.description=SABnzbd Usenet Client
+    sabnzbd:
+        image: lscr.io/linuxserver/sabnzbd:latest
+        container_name: sabnzbd
+        hostname: sabnzbd.${BASE_DOMAIN}
+        configs:
+            - source: sabnzbd_fix_whitelist
+              target: /custom-cont-init.d/99-fix-whitelist
+              mode: 493
+        environment:
+            - PUID=${PUID}
+            - PGID=${PGID}
+            - TZ=${TZ}
+            - BASE_DOMAIN=${BASE_DOMAIN}
+        volumes:
+            - sabnzbd:/config
+            - usenet:/data/usenet
+        networks:
+            - traefik-public
+            - downloads-internal
+        expose:
+            - "8080"
+        restart: unless-stopped
+        depends_on:
+            - vpn
+        deploy:
+            placement:
+                constraints:
+                    - node.labels.downloads == true
+            labels:
+                - "traefik.enable=true"
+                - "traefik.swarm.network=traefik-public"
+                - "traefik.http.routers.sabnzbd.rule=Host(`sabnzbd.${BASE_DOMAIN}`)"
+                - "traefik.http.routers.sabnzbd.entrypoints=websecure"
+                - "traefik.http.routers.sabnzbd.tls.certresolver=dns"
+                - "traefik.http.routers.sabnzbd.middlewares=authentik@swarm"
+                - "traefik.http.services.sabnzbd.loadbalancer.server.port=8080"
+                - homepage.group=Downloads
+                - homepage.name=SABnzbd
+                - homepage.icon=sabnzbd.png
+                - homepage.href=https://sabnzbd.${BASE_DOMAIN}/
+                - homepage.description=SABnzbd Usenet Client
 
-  nzbget:
-    image: lscr.io/linuxserver/nzbget:latest
-    container_name: nzbget
-    environment:
-      - PUID=1000
-      - PGID=1000
-      - TZ=${TZ}
-    volumes:
-      - nzbget:/config
-      - usenet:/data/usenet
-    networks:
-      - traefik-public
-      - downloads-internal
-    expose:
-      - "6789"
-    restart: unless-stopped
-    depends_on:
-      - vpn
-    deploy:
-      placement:
-        constraints:
-          - node.labels.downloads == true
-      labels:
-        - "traefik.enable=true"
-        - "traefik.swarm.network=traefik-public"
-        - "traefik.http.routers.nzbget.rule=Host(`nzbget.${BASE_DOMAIN}`)"
-        - "traefik.http.routers.nzbget.entrypoints=websecure"
-        - "traefik.http.routers.nzbget.tls.certresolver=dns"
-        - "traefik.http.routers.nzbget.middlewares=authentik@swarm"
-        - "traefik.http.services.nzbget.loadbalancer.server.port=6789"
-        - homepage.group=Downloads
-        - homepage.name=NZBGet
-        - homepage.icon=nzbget.png
-        - homepage.href=https://nzbget.${BASE_DOMAIN}/
-        - homepage.description=NZBGet Usenet Client
+    nzbget:
+        image: lscr.io/linuxserver/nzbget:latest
+        container_name: nzbget
+        environment:
+            - PUID=${PUID}
+            - PGID=${PGID}
+            - TZ=${TZ}
+        volumes:
+            - nzbget:/config
+            - usenet:/data/usenet
+        networks:
+            - traefik-public
+            - downloads-internal
+        expose:
+            - "6789"
+        restart: unless-stopped
+        depends_on:
+            - vpn
+        deploy:
+            placement:
+                constraints:
+                    - node.labels.downloads == true
+            labels:
+                - "traefik.enable=true"
+                - "traefik.swarm.network=traefik-public"
+                - "traefik.http.routers.nzbget.rule=Host(`nzbget.${BASE_DOMAIN}`)"
+                - "traefik.http.routers.nzbget.entrypoints=websecure"
+                - "traefik.http.routers.nzbget.tls.certresolver=dns"
+                - "traefik.http.routers.nzbget.middlewares=authentik@swarm"
+                - "traefik.http.services.nzbget.loadbalancer.server.port=6789"
+                - homepage.group=Downloads
+                - homepage.name=NZBGet
+                - homepage.icon=nzbget.png
+                - homepage.href=https://nzbget.${BASE_DOMAIN}/
+                - homepage.description=NZBGet Usenet Client
+    # Duplicated so that it would work inside the internal download network
+    flaresolverr:
+        image: ghcr.io/flaresolverr/flaresolverr:latest
+        container_name: downloads-flaresolverr
+        environment:
+            - TZ=${TZ}
+            - LOG_LEVEL=${DOWNLOADS_FLARESOLVERR_LOG_LEVEL}
+            - HEADLESS=true
+            - HTTP_PROXY=http://vpn:8888
+            - HTTPS_PROXY=http://vpn:8888
+            - NO_PROXY=localhost,127.0.0.1
+        depends_on:
+            - vpn
+        networks:
+            downloads-internal:
+                aliases:
+                    - flaresolverr
+        restart: unless-stopped
+        deploy:
+            placement:
+                constraints:
+                    - node.labels.downloads == true
+        shm_size: "1g"
+
+    # === TRANGA ===
+    tranga-pg:
+        image: postgres:15-alpine
+        container_name: tranga-pg
+        environment:
+            - POSTGRES_USER=${DOWNLOADS_TRANGA_DB_USER}
+            - POSTGRES_PASSWORD=${DOWNLOADS_TRANGA_DB_PASSWORD}
+            - POSTGRES_DB=${DOWNLOADS_TRANGA_DB_NAME}
+        volumes:
+            - tranga_pg:/var/lib/postgresql/data
+        networks:
+            - downloads-internal
+        restart: unless-stopped
+        deploy:
+            placement:
+                constraints:
+                    - node.labels.downloads == true
+
+    tranga-api:
+        image: glax/tranga-api:cuttingedge
+        container_name: tranga-api
+        configs:
+            - source: tranga_settings
+              target: /usr/share/tranga-api/settings.json
+        environment:
+            - POSTGRES_HOST=tranga-pg:5432
+            - POSTGRES_USER=${DOWNLOADS_TRANGA_DB_USER}
+            - POSTGRES_PASSWORD=${DOWNLOADS_TRANGA_DB_PASSWORD}
+            - POSTGRES_DB=${DOWNLOADS_TRANGA_DB_NAME}
+            - HTTP_PROXY=http://vpn:8888
+            - HTTPS_PROXY=http://vpn:8888
+            - NO_PROXY=localhost,127.0.0.1
+            - TZ=${TZ}
+        volumes:
+            - torrents:/Manga
+        depends_on:
+            - tranga-pg
+            - vpn
+            - flaresolverr
+        networks:
+            - traefik-public
+            - downloads-internal
+        restart: unless-stopped
+        deploy:
+            placement:
+                constraints:
+                    - node.labels.downloads == true
+    tranga-website:
+        image: glax/tranga-website:latest
+        container_name: tranga-website
+        environment:
+            - TRANGA_API_URL=http://tranga-api:6531
+        networks:
+            - traefik-public
+            - downloads-internal
+        restart: unless-stopped
+        depends_on:
+            - tranga-api
+        deploy:
+            placement:
+                constraints:
+                    - node.labels.downloads == true
+            labels:
+                - "traefik.enable=true"
+                - "traefik.swarm.network=traefik-public"
+                - "traefik.http.routers.tranga.rule=Host(`tranga.${BASE_DOMAIN}`)"
+                - "traefik.http.routers.tranga.entrypoints=websecure"
+                - "traefik.http.routers.tranga.tls.certresolver=dns"
+                - "traefik.http.routers.tranga.middlewares=authentik@swarm"
+                - "traefik.http.services.tranga.loadbalancer.server.port=80"
+                - homepage.group=Downloads
+                - homepage.name=Tranga
+                - homepage.icon=tranga.png
+                - homepage.href=https://tranga.${BASE_DOMAIN}/
+                - homepage.description=Manga Downloader
 
 configs:
-  vpn_init_script:
-    file: ./scripts/init-vpn.sh
-  sabnzbd_fix_whitelist:
-    file: ./sabnzbd/99-fix-whitelist
-
+    vpn_init_script:
+        file: ./scripts/init-vpn.sh
+    sabnzbd_fix_whitelist:
+        file: ./sabnzbd/99-fix-whitelist
+    tranga_settings:
+        file: ./tranga/settings.json
 networks:
-  traefik-public:
-    external: true
-  downloads-internal:
-    driver: overlay
-    attachable: true
+    traefik-public:
+        external: true
+    downloads-internal:
+        driver: overlay
+        attachable: true
 
 volumes:
-  torrents:
-    driver: local
-    driver_opts:
-      type: "cifs"
-      o: "username=${SMB_USERNAME},password=${SMB_PASSWORD},domain=${SMB_DOMAIN},vers=3.0,file_mode=0770,dir_mode=0770,uid=1000,gid=1000,soft,actimeo=30,nobrl"
-      device: "//${NAS_SERVER}/torrents"
+    torrents:
+        driver: local
+        driver_opts:
+            type: "cifs"
+            o: "username=${SMB_USERNAME},password=${SMB_PASSWORD},domain=${SMB_DOMAIN},vers=3.0,file_mode=0770,dir_mode=0770,uid=1000,gid=1000,soft,actimeo=30,nobrl"
+            device: "//${NAS_SERVER}/torrents"
 
-  usenet:
-    driver: local
-    driver_opts:
-      type: "cifs"
-      o: "username=${SMB_USERNAME},password=${SMB_PASSWORD},domain=${SMB_DOMAIN},vers=3.0,file_mode=0770,dir_mode=0770,uid=1000,gid=1000,soft,actimeo=30,nobrl"
-      device: "//${NAS_SERVER}/usenet"
+    usenet:
+        driver: local
+        driver_opts:
+            type: "cifs"
+            o: "username=${SMB_USERNAME},password=${SMB_PASSWORD},domain=${SMB_DOMAIN},vers=3.0,file_mode=0770,dir_mode=0770,uid=1000,gid=1000,soft,actimeo=30,nobrl"
+            device: "//${NAS_SERVER}/usenet"
 
-  qbittorrent:
-    driver: local
-    driver_opts:
-      type: "none"
-      o: "bind"
-      device: "/mnt/iscsi/media-apps/qbittorrent"
+    qbittorrent:
+        driver: local
+        driver_opts:
+            type: "none"
+            o: "bind"
+            device: "/mnt/iscsi/media-apps/qbittorrent"
 
-  deluge:
-    driver: local
-    driver_opts:
-      type: "none"
-      o: "bind"
-      device: "/mnt/iscsi/media-apps/deluge"
+    deluge:
+        driver: local
+        driver_opts:
+            type: "none"
+            o: "bind"
+            device: "/mnt/iscsi/media-apps/deluge"
 
-  sabnzbd:
-    driver: local
-    driver_opts:
-      type: "none"
-      o: "bind"
-      device: "/mnt/iscsi/media-apps/sabnzbd"
+    sabnzbd:
+        driver: local
+        driver_opts:
+            type: "none"
+            o: "bind"
+            device: "/mnt/iscsi/media-apps/sabnzbd"
 
-  nzbget:
-    driver: local
-    driver_opts:
-      type: "none"
-      o: "bind"
-      device: "/mnt/iscsi/media-apps/nzbget"
+    nzbget:
+        driver: local
+        driver_opts:
+            type: "none"
+            o: "bind"
+            device: "/mnt/iscsi/media-apps/nzbget"
+
+    tranga_pg:
+        driver: local
+        driver_opts:
+            type: "none"
+            o: "bind"
+            device: "/mnt/iscsi/media-apps/tranga-pg"
