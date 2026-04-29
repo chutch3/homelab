@@ -1,0 +1,83 @@
+version: "3.9"
+
+services:
+    komga:
+        image: gotson/komga:latest
+        container_name: komga
+        entrypoint:
+            - /bin/sh
+            - -c
+            - |
+              (
+                echo "Waiting for Komga to be available..."
+                while ! curl -s http://localhost:25600/api/v1/claim > /dev/null; do
+                  sleep 5
+                done
+                echo "Komga is up! Checking claim status..."
+                IS_CLAIMED=$$(curl -s http://localhost:25600/api/v1/claim | grep -o "\"isClaimed\":true")
+                if [ "$$IS_CLAIMED" != "\"isClaimed\":true" ]; then
+                  echo "Server is NOT claimed. Attempting to claim..."
+                  curl -s -X POST http://localhost:25600/api/v1/claim \
+                       -H "Content-Type: application/json" \
+                       -H "X-Komga-Email: $$KOMGA_ADMIN_EMAIL" \
+                       -H "X-Komga-Password: $$KOMGA_ADMIN_PASSWORD" \
+                       -d "{\"email\":\"$$KOMGA_ADMIN_EMAIL\", \"password\":\"$$KOMGA_ADMIN_PASSWORD\"}"
+                  echo " Claim API call executed."
+                fi
+              ) &
+              exec java -Dspring.profiles.include=docker --enable-native-access=ALL-UNNAMED -jar application.jar --spring.config.additional-location=file:/config/
+        environment:
+            - TZ=${TZ}
+            - KOMGA_ADMIN_EMAIL=${KOMGA_ADMIN_EMAIL}
+            - KOMGA_ADMIN_PASSWORD=${KOMGA_ADMIN_PASSWORD}
+            - KOMGA_OAUTH2ACCOUNTCREATION=true
+            # Authentik OIDC
+            - SPRING_SECURITY_OAUTH2_CLIENT_REGISTRATION_AUTHENTIK_PROVIDER=authentik
+            - SPRING_SECURITY_OAUTH2_CLIENT_REGISTRATION_AUTHENTIK_CLIENT_NAME=Authentik
+            - SPRING_SECURITY_OAUTH2_CLIENT_REGISTRATION_AUTHENTIK_CLIENT_ID=${KOMGA_OAUTH2_CLIENT_ID}
+            - SPRING_SECURITY_OAUTH2_CLIENT_REGISTRATION_AUTHENTIK_CLIENT_SECRET=${KOMGA_OAUTH2_CLIENT_SECRET}
+            - SPRING_SECURITY_OAUTH2_CLIENT_REGISTRATION_AUTHENTIK_SCOPE=openid,email,profile
+            - SPRING_SECURITY_OAUTH2_CLIENT_REGISTRATION_AUTHENTIK_AUTHORIZATION_GRANT_TYPE=authorization_code
+            - SPRING_SECURITY_OAUTH2_CLIENT_PROVIDER_AUTHENTIK_ISSUER_URI=https://auth.${BASE_DOMAIN}/application/o/komga/
+            - SPRING_SECURITY_OAUTH2_CLIENT_PROVIDER_AUTHENTIK_USER_NAME_ATTRIBUTE=preferred_username
+        volumes:
+            - komga_config:/config
+            - all_data:/data
+        ports:
+            - "25600:25600"
+        user: "1000:1000"
+        restart: unless-stopped
+        networks:
+            - traefik-public
+        deploy:
+            labels:
+                - "traefik.enable=true"
+                - "traefik.swarm.network=traefik-public"
+                - "traefik.http.routers.komga.rule=Host(`komga.${BASE_DOMAIN}`)"
+                - "traefik.http.routers.komga.entrypoints=websecure"
+                - "traefik.http.routers.komga.tls.certresolver=dns"
+                - "traefik.http.services.komga.loadbalancer.server.port=25600"
+                - homepage.group=Media
+                - homepage.name=Komga
+                - homepage.icon=komga.png
+                - homepage.href=https://komga.${BASE_DOMAIN}/
+                - homepage.description=Comics and Manga Server
+
+networks:
+    traefik-public:
+        external: true
+
+volumes:
+    komga_config:
+        driver: local
+        driver_opts:
+            type: "none"
+            o: "bind"
+            device: "/mnt/iscsi/media-apps/komga"
+
+    all_data:
+        driver: local
+        driver_opts:
+            type: "cifs"
+            o: "username=${SMB_USERNAME},password=${SMB_PASSWORD},domain=${SMB_DOMAIN},uid=1000,gid=1000,vers=3.0,file_mode=0600,dir_mode=0770,soft,actimeo=30"
+            device: "//${NAS_SERVER}/all_data"
