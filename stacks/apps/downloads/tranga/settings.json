@@ -2,7 +2,7 @@
     "DefaultDownloadLocation": "/Manga/manga",
     "UserAgent": "Tranga/2.0 (Unix; x64)",
     "FlareSolverrUrl": "http://flaresolverr:8191",
-    "ChapterNamingScheme": "%M - Ch.%C",
+    "ChapterNamingScheme": "%M ?V(v%V )c%C",
     "WorkCycleTimeoutMs": 20000,
     "DownloadLanguage": "en",
     "MaxConcurrentDownloads": 2,
