@@ -236,7 +236,7 @@ services:
         image: glax/tranga-api:cuttingedge
         container_name: tranga-api
         configs:
-            - source: tranga_settings
+            - source: tranga_settings_v3
               target: /usr/share/tranga-api/settings.json
         environment:
             - POSTGRES_HOST=tranga-pg:5432
@@ -295,7 +295,7 @@ configs:
         file: ./scripts/init-vpn.sh
     sabnzbd_fix_whitelist:
         file: ./sabnzbd/99-fix-whitelist
-    tranga_settings:
+    tranga_settings_v3:
         file: ./tranga/settings.json
 networks:
     traefik-public:
