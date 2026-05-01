@@ -233,10 +233,10 @@ services:
                     - node.labels.downloads == true
 
     tranga-api:
-        image: glax/tranga-api:cuttingedge
+        image: ghcr.io/chutch3/tranga-api:cuttingedge
         container_name: tranga-api
         configs:
-            - source: tranga_settings_v3
+            - source: tranga_settings_v4
               target: /usr/share/tranga-api/settings.json
         environment:
             - POSTGRES_HOST=tranga-pg:5432
@@ -295,7 +295,7 @@ configs:
         file: ./scripts/init-vpn.sh
     sabnzbd_fix_whitelist:
         file: ./sabnzbd/99-fix-whitelist
-    tranga_settings_v3:
+    tranga_settings_v4:
         file: ./tranga/settings.json
 networks:
     traefik-public:
