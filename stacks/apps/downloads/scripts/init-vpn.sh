@@ -2,7 +2,16 @@
 set -e
 
 echo "[INIT] Installing dante-server..."
-apk add --no-cache dante-server
+attempt=0
+until apk add --no-cache dante-server; do
+    attempt=$((attempt + 1))
+    if [ "$attempt" -ge 5 ]; then
+        echo "[INIT] apk failed after $attempt attempts, aborting."
+        exit 1
+    fi
+    echo "[INIT] apk failed (attempt $attempt), retrying in 3s..."
+    sleep 3
+done
 
 echo "[INIT] Creating dante-server configuration..."
 cat > /etc/sockd.conf <<'EOF'
