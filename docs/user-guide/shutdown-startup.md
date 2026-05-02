@@ -105,3 +105,49 @@ task ansible:deploy
 ```
 
 Ansible will deploy all stacks defined in your `stacks.yml` file, and services will start in a controlled manner.
+
+---
+
+## Rebooting a Single Node
+
+Use this procedure when you need to reboot one node (e.g. after a kernel update) without taking down the entire cluster.
+
+> **Note:** All services run as `replicas: 1` with strict placement constraints, so services pinned to the target node will be briefly unavailable during the reboot. Services on other nodes are unaffected.
+
+```bash
+task ansible:node:reboot -- -e "target_node=mini" -K
+```
+
+Replace `mini` with the node you want to reboot (`giant`, `imac`, or `cody-X570-GAMING-X`).
+
+The playbook runs the following phases automatically:
+
+1. **Drain** — marks the node unavailable in Docker Swarm so no new tasks are scheduled on it, then waits for running tasks to stop
+2. **Unmount storage** — cleanly unmounts OCFS2 filesystems and disconnects iSCSI on the target node, preventing journal corruption
+3. **Reboot** — reboots the node and waits for it to come back online
+4. **Reconnect storage** — logs back into iSCSI and remounts OCFS2 on the rebooted node
+5. **Reactivate** — sets the node back to active in Docker Swarm
+6. **Redeploy** — redeploys all stacks to restore services on the node
+
+### Rebooting the Manager Node
+
+Rebooting `cody-X570-GAMING-X` (the Swarm manager) has higher impact:
+
+- **Traefik goes down** — all web UIs are unreachable until the node comes back
+- **DNS (Technitium) goes down** — if `SECONDARY_DNS_ENABLED=true`, Pi-hole will handle DNS during the window; otherwise DNS resolution on the network will fail
+
+The procedure is the same:
+
+```bash
+task ansible:node:reboot -- -e "target_node=cody-X570-GAMING-X" -K
+```
+
+### If a Reboot Was Not Clean
+
+If a node was hard-rebooted or crashed and OCFS2 journals are dirty, use the full storage recovery playbook instead:
+
+```bash
+task ansible:storage:recover
+```
+
+This stops all stacks cluster-wide, runs `fsck.ocfs2`, remounts, and redeploys.

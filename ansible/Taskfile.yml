@@ -145,6 +145,12 @@ tasks:
         cmds:
             - "{{.VENV_ANSIBLE_PLAYBOOK}} -i ansible/inventory/ ansible/playbooks/cluster/status.yml {{.CLI_ARGS}}"
 
+    cluster:health:
+        desc: "Check cluster health — node states, degraded services, DNS crash history, gossip instability"
+        dir: "{{.ROOT_DIR}}"
+        cmds:
+            - bash scripts/cluster-health.sh
+
     cluster:update-labels:
         desc: Update Docker Swarm node labels from inventory
         dir: "{{.ROOT_DIR}}"
@@ -383,6 +389,13 @@ tasks:
         interactive: true
         cmds:
             - "{{.VENV_ANSIBLE_PLAYBOOK}} -i ansible/inventory/ ansible/playbooks/ops/shutdown-nodes.yml --limit {{.CLI_ARGS | default \"all\"}}"
+
+    node:reboot:
+        desc: 'Safely reboot a single cluster node (usage: task ansible:node:reboot -- -e "target_node=mini" -K)'
+        dir: "{{.ROOT_DIR}}"
+        interactive: true
+        cmds:
+            - "{{.VENV_ANSIBLE_PLAYBOOK}} --become -i ansible/inventory/ ansible/playbooks/ops/reboot-node.yml {{.CLI_ARGS}}"
 
     # ========================================================================
     # TEARDOWN OPERATIONS
