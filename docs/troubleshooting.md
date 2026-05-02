@@ -13,6 +13,8 @@ Common issues and solutions for your homelab deployment. This guide covers the m
 7. [Authentik SSO Integration](#authentik-sso-integration)
 8. [Storage Mount Failures](#storage-mount-failures)
 9. [Database Performance Issues](#database-performance-issues)
+10. [DNS Cascade Failure — All Workers Go Down Together](#dns-cascade-failure)
+11. [Cluster Health Monitoring](#cluster-health-monitoring)
 
 ---
 
@@ -528,6 +530,8 @@ docker node ls
    # On worker node, rejoin with token
    docker swarm join --token <token> <manager-ip>:2377
    ```
+
+> **If all nodes went down at exactly the same time and self-recovered**, this is almost always a DNS cascade failure rather than an individual connectivity issue. See [DNS Cascade Failure](#dns-cascade-failure).
 
 ### Traefik 502 Bad Gateway — Overlay ARP FAILED (Stale Entries)
 
@@ -1125,6 +1129,105 @@ docker service ps immich_postgres
    ```
 
 **Critical Note:** For services like Immich and LibreChat with PostgreSQL or MongoDB databases, local storage is **mandatory** for acceptable performance. Network storage (CIFS/SMB) will result in extremely slow performance, connection timeouts, and health check failures.
+
+---
+
+## DNS Cascade Failure
+
+**Issue:** All three worker nodes go down simultaneously, services self-recover within seconds to minutes, but the event is unexplained.
+
+**Symptoms:**
+- Services appear healthy, then all fail at once, then recover without intervention
+- `docker node ls` briefly showed `mini`, `imac`, and `giant` all as `Down` at the same time
+- DNS stopped responding during the outage window
+- Docker clients on the nodes got `context deadline exceeded` resolving external hostnames (e.g. `ghcr.io`)
+
+**Root Cause:**
+
+The Technitium DNS container crashed, which broke Docker's embedded resolver. The overlay gossip network (port 7946) depends on name resolution to stay healthy. When DNS goes down, all nodes lose gossip connectivity within seconds and the manager marks them all `Down` simultaneously. Swarm's restart policy brings DNS back, nodes reconnect, and services resume — the whole event typically resolves in under 30 seconds.
+
+**Identify:**
+
+Check the DNS crash history first:
+```bash
+docker service ps dns_dns-server --no-trunc
+```
+
+Look for exit codes and errors:
+- `non-zero exit (139)` — SIGSEGV (segmentation fault), typically `.NET` heap corruption
+- `non-zero exit (137)` — SIGKILL (OOM kill or Docker watchdog)
+- Error message `double free or corruption (!prev)` in logs confirms `.NET` heap corruption
+
+Check the DNS container log for the crash message:
+```bash
+docker service logs dns_dns-server --tail 50
+```
+
+Confirm gossip instability in the Docker daemon at the same timestamp:
+```bash
+journalctl -u docker --since "2 hours ago" --no-pager | grep -E "memberlist|connectivity issues" | head -20
+```
+
+You will see a burst of `memberlist: Suspect ... has failed` entries followed immediately by all workers rejoining.
+
+**Confirm with the health check:**
+```bash
+task ansible:cluster:health
+```
+
+The DNS crash history section and gossip instability count will highlight the problem.
+
+**Fix:**
+
+If the cluster has already self-recovered, no immediate action is required. The restart policy handles it automatically. To reduce recurrence:
+
+1. Check whether a newer Technitium version fixes the heap corruption bug:
+   ```bash
+   # Current version
+   docker service inspect dns_dns-server --format '{{.Spec.TaskTemplate.ContainerSpec.Image}}'
+   ```
+   Check [Technitium releases](https://github.com/TechnitiumSoftware/DnsServer/releases) for changelogs mentioning crash or memory fixes.
+
+2. Enable the Pi-hole secondary DNS so clients have a fallback during the crash window:
+   ```bash
+   # In .env
+   SECONDARY_DNS_ENABLED=true
+   task ansible:deploy:stack -- -e "stack_name=dns"
+   ```
+
+3. If crashes are frequent, run the health check regularly to track the pattern:
+   ```bash
+   task ansible:cluster:health
+   ```
+
+---
+
+## Cluster Health Monitoring
+
+`task ansible:cluster:health` runs a local shell script against the manager's Docker socket — no Ansible overhead, results are immediate. Use it after any unexpected service degradation, before a maintenance window, or when investigating why things "just started working again."
+
+```bash
+task ansible:cluster:health
+```
+
+**What it reports:**
+
+| Section | What to look for |
+|---------|-----------------|
+| **Nodes** | All nodes should show `Ready / Active`. Any `Down` or `Drain` is a problem. |
+| **Service Replicas** | All services should show `N/N`. A `0/1` means a service is completely down. |
+| **DNS Crash History** | More than 1–2 failures in the history is a signal to investigate Technitium stability. |
+| **Gossip Stability** | Any count > 0 in the last hour indicates the overlay network had connectivity issues, likely triggered by a DNS crash. |
+
+**Related tasks:**
+
+| Task | When to use |
+|------|-------------|
+| `task ansible:cluster:status` | Quick node/service/network overview |
+| `task ansible:cluster:health` | Deeper check — adds DNS history and gossip instability |
+| `task ansible:cluster:sync` | A node shows `Down` and hasn't recovered — detects IP changes and rejoins it |
+| `task ansible:node:reboot -- -e "target_node=<node>" -K` | Safely reboot a single node with clean storage detach/reattach — see [Rebooting a Single Node](user-guide/shutdown-startup.md#rebooting-a-single-node) |
+| `task ansible:storage:recover` | Node was hard-rebooted or crashed — OCFS2 journals may be dirty |
 
 ---
 
