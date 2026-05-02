@@ -36,7 +36,7 @@ services:
             - grafana_data:/var/lib/grafana
             - grafana_dashboards:/etc/grafana/provisioning/dashboards
             - ./dashboards/dashboards.yml:/etc/grafana/provisioning/dashboards/dashboards.yml:ro
-            - ./dashboards/local:/etc/grafana/provisioning/dashboards/local:ro
+            - ./dashboards/local:/etc/grafana/provisioning/dashboards-local:ro
         configs:
             - source: prometheus_datasource
               target: /etc/grafana/provisioning/datasources/prometheus.yml
