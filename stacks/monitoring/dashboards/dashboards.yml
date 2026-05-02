@@ -22,4 +22,4 @@ providers:
     updateIntervalSeconds: 10
     allowUiUpdates: false
     options:
-      path: /etc/grafana/provisioning/dashboards/local
+      path: /etc/grafana/provisioning/dashboards-local
