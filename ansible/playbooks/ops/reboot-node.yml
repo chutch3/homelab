@@ -1,0 +1,114 @@
+# ansible/playbooks/ops/reboot-node.yml
+# Safely reboot a single cluster node with minimal cluster disruption.
+#
+# USE WHEN: A single node needs a controlled reboot (kernel updates, hardware changes).
+#
+# What it does:
+#   0. Validates that target_node is specified and exists in inventory
+#   1. Drains the node in Docker Swarm (stops all tasks scheduled on it)
+#   2. Unmounts OCFS2 filesystems and disconnects iSCSI on the target node
+#   3. Reboots the node and waits for it to come back online
+#   4. Reconnects iSCSI and remounts OCFS2 on the node
+#   5. Reactivates the node in Docker Swarm
+#   6. Redeploys all Swarm stacks
+#
+# Usage:
+#   task ansible:node:reboot -- -e "target_node=mini" -K
+#   task ansible:node:reboot -- -e "target_node=cody-X570-GAMING-X" -K
+---
+# PHASE 0: Validate target_node is specified and known
+- name: "[PHASE 0] Validate target_node"
+  hosts: localhost
+  gather_facts: false
+
+  tasks:
+    - name: "[PHASE 0] Fail if target_node is not set"
+      ansible.builtin.fail:
+        msg: |
+          target_node is required.
+          Usage: task ansible:node:reboot -- -e "target_node=mini" -K
+          Available nodes: {{ groups['all'] | join(', ') }}
+      when: target_node is not defined or target_node == ""
+
+    - name: "[PHASE 0] Fail if target_node is not in inventory"
+      ansible.builtin.fail:
+        msg: "Node '{{ target_node }}' not found in inventory. Available: {{ groups['all'] | join(', ') }}"
+      when: target_node not in groups['all']
+
+    - name: "[PHASE 0] Display reboot plan"
+      ansible.builtin.debug:
+        msg: "Rebooting node: {{ target_node }}"
+
+# PHASE 1: Drain the node in Docker Swarm
+- name: "PHASE 1 — Drain node in Docker Swarm: {{ target_node | default('') }}"
+  hosts: managers
+  become: yes
+  gather_facts: false
+
+  tasks:
+    - name: "[PHASE 1] Drain node and wait for tasks to stop"
+      ansible.builtin.include_role:
+        name: swarm
+        tasks_from: drain-node
+
+# PHASE 2: Unmount OCFS2 and disconnect iSCSI on the target node
+- name: "[PHASE 2] Unmount storage on {{ target_node | default('') }}"
+  hosts: all
+  become: yes
+  gather_facts: false
+
+  tasks:
+    - name: "[PHASE 2] Unmount OCFS2 filesystems and disconnect iSCSI"
+      ansible.builtin.include_role:
+        name: storage
+        tasks_from: iscsi-unmount
+      when:
+        - inventory_hostname == target_node
+        - iscsi_enabled | default(false) or iscsi_app_data_enabled | default(false) or iscsi_cache_enabled | default(false)
+
+# PHASE 3: Reboot the node and wait for it to come back
+- name: "[PHASE 3] Reboot {{ target_node | default('') }}"
+  hosts: all
+  become: yes
+  gather_facts: false
+
+  tasks:
+    - name: "[PHASE 3] Reboot node and wait for it to come back online"
+      ansible.builtin.reboot:
+        reboot_timeout: 300
+        post_reboot_delay: 30
+        msg: "System reboot initiated by Ansible for maintenance."
+      when: inventory_hostname == target_node
+
+# PHASE 4: Reconnect iSCSI and remount OCFS2 on the target node
+- name: "[PHASE 4] Reconnect storage on {{ target_node | default('') }}"
+  hosts: all
+  become: yes
+  gather_facts: true
+  gather_subset: ["min"]
+  # gather_facts needed for ansible_date_time used in iscsi-mount cluster test
+
+  tasks:
+    - name: "[PHASE 4] Reconnect iSCSI and remount OCFS2 filesystems"
+      ansible.builtin.include_role:
+        name: storage
+        tasks_from: iscsi-mount
+      when:
+        - inventory_hostname == target_node
+        - iscsi_enabled | default(false) or iscsi_app_data_enabled | default(false) or iscsi_cache_enabled | default(false)
+
+# PHASE 5: Reactivate the node in Docker Swarm
+- name: "PHASE 5 — Reactivate node in Docker Swarm: {{ target_node | default('') }}"
+  hosts: managers
+  become: yes
+  gather_facts: false
+
+  tasks:
+    - name: "[PHASE 5] Check and activate drained nodes"
+      ansible.builtin.include_role:
+        name: swarm
+        tasks_from: activate-nodes
+
+# PHASE 6: Redeploy all Swarm stacks
+- name: Redeploy all Swarm stacks
+  ansible.builtin.import_playbook: ../deploy/stacks.yml

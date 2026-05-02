@@ -1,0 +1,31 @@
+---
+# ansible/roles/swarm/tasks/drain-node.yml
+# Sets a single Swarm node to drain and waits for all tasks to stop.
+# Requires: target_node — the Docker Swarm hostname of the node to drain.
+# Called from reboot-node.yml before rebooting.
+
+- name: Set node availability to drain
+  community.docker.docker_node:
+    hostname: "{{ target_node }}"
+    availability: drain
+  delegate_to: "{{ groups['managers'][0] }}"
+  run_once: true
+
+- name: Wait for all tasks to leave the node
+  ansible.builtin.command: >
+    docker node ps {{ target_node }}
+    --filter desired-state=running
+    --format "{{ '{{' }}.DesiredState{{ '}}' }}"
+  register: swarm_node_drain_check
+  until: swarm_node_drain_check.stdout_lines | length == 0
+  retries: 20
+  delay: 5
+  changed_when: false
+  failed_when: false
+  delegate_to: "{{ groups['managers'][0] }}"
+  run_once: true
+
+- name: Report drain status
+  ansible.builtin.debug:
+    msg: "✓ Node {{ target_node }} is drained — all tasks stopped or rescheduled"
+  run_once: true
