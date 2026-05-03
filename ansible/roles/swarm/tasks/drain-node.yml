@@ -4,6 +4,12 @@
 # Requires: target_node — the Docker Swarm hostname of the node to drain.
 # Called from reboot-node.yml before rebooting.
 
+- name: Fail if target_node is not defined
+  ansible.builtin.fail:
+    msg: "target_node is required. Pass it with: -e 'target_node=<hostname>'"
+  when: target_node is not defined or target_node | length == 0
+  run_once: true
+
 - name: Set node availability to drain
   community.docker.docker_node:
     hostname: "{{ target_node }}"

@@ -1206,6 +1206,8 @@ If the cluster has already self-recovered, no immediate action is required. The 
 
 `task ansible:cluster:health` runs a local shell script against the manager's Docker socket — no Ansible overhead, results are immediate. Use it after any unexpected service degradation, before a maintenance window, or when investigating why things "just started working again."
 
+The **Grafana Cluster Health dashboard** covers the same signals but via Loki and Prometheus, giving you historical time-series and searchable log streams. Use the shell script for a quick live check; use the dashboard to understand when an issue started and how often it recurs.
+
 ```bash
 task ansible:cluster:health
 ```

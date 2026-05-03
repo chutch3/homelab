@@ -377,7 +377,7 @@ tasks:
             - "{{.VENV_ANSIBLE_PLAYBOOK}} -i ansible/inventory/ ansible/playbooks/ops/ocfs2-umount.yml {{.CLI_ARGS}}"
 
     storage:recover:
-        desc: "Recover OCFS2 storage: remove stacks, unmount, fsck, remount, redeploy"
+        desc: "Recover from OCFS2 journal corruption after a crash or hard reboot: stops all stacks cluster-wide, runs fsck, remounts, redeploys"
         dir: "{{.ROOT_DIR}}"
         interactive: true
         cmds:
@@ -391,7 +391,7 @@ tasks:
             - "{{.VENV_ANSIBLE_PLAYBOOK}} -i ansible/inventory/ ansible/playbooks/ops/shutdown-nodes.yml --limit {{.CLI_ARGS | default \"all\"}}"
 
     node:reboot:
-        desc: 'Safely reboot a single cluster node (usage: task ansible:node:reboot -- -e "target_node=mini" -K)'
+        desc: 'Controlled reboot of a healthy cluster node — drains Swarm tasks, unmounts storage, reboots, remounts, redeploys (usage: task ansible:node:reboot -- -e "target_node=mini" -K). Use storage:recover instead if the node crashed or was hard-rebooted.'
         dir: "{{.ROOT_DIR}}"
         interactive: true
         cmds:
