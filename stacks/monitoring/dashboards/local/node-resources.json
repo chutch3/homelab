@@ -505,7 +505,7 @@
                     },
                     "editorMode": "code",
                     "expr": "rate(node_network_receive_bytes_total{device!~\"lo|veth.*|docker.*|br-.*\"}[5m])",
-                    "legendFormat": "{{instance}} - Receive",
+                    "legendFormat": "{{instance}} {{device}} - Receive",
                     "range": true,
                     "refId": "A"
                 },
@@ -517,7 +517,7 @@
                     "editorMode": "code",
                     "expr": "rate(node_network_transmit_bytes_total{device!~\"lo|veth.*|docker.*|br-.*\"}[5m])",
                     "hide": false,
-                    "legendFormat": "{{instance}} - Transmit",
+                    "legendFormat": "{{instance}} {{device}} - Transmit",
                     "range": true,
                     "refId": "B"
                 }
@@ -698,13 +698,13 @@
                         "uid": "prometheus"
                     },
                     "editorMode": "code",
-                    "expr": "sum by (instance) (container_memory_usage_bytes{name=~\".+\"})",
+                    "expr": "sum by (instance) (container_memory_working_set_bytes{name=~\".+\"})",
                     "legendFormat": "{{instance}}",
                     "range": true,
                     "refId": "A"
                 }
             ],
-            "title": "Container Memory Usage by Node",
+            "title": "Container Memory Usage by Node (working set)",
             "type": "timeseries"
         },
         {
@@ -789,13 +789,13 @@
                         "uid": "prometheus"
                     },
                     "editorMode": "code",
-                    "expr": "sum by (instance) (rate(container_cpu_usage_seconds_total{name=~\".+\"}[5m])) * 100",
+                    "expr": "sum by (instance) (rate(container_cpu_usage_seconds_total{name=~\".+\"}[5m])) / on(instance) group_left() count by (instance) (node_cpu_seconds_total{mode=\"idle\"}) * 100",
                     "legendFormat": "{{instance}}",
                     "range": true,
                     "refId": "A"
                 }
             ],
-            "title": "Container CPU Usage by Node",
+            "title": "Container CPU Usage by Node (% of capacity)",
             "type": "timeseries"
         },
         {
@@ -813,7 +813,7 @@
                         "mode": "absolute",
                         "steps": [
                             {
-                                "color": "green",
+                                "color": "red",
                                 "value": null
                             },
                             {
@@ -821,7 +821,7 @@
                                 "value": 3600
                             },
                             {
-                                "color": "orange",
+                                "color": "green",
                                 "value": 86400
                             }
                         ]
@@ -951,7 +951,7 @@
                         "uid": "prometheus"
                     },
                     "editorMode": "code",
-                    "expr": "node_load1",
+                    "expr": "node_load1 / on(instance) group_left() count without(cpu, mode) (node_cpu_seconds_total{mode=\"idle\"})",
                     "legendFormat": "{{instance}} - 1m",
                     "range": true,
                     "refId": "A"
@@ -962,7 +962,7 @@
                         "uid": "prometheus"
                     },
                     "editorMode": "code",
-                    "expr": "node_load5",
+                    "expr": "node_load5 / on(instance) group_left() count without(cpu, mode) (node_cpu_seconds_total{mode=\"idle\"})",
                     "hide": false,
                     "legendFormat": "{{instance}} - 5m",
                     "range": true,
@@ -974,14 +974,14 @@
                         "uid": "prometheus"
                     },
                     "editorMode": "code",
-                    "expr": "node_load15",
+                    "expr": "node_load15 / on(instance) group_left() count without(cpu, mode) (node_cpu_seconds_total{mode=\"idle\"})",
                     "hide": false,
                     "legendFormat": "{{instance}} - 15m",
                     "range": true,
                     "refId": "C"
                 }
             ],
-            "title": "System Load Average by Node",
+            "title": "System Load Average by Node (per CPU)",
             "type": "timeseries"
         },
         {

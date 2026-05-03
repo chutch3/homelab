@@ -82,7 +82,7 @@
           "type": "loki",
           "uid": "loki"
         },
-        "definition": "label_values(hostname)",
+        "definition": "label_values({job=\"system_journal\"}, hostname)",
         "hide": 0,
         "includeAll": true,
         "multi": true,
@@ -109,7 +109,7 @@
           "type": "loki",
           "uid": "loki"
         },
-        "definition": "label_values(unit)",
+        "definition": "label_values({job=\"system_journal\"}, unit)",
         "hide": 0,
         "includeAll": true,
         "multi": true,
