@@ -13,7 +13,11 @@ providers:
       path: /etc/grafana/provisioning/dashboards
       foldersFromFilesStructure: true
 
-  # Local dashboards (built-in)
+  # Local dashboards (built-in, version-controlled)
+  # Path is intentionally outside the 'default' NAS provider tree. If both
+  # providers scan the same directory, Grafana detects duplicate UIDs and locks
+  # both providers out of database write access, preventing new dashboards
+  # from loading.
   - name: 'local'
     orgId: 1
     folder: 'Homelab'

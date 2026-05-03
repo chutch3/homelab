@@ -371,7 +371,7 @@
           "refId": "A"
         }
       ],
-      "title": "Gossip Instability Events",
+      "title": "Gossip Instability Event Count",
       "type": "stat"
     },
     {

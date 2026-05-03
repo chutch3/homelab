@@ -110,7 +110,7 @@ Ansible will deploy all stacks defined in your `stacks.yml` file, and services w
 
 ## Rebooting a Single Node
 
-Use this procedure when you need to reboot one node (e.g. after a kernel update) without taking down the entire cluster.
+Use this procedure when you need to reboot one node (e.g. after a kernel update) without taking down the entire cluster. **The node must already be a healthy cluster member** — if it was hard-rebooted or crashed, use [`task ansible:storage:recover`](#if-a-reboot-was-not-clean) instead, which also runs `fsck.ocfs2` before remounting.
 
 > **Note:** All services run as `replicas: 1` with strict placement constraints, so services pinned to the target node will be briefly unavailable during the reboot. Services on other nodes are unaffected.
 
