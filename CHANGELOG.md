@@ -2,6 +2,121 @@
 
 <!-- version list -->
 
+## v3.12.0 (2026-05-04)
+
+### Bug Fixes
+
+- Address review findings — remove dead health playbook, clarify reboot vs recover, add drain-node
+  guard, rename duplicate panel, document provisioning path separation
+  ([`e8c1abc`](https://github.com/chutch3/homelab/commit/e8c1abc86821cc1457cea6cdb4d3a65f89fd3d97))
+
+- Correct delegate_to, manager_hostname, and secondary token guard in DNS role
+  ([`fdab6ab`](https://github.com/chutch3/homelab/commit/fdab6abd8b2104a810a47bdf07f34b3e85277036))
+
+- Guard adapter display tasks against check mode skipped uri results
+  ([`bd2a89c`](https://github.com/chutch3/homelab/commit/bd2a89c2022ea7601392f3c5aea77bb8bdced922))
+
+- Move local dashboards bind-mount outside NAS provider path to resolve duplicate UID provisioning
+  conflict
+  ([`7d55427`](https://github.com/chutch3/homelab/commit/7d554271504a06386cd83d5bcfb0b52995caebc0))
+
+- Pass SSH_KEY_FILE to ssh and scp calls in omv.sh
+  ([`7f0cbcc`](https://github.com/chutch3/homelab/commit/7f0cbcc94392db497e219b2481d24bd93b698ecb))
+
+- Retry apk install of dante-server on transient network failure
+  ([`5444979`](https://github.com/chutch3/homelab/commit/544497954e248144855d73289e7af67c289ddd36))
+
+- Warn when SSH_KEY_FILE falls back to default in ssh.sh
+  ([`6110ac4`](https://github.com/chutch3/homelab/commit/6110ac4f4ec7d66de4610334a2d56290511699f0))
+
+### Chores
+
+- Bumped technitium dns version
+  ([`42054a6`](https://github.com/chutch3/homelab/commit/42054a6c9a5eee066a52d25c92f1c05a567dd883))
+
+- Include tests/unit/scripts in test tasks
+  ([`e1b82a3`](https://github.com/chutch3/homelab/commit/e1b82a3f61c3120a20edff0952d7e8793b81a62f))
+
+- Mark SSH_KEY_FILE as required and fix default in env.example
+  ([`380c9af`](https://github.com/chutch3/homelab/commit/380c9aff2edcb2ca18242b40124f2964ed7fe29e))
+
+- Migrate stack to current official compose baseline
+  ([`b3c525a`](https://github.com/chutch3/homelab/commit/b3c525aa166ff95f49e76451754be9bedb7846b8))
+
+- Set tranga naming scheme for volume subdirectory organization
+  ([`7f43a91`](https://github.com/chutch3/homelab/commit/7f43a91e881c1ab44d1e72f50e0ce13329cb9828))
+
+- Standardize shell script shebangs and safety flags
+  ([`6e488ae`](https://github.com/chutch3/homelab/commit/6e488aeb3d26c36cfda4643604feaba2c35ac259))
+
+- Switch tranga to ghcr.io fork image and bump settings config version
+  ([`c1ea849`](https://github.com/chutch3/homelab/commit/c1ea8493fd257170412f1228b97a75e1d1478ccc))
+
+### Documentation
+
+- Update README to reflect hardened implementation
+  ([`b3de45f`](https://github.com/chutch3/homelab/commit/b3de45f59d6f9cecaa2800aafbba5fac90fcee37))
+
+- Update SSH setup instructions and group_vars path references
+  ([`f495046`](https://github.com/chutch3/homelab/commit/f49504678b0c92375d0c775a55bfbbd2d7b8d57b))
+
+### Features
+
+- Add ansible:ssh:generate and ansible:ssh:distribute tasks
+  ([`2e9bb4f`](https://github.com/chutch3/homelab/commit/2e9bb4f759152551fe0caa8c5e138ff32425153f))
+
+- Add cluster health check script covering node states, replica counts, DNS crashes, and gossip
+  instability
+  ([`fd275a0`](https://github.com/chutch3/homelab/commit/fd275a05e09c1858089581d461bd2ca6ecd6e538))
+
+- Add Grafana cluster health dashboard with node availability, container health, and Loki log panels
+  ([`7b302db`](https://github.com/chutch3/homelab/commit/7b302dbd393c1078f42e1da12da02f62960f0ad3))
+
+- Add manga_volume_migrator to reorganise chapters into volume subdirectories via MangaDex and
+  Tranga
+  ([`af5f91d`](https://github.com/chutch3/homelab/commit/af5f91daf4bbb2c04cb4b29ca87e72bcffe2cd68))
+
+- Add safe single-node reboot playbook with drain, storage unmount, and redeploy phases
+  ([`f105861`](https://github.com/chutch3/homelab/commit/f105861d2744da01783d6b61aba283004c1cfd9f))
+
+- Added komga and tranga (to the downloads stack)
+  ([`d461e50`](https://github.com/chutch3/homelab/commit/d461e500d9eb6e97afe0bfaf86602f512fdc6461))
+
+- Make DNS provider pluggable via primary/secondary adapter pattern
+  ([`596d4c7`](https://github.com/chutch3/homelab/commit/596d4c7d225f682c0a6c8c2a0ba0d44f330ef045))
+
+- Make NAS SSH user configurable via NAS_USER
+  ([`7356689`](https://github.com/chutch3/homelab/commit/7356689ac85517d9ded14acc8e179458808ed067))
+
+- Update tranga naming scheme to standard volume/chapter format
+  ([`aa45021`](https://github.com/chutch3/homelab/commit/aa450215c747be9bc88f1c9c80d09c6651df0dcf))
+
+### Refactoring
+
+- Clean up and harden common scripts
+  ([`9fee82f`](https://github.com/chutch3/homelab/commit/9fee82fa4a5563bfe7665b8618e2886f33ecf336))
+
+- Convert group_vars/all to directory structure and remove dead secrets config
+  ([`29d1eef`](https://github.com/chutch3/homelab/commit/29d1eefe47ea03446bb119d5ba7fce4831378185))
+
+- Fix shebang and set flags in init-secrets and clean-secrets
+  ([`44b9014`](https://github.com/chutch3/homelab/commit/44b901452414dd99d0f1f324bdb897b35cb7cdf8))
+
+- Harden sync-nas-cert.sh and docker-compose
+  ([`ea5b495`](https://github.com/chutch3/homelab/commit/ea5b4957698b0ed44045be2f36251b53ca84b316))
+
+- Remove dead function and deduplicate user@host in omv.sh
+  ([`798eb4a`](https://github.com/chutch3/homelab/commit/798eb4aae8ea457ce0259fa72f11950e2245c9e2))
+
+- Standardise test file names to snake_case
+  ([`beb0d9a`](https://github.com/chutch3/homelab/commit/beb0d9ac5e3c7c74f8e7aac9f641d0260ec9bb0e))
+
+### Testing
+
+- Move common script tests to tests/unit/scripts
+  ([`2969dd0`](https://github.com/chutch3/homelab/commit/2969dd0329d9286675cc53579eb79eac2beed324))
+
+
 ## v3.11.0 (2026-04-27)
 
 ### Bug Fixes
