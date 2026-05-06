@@ -1,0 +1,59 @@
+version: "3.9"
+
+services:
+    freshrss:
+        image: freshrss/freshrss:latest
+        environment:
+            - TZ=${TZ}
+            - FRESHRSS_ENV=production
+            - CRON_MIN=4,34
+            # First-run automated setup (only runs once, before config.php exists)
+            - FRESHRSS_INSTALL=--api-enabled --auth-type http_auth --default-user ${FRESHRSS_DEFAULT_USER:-admin}
+            - FRESHRSS_USER=--user ${FRESHRSS_DEFAULT_USER:-admin} --password ${FRESHRSS_ADMIN_PASSWORD} --api-password ${FRESHRSS_ADMIN_API_PASSWORD} --email ${FRESHRSS_ADMIN_EMAIL}
+            # Authentik OIDC Configuration
+            - OIDC_ENABLED=1
+            - OIDC_PROVIDER_METADATA_URL=https://auth.${BASE_DOMAIN}/application/o/freshrss/.well-known/openid-configuration
+            - OIDC_CLIENT_ID=${FRESHRSS_OAUTH_CLIENT_ID}
+            - OIDC_CLIENT_SECRET=${FRESHRSS_OAUTH_CLIENT_SECRET}
+            - OIDC_CLIENT_CRYPTO_KEY=${FRESHRSS_OAUTH_CRYPTO_KEY}
+            - OIDC_SCOPES=openid email profile
+            - OIDC_REMOTE_USER_CLAIM=preferred_username
+            - OIDC_X_FORWARDED_HEADERS=X-Forwarded-Host X-Forwarded-Port X-Forwarded-Proto
+            - TRUSTED_PROXY=${FRESHRSS_TRUSTED_PROXY:-10.0.0.0/8}
+        volumes:
+            - freshrss_data:/var/www/FreshRSS/data
+            - freshrss_extensions:/var/www/FreshRSS/extensions
+        networks:
+            - traefik-public
+        deploy:
+            replicas: 1
+            labels:
+                - "traefik.enable=true"
+                - "traefik.http.routers.freshrss.rule=Host(`rss.${BASE_DOMAIN}`)"
+                - "traefik.http.routers.freshrss.entrypoints=websecure"
+                - "traefik.http.routers.freshrss.tls.certresolver=dns"
+                - "traefik.http.services.freshrss.loadbalancer.server.port=80"
+
+                - homepage.group=Apps
+                - homepage.name=FreshRSS
+                - homepage.icon=freshrss.png
+                - homepage.href=https://rss.${BASE_DOMAIN}/
+                - homepage.description=RSS Feed Aggregator
+
+networks:
+    traefik-public:
+        external: true
+
+volumes:
+    freshrss_data:
+        driver: local
+        driver_opts:
+            type: "none"
+            o: "bind"
+            device: "/mnt/iscsi/app-data/freshrss/data"
+    freshrss_extensions:
+        driver: local
+        driver_opts:
+            type: "none"
+            o: "bind"
+            device: "/mnt/iscsi/app-data/freshrss/extensions"
