@@ -2,7 +2,7 @@ version: "3.9"
 
 services:
     actual_server:
-        image: docker.io/actualbudget/actual-server:latest
+        image: docker.io/actualbudget/actual-server:26.5.0
         environment:
             - ACTUAL_UPLOAD_FILE_SYNC_SIZE_LIMIT_MB=20
             - ACTUAL_UPLOAD_SYNC_ENCRYPTED_FILE_SYNC_SIZE_LIMIT_MB=50
