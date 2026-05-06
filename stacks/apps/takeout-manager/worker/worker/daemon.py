@@ -12,7 +12,7 @@ from worker.services import DownloadService
 async def run_daemon(
     download_service: DownloadService = Provide[WorkerContainer.download_service],
     manager_client: ManagerClient = Provide[WorkerContainer.manager_client],
-):
+) -> None:
     logger = logging.getLogger(__name__)
     logger.info("Starting takeout worker...")
     while True:
@@ -22,7 +22,7 @@ async def run_daemon(
             task_type = task["type"]
 
             logger.info(
-                f"Processing task",
+                "Processing task",
                 extra={"task_id": task_id, "task_type": task_type},
             )
 
@@ -52,7 +52,7 @@ async def run_daemon(
                 success = False
                 message = f"Unknown task type: {task_type}"
                 logger.warning(
-                    f"Unknown task type received",
+                    "Unknown task type received",
                     extra={"task_id": task_id, "task_type": task_type},
                 )
                 status = "failed"

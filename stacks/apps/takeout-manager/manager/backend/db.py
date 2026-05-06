@@ -4,22 +4,20 @@ from backend.models import JobStatus, ChunkStatus
 
 
 class Database:
-    def __init__(self, db_path: str):
+    def __init__(self, db_path: str) -> None:
         self._db_path = db_path
-        self.ensure_path_exists()
-        self.create_tables()
 
-    def ensure_path_exists(self):
+    def ensure_path_exists(self) -> None:
         db_dir = os.path.dirname(self._db_path)
         if not os.path.exists(db_dir):
             os.makedirs(db_dir)
 
-    def get_connection(self):
+    def get_connection(self) -> sqlite3.Connection:
         conn = sqlite3.connect(self._db_path, check_same_thread=False)
         conn.row_factory = sqlite3.Row
         return conn
 
-    def create_tables(self):
+    def create_tables(self) -> None:
         conn = self.get_connection()
         cursor = conn.cursor()
         cursor.execute(f"""
