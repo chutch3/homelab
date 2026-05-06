@@ -5,19 +5,18 @@ from worker.daemon import run_daemon
 
 
 async def main():
-    # Configure Dependency Injector Container
     container = WorkerContainer()
     container.config.manager_url.from_env("MANAGER_URL", "http://takeout-manager:8000")
     container.config.log.level.from_env("LOG_LEVEL", "INFO")
+    container.config.paths.downloads.from_env("DOWNLOAD_PATH", "/downloads")
+    container.config.paths.pictures.from_env("PICTURES_PATH", "/pictures")
+    container.config.paths.videos.from_env("VIDEOS_PATH", "/videos")
 
-    # Initialize resources (logging, async client)
     await container.init_resources()
 
     try:
-        # Run the daemon
         await run_daemon()
     finally:
-        # Shutdown resources
         await container.shutdown_resources()
 
 

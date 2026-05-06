@@ -10,17 +10,12 @@ from worker.services import DownloadService
 
 
 def configure_logging(level: str = "INFO"):
-    """Configure structured logging for the worker."""
     handler = logging.StreamHandler(sys.stdout)
     handler.setFormatter(StructuredFormatter())
-
     root_logger = logging.getLogger()
     root_logger.setLevel(level)
     root_logger.addHandler(handler)
-
     yield
-
-    # Cleanup on shutdown
     root_logger.removeHandler(handler)
     handler.close()
 
@@ -39,16 +34,15 @@ class WorkerContainer(containers.DeclarativeContainer):
 
     manager_client = providers.Singleton(ManagerClient, client=async_client)
 
-    curl_runner = providers.Singleton(
-        CurlRunner,
-    )
+    curl_runner = providers.Singleton(CurlRunner)
 
-    tar_runner = providers.Singleton(
-        TarRunner,
-    )
+    tar_runner = providers.Singleton(TarRunner)
 
     download_service = providers.Factory(
         DownloadService,
         curl_runner=curl_runner,
         tar_runner=tar_runner,
+        download_path=config.paths.downloads,
+        pictures_path=config.paths.pictures,
+        videos_path=config.paths.videos,
     )

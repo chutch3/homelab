@@ -6,17 +6,14 @@ class JobStatus(str, Enum):
     IN_PROGRESS = "in_progress"
     COMPLETED = "completed"
     FAILED = "failed"
-    CANCELLED = "cancelled"
 
 class ChunkStatus(str, Enum):
     PENDING_DOWNLOAD = "pending_download"
     DOWNLOADING = "downloading"
     DOWNLOADED = "downloaded"
     PENDING_EXTRACTION = "pending_extraction"
-    EXTRACTING = "extracting"
     EXTRACTED = "extracted"
     FAILED = "failed"
-    CANCELLED = "cancelled"
 
 
 class TakeoutJob(BaseModel):
@@ -28,8 +25,8 @@ class TakeoutJob(BaseModel):
     total_chunks: int
 
 class TaskStatus(BaseModel):
-    status: ChunkStatus # Use ChunkStatus Enum
-    message: str
+    status: ChunkStatus
+    message: str = ""
 
 class CookieUpdate(BaseModel):
     cookie: str

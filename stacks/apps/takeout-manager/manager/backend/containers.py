@@ -10,13 +10,11 @@ class ManagerContainer(containers.DeclarativeContainer):
 
     wiring_config = containers.WiringConfiguration(modules=[".endpoints"])
 
-    # Database
     database = providers.Singleton(
         Database,
         db_path=config.db.path,
     )
 
-    # Repositories
     job_repository = providers.Factory(
         JobRepository,
         db=database,
@@ -27,7 +25,6 @@ class ManagerContainer(containers.DeclarativeContainer):
         db=database,
     )
 
-    # Services
     job_service = providers.Factory(
         JobService,
         job_repo=job_repository,
