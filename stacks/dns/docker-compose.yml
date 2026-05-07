@@ -3,9 +3,17 @@ services:
         image: technitium/dns-server:15.0.1
         hostname: "dns-server"
         ports:
-            # Ingress mode - accessible via any swarm node through routing mesh
-            - "53:53/udp"
-            - "53:53/tcp"
+            # host mode: only binds on the node running the container, preventing
+            # Swarm from installing DNAT rules for port 53 on every worker node
+            # which would hijack host DNS resolution on all workers.
+            - target: 53
+              published: 53
+              protocol: udp
+              mode: host
+            - target: 53
+              published: 53
+              protocol: tcp
+              mode: host
             - "5380:5380"
         deploy:
             replicas: 1
