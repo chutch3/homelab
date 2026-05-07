@@ -15,6 +15,7 @@ Common issues and solutions for your homelab deployment. This guide covers the m
 9. [Database Performance Issues](#database-performance-issues)
 10. [DNS Cascade Failure — All Workers Go Down Together](#dns-cascade-failure)
 11. [Cluster Health Monitoring](#cluster-health-monitoring)
+12. [Docker Swarm Port 53 DNAT Hijacking Worker DNS](#docker-swarm-port-53-dnat-hijacking-worker-dns)
 
 ---
 
@@ -1230,6 +1231,94 @@ task ansible:cluster:health
 | `task ansible:cluster:sync` | A node shows `Down` and hasn't recovered — detects IP changes and rejoins it |
 | `task ansible:node:reboot -- -e "target_node=<node>" -K` | Safely reboot a single node with clean storage detach/reattach — see [Rebooting a Single Node](user-guide/shutdown-startup.md#rebooting-a-single-node) |
 | `task ansible:storage:recover` | Node was hard-rebooted or crashed — OCFS2 journals may be dirty |
+
+---
+
+## Docker Swarm Port 53 DNAT Hijacking Worker DNS
+
+**Issue:** One or more worker nodes lose all DNS resolution. `docker login` and `docker pull` to external registries time out. The affected node cannot reach external hostnames even though its network interface is up and other nodes work fine.
+
+**Symptoms:**
+- `dig @127.0.0.53 ghcr.io` hangs indefinitely on the affected worker
+- `docker login ghcr.io` times out after ~30 seconds
+- `curl https://ghcr.io` also times out, but `curl https://1.1.1.1` succeeds (routing is fine)
+- `nslookup ghcr.io 192.168.86.1` works (router DNS works), but `nslookup ghcr.io 192.168.86.227` (Technitium) times out
+- `tcpdump -i lo udp port 53` shows **zero packets** — queries never reach the loopback interface
+- `systemctl restart systemd-resolved` does not fix it
+- Restarting Docker daemon does not fix it
+
+**Root Cause:**
+
+When the DNS service (`stacks/dns/`) publishes port 53 in Docker Swarm's default **ingress mode**, Swarm installs a DNAT rule on **every node in the cluster** — including workers that don't run the DNS container. The rule intercepts all UDP/TCP port 53 traffic and redirects it into the Swarm ingress network load balancer (`172.18.0.2:53`).
+
+Under normal conditions this is invisible — the ingress LB proxies through to Technitium on whichever node is running it. But if the overlay network on a worker becomes corrupted (e.g., from a VXLAN failure during a cluster event), the ingress proxy can no longer reach Technitium. All port 53 traffic on that worker is silently black-holed by the DNAT rule before it ever reaches the host's resolver (`127.0.0.53`).
+
+**How to confirm:**
+
+```bash
+# 1. On the affected worker, check nftables for the DNAT rule
+sudo nft list ruleset | grep -A5 "DOCKER-INGRESS"
+# You will see something like:
+#   udp dport 53 dnat to 172.18.0.2:53
+#   tcp dport 53 dnat to 172.18.0.2:53
+
+# 2. Confirm the ingress proxy is unreachable
+dig @172.18.0.2 ghcr.io
+# Should also time out — confirms the proxy is broken, not just slow
+
+# 3. Confirm packets aren't reaching the stub resolver
+sudo tcpdump -i lo udp port 53 &
+dig @127.0.0.53 ghcr.io
+# tcpdump should show 0 packets captured — the DNAT rule intercepts before loopback
+```
+
+**Fix:**
+
+Change port 53 in `stacks/dns/docker-compose.yml` from ingress mode (the default) to **host mode**. Host mode binds directly on the node running the container and does NOT install DNAT rules on other nodes.
+
+```yaml
+# stacks/dns/docker-compose.yml
+ports:
+    - target: 53
+      published: 53
+      protocol: udp
+      mode: host      # was ingress (the default)
+    - target: 53
+      published: 53
+      protocol: tcp
+      mode: host      # was ingress (the default)
+    - "5380:5380"     # web UI — leave as ingress
+```
+
+Then redeploy the DNS stack:
+
+```bash
+task ansible:deploy:stack -- -e "stack_name=dns"
+```
+
+Swarm will remove the DNAT rules from all worker nodes. After the redeploy, confirm the DNAT rules are gone:
+
+```bash
+# On any worker node — should return nothing
+sudo nft list ruleset | grep "dport 53"
+
+# Confirm DNS works again
+dig @127.0.0.53 ghcr.io
+```
+
+**Trade-off of `mode: host`:**
+
+| | Ingress (default) | Host mode |
+|---|---|---|
+| **Port 53 DNAT on all nodes** | Yes — every node | No — only the node running DNS |
+| **Swarm failover routing** | Automatic | Not automatic (DNS reschedules to a labeled node; clients must re-point or use DHCP) |
+| **Worker DNS breakage if overlay corrupts** | Yes | No |
+
+With `mode: host`, the DNS service can still fail over to another `dns=true` labeled node if the running node goes down — Swarm will reschedule it. However, clients that have a hard-coded DNS IP pointing at the old node's IP will temporarily lose DNS until they re-request via DHCP. For this homelab that is not a concern since DNS assignments come from the router.
+
+**Prevention:**
+
+Always publish DNS (port 53) services with `mode: host` in Swarm. The ingress routing mesh is designed for stateless HTTP/HTTPS load balancing — using it for UDP-based DNS creates a hidden single point of failure on every worker node.
 
 ---
 
