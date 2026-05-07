@@ -51,6 +51,7 @@ nav:
   - "User Guide":
       - "Service Management": "user-guide/service-management.md"
       - "Shutdown and Startup": "user-guide/shutdown-startup.md"
+      - "Tailscale VPN": "user-guide/tailscale.md"
       - "Troubleshooting": "troubleshooting.md"
   - "Architecture":
       - "Overview": "architecture/overview.md"
