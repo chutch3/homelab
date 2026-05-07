@@ -59,7 +59,9 @@
       fail_msg: >
           TAILSCALE_AUTH_KEY is not set. Generate a reusable auth key at
           https://login.tailscale.com/admin/settings/keys and add it to .env.
-  when: not tailscale_connected
+  when:
+      - not tailscale_connected
+      - not ansible_check_mode
 
 - name: Authenticate with Tailscale (initial registration)
   command: >-
@@ -70,7 +72,9 @@
       {{ _tailscale_tags_arg }}
       --accept-routes=false
       --reset
-  when: not tailscale_connected
+  when:
+      - not tailscale_connected
+      - not ansible_check_mode
   no_log: true
 
 - name: Apply Tailscale configuration drift
