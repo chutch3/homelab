@@ -17,7 +17,7 @@
 
 - name: Show Tailscale version
   debug:
-      msg: "Tailscale version: {{ tailscale_version.stdout_lines[0] }}"
+      msg: "Tailscale version: {{ tailscale_version.stdout_lines | first | default('unknown (check mode)') }}"
 
 - name: Configure Tailscale
   import_tasks: configure.yml
