@@ -154,16 +154,21 @@ Technitium is configured to accept DNS queries from Tailscale's CGNAT range (`10
 
 This is a one-time manual step after Tailscale is deployed on at least the manager node.
 
-**1. Find the manager's Tailscale IP:**
+**1. Deploy Tailscale on all nodes:**
 
 ```bash
-task ansible:tailscale:configure:node -- cody-X570-GAMING-X -K
+task ansible:tailscale:configure -- -K
+```
+
+**2. Find the manager's Tailscale IP:**
+
+```bash
 task ansible:tailscale:status
 ```
 
-Note the `100.x.x.x` address for `cody-X570-GAMING-X`.
+Note the `100.x.x.x` address for `cody-X570-GAMING-X` — this is the node running Technitium.
 
-**2. Configure split DNS in the Tailscale admin console:**
+**3. Configure split DNS in the Tailscale admin console:**
 
 1. Open [login.tailscale.com/admin/dns](https://login.tailscale.com/admin/dns)
 2. Under **Nameservers**, click **Add nameserver → Custom**
@@ -171,7 +176,7 @@ Note the `100.x.x.x` address for `cody-X570-GAMING-X`.
 4. Enable **Restrict to domain** and enter your base domain (e.g. `diyhub.dev`)
 5. Save
 
-**3. Redeploy the DNS stack to apply the Technitium recursion change:**
+**4. Redeploy the DNS stack to apply the Technitium recursion change:**
 
 ```bash
 task ansible:deploy:service -- -e "stack_name=dns"
