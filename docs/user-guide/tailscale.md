@@ -140,6 +140,50 @@ sudo /usr/local/bin/check-tailscale.sh
 
 ---
 
+## Split DNS — Resolving Private Services Remotely
+
+Without split DNS, connecting to Tailscale lets you reach each node at its `100.x.x.x` address but private service names like `grafana.diyhub.dev` won't resolve — your private Technitium server is on the LAN, not reachable remotely.
+
+Split DNS fixes this by telling Tailscale: "for `diyhub.dev` queries, ask the manager node's Technitium." Since the manager is a Tailscale peer, it's reachable without advertising subnet routes.
+
+### How It Works
+
+Technitium is configured to accept DNS queries from Tailscale's CGNAT range (`100.64.0.0/10`) in addition to standard private networks. When you're connected to Tailscale remotely, DNS queries for `diyhub.dev` are forwarded to the manager's Tailscale IP, Technitium resolves them, and your services are accessible by name.
+
+### Setup
+
+This is a one-time manual step after Tailscale is deployed on at least the manager node.
+
+**1. Find the manager's Tailscale IP:**
+
+```bash
+task ansible:tailscale:configure:node -- cody-X570-GAMING-X -K
+task ansible:tailscale:status
+```
+
+Note the `100.x.x.x` address for `cody-X570-GAMING-X`.
+
+**2. Configure split DNS in the Tailscale admin console:**
+
+1. Open [login.tailscale.com/admin/dns](https://login.tailscale.com/admin/dns)
+2. Under **Nameservers**, click **Add nameserver → Custom**
+3. Set the nameserver IP to the manager's Tailscale IP (`100.x.x.x`)
+4. Enable **Restrict to domain** and enter your base domain (e.g. `diyhub.dev`)
+5. Save
+
+**3. Redeploy the DNS stack to apply the Technitium recursion change:**
+
+```bash
+task ansible:deploy:service -- -e "stack_name=dns"
+```
+
+After this, any device connected to Tailscale can resolve `grafana.diyhub.dev`, `dns.diyhub.dev`, and all other private services by name.
+
+!!! info "Manager failover"
+    The DNS stack can reschedule to another `dns=true` labeled node if the manager goes down. If that happens, update the nameserver IP in the Tailscale admin console to the new node's Tailscale IP.
+
+---
+
 ## Security Model
 
 - **No subnet routes by default** — only the Tailscale IPs of your cluster nodes are reachable. Your LAN devices are not exposed.

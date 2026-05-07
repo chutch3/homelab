@@ -41,7 +41,12 @@ services:
             - DNS_SERVER_ADMIN_PASSWORD=${DNS_ADMIN_PASSWORD:-admin}
             - DNS_SERVER_PREFER_IPV6=false
             - DNS_SERVER_WEB_SERVICE_LOCAL_ADDRESSES=0.0.0.0
-            - DNS_SERVER_RECURSION=AllowOnlyForPrivateNetworks
+            # UseLocalAllowList instead of AllowOnlyForPrivateNetworks so we can
+            # explicitly include Tailscale's CGNAT range (100.64.0.0/10) alongside
+            # the standard RFC 1918 ranges. Without this, Tailscale split DNS queries
+            # arriving on the tailscale0 interface would be refused.
+            - DNS_SERVER_RECURSION=UseLocalAllowList
+            - DNS_SERVER_RECURSION_ALLOWED_NETWORKS=127.0.0.0/8,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16,100.64.0.0/10
             - DNS_SERVER_ENABLE_BLOCKING=true
             - DNS_SERVER_FORWARDERS=${DNS_SERVER_FORWARDERS}
             - DNS_SERVER_LOG_QUERIES=false
