@@ -1,0 +1,35 @@
+# ansible/roles/tailscale/tasks/health-check.yml
+#
+# Deploys the health check script, sudoers rule (for manual execution),
+# and a root crontab entry so the script runs without PAM auth issues.
+---
+- name: Ensure health check log directory exists
+  file:
+      path: "{{ tailscale_health_check_log | dirname }}"
+      state: directory
+      mode: "0755"
+
+- name: Deploy Tailscale health check script
+  template:
+      src: check-tailscale.sh.j2
+      dest: /usr/local/bin/check-tailscale.sh
+      owner: root
+      group: root
+      mode: "0755"
+
+- name: Deploy sudoers rule for non-root manual execution
+  copy:
+      content: "{{ ansible_user }} ALL=(ALL) NOPASSWD: /usr/local/bin/check-tailscale.sh\n"
+      dest: /etc/sudoers.d/check-tailscale
+      owner: root
+      group: root
+      mode: "0440"
+      validate: visudo -cf %s
+
+- name: Schedule Tailscale health check in root crontab
+  cron:
+      name: Tailscale health check
+      minute: "*/{{ tailscale_health_check_interval_minutes }}"
+      job: /usr/local/bin/check-tailscale.sh
+      user: root
+      state: present

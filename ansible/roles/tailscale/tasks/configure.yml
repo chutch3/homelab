@@ -1,0 +1,94 @@
+# ansible/roles/tailscale/tasks/configure.yml
+#
+# Detects current Tailscale state, computes whether any drift exists,
+# and only calls `tailscale up` when something actually needs to change.
+# Auth key is consumed only on initial authentication — never on re-runs.
+---
+- name: Get current Tailscale status
+  command: tailscale status --json
+  register: tailscale_status_raw
+  failed_when: false
+  changed_when: false
+
+- name: Parse Tailscale status
+  set_fact:
+      tailscale_status: "{{ tailscale_status_raw.stdout | from_json }}"
+  when:
+      - tailscale_status_raw.rc == 0
+      - tailscale_status_raw.stdout | length > 0
+
+- name: Determine current connection state
+  set_fact:
+      tailscale_connected: "{{ (tailscale_status.BackendState | default('')) == 'Running' }}"
+      tailscale_current_hostname: "{{ tailscale_status.Self.HostName | default('') }}"
+      tailscale_current_routes: "{{ tailscale_status.Self.PrimaryRoutes | default([]) | list }}"
+  when: tailscale_status is defined
+
+- name: Default state when status is unavailable
+  set_fact:
+      tailscale_connected: false
+      tailscale_current_hostname: ""
+      tailscale_current_routes: []
+  when: tailscale_status is not defined
+
+- name: Resolve desired routes list
+  set_fact:
+      tailscale_desired_routes: "{{ tailscale_advertise_routes | default([]) | list }}"
+
+- name: Build optional route argument
+  set_fact:
+      _tailscale_routes_arg: >-
+          {{ '--advertise-routes=' + tailscale_desired_routes | join(',')
+             if tailscale_desired_routes | length > 0 else '' }}
+
+- name: Build optional tags argument
+  set_fact:
+      _tailscale_tags_arg: >-
+          {{ '--advertise-tags=' + tailscale_tags | join(',')
+             if tailscale_tags | default([]) | length > 0 else '' }}
+
+- name: Detect configuration drift
+  set_fact:
+      tailscale_config_changed: >-
+          {{ tailscale_current_hostname != tailscale_hostname or
+             tailscale_current_routes | sort != tailscale_desired_routes | sort }}
+
+- name: Assert auth key is provided for initial authentication
+  assert:
+      that: tailscale_auth_key | length > 0
+      fail_msg: >
+          TAILSCALE_AUTH_KEY is not set. Generate a reusable auth key at
+          https://login.tailscale.com/admin/settings/keys and add it to .env.
+  when: not tailscale_connected
+
+- name: Authenticate with Tailscale (initial registration)
+  command: >-
+      tailscale up
+      --auth-key={{ tailscale_auth_key }}
+      --hostname={{ tailscale_hostname }}
+      {{ _tailscale_routes_arg }}
+      {{ _tailscale_tags_arg }}
+      --accept-routes=false
+      --reset
+  when: not tailscale_connected
+  no_log: true
+
+- name: Apply Tailscale configuration drift
+  command: >-
+      tailscale up
+      --hostname={{ tailscale_hostname }}
+      {{ _tailscale_routes_arg }}
+      {{ _tailscale_tags_arg }}
+      --accept-routes=false
+  when:
+      - tailscale_connected
+      - tailscale_config_changed | bool
+
+- name: Verify Tailscale connection
+  command: tailscale status
+  register: tailscale_verify
+  changed_when: false
+
+- name: Display Tailscale status
+  debug:
+      msg: "{{ tailscale_verify.stdout_lines }}"

@@ -65,6 +65,10 @@
         - node_labels is defined
         - node_labels.gpu | default(false)
 
+    - role: ../roles/tailscale
+      tags: ['tailscale', 'vpn', 'network']
+      when: tailscale_enabled | default(false)
+
     # - role: firewall # Excluded as per user's request
     #   tags: ['firewall', 'security']
 

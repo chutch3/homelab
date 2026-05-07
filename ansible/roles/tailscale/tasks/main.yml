@@ -1,0 +1,26 @@
+# ansible/roles/tailscale/tasks/main.yml
+---
+- name: Check if Tailscale is installed
+  command: tailscale version
+  register: tailscale_version_check
+  failed_when: false
+  changed_when: false
+
+- name: Install Tailscale
+  import_tasks: install.yml
+  when: tailscale_version_check.rc != 0
+
+- name: Display Tailscale version
+  command: tailscale version
+  register: tailscale_version
+  changed_when: false
+
+- name: Show Tailscale version
+  debug:
+      msg: "Tailscale version: {{ tailscale_version.stdout_lines[0] }}"
+
+- name: Configure Tailscale
+  import_tasks: configure.yml
+
+- name: Deploy health check
+  import_tasks: health-check.yml

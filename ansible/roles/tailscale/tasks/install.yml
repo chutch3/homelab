@@ -1,0 +1,34 @@
+# ansible/roles/tailscale/tasks/install.yml
+---
+- name: Ensure keyrings directory exists
+  file:
+      path: /etc/apt/keyrings
+      state: directory
+      mode: "0755"
+
+- name: Add Tailscale GPG key
+  apt_key:
+      url: "https://pkgs.tailscale.com/stable/ubuntu/{{ ansible_distribution_release }}.gpg"
+      state: present
+      keyring: /etc/apt/keyrings/tailscale.gpg
+
+- name: Add Tailscale apt repository
+  apt_repository:
+      repo: >
+          deb [signed-by=/etc/apt/keyrings/tailscale.gpg]
+          https://pkgs.tailscale.com/stable/ubuntu
+          {{ ansible_distribution_release }} main
+      state: present
+      filename: tailscale
+
+- name: Install tailscale
+  apt:
+      name: tailscale
+      state: present
+      update_cache: yes
+
+- name: Ensure tailscaled service is enabled and running
+  service:
+      name: tailscaled
+      state: started
+      enabled: yes
