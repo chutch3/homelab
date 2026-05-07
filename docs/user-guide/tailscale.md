@@ -32,11 +32,14 @@ The default policy allows only your account (`autogroup:admin`) to reach homelab
 1. Open [login.tailscale.com/admin/settings/keys](https://login.tailscale.com/admin/settings/keys)
 2. Click **Generate auth key**
 3. Set the options:
+    - **Description**: something like `homelab-nodes`
     - **Reusable**: on (the role uses the same key for all nodes)
     - **Ephemeral**: off (nodes should persist in your Tailscale network)
-    - **Pre-authorized**: on (skips the manual approval step)
-    - **Tags**: `tag:homelab-server`
+    - **Tags**: add `tag:homelab-server` (tagging a key automatically pre-authorizes devices)
 4. Copy the key — it starts with `tskey-auth-`
+
+!!! info "Pre-authorization"
+    Adding a tag to the auth key automatically pre-authorizes any device that registers with it — there is no separate toggle in the current Tailscale UI.
 
 ---
 
