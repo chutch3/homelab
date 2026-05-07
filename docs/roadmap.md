@@ -84,13 +84,13 @@ Our mission is to create the ultimate self-hosting platform that makes running y
                          ║
 ```
 
-## ✅ MILE 2: Essential Services (27 Deployed)
-**Status:** COMPLETED • **Services Live:** 27
+## ✅ MILE 2: Essential Services (38 Deployed)
+**Status:** COMPLETED • **Services Live:** 38
 
 ### 🏗️ Infrastructure Layer
-- ✅ Technitium DNS - Local DNS server
+- ✅ Technitium DNS - Local DNS server (pluggable primary/secondary adapter pattern)
 - ✅ Traefik - Reverse proxy with automatic SSL
-- ✅ Prometheus + Grafana - Metrics and dashboards
+- ✅ Prometheus + Grafana - Metrics and dashboards (incl. cluster health dashboard)
 - ✅ Node Exporter - Host metrics collection
 - ✅ cAdvisor - Container-level performance metrics
 - ✅ NVIDIA GPU Exporter - GPU metrics and monitoring
@@ -106,6 +106,8 @@ Our mission is to create the ultimate self-hosting platform that makes running y
 - ✅ Home Assistant + Node-RED - Smart home platform
 - ✅ CryptPad - Encrypted collaboration
 - ✅ Mealie - Recipe management
+- ✅ Excalidraw - Collaborative whiteboard (with real-time rooms and persistent storage)
+- ✅ FreshRSS - Self-hosted RSS feed aggregator
 
 ### 📷 Media & Photos
 - ✅ PhotoPrism - AI-powered photo management
@@ -117,6 +119,9 @@ Our mission is to create the ultimate self-hosting platform that makes running y
 - ✅ FlareSolverr - Cloudflare bypass for indexers
 - ✅ qBittorrent + Deluge - Torrent clients
 - ✅ SABnzbd + NZBGet - Usenet clients
+- ✅ Newtarr - Unified portal for arr services
+- ✅ Komga - Manga and comics library server
+- ✅ Tranga - Automated manga downloader (MangaDex integration)
 
 ### 🛡️ Prepper & Resilience
 - ✅ Kiwix - Offline Wikipedia (119GB) + Project Gutenberg + Stack Overflow + Medical knowledge
@@ -127,13 +132,15 @@ Our mission is to create the ultimate self-hosting platform that makes running y
 
 ### 🤖 AI & Development
 - ✅ LibreChat - AI chat interface
+- ✅ Ollama - Local LLM inference (integrated with LibreChat)
 - ✅ MLflow - ML experiment tracking
 - ✅ Forgejo - Self-hosted Git service with issue tracking and CI/CD
+- ✅ Prefect - Python-native workflow orchestrator for data and ML pipelines
 
 ### 💾 Backup & Recovery
 - ✅ Kopia - Automated encrypted backups to Backblaze B2
 
-**Rest Stop Summary:** Production platform with 27 services ✅
+**Rest Stop Summary:** Production platform with 38 services ✅
 
 ---
 
@@ -173,12 +180,15 @@ Our mission is to create the ultimate self-hosting platform that makes running y
                          ║
 ```
 
-## 🚗 Current Location: Maintenance & Documentation
+## 🚗 Current Location: Operations Hardening & Platform Expansion
 **Status:** IN PROGRESS
 
-- 🔄 Keeping services updated and healthy
-- 📚 Improving documentation
-- 🧪 Expanding test coverage
+- 🔄 Keeping services updated and healthy (v3.12.0)
+- 🏥 Cluster observability — Grafana cluster health dashboard, node/replica/DNS health check script
+- 🔁 Safe single-node reboot playbook (drain → unmount NAS storage → redeploy)
+- 🔌 DNS provider pluggable adapter (primary/secondary decoupled, relay-capable)
+- 📚 Improving documentation and SSH provisioning workflows
+- 🧪 Expanding test coverage (unit + integration split, script tests)
 - 🔍 Planning next destinations
 
 ---
@@ -206,6 +216,12 @@ Our mission is to create the ultimate self-hosting platform that makes running y
 | **CI/CD Runners** | Dual runner setup: **Forgejo Runner** for local Git projects and **GitHub Runner** for building/testing GitHub.com repositories on homelab hardware. |
 | **Prefect** | Modern Python-native workflow orchestrator for data and ML pipelines. Deployed at `prefect.yourdomain.com` |
 | **Kolibri** | Offline K-12 educational platform with Khan Academy content, hybrid iSCSI + CIFS storage, optional Authentik OIDC. Deployed at `kolibri.yourdomain.com` |
+| **Ollama** | Local LLM inference server integrated with LibreChat for fully offline AI assistance. |
+| **Excalidraw** | Self-hosted collaborative whiteboard with real-time multi-user rooms and persistent storage backend. |
+| **FreshRSS** | Self-hosted RSS aggregator with automated feed refresh and Authentik SSO integration. |
+| **Komga + Tranga** | Manga library server (Komga) paired with automated MangaDex downloader (Tranga) with volume/chapter naming. `manga_volume_migrator` tool migrates existing chapter directories into organized volume subdirectories. |
+| **Newtarr** | Unified arr services portal aggregating Sonarr, Radarr, Whisparr, and related tools into a single dashboard. |
+| **Cluster Health Tooling** | Grafana cluster health dashboard (node availability, container health, Loki panels), shell health check script covering node states/replica counts/DNS crashes/gossip instability, and safe single-node reboot Ansible playbook. |
 
 ### 🎯 NEEDS (High Priority - Real Gaps to Fill)
 
@@ -213,7 +229,6 @@ Our mission is to create the ultimate self-hosting platform that makes running y
 |-------------------|----------|----------------|
 | **Document Management & Archival**<br>No system for organizing scanned documents, PDFs, receipts, tax forms, contracts | **Paperless-ngx** | Long-term archival with OCR, tagging, full-text search, automated organization |
 | **File Sync, Calendar, & Contacts**<br>No unified cloud storage replacement or calendar/contacts synchronization | **NextCloud** | Self-hosted file sync across devices, calendar management, contacts storage, document collaboration |
-| **Offline AI Assistance**<br>LibreChat requires external API calls - no true offline AI capability | **Ollama**<br>(integrates with LibreChat) | Run LLMs locally for offline AI assistance, privacy, no API costs |
 | **Offline Navigation Maps**<br>Kiwix has OSM Wiki documentation but not actual map tiles for GPS navigation | **OpenStreetMap Tile Server** | Render and serve map tiles locally for offline navigation and mapping apps |
 | **Web Page Archiving**<br>No way to preserve important websites before they disappear or change | **ArchiveBox** | Archive critical web pages, articles, and sites for offline reference and preservation |
 
@@ -230,7 +245,6 @@ Our mission is to create the ultimate self-hosting platform that makes running y
 | **Knowledge Base / Wiki**<br>CryptPad handles collaboration but not structured wiki documentation | **Bookstack** | Organized wiki with books, chapters, pages for structured documentation |
 | **PDF Manipulation**<br>No self-hosted tools for merging, splitting, converting, or editing PDFs | **Stirling-PDF** | Comprehensive PDF toolkit for all manipulation tasks |
 | **Personal CRM**<br>No system for tracking relationships, interactions, and personal contacts | **Monica** | Remember important dates, track conversations, manage personal relationships |
-| **RSS Feed Aggregation**<br>No centralized way to follow blogs, news, and content without algorithms | **FreshRSS** | Decentralized news reading, control your feed, offline reading |
 | **Container Registry**<br>No private registry for custom Docker images | **Harbor** | Store and scan custom container images, vulnerability scanning |
 | **Web-based IDE**<br>No browser-based code editing environment | **Code-Server**<br>(VS Code in browser) | Code from any device, remote development environment |
 | **Collaborative Security**<br>No crowdsourced threat intelligence or IP reputation | **Crowdsec** | Block IPs based on community threat intelligence |
