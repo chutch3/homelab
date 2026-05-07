@@ -4,7 +4,7 @@ services:
   github-runner:
     image: myoung34/github-runner:latest
     environment:
-      - ORG_NAME=${GITHUB_USERNAME}
+      - REPO_URL=https://github.com/${GITHUB_USERNAME}/${GITHUB_REPO}
       - ACCESS_TOKEN=${GITHUB_TOKEN}
       - RUNNER_NAME=homelab-gh-runner
       - RUNNER_OPTIMIZE_REPOSITORY_CHECKOUT=true
