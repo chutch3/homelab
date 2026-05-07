@@ -81,3 +81,24 @@ uptime_kuma_username: "{{ lookup('env', 'UPTIME_KUMA_USERNAME') | default('admin
 # SSH policy (key paths live in group_vars/all/ssh.yml - gitignored)
 ssh_disable_password_auth: false
 ssh_pubkey_authentication: true
+
+# Tailscale VPN (optional — set TAILSCALE_ENABLED=true in .env to activate)
+# Each node gets its own Tailscale IP (100.x.x.x). No subnet routes are
+# advertised by default so only cluster nodes are reachable, not your entire LAN.
+# When OPNsense arrives, transfer subnet routing there via its Tailscale plugin
+# and leave these node configs unchanged.
+tailscale_enabled: "{{ lookup('env', 'TAILSCALE_ENABLED') | default('false') | bool }}"
+tailscale_auth_key: "{{ lookup('env', 'TAILSCALE_AUTH_KEY') | default('') }}"
+tailscale_hostname: "{{ inventory_hostname }}"
+# Comma-separated CIDRs to advertise (empty = node-only, no LAN exposure)
+tailscale_advertise_routes: >-
+    {{ lookup('env', 'TAILSCALE_ADVERTISE_ROUTES') | default('')
+       | split(',') | select() | list }}
+# ACL tags — must be pre-authorized in Tailscale admin → Keys before first run.
+# tag:homelab-server  : all cluster nodes
+# tag:homelab-router  : reserved for OPNsense when it arrives
+tailscale_tags:
+    - tag:homelab-server
+# Health check cron settings
+tailscale_health_check_log: /var/log/tailscale-health.log
+tailscale_health_check_interval_minutes: 5

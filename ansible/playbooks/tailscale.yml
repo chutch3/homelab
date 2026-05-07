@@ -1,0 +1,35 @@
+# ansible/playbooks/tailscale.yml
+#
+# Install and configure Tailscale on homelab nodes.
+# Idempotent — safe to re-run; only authenticates on first run per node.
+#
+# Usage:
+#   task ansible:tailscale:configure              # all nodes
+#   task ansible:tailscale:configure:node -- mini # single node
+#   task ansible:tailscale:configure -- --check   # dry run
+#   task ansible:tailscale:status                 # check current state
+---
+- name: Configure Tailscale on homelab nodes
+  hosts: all
+  become: yes
+
+  pre_tasks:
+      - name: Display Tailscale configuration target
+        debug:
+            msg: |
+                Configuring Tailscale on {{ inventory_hostname }}
+                Hostname: {{ tailscale_hostname }}
+                Routes:   {{ tailscale_advertise_routes | default([]) | join(', ') or 'none (node-only)' }}
+                Tags:     {{ tailscale_tags | default([]) | join(', ') or 'none' }}
+
+      - name: Gather facts
+        setup:
+            gather_subset:
+                - '!all'
+                - '!min'
+                - hardware
+                - network
+
+  roles:
+      - role: ../roles/tailscale
+        tags: ['tailscale', 'vpn', 'network']

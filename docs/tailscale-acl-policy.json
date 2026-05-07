@@ -1,0 +1,56 @@
+{
+    "//": [
+        "Tailscale ACL policy for homelab.",
+        "",
+        "Upload this file to https://login.tailscale.com/admin/acls",
+        "before running task ansible:tailscale:configure.",
+        "",
+        "Tags:",
+        "  tag:homelab-server  — all cluster nodes (cody-X570, giant, imac, mini)",
+        "  tag:homelab-router  — reserved for OPNsense firewall (add when ready)",
+        "",
+        "Access model:",
+        "  - Only the account owner (autogroup:admin) can reach homelab nodes.",
+        "  - Homelab nodes cannot initiate connections to each other via Tailscale.",
+        "  - Homelab nodes cannot reach personal devices via Tailscale.",
+        "  - OPNsense (tag:homelab-router) can reach all nodes when added.",
+        "",
+        "Ports exposed per node:",
+        "  22   — SSH",
+        "  80   — HTTP (Traefik redirect)",
+        "  443  — HTTPS (Traefik)",
+        "  5380 — Technitium DNS admin (manager node only)",
+        "",
+        "To add OPNsense later:",
+        "  1. Install the Tailscale plugin on OPNsense.",
+        "  2. Tag it as tag:homelab-router in the Tailscale admin console.",
+        "  3. Uncomment the router ACL entry below.",
+        "  4. Set TAILSCALE_ADVERTISE_ROUTES= (empty) on all Linux nodes.",
+        "  5. Configure subnet routing on OPNsense instead."
+    ],
+    "tagOwners": {
+        "tag:homelab-server": ["autogroup:admin"],
+        "tag:homelab-router": ["autogroup:admin"]
+    },
+    "acls": [
+        {
+            "//": "Account owner can reach all homelab nodes on specified ports",
+            "action": "accept",
+            "src": ["autogroup:admin"],
+            "dst": [
+                "tag:homelab-server:22",
+                "tag:homelab-server:80",
+                "tag:homelab-server:443",
+                "tag:homelab-server:5380"
+            ]
+        }
+        // Uncomment when OPNsense is added:
+        // {
+        //     "//": "OPNsense router can reach all cluster nodes",
+        //     "action": "accept",
+        //     "src": ["tag:homelab-router"],
+        //     "dst": ["tag:homelab-server:*"]
+        // }
+    ],
+    "ssh": []
+}

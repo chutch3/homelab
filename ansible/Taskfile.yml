@@ -251,6 +251,27 @@ tasks:
         cmds:
             - "{{.VENV_ANSIBLE_PLAYBOOK}} -i ansible/inventory/ ansible/playbooks/dns.yml -e \"dns_action=add_service_records\" {{.CLI_ARGS}}"
 
+    # Tailscale VPN Management
+    tailscale:configure:
+        desc: "Install and configure Tailscale on all nodes (requires TAILSCALE_AUTH_KEY in .env)"
+        dir: "{{.ROOT_DIR}}"
+        interactive: true
+        cmds:
+            - "{{.VENV_ANSIBLE_PLAYBOOK}} --become -i ansible/inventory/ ansible/playbooks/tailscale.yml {{.CLI_ARGS}}"
+
+    tailscale:configure:node:
+        desc: "Configure Tailscale on a specific node (usage: task ansible:tailscale:configure:node -- mini)"
+        dir: "{{.ROOT_DIR}}"
+        interactive: true
+        cmds:
+            - "{{.VENV_ANSIBLE_PLAYBOOK}} --become -i ansible/inventory/ ansible/playbooks/tailscale.yml --limit {{.CLI_ARGS}}"
+
+    tailscale:status:
+        desc: Show Tailscale status on all nodes
+        dir: "{{.ROOT_DIR}}"
+        cmds:
+            - "{{.VENV_ANSIBLE}} --become -i ansible/inventory/ all -m command -a 'tailscale status'"
+
     # Ansible Uptime Kuma Management
     uptime:create-groups:
         desc: "Create Machines and Services monitor groups in Uptime Kuma"
@@ -304,7 +325,7 @@ tasks:
             - |
                 echo "Logging in to ghcr.io on all nodes as {{.GITHUB_USERNAME}}..."
                 {{.VENV_ANSIBLE}} -i ansible/inventory/ all -m shell \
-                  -a "echo {{.GITHUB_TOKEN}} | docker login ghcr.io -u {{.GITHUB_USERNAME}} --password-stdin"
+                  -a "for i in 1 2 3; do echo {{.GITHUB_TOKEN}} | docker login ghcr.io -u {{.GITHUB_USERNAME}} --password-stdin && break; echo \"Attempt \$i failed, retrying in 5s...\"; sleep 5; done"
 
     registry:login:custom:
         desc: "Login to custom registry (set REGISTRY_URL, REGISTRY_USER, REGISTRY_PASS)"
