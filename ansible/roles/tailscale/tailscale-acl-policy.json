@@ -40,6 +40,14 @@
             ],
         },
 
+        // Account owner can reach LAN devices via subnet routing (NAS, services by LAN IP, etc.)
+        // Subnet-routed destinations are plain LAN IPs, not tagged — needs a separate rule.
+        {
+            "action": "accept",
+            "src":    ["autogroup:admin"],
+            "dst":    ["192.168.86.0/24:*"],
+        },
+
         // Cluster nodes can reach the split DNS nameserver for Tailscale health checks
         // (nodes use --accept-dns=false so this is health-check-only, not actual DNS routing)
         {

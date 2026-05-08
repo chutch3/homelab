@@ -310,6 +310,69 @@ If your threat model requires zero trust in any third-party control plane, Heads
 
 ---
 
+## Troubleshooting
+
+### Private services don't resolve remotely
+
+Work through these steps in order:
+
+**1. Confirm MagicDNS is enabled**
+
+Open [login.tailscale.com/admin/dns](https://login.tailscale.com/admin/dns). MagicDNS must be on and your custom nameserver (`100.x.x.x` restricted to `diyhub.dev`) must be listed. Without MagicDNS, split DNS has no effect.
+
+**2. Confirm Tailscale can reach the manager at all**
+
+From the remote device, open `http://<manager-tailscale-ip>:5380` in a browser. If it loads, the Tailscale tunnel is up and the ACL is allowing traffic. If it times out, fix connectivity first.
+
+**3. Check if MagicDNS itself works**
+
+Try resolving the manager's MagicDNS name (e.g. `cody-x570-gaming-x.tail91877.ts.net`). If this resolves but `diyhub.dev` names don't, the custom split DNS nameserver is not being applied — check the admin console configuration.
+
+**4. Use tcpdump to confirm queries reach the manager**
+
+On the manager node, capture DNS traffic on the Tailscale interface while attempting to resolve from the remote device:
+
+```bash
+sudo tcpdump -i tailscale0 port 53 -n
+```
+
+- **Queries and replies visible** → DNS is resolving correctly. The problem is connecting to the returned IP, not DNS itself — likely the subnet routing ACL (see below).
+- **Queries visible but no reply** → Technitium is receiving queries but not responding. Check the `UseLocalAllowList` recursion setting includes `100.64.0.0/10`.
+- **Nothing visible** → Tailscale on the remote device is not forwarding `diyhub.dev` queries to the nameserver. Toggle Tailscale off/on or log out and back in to force a fresh DNS config pull.
+
+**5. Subnet routing ACL missing**
+
+Services resolve to their LAN IP (e.g. `192.168.86.227`). If the remote device can't connect after DNS resolves correctly, the ACL is missing a rule for subnet-routed LAN traffic. Tailscale treats LAN IPs reached via subnet routing as plain addresses — the `tag:homelab-server` rule does not cover them. Add to `tailscale-acl-policy.json`:
+
+```json
+{
+    "action": "accept",
+    "src":    ["autogroup:admin"],
+    "dst":    ["192.168.86.0/24:*"],
+},
+```
+
+---
+
+### Cluster nodes show DNS health warnings
+
+If `task ansible:tailscale:status` shows `Tailscale can't reach the configured DNS servers` on cluster nodes, check that `--accept-dns=false` is applied:
+
+```bash
+sudo tailscale status | grep -i dns
+sudo tailscale set --accept-dns=false
+```
+
+Then run the playbook to make it permanent:
+
+```bash
+task ansible:tailscale:configure -- -K
+```
+
+Port 53 is open between nodes in the ACL so Tailscale's health check can verify the nameserver is reachable. This is health-check traffic only — cluster nodes use their LAN DNS directly.
+
+---
+
 ## Updating the ACL Policy
 
 To open additional ports or add new device tags, edit `ansible/roles/tailscale/tailscale-acl-policy.json` and re-upload it to [login.tailscale.com/admin/acls](https://login.tailscale.com/admin/acls). The Ansible role does not manage ACLs — they are applied manually through the Tailscale admin console.
