@@ -211,7 +211,7 @@ services:
                 - "traefik.enable=false"
 
     iperf3-server:
-        image: iperf3-server:fixed
+        image: ${MONITORING_REGISTRY_URL:-ghcr.io}/${MONITORING_REGISTRY_NAMESPACE:-your-username}/iperf3-server:${MONITORING_IMAGE_TAG:-latest}
         ports:
             - target: 5201
               published: 5201
@@ -224,7 +224,7 @@ services:
                 - "traefik.enable=false"
 
     iperf3-exporter:
-        image: custom-iperf3-exporter:latest
+        image: ${MONITORING_REGISTRY_URL:-ghcr.io}/${MONITORING_REGISTRY_NAMESPACE:-your-username}/iperf3-exporter:${MONITORING_IMAGE_TAG:-latest}
         ports:
             - target: 9579
               published: 9579

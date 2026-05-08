@@ -1,0 +1,86 @@
+version: "3"
+
+vars:
+    STACK_DIR: "{{.TASKFILE_DIR}}"
+    REGISTRY_URL: '{{.MONITORING_REGISTRY_URL | default "ghcr.io"}}'
+    REGISTRY_NAMESPACE: '{{.MONITORING_REGISTRY_NAMESPACE | default .GITHUB_USERNAME | default "your-username"}}'
+    IMAGE_TAG: '{{.MONITORING_IMAGE_TAG | default "latest"}}'
+    PLATFORM: '{{.PLATFORM | default "linux/amd64"}}'
+
+tasks:
+    build:
+        desc: Build iperf3-server and iperf3-exporter images locally
+        cmds:
+            - task: build:server
+            - task: build:exporter
+
+    build:server:
+        desc: Build iperf3-server image only
+        cmds:
+            - |
+                docker build \
+                  --platform {{.PLATFORM}} \
+                  --tag {{.REGISTRY_URL}}/{{.REGISTRY_NAMESPACE}}/iperf3-server:{{.IMAGE_TAG}} \
+                  --file {{.STACK_DIR}}/Dockerfile.iperf3-server \
+                  {{.STACK_DIR}}
+
+    build:exporter:
+        desc: Build iperf3-exporter image only
+        cmds:
+            - |
+                docker build \
+                  --platform {{.PLATFORM}} \
+                  --tag {{.REGISTRY_URL}}/{{.REGISTRY_NAMESPACE}}/iperf3-exporter:{{.IMAGE_TAG}} \
+                  --file {{.STACK_DIR}}/custom-exporter/Dockerfile \
+                  {{.STACK_DIR}}/custom-exporter
+
+    push:
+        desc: Push both images to registry (must be built first)
+        deps: [check-registry]
+        cmds:
+            - task: push:server
+            - task: push:exporter
+
+    push:server:
+        desc: Push iperf3-server image to registry
+        deps: [check-registry]
+        cmds:
+            - docker push {{.REGISTRY_URL}}/{{.REGISTRY_NAMESPACE}}/iperf3-server:{{.IMAGE_TAG}}
+
+    push:exporter:
+        desc: Push iperf3-exporter image to registry
+        deps: [check-registry]
+        cmds:
+            - docker push {{.REGISTRY_URL}}/{{.REGISTRY_NAMESPACE}}/iperf3-exporter:{{.IMAGE_TAG}}
+
+    publish:
+        desc: Build and push both images to registry
+        deps: [check-registry]
+        cmds:
+            - task: build
+            - task: push
+
+    check-registry:
+        internal: true
+        silent: true
+        cmds:
+            - |
+                if ! docker info 2>&1 | grep -q "Registry"; then
+                    echo "⚠️  Warning: You may not be logged in to {{.REGISTRY_URL}}"
+                    echo "  echo \$GITHUB_TOKEN | docker login ghcr.io -u {{.REGISTRY_NAMESPACE}} --password-stdin"
+                fi
+
+    config:
+        desc: Show current build configuration
+        cmds:
+            - |
+                echo "Current configuration:"
+                echo "====================="
+                echo "Registry URL:      {{.REGISTRY_URL}}"
+                echo "Namespace:         {{.REGISTRY_NAMESPACE}}"
+                echo "Tag:               {{.IMAGE_TAG}}"
+                echo "Platform:          {{.PLATFORM}}"
+                echo ""
+                echo "Full image names:"
+                echo "  Server:   {{.REGISTRY_URL}}/{{.REGISTRY_NAMESPACE}}/iperf3-server:{{.IMAGE_TAG}}"
+                echo "  Exporter: {{.REGISTRY_URL}}/{{.REGISTRY_NAMESPACE}}/iperf3-exporter:{{.IMAGE_TAG}}"
