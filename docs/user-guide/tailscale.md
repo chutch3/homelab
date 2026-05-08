@@ -220,6 +220,10 @@ Split DNS fixes this by telling Tailscale: "for `diyhub.dev` queries, ask the ma
 
 Technitium is configured to accept DNS queries from Tailscale's CGNAT range (`100.64.0.0/10`) in addition to standard private networks. When you're connected to Tailscale remotely, DNS queries for `diyhub.dev` are forwarded to the manager's Tailscale IP, Technitium resolves them, and your services are accessible by name.
 
+**Cluster nodes are not affected.** The Ansible role sets `--accept-dns=false` on every cluster node, so Tailscale never overrides their system resolver. Nodes continue using Technitium directly via the LAN IP — split DNS is only active on your personal devices (laptop, phone) when they connect remotely.
+
+Port 53 is open between nodes in the ACL policy so Tailscale's built-in health checks can verify the nameserver is reachable. This is a health-check-only path — no actual DNS traffic from cluster nodes flows through it.
+
 ### Setup
 
 This is a one-time manual step after Tailscale is deployed on at least the manager node.

@@ -71,6 +71,7 @@
       {{ _tailscale_routes_arg }}
       {{ _tailscale_tags_arg }}
       --accept-routes=false
+      --accept-dns=false
       --reset
   when:
       - not tailscale_connected
@@ -84,9 +85,14 @@
       {{ _tailscale_routes_arg }}
       {{ _tailscale_tags_arg }}
       --accept-routes=false
+      --accept-dns=false
   when:
       - tailscale_connected
       - tailscale_config_changed | bool
+
+- name: Ensure nodes do not accept Tailscale DNS overrides
+  command: tailscale set --accept-dns=false
+  changed_when: false
 
 - name: Verify Tailscale connection
   command: tailscale status
