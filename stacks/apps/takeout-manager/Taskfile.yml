@@ -2,9 +2,9 @@ version: "3"
 
 vars:
     STACK_DIR: "{{.TASKFILE_DIR}}"
-    REGISTRY_URL: '{{.REGISTRY_URL | default "ghcr.io"}}'
-    REGISTRY_NAMESPACE: '{{.REGISTRY_NAMESPACE | default "your-username"}}'
-    IMAGE_TAG: '{{.IMAGE_TAG | default "latest"}}'
+    REGISTRY_URL: '{{.TAKEOUT_MANAGER_REGISTRY_URL | default "ghcr.io"}}'
+    REGISTRY_NAMESPACE: '{{.TAKEOUT_MANAGER_REGISTRY_NAMESPACE | default "your-username"}}'
+    IMAGE_TAG: '{{.TAKEOUT_MANAGER_IMAGE_TAG | default "latest"}}'
     PLATFORM: '{{.PLATFORM | default "linux/amd64"}}'
 
 tasks:
@@ -97,17 +97,17 @@ tasks:
                 echo ""
             - task: build
               vars:
-                IMAGE_TAG: '{{.VERSION}}'
+                  IMAGE_TAG: "{{.VERSION}}"
             - task: push
               vars:
-                IMAGE_TAG: '{{.VERSION}}'
+                  IMAGE_TAG: "{{.VERSION}}"
             - |
                 echo ""
                 echo "✅ Released version {{.VERSION}}"
                 echo ""
                 echo "Next steps:"
                 echo "1. Update .env: IMAGE_TAG={{.VERSION}}"
-                echo "2. Deploy: task ansible:deploy:stack -- -e 'stack_name=takeout-manager'"
+                echo "2. Deploy: task ansible:deploy:service -- -e 'stack_name=takeout-manager'"
 
     # Check registry login
     check-registry:
