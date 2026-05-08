@@ -6,9 +6,8 @@
   failed_when: false
   changed_when: false
 
-- name: Install Tailscale
+- name: Ensure Tailscale apt repository and package
   import_tasks: install.yml
-  when: tailscale_version_check.rc != 0
 
 - name: Display Tailscale version
   command: tailscale version

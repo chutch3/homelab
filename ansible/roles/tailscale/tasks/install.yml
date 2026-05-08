@@ -26,6 +26,7 @@
       name: tailscale
       state: present
       update_cache: yes
+  when: tailscale_version_check.rc != 0
 
 - name: Ensure tailscaled service is enabled and running
   service:
