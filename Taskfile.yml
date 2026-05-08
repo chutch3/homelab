@@ -14,12 +14,18 @@ includes:
     takeout-manager:
         taskfile: stacks/apps/takeout-manager/Taskfile.yml
         dir: stacks/apps/takeout-manager
+    monitoring:
+        taskfile: stacks/monitoring/Taskfile.yml
+        dir: stacks/monitoring
+
+env:
+    REGISTRY_NAMESPACE: $GITHUB_USERNAME
 
 tasks:
     registry:login:
-        desc: Login to container registry (ghcr.io) using GITHUB_TOKEN from .env
+        desc: Login to ghcr.io using GITHUB_TOKEN from .env
         cmds:
-            - echo "$GITHUB_TOKEN" | docker login "$REGISTRY_URL" -u "$REGISTRY_NAMESPACE" --password-stdin
+            - echo "${GITHUB_TOKEN}" | docker login ghcr.io -u "${GITHUB_USERNAME}" --password-stdin
 
     install:
         desc: Install project dependencies
