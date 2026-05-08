@@ -33,10 +33,19 @@
             "src":    ["autogroup:admin"],
             "dst": [
                 "tag:homelab-server:22",
+                "tag:homelab-server:53",
                 "tag:homelab-server:80",
                 "tag:homelab-server:443",
                 "tag:homelab-server:5380",
             ],
+        },
+
+        // Cluster nodes can reach the split DNS nameserver for Tailscale health checks
+        // (nodes use --accept-dns=false so this is health-check-only, not actual DNS routing)
+        {
+            "action": "accept",
+            "src":    ["tag:homelab-server"],
+            "dst":    ["tag:homelab-server:53"],
         },
 
         // Uncomment when OPNsense is added:
