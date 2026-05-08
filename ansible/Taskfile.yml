@@ -267,10 +267,15 @@ tasks:
             - "{{.VENV_ANSIBLE_PLAYBOOK}} --become -i ansible/inventory/ ansible/playbooks/tailscale.yml --limit {{.CLI_ARGS}}"
 
     tailscale:status:
-        desc: Show Tailscale status on all nodes
+        desc: Show Tailscale status, subnet routes, and health warnings on all nodes
         dir: "{{.ROOT_DIR}}"
+        interactive: true
         cmds:
-            - "{{.VENV_ANSIBLE}} --become -i ansible/inventory/ all -m command -a 'tailscale status'"
+            - |
+                SCRIPT='import json,sys; s=json.load(sys.stdin); me=s.get("Self",{}); a=me.get("PrimaryRoutes") or []; p=me.get("AdvertisedRoutes") or []; h=s.get("Health") or []; print("  Active routes  :", ", ".join(a) if a else "none"); print("  Pending routes :", ", ".join(p) if p else "none"); [print("  Health         :", w) for w in h]'
+                {{.VENV_ANSIBLE}} --become -i ansible/inventory/ all -m shell \
+                  -a "tailscale status && echo && tailscale status --json | python3 -c '$SCRIPT'" \
+                  {{.CLI_ARGS}}
 
     # Ansible Uptime Kuma Management
     uptime:create-groups:
