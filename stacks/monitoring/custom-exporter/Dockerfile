@@ -1,7 +1,7 @@
 FROM python:3.12-alpine
 
 # Install iperf3, create non-root user, and verify iperf3 version
-RUN apk add --no-cache iperf3=3.19.1-r0 && \
+RUN apk add --no-cache iperf3=3.19.1-r1 && \
     adduser -D -u 10001 exporter && \
     iperf3 --version
 
