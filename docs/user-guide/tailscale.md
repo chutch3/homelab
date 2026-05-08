@@ -140,6 +140,76 @@ sudo /usr/local/bin/check-tailscale.sh
 
 ---
 
+## Accessing LAN Devices — NAS and Backup DNS
+
+Cluster nodes register directly with Tailscale, so they are reachable by their `100.x.x.x` addresses with no extra configuration. Devices that don't run Tailscale — your NAS, Pi-hole at `192.168.86.140`, printers, or any other LAN device — are not reachable by default.
+
+To reach them remotely, one cluster node must **advertise subnet routes** for your LAN, acting as a gateway. Remote Tailscale clients then route `192.168.86.0/24` traffic through that node.
+
+!!! info "OPNsense Note"
+    When you add OPNsense, subnet routing transfers to its Tailscale plugin. Leave `TAILSCALE_ADVERTISE_ROUTES` empty on all Linux nodes and configure the LAN route on OPNsense instead.
+
+### Enable Subnet Routing
+
+**1. Set the route in `.env`** on the node you want to act as gateway (typically the manager):
+
+```bash title=".env"
+TAILSCALE_ADVERTISE_ROUTES=192.168.86.0/24
+```
+
+**2. Redeploy Tailscale on that node:**
+
+```bash
+task ansible:tailscale:configure:node -- cody-X570-GAMING-X -K
+```
+
+**3. Approve the route in the Tailscale admin console:**
+
+Advertised routes must be explicitly approved before Tailscale clients use them.
+
+1. Open [login.tailscale.com/admin/machines](https://login.tailscale.com/admin/machines)
+2. Find the gateway node and click **Edit route settings**
+3. Enable `192.168.86.0/24`
+4. Save
+
+**4. Accept routes on your client device:**
+
+Routes are not used by clients until accepted. On Linux:
+
+```bash
+tailscale up --accept-routes
+```
+
+On macOS and iOS, enable **Use Tailscale Subnets** in the app settings.
+
+### What You Can Reach
+
+Once subnet routing is active, all `192.168.86.0/24` addresses are routable over Tailscale:
+
+| Device | Address | Notes |
+|--------|---------|-------|
+| NAS | `192.168.86.x` | File shares (SMB/NFS), admin UI |
+| Pi-hole (backup DNS) | `192.168.86.140` | Admin UI at `192.168.86.140/admin` |
+| Router | `192.168.86.1` | Admin UI |
+| Any other LAN device | `192.168.86.x` | Printers, IoT, etc. |
+
+### ACL Policy for Subnet Access
+
+The default ACL policy only opens ports 22, 80, 443, and 5380 on `tag:homelab-server`. Subnet-routed traffic goes through the gateway node but targets LAN IPs that aren't tagged. To allow full LAN access, add a rule to `tailscale-acl-policy.json`:
+
+```json
+// Account owner can reach the full home LAN via subnet routing
+{
+    "action": "accept",
+    "src":    ["autogroup:admin"],
+    "dst":    ["192.168.86.0/24:*"],
+},
+```
+
+Upload the updated policy to [login.tailscale.com/admin/acls](https://login.tailscale.com/admin/acls) after editing.
+
+---
+
 ## Split DNS — Resolving Private Services Remotely
 
 Without split DNS, connecting to Tailscale lets you reach each node at its `100.x.x.x` address but private service names like `grafana.diyhub.dev` won't resolve — your private Technitium server is on the LAN, not reachable remotely.
@@ -195,6 +265,44 @@ After this, any device connected to Tailscale can resolve `grafana.diyhub.dev`, 
 - **ACL policy restricts access** — only your Tailscale account can connect to `tag:homelab-server` nodes, on specific ports only.
 - **Nodes cannot reach each other via Tailscale** — the ACL policy has no node-to-node rule, so cross-node Tailscale traffic is blocked.
 - **Tagged auth key** — the key is scoped to `tag:homelab-server`. A leaked key can only register new nodes with that tag; it cannot impersonate your personal devices.
+
+---
+
+## Trust Model
+
+Understanding what Tailscale can and cannot see is useful before trusting it with homelab access.
+
+### WireGuard End-to-End Encryption
+
+All traffic between your devices travels over WireGuard tunnels. WireGuard keys are generated on each device and exchanged through Tailscale's coordination server — but the private keys never leave your devices. Tailscale facilitates the key exchange; it cannot decrypt your traffic.
+
+### Control Plane vs Data Plane
+
+Tailscale has two distinct planes:
+
+| Plane | What it does | Who operates it |
+|-------|--------------|-----------------|
+| **Control plane** | Distributes public keys and coordinates routing | Tailscale (hosted) |
+| **Data plane** | Carries actual traffic between devices | Your devices, peer-to-peer |
+
+When two devices can reach each other directly (most home and office networks), traffic flows peer-to-peer and never touches Tailscale's servers. Tailscale's coordination server sees which devices are in your network and their public WireGuard keys — not the traffic itself.
+
+### DERP Relay Fallback
+
+When a direct WireGuard connection cannot be established (strict NAT, some cellular networks), traffic is relayed through Tailscale's DERP (Designated Encrypted Relay for Packets) servers. The connection is still end-to-end encrypted — DERP can see the volume and timing of relayed bytes but not their contents. Direct connections are always preferred and established as soon as they become possible.
+
+### Headscale — Self-Hosted Control Plane
+
+[Headscale](https://headscale.net) is an open-source, self-hosted replacement for Tailscale's coordination server. It gives you full control over the control plane. The trade-off: Headscale itself must be reachable from the internet (direct port forward, VPS, or Cloudflare tunnel), which recreates the same public exposure you were trying to avoid. For a personal homelab, this adds infrastructure complexity without a meaningful security gain over hosted Tailscale.
+
+For this homelab, hosted Tailscale is the pragmatic choice:
+
+- The control plane sees no traffic content — only public keys and network topology
+- The ACL policy restricts what can reach your nodes and on which ports
+- Tagged auth keys limit the blast radius of a leaked key to registering new `tag:homelab-server` nodes only
+- No publicly exposed port on your home network is required
+
+If your threat model requires zero trust in any third-party control plane, Headscale is the right path — but factor in the public server requirement.
 
 ---
 
