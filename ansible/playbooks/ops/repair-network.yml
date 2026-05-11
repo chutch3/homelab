@@ -1,0 +1,48 @@
+# ansible/playbooks/ops/repair-network.yml
+---
+- name: Repair Docker Swarm networking
+  hosts: "{{ target_node | default('all') }}"
+  become: yes
+  gather_facts: false
+
+  tasks:
+    - name: Fail if target_node is not set when running against all
+      ansible.builtin.pause:
+        prompt: "WARNING: No target_node specified. This will run on ALL nodes. Press ENTER to continue or Ctrl+C to abort."
+      when: target_node is not defined
+      run_once: true
+
+    - name: Identify all vxlan interfaces
+      ansible.builtin.shell: |
+        ip -o link show type vxlan | awk -F': ' '{print $2}'
+      register: vxlan_interfaces
+      changed_when: false
+
+    - name: Flush all vxlan interfaces
+      ansible.builtin.shell: |
+        ip link delete {{ item }}
+      loop: "{{ vxlan_interfaces.stdout_lines }}"
+      when: vxlan_interfaces.stdout != ""
+      ignore_errors: yes
+
+    - name: Identify stale Docker network namespaces
+      ansible.builtin.shell: |
+        ls /var/run/docker/netns/ 2>/dev/null || true
+      register: docker_netns
+      changed_when: false
+
+    - name: Report stale interfaces/namespaces
+      ansible.builtin.debug:
+        msg: |
+          Cleaned up {{ vxlan_interfaces.stdout_lines | length }} vxlan interfaces on {{ inventory_hostname }}
+          Found {{ docker_netns.stdout_lines | length }} namespaces remaining.
+
+    - name: Restart Docker to force resync (Optional)
+      ansible.builtin.systemd:
+        name: docker
+        state: restarted
+      when: restart_docker | default(false) | bool
+
+    - name: Remind user to redeploy
+      ansible.builtin.debug:
+        msg: "Networking interfaces flushed on {{ inventory_hostname }}. Swarm should recreate them automatically as tasks are scheduled."

@@ -38,13 +38,13 @@
       - name: Fail if compose file does not exist in either location
         ansible.builtin.fail:
             msg: |
-              Stack '{{ stack_name }}' not found. Checked locations:
-                - stacks/{{ stack_name }}/docker-compose.yml
-                - stacks/apps/{{ stack_name }}/docker-compose.yml
+                Stack '{{ stack_name }}' not found. Checked locations:
+                  - stacks/{{ stack_name }}/docker-compose.yml
+                  - stacks/apps/{{ stack_name }}/docker-compose.yml
 
-              Available stacks:
-                Infrastructure: monitoring, reverse-proxy, dns
-                Apps: Run 'ls stacks/apps/' to see available application stacks
+                Available stacks:
+                  Infrastructure: monitoring, reverse-proxy, dns
+                  Apps: Run 'ls stacks/apps/' to see available application stacks
         when: not compose_file_stacks.stat.exists and not compose_file_apps.stat.exists
 
       - name: Set compose file path
@@ -60,6 +60,7 @@
         community.docker.docker_stack:
             state: present
             name: "{{ stack_name }}"
+            with_registry_auth: true
             compose:
                 - "{{ compose_file_path }}"
         environment: "{{ swarm_env_vars }}"
