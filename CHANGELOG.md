@@ -2,6 +2,98 @@
 
 <!-- version list -->
 
+## v3.13.0 (2026-05-11)
+
+### Bug Fixes
+
+- Allow subnet-routed LAN traffic in ACL and document troubleshooting
+  ([`a630ec4`](https://github.com/chutch3/homelab/commit/a630ec47bd557559a84a83090eca9b1c61df17f7))
+
+- Always ensure tailscale apt repository is configured
+  ([`3af4132`](https://github.com/chutch3/homelab/commit/3af41325517ba121ce9c0678068c0c25c548b238))
+
+- Default GITHUB_REPO to homelab in runner REPO_URL
+  ([`c35fc18`](https://github.com/chutch3/homelab/commit/c35fc18b786ef66489e99c1e5895c3f73f3949ef))
+
+- Guard tailscale version display against empty stdout in check mode
+  ([`6a97cb4`](https://github.com/chutch3/homelab/commit/6a97cb4fb5df8bba9c5afa07e33436b0d8dc26ab))
+
+- Prevent cluster nodes from accepting tailscale dns overrides
+  ([`9733acf`](https://github.com/chutch3/homelab/commit/9733acf860515403f25ac68134f278fe9b34af9a))
+
+- Publish DNS port 53 with mode host to prevent Swarm ingress DNAT hijacking
+  ([`e7866a2`](https://github.com/chutch3/homelab/commit/e7866a2ca4e1b8c362d214671073b7f6af185fb3))
+
+- Register github-runner at org level using ORG_NAME instead of REPO_URL
+  ([`d610f24`](https://github.com/chutch3/homelab/commit/d610f24aea39f33eff013a95a83675880bdb6311))
+
+- Revert to REPO_URL for repo-level runner registration on personal GitHub accounts
+  ([`a9a7276`](https://github.com/chutch3/homelab/commit/a9a7276c0ddf4a529d6f7d58d2f9d76260c47acb))
+
+- Rewrite ACL policy as valid HuJSON with native line comments
+  ([`420fd0b`](https://github.com/chutch3/homelab/commit/420fd0bfe3559eb27a5498062270531549802972))
+
+- Show subnet routes and health warnings in tailscale status
+  ([`cbcfff7`](https://github.com/chutch3/homelab/commit/cbcfff7ce0362fc1c640779152c1065f15d9cd5e))
+
+- Skip tailscale auth assert and up command in check mode
+  ([`1a12164`](https://github.com/chutch3/homelab/commit/1a121640e87ee40f34c712d685d3280d8f17e43f))
+
+- Use app-specific env vars for takeout-manager image registry
+  ([`cf46170`](https://github.com/chutch3/homelab/commit/cf46170b3d631570b3a69fddefbe4f0f1fe35b5f))
+
+### Documentation
+
+- Add Tailscale VPN user guide
+  ([`c5d952a`](https://github.com/chutch3/homelab/commit/c5d952aeb90d9ad68c53e5dd876131311f30b143))
+
+- Clarify split DNS setup deploys to all nodes not just manager
+  ([`22c8f61`](https://github.com/chutch3/homelab/commit/22c8f610e509d1b29023f33668155c4a0db6e6c7))
+
+- Document Docker Swarm port 53 DNAT hijacking and resolution steps
+  ([`589edad`](https://github.com/chutch3/homelab/commit/589edad08c883b7139d6d1232de2fd8679544089))
+
+- Document trust model, LAN device access, and subnet routing
+  ([`3a017b6`](https://github.com/chutch3/homelab/commit/3a017b6b5d1bd3bfe1867cbddcd337a05a438e86))
+
+- Sync roadmap with recent deployments and ops improvements
+  ([`a747203`](https://github.com/chutch3/homelab/commit/a747203c47dab464d68660aa909960c61bcae343))
+
+- Update auth key instructions to match current Tailscale UI
+  ([`e8ccd6e`](https://github.com/chutch3/homelab/commit/e8ccd6e023ef013233aa10f853038a41c7657387))
+
+### Features
+
+- Add monitoring task include and fix registry login
+  ([`aa43340`](https://github.com/chutch3/homelab/commit/aa43340310bd5b01b480b65643d982d537e27b55))
+
+- Add optional Tailscale role with drift detection, health check, and ACL policy
+  ([`194e099`](https://github.com/chutch3/homelab/commit/194e0991d362bf395717ce00f5043f3b95776636))
+
+- Added freshrss
+  ([`c117a08`](https://github.com/chutch3/homelab/commit/c117a0834885f80dab6730c8ee3ebc7637641d4d))
+
+- Allow Tailscale CGNAT range in Technitium recursion for split DNS
+  ([`d637f2f`](https://github.com/chutch3/homelab/commit/d637f2fd274960130fc73b39edc0d27d69f7bec3))
+
+- Bump actual_server
+  ([`b9e04a8`](https://github.com/chutch3/homelab/commit/b9e04a84b40877e8a8990d4170da1a03529b36d0))
+
+- Move iperf3 images to GHCR and pin apk version to 3.19.1-r1
+  ([`327a840`](https://github.com/chutch3/homelab/commit/327a84059450e7768a9679cf9d0d97a1997a1805))
+
+- Updated logs to help better identify issues that cause crashes in the homelab
+  ([`923cd9f`](https://github.com/chutch3/homelab/commit/923cd9fc2a5fdd3c6dbb3b9d638079215c799d65))
+
+### Refactoring
+
+- Cleanup takeout-manager code
+  ([`9728d47`](https://github.com/chutch3/homelab/commit/9728d47f0b997d72e4095a96a38b81d65a58a951))
+
+- Move tailscale ACL policy to role root
+  ([`88c43d5`](https://github.com/chutch3/homelab/commit/88c43d53e04b58979249612f94d76623e369ca60))
+
+
 ## v3.12.0 (2026-05-04)
 
 ### Bug Fixes

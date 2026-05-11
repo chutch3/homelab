@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "homelab"
-version = "3.12.0"
+version = "3.13.0"
 description = ""
 authors = ["Cody Hutchens"]
 license = "MIT"
@@ -45,6 +45,7 @@ major_on_zero = false
 
 [tool.semantic_release.changelog]
 changelog_file = "CHANGELOG.md"
+
 
 [build-system]
 requires = ["poetry-core>=1.0.0"]
