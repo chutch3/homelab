@@ -859,7 +859,39 @@ ls /mnt/iscsi/app-data
 # ls: cannot access '/mnt/iscsi/app-data': Transport endpoint is not connected
 ```
 
+### "Ghost" Local Directory - Mount Race Condition
+
+**Issue:** Services appear "wiped" (starting a setup wizard) or report missing configuration/snapshots, even though the data exists on the cluster storage.
+
+**Symptoms:**
+- Emby shows the "Welcome" setup wizard instead of your library.
+- Kopia reports "Repository not configured" even though `repository.config` exists on the NAS.
+- Files appear correctly on the host at `/mnt/iscsi/app-data`, but the container sees an empty directory.
+- `docker service logs` show the application initializing a fresh database.
+
+**Root Cause:**
+This is a race condition where the Docker container starts **before** the iSCSI/OCFS2 mount is fully ready on the host. If the bind-mount source path (e.g., `/mnt/iscsi/app-data/emby`) does not exist when the container starts, Docker automatically creates an empty "ghost" directory on the node's local root disk and binds the container to it. When the iSCSI storage finally mounts, it "covers up" the ghost folder on the host, but the running container remains locked to the empty local version.
+
+**Identify:**
+Check if the inode of the directory inside the container matches the host:
+```bash
+# On the host
+ls -id /mnt/iscsi/app-data/emby
+
+# Inside the container
+docker exec $(docker ps -q -f name=emby) ls -id /config
+```
+If the numbers **do not match**, the container is looking at a ghost directory.
+
 **Solution:**
+Force a service update to re-bind the volumes now that the mount is active:
+```bash
+docker service update --force <service_name>
+```
+
+**Prevention:**
+- Ensure the `iscsi-wait.conf` systemd drop-in is present (managed by Ansible).
+- Use `task ansible:storage:repair` after a node crash to ensure mounts are healthy before starting services.
 
 1. **Check iSCSI session:**
    ```bash

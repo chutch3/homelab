@@ -17,13 +17,14 @@
     - item.enabled | bool
     - item.iqn is defined
 
-# Create OCFS2 filesystems (only if not already OCFS2)
+# Create OCFS2 filesystems (ONLY if the device is completely blank)
 - name: Create OCFS2 filesystems on iSCSI devices
-  ansible.builtin.shell: "echo y | mkfs.ocfs2 -F --cluster-stack=o2cb --cluster-name=homelab -L {{ item.item.label }} -N 4 /dev/disk/by-path/ip-{{ iscsi_target_ip }}:{{ iscsi_target_port }}-iscsi-{{ item.item.iqn }}-lun-1"
+  ansible.builtin.shell: "echo y | mkfs.ocfs2 --cluster-stack=o2cb --cluster-name=homelab -L {{ item.item.label }} -N 4 /dev/disk/by-path/ip-{{ iscsi_target_ip }}:{{ iscsi_target_port }}-iscsi-{{ item.item.iqn }}-lun-1"
   loop: "{{ storage_current_fstype.results }}"
   when:
     - item.item.enabled | bool
-    - item.stdout != "ocfs2"
+    - item.stdout == ""  # Only run if blkid returned NOTHING (completely blank)
+    - item.rc == 2      # blkid returns 2 if no tokens were found (blank disk)
   run_once: true
   delegate_to: "{{ groups['managers'][0] }}"
 

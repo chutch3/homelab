@@ -10,8 +10,8 @@ services:
         volumes:
             - kopia_config:/app/config
             - kopia_cache:/app/cache
-            - app_data:/data/app-data:ro
-            - media_apps:/data/media-apps:ro
+            - app_data:/data/app-data
+            - media_apps:/data/media-apps
         command:
             - server
             - start
