@@ -10,7 +10,7 @@ services:
             - /dev/net/tun:/dev/net/tun
         entrypoint: ["/bin/sh", "/scripts/init-vpn.sh"]
         configs:
-            - source: vpn_init_script
+            - source: vpn_init_script_v2
               target: /scripts/init-vpn.sh
               mode: 493
         environment:
@@ -232,7 +232,7 @@ services:
                     - node.labels.downloads == true
 
     tranga-api:
-        image: ghcr.io/chutch3/tranga-api:cuttingedge
+        image: ghcr.io/chutch3/tranga-api:cuttingedge@sha256:67333c5f0fef2578a80f846d002fd9eefd8a580bab20ee1b1aa4514d6f1cde38
         container_name: tranga-api
         configs:
             - source: tranga_settings_v4
@@ -261,7 +261,7 @@ services:
                 constraints:
                     - node.labels.downloads == true
     tranga-website:
-        image: glax/tranga-website:latest
+        image: ghcr.io/chutch3/tranga-website:cuttingedge@sha256:bbe6864b603167ff17c7a010eda2c26cc242b88a58e10f9bb7f39dad87848011
         container_name: tranga-website
         environment:
             - TRANGA_API_URL=http://tranga-api:6531
@@ -290,7 +290,7 @@ services:
                 - homepage.description=Manga Downloader
 
 configs:
-    vpn_init_script:
+    vpn_init_script_v2:
         file: ./scripts/init-vpn.sh
     sabnzbd_fix_whitelist:
         file: ./sabnzbd/99-fix-whitelist

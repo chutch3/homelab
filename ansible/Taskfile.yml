@@ -163,6 +163,12 @@ tasks:
         cmds:
             - "{{.VENV_ANSIBLE_PLAYBOOK}} -i ansible/inventory/ ansible/playbooks/cluster/sync.yml {{.CLI_ARGS}}"
 
+    ops:repair-network:
+        desc: 'Flush stale VXLAN interfaces and repair Swarm networking (usage: task ansible:ops:repair-network -- -e "target_node=mini")'
+        dir: "{{.ROOT_DIR}}"
+        cmds:
+            - "{{.VENV_ANSIBLE_PLAYBOOK}} --become -i ansible/inventory/ ansible/playbooks/ops/repair-network.yml {{.CLI_ARGS}}"
+
     # Ansible Application Deployment
     deploy:
         desc: "Full idempotent cluster deploy: init swarm → join workers → labels → storage → stacks"
