@@ -1,0 +1,83 @@
+version: "3.9"
+
+services:
+  claudecodeui:
+    image: ${REGISTRY_URL:-ghcr.io}/${GITHUB_USERNAME}/homelab-devbox:${IMAGE_TAG:-latest}
+    user: "1000:1000"
+    environment:
+      - TZ=${TZ:-America/New_York}
+      - PORT=3001
+      - NODE_ENV=production
+      - VITE_IS_PLATFORM=true
+      - OPENROUTER_KEY=${OPENROUTER_KEY}
+    command: /bin/bash -c "export PATH=$$HOME/.local/share/fnm:$$PATH && eval \"\$$(fnm env --use-on-cd)\" && mkdir -p ~/.claude ~/.config/gemini ~/.cloudcli ~/.forge && cloudcli start"
+    working_dir: /workspace
+    volumes:
+      - workspace:/workspace
+      - claude_config:/home/coder/.claude
+      - gemini_config:/home/coder/.config/gemini
+      - cloudcli_config:/home/coder/.cloudcli
+      - forge_config:/home/coder/.forge
+      - shared_ssh:/home/coder/.ssh
+    networks:
+      - traefik-public
+    deploy:
+      replicas: 1
+      labels:
+        - "traefik.enable=true"
+        - "traefik.http.routers.claudecodeui.rule=Host(`ai.${BASE_DOMAIN}`)"
+        - "traefik.http.routers.claudecodeui.entrypoints=websecure"
+        - "traefik.http.routers.claudecodeui.tls.certresolver=dns"
+        - "traefik.http.routers.claudecodeui.middlewares=authentik@swarm"
+        - "traefik.http.services.claudecodeui.loadbalancer.server.port=3001"
+        - "traefik.swarm.network=traefik-public"
+        - "homepage.group=Development"
+        - "homepage.name=CloudCLI"
+        - "homepage.icon=terminal.png"
+        - "homepage.href=https://ai.${BASE_DOMAIN}/"
+        - "homepage.description=AI Agents (Claude/Gemini/Forge)"
+      restart_policy:
+        condition: any
+        delay: 5s
+
+networks:
+  traefik-public:
+    external: true
+
+volumes:
+  workspace:
+    driver: local
+    driver_opts:
+      type: "none"
+      o: "bind"
+      device: "/mnt/iscsi/app-data/dev-env/workspace"
+  claude_config:
+    driver: local
+    driver_opts:
+      type: "none"
+      o: "bind"
+      device: "/mnt/iscsi/app-data/dev-env/ai-configs/claude"
+  gemini_config:
+    driver: local
+    driver_opts:
+      type: "none"
+      o: "bind"
+      device: "/mnt/iscsi/app-data/dev-env/ai-configs/gemini"
+  cloudcli_config:
+    driver: local
+    driver_opts:
+      type: "none"
+      o: "bind"
+      device: "/mnt/iscsi/app-data/dev-env/ai-configs/cloudcli"
+  forge_config:
+    driver: local
+    driver_opts:
+      type: "none"
+      o: "bind"
+      device: "/mnt/iscsi/app-data/dev-env/ai-configs/forge"
+  shared_ssh:
+    driver: local
+    driver_opts:
+      type: "none"
+      o: "bind"
+      device: "/mnt/iscsi/app-data/dev-env/shared-ssh"

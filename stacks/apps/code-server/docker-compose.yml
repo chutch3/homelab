@@ -1,0 +1,57 @@
+version: "3.9"
+
+services:
+  code-server:
+    image: ${REGISTRY_URL:-ghcr.io}/${GITHUB_USERNAME}/homelab-devbox:${IMAGE_TAG:-latest}
+    user: "1000:1000"
+    environment:
+      - TZ=${TZ:-America/New_York}
+    command: code-server --bind-addr 0.0.0.0:8443 --auth none /workspace
+    volumes:
+      - code_server_config:/home/coder
+      - workspace:/workspace
+      - shared_ssh:/home/coder/.ssh
+    networks:
+      - traefik-public
+    deploy:
+      replicas: 1
+      labels:
+        - "traefik.enable=true"
+        - "traefik.http.routers.codeserver.rule=Host(`code.${BASE_DOMAIN}`)"
+        - "traefik.http.routers.codeserver.entrypoints=websecure"
+        - "traefik.http.routers.codeserver.tls.certresolver=dns"
+        - "traefik.http.routers.codeserver.middlewares=authentik@swarm"
+        - "traefik.http.services.codeserver.loadbalancer.server.port=8443"
+        - "traefik.swarm.network=traefik-public"
+        - "homepage.group=Development"
+        - "homepage.name=Code Server"
+        - "homepage.icon=vscode.png"
+        - "homepage.href=https://code.${BASE_DOMAIN}/"
+        - "homepage.description=Web IDE"
+      restart_policy:
+        condition: any
+        delay: 5s
+
+networks:
+  traefik-public:
+    external: true
+
+volumes:
+  code_server_config:
+    driver: local
+    driver_opts:
+      type: "none"
+      o: "bind"
+      device: "/mnt/iscsi/app-data/dev-env/code-server/config"
+  workspace:
+    driver: local
+    driver_opts:
+      type: "none"
+      o: "bind"
+      device: "/mnt/iscsi/app-data/dev-env/workspace"
+  shared_ssh:
+    driver: local
+    driver_opts:
+      type: "none"
+      o: "bind"
+      device: "/mnt/iscsi/app-data/dev-env/shared-ssh"
