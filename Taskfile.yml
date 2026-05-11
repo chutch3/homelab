@@ -14,6 +14,9 @@ includes:
     takeout-manager:
         taskfile: stacks/apps/takeout-manager/Taskfile.yml
         dir: stacks/apps/takeout-manager
+    devbox:
+        taskfile: images/devbox/Taskfile.yml
+        dir: images/devbox
     monitoring:
         taskfile: stacks/monitoring/Taskfile.yml
         dir: stacks/monitoring

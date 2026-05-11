@@ -1,0 +1,49 @@
+version: "3"
+
+vars:
+    IMAGE_NAME: "homelab-devbox"
+    IMAGE_TAG: '{{.IMAGE_TAG | default "latest"}}'
+    REGISTRY_URL: '{{.REGISTRY_URL | default "ghcr.io"}}'
+    REGISTRY_NAMESPACE: '{{.REGISTRY_NAMESPACE | default .GITHUB_USERNAME}}'
+    PLATFORM: '{{.PLATFORM | default "linux/amd64"}}'
+
+tasks:
+    build:
+        desc: Build the custom DevBox image
+        cmds:
+            - |
+                docker build \
+                  --platform {{.PLATFORM}} \
+                  --tag {{.REGISTRY_URL}}/{{.REGISTRY_NAMESPACE}}/{{.IMAGE_NAME}}:{{.IMAGE_TAG}} \
+                  .
+
+    push:
+        desc: Push the image to registry
+        cmds:
+            - docker push {{.REGISTRY_URL}}/{{.REGISTRY_NAMESPACE}}/{{.IMAGE_NAME}}:{{.IMAGE_TAG}}
+
+    publish:
+        desc: Build and push the image
+        cmds:
+            - task: build
+            - task: push
+
+    deploy:
+        desc: Deploy both DevBox stacks (code-server and claudecodeui)
+        cmds:
+            - task: deploy:code-server
+            - task: deploy:ai
+
+    deploy:code-server:
+        desc: Deploy the code-server stack
+        cmds:
+            - task: ansible:deploy:service
+              vars: { stack_name: "code-server" }
+        dir: "../../"
+
+    deploy:ai:
+        desc: Deploy the claudecodeui stack
+        cmds:
+            - task: ansible:deploy:service
+              vars: { stack_name: "claudecodeui" }
+        dir: "../../"
