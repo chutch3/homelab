@@ -79,4 +79,3 @@
   when:
     - item.enabled | bool
     - item.iqn is defined
-  ignore_errors: yes
