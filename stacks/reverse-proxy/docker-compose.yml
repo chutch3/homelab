@@ -20,6 +20,8 @@ services:
 
             # Entrypoints
             - "--entrypoints.web.address=:80"
+            - "--entrypoints.web.http.redirections.entryPoint.to=websecure"
+            - "--entrypoints.web.http.redirections.entryPoint.scheme=https"
             - "--entrypoints.websecure.address=:443"
             - "--entrypoints.metrics.address=:9100"
             - "--entrypoints.hubitat.address=:8181"
