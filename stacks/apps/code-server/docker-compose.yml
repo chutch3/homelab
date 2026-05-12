@@ -6,9 +6,9 @@ services:
     user: "1000:1000"
     environment:
       - TZ=${TZ:-America/New_York}
-    command: code-server --bind-addr 0.0.0.0:8443 --auth none /workspace
+    command: code-server --auth none --bind-addr 0.0.0.0:3001 /workspace
     volumes:
-      - code_server_config:/home/coder
+      - code_server_config:/home/coder/.config/code-server
       - workspace:/workspace
       - shared_ssh:/home/coder/.ssh
     networks:
@@ -21,7 +21,7 @@ services:
         - "traefik.http.routers.codeserver.entrypoints=websecure"
         - "traefik.http.routers.codeserver.tls.certresolver=dns"
         - "traefik.http.routers.codeserver.middlewares=authentik@swarm"
-        - "traefik.http.services.codeserver.loadbalancer.server.port=8443"
+        - "traefik.http.services.codeserver.loadbalancer.server.port=3001"
         - "traefik.swarm.network=traefik-public"
         - "homepage.group=Development"
         - "homepage.name=Code Server"
