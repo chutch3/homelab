@@ -61,36 +61,39 @@
     base_domain: "{{ lookup('env', 'BASE_DOMAIN') }}"
 
   tasks:
-    - name: Get Uptime Kuma API token
-      ansible.builtin.include_role:
-        name: uptime_kuma
-        tasks_from: get-token
-      ignore_errors: yes
+    - name: Attempt cleanup of external services (Uptime Kuma, DNS)
+      block:
+        - name: Get Uptime Kuma API token
+          ansible.builtin.include_role:
+            name: uptime_kuma
+            tasks_from: get-token
 
-    - name: Remove all Uptime Kuma service monitors
-      ansible.builtin.include_role:
-        name: uptime_kuma
-        tasks_from: remove-service-monitors
-      when: uptime_kuma_api_token is defined
+        - name: Remove all Uptime Kuma service monitors
+          ansible.builtin.include_role:
+            name: uptime_kuma
+            tasks_from: remove-service-monitors
+          when: uptime_kuma_api_token is defined
 
-    - name: Get DNS API token
-      ansible.builtin.include_role:
-        name: dns
-        tasks_from: get-token
-      ignore_errors: yes
+        - name: Get DNS API token
+          ansible.builtin.include_role:
+            name: dns
+            tasks_from: get-token
 
-    - name: Get Pi-hole API token
-      ansible.builtin.include_role:
-        name: dns
-        tasks_from: get-pihole-token
-      when: secondary_dns_enabled | default(false) | bool
-      ignore_errors: yes
+        - name: Get Pi-hole API token
+          ansible.builtin.include_role:
+            name: dns
+            tasks_from: get-pihole-token
+          when: secondary_dns_enabled | default(false) | bool
 
-    - name: Remove all DNS service records
-      ansible.builtin.include_role:
-        name: dns
-        tasks_from: remove-service-cnames
-      when: dns_api_token is defined
+        - name: Remove all DNS service records
+          ansible.builtin.include_role:
+            name: dns
+            tasks_from: remove-service-cnames
+          when: dns_api_token is defined
+      rescue:
+        - name: Warn about cleanup failure
+          ansible.builtin.debug:
+            msg: "⚠️ External cleanup (Uptime Kuma/DNS) failed or was partially skipped. This usually happens if services are already down. Proceeding with stack removal..."
 
 # ============================================================================
 # PHASE: stacks — Remove all Docker Swarm stacks

@@ -1,6 +1,25 @@
 ---
 # ansible/roles/uptime-kuma/tasks/get-token.yml
-# Authenticate with Uptime Kuma and obtain API token
+# Authenticate with Uptime Kuma and obtain API token.
+# Sets uptime_kuma_api_token if reachable; sets uptime_kuma_reachable=false and skips otherwise.
+
+- name: Check if Uptime Kuma is reachable
+  ansible.builtin.uri:
+    url: "{{ uptime_kuma_api_url }}"
+    timeout: 5
+    validate_certs: false
+  register: uptime_kuma_reachability
+  failed_when: false
+  delegate_to: localhost
+
+- name: Set Uptime Kuma reachability fact
+  ansible.builtin.set_fact:
+    uptime_kuma_reachable: "{{ uptime_kuma_reachability.status | default(-1) | int > 0 }}"
+
+- name: Warn if Uptime Kuma is unreachable
+  ansible.builtin.debug:
+    msg: "⚠️ Uptime Kuma is unreachable at {{ uptime_kuma_api_url }} — skipping monitor management"
+  when: not uptime_kuma_reachable
 
 - name: Authenticate with Uptime Kuma
   lucasheld.uptime_kuma.login:
@@ -9,12 +28,14 @@
     api_password: "{{ lookup('env', 'UPTIME_KUMA_PASSWORD') }}"
   register: uptime_kuma_auth
   delegate_to: localhost
+  when: uptime_kuma_reachable
 
 - name: Fail if authentication failed
   ansible.builtin.fail:
     msg: "Failed to authenticate with Uptime Kuma. Please check your credentials."
-  when: uptime_kuma_auth.token is not defined
+  when: uptime_kuma_reachable and uptime_kuma_auth.token is not defined
 
 - name: Set Uptime Kuma API token
   ansible.builtin.set_fact:
     uptime_kuma_api_token: "{{ uptime_kuma_auth.token }}"
+  when: uptime_kuma_reachable and uptime_kuma_auth.token is defined

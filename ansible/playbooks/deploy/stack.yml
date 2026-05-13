@@ -132,7 +132,7 @@
         ansible.builtin.include_role:
             name: uptime_kuma
             tasks_from: add-service-monitors
-        when: should_register_uptime | default(false)
+        when: should_register_uptime | default(false) and (uptime_kuma_api_token is defined)
 
       - name: Deployment summary
         ansible.builtin.debug:
