@@ -31,6 +31,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     llvm \
     locales \
     lsb-release \
+    openssh-client \
     procps \
     sudo \
     tk-dev \
