@@ -6,6 +6,8 @@ services:
     user: "1000:1000"
     environment:
       - TZ=${TZ:-America/New_York}
+      - NVIDIA_VISIBLE_DEVICES=all
+      - NVIDIA_DRIVER_CAPABILITIES=compute,utility
     command: code-server --auth none --bind-addr 0.0.0.0:3001 /home/coder/workspace
     volumes:
       - code_server_config:/home/coder/.config/code-server
@@ -15,6 +17,9 @@ services:
       - traefik-public
     deploy:
       replicas: 1
+      placement:
+        constraints:
+          - node.labels.gpu == true
       labels:
         - "traefik.enable=true"
         - "traefik.http.routers.codeserver.rule=Host(`code.${BASE_DOMAIN}`)"
