@@ -129,3 +129,4 @@
       ansible.builtin.include_role:
         name: uptime_kuma
         tasks_from: add-service-monitors
+      when: uptime_kuma_api_token is defined

@@ -69,7 +69,7 @@
       ansible.builtin.include_role:
         name: uptime_kuma
         tasks_from: remove-service-monitors
-      when: remove_uptime | bool and stack_name not in ['reverse-proxy', 'uptime-kuma']
+      when: remove_uptime | bool and stack_name not in ['reverse-proxy', 'uptime-kuma'] and (uptime_kuma_api_token is defined)
 
     - name: Get DNS API token
       ansible.builtin.include_role:
