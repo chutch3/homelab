@@ -14,7 +14,10 @@ services:
               published: 53
               protocol: tcp
               mode: host
-            - "5380:5380"
+            - target: 5380
+              published: 5380
+              protocol: tcp
+              mode: host
         deploy:
             replicas: 1
             placement:
