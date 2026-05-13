@@ -9,11 +9,12 @@ services:
       - PORT=3001
       - NODE_ENV=production
       - VITE_IS_PLATFORM=true
+      - WORKSPACES_ROOT=/home/coder/workspace
       - OPENROUTER_KEY=${OPENROUTER_KEY}
     command: /bin/bash -c "export PATH=$$HOME/.local/share/fnm:$$PATH && eval \"\$$(fnm env --use-on-cd)\" && mkdir -p ~/.claude ~/.config/gemini ~/.cloudcli ~/.forge && cloudcli start"
-    working_dir: /workspace
+    working_dir: /home/coder
     volumes:
-      - workspace:/workspace
+      - workspace:/home/coder/workspace
       - claude_config:/home/coder/.claude
       - gemini_config:/home/coder/.config/gemini
       - cloudcli_config:/home/coder/.cloudcli

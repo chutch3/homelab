@@ -6,10 +6,10 @@ services:
     user: "1000:1000"
     environment:
       - TZ=${TZ:-America/New_York}
-    command: code-server --auth none --bind-addr 0.0.0.0:3001 /workspace
+    command: code-server --auth none --bind-addr 0.0.0.0:3001 /home/coder/workspace
     volumes:
       - code_server_config:/home/coder/.config/code-server
-      - workspace:/workspace
+      - workspace:/home/coder/workspace
       - shared_ssh:/home/coder/.ssh
     networks:
       - traefik-public
