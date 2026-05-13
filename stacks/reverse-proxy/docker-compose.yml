@@ -50,9 +50,18 @@ services:
             - CF_DNS_API_TOKEN=${CLOUDFLARE_DNS_API_TOKEN}
 
         ports:
-            - "80:80"
-            - "443:443"
-            - "8181:8181"
+            - target: 80
+              published: 80
+              protocol: tcp
+              mode: host
+            - target: 443
+              published: 443
+              protocol: tcp
+              mode: host
+            - target: 8181
+              published: 8181
+              protocol: tcp
+              mode: host
 
         healthcheck:
             test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8080/ping"]
@@ -81,7 +90,7 @@ services:
             update_config:
                 parallelism: 1
                 delay: 10s
-                order: start-first
+                order: stop-first
             labels:
                 - "traefik.enable=true"
 
