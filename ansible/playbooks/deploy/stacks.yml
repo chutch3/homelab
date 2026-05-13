@@ -92,6 +92,7 @@
       community.docker.docker_stack:
         state: present
         name: "{{ item.split('/')[-1] }}"
+        with_registry_auth: true
         compose:
           - "{{ item }}/docker-compose.yml"
       environment: "{{ swarm_env_vars }}"
