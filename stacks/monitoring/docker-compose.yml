@@ -11,6 +11,8 @@ services:
             - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
             - /var/run/docker.sock:/var/run/docker.sock:ro
         deploy:
+            # dnsrr bypasses Swarm's default VIP/IPVS load balancing, which fails to
+            # program kernel IPVS rules correctly on this host, making the VIP unreachable.
             endpoint_mode: dnsrr
             placement:
                 constraints:
@@ -120,10 +122,6 @@ services:
     loki:
         image: grafana/loki:3.0.0
         command: -config.file=/etc/loki/config.yml
-        ports:
-            - target: 3100
-              published: 3100
-              mode: host
         networks:
             - traefik-public
         volumes:
@@ -132,6 +130,9 @@ services:
             - source: loki_config
               target: /etc/loki/config.yml
         deploy:
+            # dnsrr bypasses Swarm's default VIP/IPVS load balancing, which fails to
+            # program kernel IPVS rules correctly on this host, making the VIP unreachable.
+            endpoint_mode: dnsrr
             placement:
                 constraints:
                     - node.role == manager
