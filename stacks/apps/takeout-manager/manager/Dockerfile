@@ -14,17 +14,15 @@ RUN npm run build
 # Stage 2: Build Backend
 FROM python:3.10-slim
 
-# Install poetry
-RUN pip install --no-cache-dir poetry
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
 
 WORKDIR /app
 
-# Copy only pyproject.toml and poetry.lock to leverage Docker cache
-COPY pyproject.toml poetry.lock ./
+# Copy only pyproject.toml and uv.lock to leverage Docker cache
+COPY pyproject.toml uv.lock ./
 
-# Install dependencies (without the project itself, since code isn't copied yet)
-RUN poetry config virtualenvs.create false && \
-    poetry install --without dev --no-root --no-interaction --no-ansi
+# Install dependencies
+RUN uv sync --no-dev --no-install-project
 
 # Copy application code
 COPY ./backend /app/backend

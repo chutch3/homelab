@@ -1,41 +1,46 @@
-[tool.poetry]
+[project]
 name = "homelab"
 version = "3.13.0"
 description = ""
-authors = ["Cody Hutchens"]
-license = "MIT"
+authors = [{name = "Cody Hutchens"}]
+license = {text = "MIT"}
+requires-python = ">=3.10"
+dependencies = [
+    "Jinja2>=3.1.2",
+    "jinja2-cli>=0.8.2",
+    "PyYAML>=6.0",
+    "mkdocs>=1.5.3",
+    "mkdocs-material>=9.5.0",
+    "mkdocs-git-revision-date-localized-plugin>=1.2.0",
+    "mkdocs-git-committers-plugin-2>=2.2.0",
+    "mkdocs-minify-plugin>=0.8.0",
+    "mkdocs-glightbox>=0.3.4",
+    "mkdocs-mermaid2-plugin>=1.1.0",
+    "mkdocs-include-markdown-plugin>=6.0.0",
+    "pillow>=10.0.0",
+    "cairosvg>=2.7.0",
+    "pymdown-extensions>=10.19.1",
+    "jsondiff>=2.2.1",
+    "uptime-kuma-api>=1.2.1",
+]
 
-[tool.poetry.dependencies]
-python = "^3.10"
-Jinja2 = "^3.1.2"
-jinja2-cli = "^0.8.2"
-PyYAML = "^6.0"
-mkdocs = "^1.5.3"
-mkdocs-material = "^9.5.0"
-mkdocs-git-revision-date-localized-plugin = "^1.2.0"
-mkdocs-git-committers-plugin-2 = "^2.2.0"
-mkdocs-minify-plugin = "^0.8.0"
-mkdocs-glightbox = "^0.3.4"
-mkdocs-mermaid2-plugin = "^1.1.0"
-mkdocs-include-markdown-plugin = "^6.0.0"
-pillow = "^10.0.0"
-cairosvg = "^2.7.0"
-pymdown-extensions = "^10.19.1"
-jsondiff = "^2.2.1"
-uptime-kuma-api = "^1.2.1"
+[dependency-groups]
+dev = [
+    "pre-commit>=3.2.2",
+    "python-semantic-release>=10.3.1",
+    "yamllint>=1.35.1",
+    "shellcheck-py>=0.10.0",
+    "ansible>=10.7.0",
+    "ansible-lint>=25.1.0",
+    "docker>=7.1.0",
+    "pytest-httpserver>=1.1",
+]
 
-[tool.poetry.group.dev.dependencies]
-pre-commit = "^3.2.2"
-python-semantic-release = "^10.3.1"
-yamllint = "^1.35.1"
-shellcheck-py = "^0.10.0"
-ansible = "^10.7.0"
-ansible-lint = "^25.1.0"
-docker = "^7.1.0"
-pytest-httpserver = "^1.1"
+[tool.uv]
+package = false
 
 [tool.semantic_release]
-version_toml = ["pyproject.toml:tool.poetry.version"]
+version_toml = ["pyproject.toml:project.version"]
 branch = "main"
 upload_to_pypi = false
 upload_to_release = true
@@ -46,8 +51,3 @@ major_on_zero = false
 
 [tool.semantic_release.changelog]
 changelog_file = "CHANGELOG.md"
-
-
-[build-system]
-requires = ["poetry-core>=1.0.0"]
-build-backend = "poetry.core.masonry.api"

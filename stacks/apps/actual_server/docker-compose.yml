@@ -16,6 +16,7 @@ services:
             - traefik-public
         user: 0:100
         deploy:
+            endpoint_mode: dnsrr
             labels:
                 - "traefik.enable=true"
                 - "traefik.http.routers.actual.rule=Host(`budget.${BASE_DOMAIN}`)"

@@ -33,8 +33,8 @@ tasks:
     install:
         desc: Install project dependencies
         cmds:
-            - poetry install --no-root
-            - poetry run pre-commit install
+            - uv sync
+            - uv run pre-commit install
 
     test:
         desc: Run unit and integration tests with coverage
@@ -79,27 +79,27 @@ tasks:
     lint:shell:
         desc: Run shellcheck on shell scripts
         cmds:
-            - find scripts -name "*.sh" -type f -exec poetry run shellcheck -x --source-path=scripts {} +
+            - find scripts -name "*.sh" -type f -exec uv run shellcheck -x --source-path=scripts {} +
 
     lint:yaml:
         desc: Run yamllint on YAML files
         cmds:
-            - poetry run yamllint .
+            - uv run yamllint .
 
     lint:dockerfile:
         desc: Run hadolint on Dockerfiles (using pre-commit)
         cmds:
-            - poetry run pre-commit run hadolint --all-files
+            - uv run pre-commit run hadolint --all-files
 
     lint:secrets:
         desc: Run gitleaks to check for secrets (via pre-commit)
         cmds:
-            - poetry run pre-commit run gitleaks --all-files
+            - uv run pre-commit run gitleaks --all-files
 
     lint:python:
         desc: Run pre-commit hooks (includes Python linting)
         cmds:
-            - poetry run pre-commit run --all-files
+            - uv run pre-commit run --all-files
 
     static-analysis:
         desc: Run static analysis tools
@@ -108,12 +108,12 @@ tasks:
     security-scan:
         desc: Run security scanning (via pre-commit)
         cmds:
-            - poetry run pre-commit run gitleaks --all-files
+            - uv run pre-commit run gitleaks --all-files
 
     format:
         desc: Format code
         cmds:
-            - poetry run pre-commit run --all-files
+            - uv run pre-commit run --all-files
 
     clean:
         desc: Clean up generated files and caches
@@ -126,21 +126,21 @@ tasks:
     docs:build:
         desc: Build documentation with MkDocs
         cmds:
-            - poetry run mkdocs build --clean --strict
+            - uv run mkdocs build --clean --strict
         env:
             MKDOCS_ENABLE_SOCIAL: false
 
     docs:serve:
         desc: Serve documentation locally with live reload
         cmds:
-            - poetry run mkdocs serve --dev-addr=0.0.0.0:{{.PORT}}
+            - uv run mkdocs serve --dev-addr=0.0.0.0:{{.PORT}}
         vars:
             PORT: "{{ .PORT | default 8000 }}"
 
     docs:validate:
         desc: Validate documentation build and check for issues
         cmds:
-            - poetry run mkdocs build --clean
+            - uv run mkdocs build --clean
             - echo "✅ Documentation builds successfully"
         env:
             MKDOCS_ENABLE_SOCIAL: false
@@ -148,7 +148,7 @@ tasks:
     docs:validate-strict:
         desc: Validate documentation build with strict mode (fails on warnings)
         cmds:
-            - poetry run mkdocs build --clean --strict
+            - uv run mkdocs build --clean --strict
             - echo "✅ Documentation builds successfully with no warnings"
         env:
             MKDOCS_ENABLE_SOCIAL: false
@@ -180,26 +180,26 @@ tasks:
     release:version:
         desc: Check what the next version would be
         cmds:
-            - poetry run semantic-release version --print
+            - uv run semantic-release version --print
 
     release:
         desc: Run semantic release (determines if release needed and executes)
         cmds:
             - git config --global user.name "github-actions[bot]"
             - git config --global user.email "github-actions[bot]@users.noreply.github.com"
-            - poetry run semantic-release version --skip-build
+            - uv run semantic-release version --skip-build
 
     release:update-lock:
-        desc: Update Poetry lock file after release
+        desc: Update uv lock file after release
         cmds:
-            - poetry lock --no-update
+            - uv lock
             - |
                 if [ -n "$(git diff --name-only)" ]; then
-                  git add poetry.lock
-                  git commit -m "chore: update poetry.lock after release"
-                  echo "Poetry lock file updated and committed"
+                  git add uv.lock
+                  git commit -m "chore: update uv.lock after release"
+                  echo "uv lock file updated and committed"
                 else
-                  echo "Poetry lock file is already up to date"
+                  echo "uv lock file is already up to date"
                 fi
 
     help:

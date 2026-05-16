@@ -32,6 +32,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     locales \
     lsb-release \
     openssh-client \
+    pre-commit \
     procps \
     sudo \
     tk-dev \
@@ -111,9 +112,6 @@ ENV DOTNET_CLI_TELEMETRY_OPTOUT=1
 # npm global tools
 RUN eval "$(fnm env --use-on-cd)" && \
     npm install -g @anthropic-ai/claude-code@latest @google/gemini-cli@latest @cloudcli-ai/cloudcli@latest
-
-# Ansible via uv (isolated, up-to-date)
-RUN uv tool install ansible
 
 # Forge Code
 RUN curl -fsSL https://forgecode.dev/install.sh | bash
