@@ -492,47 +492,56 @@ tasks:
     # SECRET MANAGEMENT (Sync & Restore)
     # ========================================================================
     secrets:login:
-        desc: Login and unlock Bitwarden vault (requires BW_PASSWORD or interactive input)
+        desc: Login and unlock Bitwarden vault. Set BW_CLIENTID+BW_CLIENTSECRET+BW_PASSWORD for non-interactive use.
         dir: "{{.ROOT_DIR}}"
         interactive: true
         cmds:
             - |
                 export PATH="$PATH:$HOME/.local/bin"
-                if ! command -v bw &> /dev/null; then
-                  echo "Bitwarden CLI not found. Running self-healing install..."
-                  {{.VENV_ANSIBLE_PLAYBOOK}} -i ansible/inventory/ ansible/playbooks/secrets.yml -e secret_op=pull {{.CLI_ARGS}}
+                {{.VENV_ANSIBLE_PLAYBOOK}} -i ansible/inventory/ ansible/playbooks/secrets.yml -e secret_op=install {{.CLI_ARGS}}
+
+                STATUS=$(bw status 2>/dev/null | python3 -c "import sys,json; print(json.load(sys.stdin)['status'])" 2>/dev/null || echo 'uninstalled')
+
+                if [ "$STATUS" = "unauthenticated" ]; then
+                  if [ -n "$BW_CLIENTID" ] && [ -n "$BW_CLIENTSECRET" ]; then
+                    bw login --apikey
+                  else
+                    bw login
+                  fi
+                  STATUS=$(bw status 2>/dev/null | python3 -c "import sys,json; print(json.load(sys.stdin)['status'])" 2>/dev/null || echo 'uninstalled')
                 fi
-                
-                STATUS=$(bw status 2>/dev/null || echo '{"status":"uninstalled"}')
-                if echo "$STATUS" | grep -q "unauthenticated"; then
-                  bw login
-                fi
-                
-                if echo "$STATUS" | grep -q "locked"; then
-                  SESSION=$(bw unlock --raw)
-                  echo "Vault unlocked."
-                  echo "--------------------------------------------------------"
-                  echo "IMPORTANT: Copy and run this command in your terminal:"
-                  echo "export BW_SESSION=$SESSION"
-                  echo "--------------------------------------------------------"
-                elif echo "$STATUS" | grep -q "unauthenticated" || echo "$STATUS" | grep -q "uninstalled"; then
+
+                if [ "$STATUS" = "locked" ]; then
+                  if [ -n "$BW_PASSWORD" ]; then
+                    SESSION=$(bw unlock --passwordenv BW_PASSWORD --raw)
+                  else
+                    SESSION=$(bw unlock --raw)
+                  fi
+                  echo "BW_SESSION=$SESSION" > "$HOME/.bw_session"
+                  chmod 600 "$HOME/.bw_session"
+                  echo "Vault unlocked. Session saved to ~/.bw_session."
+                elif [ "$STATUS" = "unlocked" ]; then
+                  echo "Vault already unlocked."
+                else
                   echo "Error: Bitwarden is not authenticated or could not be installed."
                   exit 1
-                else
-                  echo "Vault already unlocked."
                 fi
 
     secrets:pull:
         desc: Restore .env from the configured secret provider (e.g., Bitwarden)
         dir: "{{.ROOT_DIR}}"
         cmds:
-            - "{{.VENV_ANSIBLE_PLAYBOOK}} -i ansible/inventory/ ansible/playbooks/secrets.yml -e secret_op=pull {{.CLI_ARGS}}"
+            - |
+                if [ -z "$BW_SESSION" ] && [ -f "$HOME/.bw_session" ]; then set -a; source "$HOME/.bw_session"; set +a; fi
+                {{.VENV_ANSIBLE_PLAYBOOK}} -i ansible/inventory/ ansible/playbooks/secrets.yml -e secret_op=pull {{.CLI_ARGS}}
 
     secrets:push:
         desc: Sync local .env to the configured secret provider (e.g., Bitwarden)
         dir: "{{.ROOT_DIR}}"
         cmds:
-            - "{{.VENV_ANSIBLE_PLAYBOOK}} -i ansible/inventory/ ansible/playbooks/secrets.yml -e secret_op=push {{.CLI_ARGS}}"
+            - |
+                if [ -z "$BW_SESSION" ] && [ -f "$HOME/.bw_session" ]; then set -a; source "$HOME/.bw_session"; set +a; fi
+                {{.VENV_ANSIBLE_PLAYBOOK}} -i ansible/inventory/ ansible/playbooks/secrets.yml -e secret_op=push {{.CLI_ARGS}}
 
     secrets:wipe:
         desc: "DESTRUCTIVE: Securely remove the local .env file"

@@ -24,39 +24,36 @@ cifs_packages:
 
 # iSCSI configuration - shared block storage for Docker volumes
 iscsi_enabled: "{{ lookup('env', 'ISCSI_ENABLED') | default('false') | bool }}"
-iscsi_target_ip: "{{ lookup('env', 'NAS_IP') | default('192.168.86.189') }}"
-iscsi_target_port: "{{ lookup('env', 'ISCSI_TARGET_PORT') | default('3260') | int }}"
+iscsi_target_ip: "{{ lookup('env', 'NAS_IP') | default('192.168.86.189', true) }}"
+iscsi_target_port: "{{ lookup('env', 'ISCSI_TARGET_PORT') | default('3260', true) | int }}"
 iscsi_target_iqn: "{{ lookup('env', 'ISCSI_TARGET_IQN') }}"
-iscsi_mount_path: "{{ lookup('env', 'ISCSI_MOUNT_PATH') | default('/mnt/iscsi/media-apps') }}"
+iscsi_mount_path: "{{ lookup('env', 'ISCSI_MOUNT_PATH') | default('/mnt/iscsi/media-apps', true) }}"
 
 # Second iSCSI mount for app-data
 iscsi_app_data_enabled: "{{ lookup('env', 'ISCSI_APP_DATA_ENABLED') | default('false') | bool }}"
 iscsi_app_data_iqn: "{{ lookup('env', 'ISCSI_APP_DATA_IQN') }}"
-iscsi_app_data_mount_path: "{{ lookup('env', 'ISCSI_APP_DATA_MOUNT_PATH') | default('/mnt/iscsi/app-data') }}"
+iscsi_app_data_mount_path: "{{ lookup('env', 'ISCSI_APP_DATA_MOUNT_PATH') | default('/mnt/iscsi/app-data', true) }}"
 
 # Third iSCSI mount for cache storage
 iscsi_cache_enabled: "{{ lookup('env', 'ISCSI_CACHE_ENABLED') | default('false') | bool }}"
 iscsi_cache_iqn: "{{ lookup('env', 'ISCSI_CACHE_IQN') }}"
-iscsi_cache_mount_path: "{{ lookup('env', 'ISCSI_CACHE_MOUNT_PATH') | default('/mnt/iscsi/cache') }}"
+iscsi_cache_mount_path: "{{ lookup('env', 'ISCSI_CACHE_MOUNT_PATH') | default('/mnt/iscsi/cache', true) }}"
 
 # DNS configuration
 # primary_dns_managed=true: this repo deploys and manages the DNS server (stacks/dns)
 # primary_dns_managed=false: bring your own DNS server (set PRIMARY_DNS_HOST)
-primary_dns_type: "{{ lookup('env', 'PRIMARY_DNS_TYPE') | default('technitium') }}"
-primary_dns_managed: "{{ lookup('env', 'PRIMARY_DNS_MANAGED') | default('true') | bool }}"
+primary_dns_type: "{{ lookup('env', 'PRIMARY_DNS_TYPE') | default('technitium', true) }}"
+primary_dns_managed: "{{ lookup('env', 'PRIMARY_DNS_MANAGED') | default('true', true) | bool }}"
 primary_dns_host: "{{ lookup('env', 'PRIMARY_DNS_HOST') | default(hostvars[groups['managers'][0]]['ansible_host'], true) }}"
 primary_dns_api_key: "{{ lookup('env', 'PRIMARY_DNS_API_KEY') | default('') }}"
 
 # Derived API base URL — used by adapters and readiness checks
-dns_primary_api_url: >-
-  {{ 'http://' ~ primary_dns_host ~ ':5380/api'
-     if primary_dns_type == 'technitium'
-     else 'http://' ~ primary_dns_host ~ '/api' }}
+dns_primary_api_url: "{{ 'http://' ~ primary_dns_host ~ ':5380/api' if primary_dns_type == 'technitium' else 'http://' ~ primary_dns_host ~ '/api' }}"
 
 # Secondary DNS configuration
 # Set SECONDARY_DNS_ENABLED=true and provide SECONDARY_DNS_HOST + SECONDARY_DNS_API_KEY to sync records
 secondary_dns_enabled: "{{ lookup('env', 'SECONDARY_DNS_ENABLED') | default('false') | bool }}"
-secondary_dns_type: "{{ lookup('env', 'SECONDARY_DNS_TYPE') | default('pihole') }}"
+secondary_dns_type: "{{ lookup('env', 'SECONDARY_DNS_TYPE') | default('pihole', true) }}"
 secondary_dns_host: "{{ lookup('env', 'SECONDARY_DNS_HOST') | default('') }}"
 secondary_dns_api_key: "{{ lookup('env', 'SECONDARY_DNS_API_KEY') | default('') }}"
 
@@ -91,9 +88,7 @@ tailscale_enabled: "{{ lookup('env', 'TAILSCALE_ENABLED') | default('false') | b
 tailscale_auth_key: "{{ lookup('env', 'TAILSCALE_AUTH_KEY') | default('') }}"
 tailscale_hostname: "{{ inventory_hostname }}"
 # Comma-separated CIDRs to advertise (empty = node-only, no LAN exposure)
-tailscale_advertise_routes: >-
-    {{ lookup('env', 'TAILSCALE_ADVERTISE_ROUTES') | default('')
-       | split(',') | select() | list }}
+tailscale_advertise_routes: "{{ lookup('env', 'TAILSCALE_ADVERTISE_ROUTES') | default('') | split(',') | select() | list }}"
 # ACL tags — must be pre-authorized in Tailscale admin → Keys before first run.
 # tag:homelab-server  : all cluster nodes
 # tag:homelab-router  : reserved for OPNsense when it arrives
@@ -105,5 +100,5 @@ tailscale_health_check_interval_minutes: 5
 
 # Secret Management (Sync & Restore)
 # Supported providers: bitwarden
-secret_provider: "{{ lookup('env', 'SECRET_PROVIDER') | default('bitwarden') }}"
-secret_vault_item: "{{ lookup('env', 'SECRET_VAULT_ITEM') | default('Homelab Secrets') }}"
+secret_provider: "{{ lookup('env', 'SECRET_PROVIDER') | default('bitwarden', true) }}"
+secret_vault_item: "{{ lookup('env', 'SECRET_VAULT_ITEM') | default('Homelab Secrets', true) }}"
