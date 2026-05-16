@@ -500,7 +500,7 @@ tasks:
                 export PATH="$PATH:$HOME/.local/bin"
                 if ! command -v bw &> /dev/null; then
                   echo "Bitwarden CLI not found. Running self-healing install..."
-                  {{.VENV_ANSIBLE_PLAYBOOK}} -i ansible/inventory/ ansible/playbooks/secrets.yml -e secret_op=pull {{.CLI_ARGS}} > /dev/null
+                  {{.VENV_ANSIBLE_PLAYBOOK}} -i ansible/inventory/ ansible/playbooks/secrets.yml -e secret_op=pull {{.CLI_ARGS}}
                 fi
                 
                 STATUS=$(bw status 2>/dev/null || echo '{"status":"uninstalled"}')
