@@ -500,7 +500,7 @@ tasks:
                 export PATH="$PATH:$HOME/.local/bin"
                 if ! command -v bw &> /dev/null; then
                   echo "Bitwarden CLI not found. Running self-healing install..."
-                  {{.VENV_ANSIBLE_PLAYBOOK}} ansible/playbooks/secrets.yml -e action=pull {{.CLI_ARGS}} > /dev/null
+                  {{.VENV_ANSIBLE_PLAYBOOK}} -i ansible/inventory/ ansible/playbooks/secrets.yml -e secret_op=pull {{.CLI_ARGS}} > /dev/null
                 fi
                 
                 STATUS=$(bw status 2>/dev/null || echo '{"status":"uninstalled"}')
@@ -526,13 +526,13 @@ tasks:
         desc: Restore .env from the configured secret provider (e.g., Bitwarden)
         dir: "{{.ROOT_DIR}}"
         cmds:
-            - "{{.VENV_ANSIBLE_PLAYBOOK}} ansible/playbooks/secrets.yml -e action=pull {{.CLI_ARGS}}"
+            - "{{.VENV_ANSIBLE_PLAYBOOK}} -i ansible/inventory/ ansible/playbooks/secrets.yml -e secret_op=pull {{.CLI_ARGS}}"
 
     secrets:push:
         desc: Sync local .env to the configured secret provider (e.g., Bitwarden)
         dir: "{{.ROOT_DIR}}"
         cmds:
-            - "{{.VENV_ANSIBLE_PLAYBOOK}} ansible/playbooks/secrets.yml -e action=push {{.CLI_ARGS}}"
+            - "{{.VENV_ANSIBLE_PLAYBOOK}} -i ansible/inventory/ ansible/playbooks/secrets.yml -e secret_op=push {{.CLI_ARGS}}"
 
     secrets:wipe:
         desc: "DESTRUCTIVE: Securely remove the local .env file"
