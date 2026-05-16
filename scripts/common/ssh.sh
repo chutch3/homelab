@@ -7,9 +7,11 @@ if [ -z "${SSH_KEY_FILE:-}" ]; then
     echo "  Add SSH_KEY_FILE=~/.ssh/homelab_rsa to your .env file to suppress this warning." >&2
 fi
 SSH_TIMEOUT="${SSH_TIMEOUT:-5}"
+SSH_EXECUTE_TIMEOUT="${SSH_EXECUTE_TIMEOUT:-300}"
 
 export SSH_KEY_FILE
 export SSH_TIMEOUT
+export SSH_EXECUTE_TIMEOUT
 
 # check if ssh is installed and working (skip in test mode)
 if [ -z "${TEST:-}" ]; then
@@ -137,7 +139,7 @@ ssh_execute_script() {
     local user_host="$1"
     local script_file="$2"
     local key_file="$SSH_KEY_FILE"
-    local timeout_duration="${SSH_TIMEOUT:-5}"
+    local timeout_duration="${SSH_EXECUTE_TIMEOUT:-300}"
 
     timeout "$timeout_duration" ssh -i "$key_file" \
         -o StrictHostKeyChecking=accept-new \
