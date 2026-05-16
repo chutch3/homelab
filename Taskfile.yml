@@ -153,6 +153,26 @@ tasks:
         env:
             MKDOCS_ENABLE_SOCIAL: false
 
+    secrets:login:
+        desc: Login and unlock the configured secret vault
+        cmds:
+            - task: ansible:secrets:login
+
+    secrets:pull:
+        desc: Restore .env from the configured secret provider
+        cmds:
+            - task: ansible:secrets:pull
+
+    secrets:push:
+        desc: Sync local .env to the configured secret provider
+        cmds:
+            - task: ansible:secrets:push
+
+    secrets:wipe:
+        desc: "DESTRUCTIVE: Securely remove the local .env file"
+        cmds:
+            - task: ansible:secrets:wipe
+
     check:
         desc: Run all checks (lint, test, static analysis, docs)
         deps: [lint, test, "static-analysis", "docs:validate"]
