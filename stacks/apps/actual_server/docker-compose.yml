@@ -29,6 +29,32 @@ services:
                 - homepage.href=https://budget.${BASE_DOMAIN}/
                 - homepage.description=Budgeting Application
 
+    actual_mcp:
+        image: sstefanov/actual-mcp:latest
+        command: ["--sse", "--enable-write"]
+        environment:
+            - ACTUAL_SERVER_URL=http://actual_server:5006
+            - ACTUAL_PASSWORD=${ACTUAL_PASSWORD}
+            - ACTUAL_BUDGET_SYNC_ID=${ACTUAL_BUDGET_SYNC_ID}
+            - ACTUAL_BUDGET_ENCRYPTION_PASSWORD=${ACTUAL_BUDGET_ENCRYPTION_PASSWORD}
+        volumes:
+            - mcp_data:/data
+        networks:
+            - traefik-public
+        deploy:
+            labels:
+                - "traefik.enable=true"
+                - "traefik.http.routers.actual-mcp.rule=Host(`actual-mcp.${BASE_DOMAIN}`)"
+                - "traefik.http.routers.actual-mcp.entrypoints=websecure"
+                - "traefik.http.routers.actual-mcp.tls.certresolver=dns"
+                - "traefik.http.services.actual-mcp.loadbalancer.server.port=3000"
+
+                - homepage.group=Finance
+                - homepage.name=Actual MCP
+                - homepage.icon=mdi-robot-confused
+                - homepage.href=https://actual-mcp.${BASE_DOMAIN}/
+                - homepage.description=Actual Budget MCP Server
+
 networks:
     traefik-public:
         external: true
@@ -40,6 +66,13 @@ volumes:
             type: "cifs"
             o: "username=${SMB_USERNAME},password=${SMB_PASSWORD},vers=3.0,nobrl,uid=0,gid=100,file_mode=0777,dir_mode=0777,soft,actimeo=30"
             device: "//${NAS_SERVER}/budget"
+
+    mcp_data:
+        driver: local
+        driver_opts:
+            type: "none"
+            o: "bind"
+            device: "/mnt/iscsi/app-data/actual_server/mcp"
 
     ssl_certs:
         name: ssl_certs
