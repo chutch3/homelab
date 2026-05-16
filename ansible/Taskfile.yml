@@ -500,6 +500,8 @@ tasks:
                 export PATH="$PATH:$HOME/.local/bin"
                 {{.VENV_ANSIBLE_PLAYBOOK}} -i ansible/inventory/ ansible/playbooks/secrets.yml -e secret_op=install {{.CLI_ARGS}}
 
+                if [ -z "$BW_SESSION" ] && [ -f "$HOME/.bw_session" ]; then set -a; source "$HOME/.bw_session"; set +a; fi
+
                 STATUS=$(bw status 2>/dev/null | python3 -c "import sys,json; print(json.load(sys.stdin)['status'])" 2>/dev/null || echo 'uninstalled')
 
                 if [ "$STATUS" = "unauthenticated" ]; then
