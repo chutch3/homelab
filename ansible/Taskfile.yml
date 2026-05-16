@@ -487,3 +487,46 @@ tasks:
         dir: "{{.ROOT_DIR}}"
         cmds:
             - "{{.VENV_ANSIBLE_PLAYBOOK}} -i ansible/inventory/ ansible/playbooks/ops/system-prune.yml -e \"execute_prune=true include_volumes=false\" {{.CLI_ARGS}}"
+
+    # ========================================================================
+    # SECRET MANAGEMENT (Sync & Restore)
+    # ========================================================================
+    secrets:login:
+        desc: Login and unlock Bitwarden vault (requires BW_PASSWORD or interactive input)
+        dir: "{{.ROOT_DIR}}"
+        interactive: true
+        cmds:
+            - |
+                if bw status | grep -q "unauthenticated"; then
+                  bw login
+                fi
+                if bw status | grep -q "locked"; then
+                  SESSION=$(bw unlock --raw)
+                  echo "Vault unlocked."
+                  echo "--------------------------------------------------------"
+                  echo "IMPORTANT: Copy and run this command in your terminal:"
+                  echo "export BW_SESSION=$SESSION"
+                  echo "--------------------------------------------------------"
+                else
+                  echo "Vault already unlocked."
+                fi
+
+    secrets:pull:
+        desc: Restore .env from the configured secret provider (e.g., Bitwarden)
+        dir: "{{.ROOT_DIR}}"
+        cmds:
+            - "{{.VENV_ANSIBLE_PLAYBOOK}} ansible/playbooks/secrets.yml -e action=pull {{.CLI_ARGS}}"
+
+    secrets:push:
+        desc: Sync local .env to the configured secret provider (e.g., Bitwarden)
+        dir: "{{.ROOT_DIR}}"
+        cmds:
+            - "{{.VENV_ANSIBLE_PLAYBOOK}} ansible/playbooks/secrets.yml -e action=push {{.CLI_ARGS}}"
+
+    secrets:wipe:
+        desc: "DESTRUCTIVE: Securely remove the local .env file"
+        dir: "{{.ROOT_DIR}}"
+        prompt: "Are you sure you want to delete the local .env file? Make sure you have pushed your changes to the vault first!"
+        cmds:
+            - rm -f .env
+            - echo "Local .env file removed."

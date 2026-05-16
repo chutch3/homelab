@@ -102,3 +102,8 @@ tailscale_tags:
 # Health check cron settings
 tailscale_health_check_log: /var/log/tailscale-health.log
 tailscale_health_check_interval_minutes: 5
+
+# Secret Management (Sync & Restore)
+# Supported providers: bitwarden
+secret_provider: "{{ lookup('env', 'SECRET_PROVIDER') | default('bitwarden') }}"
+secret_vault_item: "{{ lookup('env', 'SECRET_VAULT_ITEM') | default('Homelab Secrets') }}"
