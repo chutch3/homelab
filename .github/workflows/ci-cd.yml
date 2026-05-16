@@ -25,26 +25,10 @@ jobs:
               with:
                   submodules: true
 
-            - name: Setup Python
-              uses: actions/setup-python@v4
+            - name: Install uv
+              uses: astral-sh/setup-uv@v5
               with:
-                  python-version: "3.9"
-
-            - name: Install Poetry
-              uses: abatilo/actions-poetry@v3
-              with:
-                  poetry-version: latest
-
-            - name: Configure Poetry
-              run: |
-                  poetry config virtualenvs.create true --local
-                  poetry config virtualenvs.in-project true --local
-
-            - name: Cache Poetry dependencies
-              uses: actions/cache@v3
-              with:
-                  path: .venv
-                  key: poetry-${{ runner.os }}-${{ hashFiles('**/poetry.lock') }}
+                  enable-cache: true
 
             - name: Install Task
               uses: arduino/setup-task@v1
