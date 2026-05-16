@@ -24,6 +24,9 @@ services:
       - traefik-public
     deploy:
       replicas: 1
+      placement:
+        constraints:
+          - node.labels.old != true
       labels:
         - "traefik.enable=true"
         - "traefik.http.routers.claudecodeui.rule=Host(`ai.${BASE_DOMAIN}`)"
