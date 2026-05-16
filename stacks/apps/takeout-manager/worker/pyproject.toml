@@ -1,19 +1,23 @@
-[tool.poetry]
+[project]
 name = "worker"
 version = "0.1.0"
 description = "Worker service for Google Photos Takeout automation"
-authors = ["Your Name <you@example.com>"]
-packages = [{include = "worker"}]
+requires-python = ">=3.10"
+dependencies = [
+    "httpx>=0.27.0",
+    "dependency-injector>=4.42.0",
+]
 
-[tool.poetry.dependencies]
-python = "^3.10"
-httpx = "^0.27.0"
-dependency-injector = "^4.42.0"
+[dependency-groups]
+dev = [
+    "pytest>=8.0.0",
+    "pytest-mock>=3.12.0",
+    "pytest-asyncio>=0.24.0",
+]
 
-[tool.poetry.group.dev.dependencies]
-pytest = "^8.0.0"
-pytest-mock = "^3.12.0"
-pytest-asyncio = "^0.24.0"
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
@@ -21,7 +25,3 @@ testpaths = ["tests"]
 python_files = ["test_*.py"]
 python_classes = ["Test*"]
 python_functions = ["test_*"]
-
-[build-system]
-requires = ["poetry-core"]
-build-backend = "poetry.core.masonry.api"
