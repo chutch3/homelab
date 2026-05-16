@@ -7,48 +7,17 @@ ENV LANGUAGE=en_US.UTF-8
 
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 
-# All system packages in one layer — alphabetically sorted for easy maintenance
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    build-essential \
+# Configure apt retries and install bootstrap tools needed to set up external repos
+RUN echo 'Acquire::Retries "5";' > /etc/apt/apt.conf.d/80-retries && \
+    apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates \
     curl \
-    dumb-init \
-    fzf \
-    git \
-    git-lfs \
     gnupg \
-    htop \
-    jq \
-    libbz2-dev \
-    libffi-dev \
-    liblzma-dev \
-    libncurses-dev \
-    libreadline-dev \
-    libsqlite3-dev \
-    libssl-dev \
-    libxml2-dev \
-    libxmlsec1-dev \
-    llvm \
-    locales \
-    lsb-release \
-    openssh-client \
-    pre-commit \
-    procps \
-    sudo \
-    tk-dev \
-    tmux \
-    unzip \
-    vim \
-    wget \
-    xz-utils \
-    zip \
-    zlib1g-dev \
-    zsh \
-    && locale-gen en_US.UTF-8 \
-    && apt-get clean \
-    && rm -rf /var/lib/apt/lists/*
+    && apt-get clean && rm -rf /var/lib/apt/lists/*
 
-# GitHub CLI and Docker CLI (both require signed apt repos)
+# Add external repos, then install all remaining packages in a single apt-get update pass.
+# The retry loop handles transient download/decompression corruption (zstd data errors, etc.)
+# that bypass apt's Acquire::Retries because they occur during dpkg unpacking, not HTTP download.
 RUN mkdir -p /etc/apt/keyrings && \
     curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg \
         | tee /etc/apt/keyrings/githubcli-archive-keyring.gpg > /dev/null && \
@@ -60,8 +29,51 @@ RUN mkdir -p /etc/apt/keyrings && \
     chmod go+r /etc/apt/keyrings/docker.gpg && \
     echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu $(. /etc/os-release && echo "$VERSION_CODENAME") stable" \
         | tee /etc/apt/sources.list.d/docker.list > /dev/null && \
-    apt-get update && apt-get install -y --no-install-recommends gh docker-ce-cli docker-compose-plugin \
-    && apt-get clean && rm -rf /var/lib/apt/lists/*
+    apt-get update && \
+    for i in 1 2 3; do \
+        apt-get install -y --no-install-recommends \
+            build-essential \
+            docker-ce-cli \
+            docker-compose-plugin \
+            dumb-init \
+            fzf \
+            gh \
+            git \
+            git-lfs \
+            htop \
+            jq \
+            libbz2-dev \
+            libffi-dev \
+            liblzma-dev \
+            libncurses-dev \
+            libreadline-dev \
+            libsqlite3-dev \
+            libssl-dev \
+            libxml2-dev \
+            libxmlsec1-dev \
+            llvm \
+            locales \
+            lsb-release \
+            openssh-client \
+            pre-commit \
+            procps \
+            sudo \
+            tk-dev \
+            tmux \
+            unzip \
+            vim \
+            wget \
+            xz-utils \
+            zip \
+            zlib1g-dev \
+            zsh && break || { \
+                echo "apt-get install attempt $i failed, cleaning and retrying..."; \
+                apt-get clean; \
+                apt-get update; \
+            }; \
+    done && \
+    locale-gen en_US.UTF-8 && \
+    apt-get clean && rm -rf /var/lib/apt/lists/*
 
 # kubectl and yq as static binaries (avoids extra apt sources)
 RUN KUBECTL_VERSION=$(curl -fsSL https://dl.k8s.io/release/stable.txt) && \
