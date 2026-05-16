@@ -546,9 +546,9 @@ tasks:
                 {{.VENV_ANSIBLE_PLAYBOOK}} -i ansible/inventory/ ansible/playbooks/secrets.yml -e secret_op=push {{.CLI_ARGS}}
 
     secrets:wipe:
-        desc: "DESTRUCTIVE: Securely remove the local .env file"
+        desc: "DESTRUCTIVE: Securely remove local secret files (.env, ansible hosts, ssh config)"
         dir: "{{.ROOT_DIR}}"
-        prompt: "Are you sure you want to delete the local .env file? Make sure you have pushed your changes to the vault first!"
+        prompt: "Are you sure you want to delete all local secret files? Make sure you have pushed your changes to the vault first!"
         cmds:
-            - rm -f .env
-            - echo "Local .env file removed."
+            - rm -f .env ansible/inventory/02-hosts.yml ansible/inventory/group_vars/all/ssh.yml
+            - echo "Local secret files removed."
