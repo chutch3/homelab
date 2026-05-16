@@ -90,6 +90,9 @@ RUN eval "$(fnm env --use-on-cd)" && fnm install 22 && fnm default 22
 RUN curl -LsSf https://astral.sh/uv/install.sh | sh
 ENV PATH="$HOME/.local/bin:$PATH"
 
+# Install go-task
+RUN sh -c "$(curl --location https://taskfile.dev/install.sh)" -- -d -b ~/.local/bin
+
 # pyenv
 RUN curl https://pyenv.run | bash
 ENV PYENV_ROOT="$HOME/.pyenv"
