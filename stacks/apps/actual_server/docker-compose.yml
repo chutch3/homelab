@@ -32,7 +32,7 @@ services:
 
     actual_mcp:
         image: sstefanov/actual-mcp:latest
-        command: ["--sse", "--enable-write"]
+        command: ["--sse"]
         environment:
             - ACTUAL_SERVER_URL=http://actual_server:5006
             - ACTUAL_PASSWORD=${ACTUAL_PASSWORD}
