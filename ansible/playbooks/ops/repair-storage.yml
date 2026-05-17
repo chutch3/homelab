@@ -25,6 +25,16 @@
   gather_facts: false
 
   tasks:
+    - name: "[PHASE 0] Load .env file"
+      ansible.builtin.include_role:
+        name: swarm
+        tasks_from: load-env
+
+    - name: "[PHASE 0] Detect Docker context endpoint"
+      ansible.builtin.include_role:
+        name: swarm
+        tasks_from: get-docker-host
+
     - name: "[PHASE 0] Remove all Docker Swarm stacks"
       ansible.builtin.include_role:
         name: swarm
