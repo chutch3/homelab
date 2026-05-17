@@ -105,6 +105,16 @@
   tags: [stacks]
 
   tasks:
+    - name: Load .env file
+      ansible.builtin.include_role:
+        name: swarm
+        tasks_from: load-env
+
+    - name: Detect Docker context endpoint
+      ansible.builtin.include_role:
+        name: swarm
+        tasks_from: get-docker-host
+
     - name: Remove all Docker Swarm stacks
       ansible.builtin.include_role:
         name: swarm
