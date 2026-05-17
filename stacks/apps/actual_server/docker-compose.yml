@@ -56,6 +56,9 @@ services:
                 - homepage.href=https://actual-mcp.${BASE_DOMAIN}/
                 - homepage.description=Actual Budget MCP Server
 
+                # HACK: no health endpoint on SSE-only MCP server; 400 from root confirms full stack is reachable
+                - uptime_kuma.accepted_statuscodes=200-299,400
+
 networks:
     traefik-public:
         external: true

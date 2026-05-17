@@ -18,50 +18,141 @@
         - path: "{{ compose_file_path }}"
   when: stack_name is defined
 
-- name: Get only compose files with Traefik Host() rules
-  ansible.builtin.shell: "grep -l 'Host(' {{ item.path }}"
+- name: Parse compose files for service monitoring configs
+  ansible.builtin.shell: |
+    python3 << 'EOF'
+    import yaml, re, json, sys
+
+    with open('{{ item.path }}') as f:
+        try:
+            compose = yaml.safe_load(f)
+        except Exception:
+            sys.exit(0)
+
+    if not compose or 'services' not in compose:
+        sys.exit(0)
+
+    for svc_name, svc in (compose.get('services') or {}).items():
+        if not svc:
+            continue
+        raw_labels = (svc.get('deploy') or {}).get('labels') or svc.get('labels') or []
+
+        if isinstance(raw_labels, list):
+            labels = {}
+            for label in raw_labels:
+                if '=' in str(label):
+                    k, _, v = str(label).partition('=')
+                    labels[k.strip()] = v.strip()
+        elif isinstance(raw_labels, dict):
+            labels = dict(raw_labels)
+        else:
+            labels = {}
+
+        domain = None
+        for k, v in labels.items():
+            if re.match(r'traefik\.http\.routers\..+\.rule', k):
+                m = re.search(r"Host\(`([^`]+)`\)", str(v))
+                if m:
+                    domain = m.group(1).replace('${BASE_DOMAIN}', '{{ base_domain }}')
+                    break
+
+        if domain:
+            path = labels.get('uptime_kuma.path', '')
+            accepted_statuscodes_raw = labels.get('uptime_kuma.accepted_statuscodes', '')
+            accepted_statuscodes = [s.strip() for s in accepted_statuscodes_raw.split(',')] if accepted_statuscodes_raw else []
+            print(json.dumps({"domain": domain, "path": path, "accepted_statuscodes": accepted_statuscodes}))
+    EOF
   loop: "{{ uptime_kuma_compose_files.files }}"
-  register: uptime_kuma_traefik_compose_files
+  register: uptime_kuma_service_config_raw
   changed_when: false
   failed_when: false
   delegate_to: localhost
 
-- name: Extract Traefik Host() rules from matching files
-  ansible.builtin.shell: "grep -o 'Host(`[^`]*`)' {{ item.path }}"
-  loop: "{{ uptime_kuma_traefik_compose_files.results | selectattr('rc', '==', 0) | map(attribute='item') | list }}"
-  register: uptime_kuma_traefik_rules
-  changed_when: false
-  failed_when: false
-  delegate_to: localhost
-
-- name: Process and set discovered domains
+- name: Build discovered services list
   ansible.builtin.set_fact:
-    uptime_kuma_discovered_domains: >
-      {{ uptime_kuma_traefik_rules.results |
-         map(attribute='stdout_lines') | flatten |
-         map('regex_search', 'Host\(`([^`]+)`\)', '\1') |
-         flatten | select('ne', '') |
-         map('regex_replace', '\$\{BASE_DOMAIN\}', base_domain) |
-         unique | list }}
+    uptime_kuma_discovered_services: >-
+      {{ uptime_kuma_service_config_raw.results
+         | map(attribute='stdout_lines') | flatten
+         | select('ne', '') | map('from_json') | list }}
+    uptime_kuma_discovered_domains: >-
+      {{ uptime_kuma_service_config_raw.results
+         | map(attribute='stdout_lines') | flatten
+         | select('ne', '') | map('from_json')
+         | map(attribute='domain') | unique | list }}
 
 - name: Display discovered services
   ansible.builtin.debug:
-    msg: "Discovered {{ uptime_kuma_discovered_domains | length }} service(s) to monitor: {{ uptime_kuma_discovered_domains | join(', ') }}"
+    msg: "Discovered {{ uptime_kuma_discovered_services | length }} service(s) to monitor: {{ uptime_kuma_discovered_services | map(attribute='domain') | join(', ') }}"
 
 # =========================================================================
 # PHASE 1: Create Monitors
 # =========================================================================
+
+# Workaround for lucasheld.uptime_kuma bug: object_changed() compares lists
+# element-by-element without a bounds check, crashing when accepted_statuscodes
+# lengths differ. We fetch existing monitors first and only pre-delete ones
+# where the stored statuscodes actually differ from desired, so history is
+# preserved on idempotent runs.
+- name: "[PRE] Fetch existing monitors to detect accepted_statuscodes mismatch"
+  lucasheld.uptime_kuma.monitor_info:
+    api_url: "{{ uptime_kuma_api_url }}"
+    api_token: "{{ uptime_kuma_api_token }}"
+    api_timeout: 30
+  register: uptime_kuma_pre_monitors
+  delegate_to: localhost
+  failed_when: false
+
+- name: "[PRE] Identify monitors with stale accepted_statuscodes"
+  ansible.builtin.shell: |
+    python3 << 'EOF'
+    import json, os
+
+    existing = json.loads(os.environ['EXISTING_MONITORS'])
+    desired = json.loads(os.environ['DESIRED_SERVICES'])
+
+    existing_codes = {m['name']: m.get('accepted_statuscodes', []) for m in existing}
+
+    to_recreate = [
+        svc for svc in desired
+        if svc['accepted_statuscodes']
+        and svc['domain'] in existing_codes
+        and existing_codes[svc['domain']] != svc['accepted_statuscodes']
+    ]
+
+    print(json.dumps(to_recreate))
+    EOF
+  environment:
+    EXISTING_MONITORS: "{{ uptime_kuma_pre_monitors.monitors | default([]) | to_json }}"
+    DESIRED_SERVICES: "{{ uptime_kuma_discovered_services | to_json }}"
+  register: uptime_kuma_monitors_to_recreate_raw
+  changed_when: false
+  delegate_to: localhost
+
+- name: "[PRE] Set monitors to recreate"
+  ansible.builtin.set_fact:
+    uptime_kuma_monitors_to_recreate: "{{ uptime_kuma_monitors_to_recreate_raw.stdout | from_json }}"
+
+- name: "[PRE] Remove monitors with stale accepted_statuscodes"
+  lucasheld.uptime_kuma.monitor:
+    api_url: "{{ uptime_kuma_api_url }}"
+    api_token: "{{ uptime_kuma_api_token }}"
+    name: "{{ item.domain }}"
+    state: absent
+  loop: "{{ uptime_kuma_monitors_to_recreate }}"
+  delegate_to: localhost
+
 - name: "[MONITOR] Add HTTP monitor for each discovered service"
   lucasheld.uptime_kuma.monitor:
     api_url: "{{ uptime_kuma_api_url }}"
     api_token: "{{ uptime_kuma_api_token }}"
-    name: "{{ item }}"
+    name: "{{ item.domain }}"
     type: http
-    url: "https://{{ item }}"
+    url: "https://{{ item.domain }}{{ item.path }}"
+    accepted_statuscodes: "{{ item.accepted_statuscodes if item.accepted_statuscodes | length > 0 else omit }}"
     parent_name: Services
     interval: 60
     state: present
-  loop: "{{ uptime_kuma_discovered_domains }}"
+  loop: "{{ uptime_kuma_discovered_services }}"
   register: uptime_kuma_add_service_monitor_result
   delegate_to: localhost
   retries: 3
@@ -70,7 +161,7 @@
 
 - name: "[MONITOR] Display monitor creation status"
   ansible.builtin.debug:
-    msg: "Monitor for {{ item.item }}: {{ 'Created' if item.changed else 'Already exists' }}"
+    msg: "Monitor for {{ item.item.domain }} (url={{ item.item.domain }}{{ item.item.path }}): {{ 'Created' if item.changed else 'Already exists' }}"
   loop: "{{ uptime_kuma_add_service_monitor_result.results }}"
 
 # =========================================================================
