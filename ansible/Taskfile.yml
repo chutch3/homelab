@@ -1,9 +1,9 @@
 version: "3"
 
 vars:
-    VENV_ANSIBLE: "{{.ROOT_DIR}}/.venv/bin/ansible"
-    VENV_ANSIBLE_PLAYBOOK: "{{.ROOT_DIR}}/.venv/bin/ansible-playbook"
-    VENV_ANSIBLE_INVENTORY: "{{.ROOT_DIR}}/.venv/bin/ansible-inventory"
+    VENV_ANSIBLE: "uv run ansible"
+    VENV_ANSIBLE_PLAYBOOK: "uv run ansible-playbook"
+    VENV_ANSIBLE_INVENTORY: "uv run ansible-inventory"
 
 env:
     ANSIBLE_CONFIG: "ansible/ansible.cfg"
@@ -44,8 +44,6 @@ tasks:
         desc: Install Ansible and dependencies
         cmds:
             - uv sync
-        status:
-            - command -v ansible
 
     # Ansible Test connectivity
     ping:
