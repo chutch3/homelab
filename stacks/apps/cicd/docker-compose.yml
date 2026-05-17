@@ -11,27 +11,15 @@ services:
     volumes:
       - runner-data:/data
       - /var/run/docker.sock:/var/run/docker.sock
-    networks:
-      - traefik-public
     restart: unless-stopped
     deploy:
       replicas: 1
       labels:
-        - "traefik.enable=true"
-        - "traefik.http.routers.cicd.rule=Host(`cicd.${BASE_DOMAIN}`)"
-        - "traefik.http.routers.cicd.entrypoints=websecure"
-        - "traefik.http.routers.cicd.tls.certresolver=dns"
-        - "traefik.http.services.cicd.loadbalancer.server.port=8080"
-
         - "homepage.group=Development"
         - "homepage.name=CI/CD Runner"
         - "homepage.icon=gitea.png"
         - "homepage.href=https://git.${BASE_DOMAIN}/"
         - "homepage.description=Forgejo Actions Runner (compatible with GHA)"
-
-networks:
-  traefik-public:
-    external: true
 
 volumes:
   runner-data:
