@@ -27,7 +27,7 @@ task ansible:bootstrap
 task ansible:deploy
 ```
 
-**That's it!** All **28+ services** deploy automatically with SSL certificates, DNS registration, and dashboard integration.
+**That's it!** All **37+ services** deploy automatically with SSL certificates, DNS registration, and dashboard integration.
 
 ---
 
@@ -62,7 +62,7 @@ all:
 ```
 
 ### Step 3: Choose Your Services
-The platform comes with **28+ pre-configured stacks**. You can see them all in:
+The platform comes with **37+ pre-configured stacks**. You can see them all in:
 ```bash
 ls stacks/apps/
 ```
@@ -90,7 +90,7 @@ From here, you can access all other services like Home Assistant, PhotoPrism, an
 
     ---
 
-    Explore all 28+ pre-configured application stacks.
+    Explore all 37+ pre-configured application stacks.
 
 - :material-cog: **[Service Management](../user-guide/service-management.md)**
 

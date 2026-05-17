@@ -58,9 +58,9 @@ Browse our comprehensive catalog of self-hosted services. Each service is pre-co
 
     ---
 
-    Document editing, recipes, and team collaboration
+    Document editing, recipes, team collaboration, and RSS
 
-    **2 services available**
+    **3 services available**
 
 - :material-home-automation: **[Home Automation](#home-automation)**
 
@@ -82,25 +82,25 @@ Browse our comprehensive catalog of self-hosted services. Each service is pre-co
 
     ---
 
-    Machine learning experiment tracking
+    Machine learning experiment tracking and workflow orchestration
 
-    **1 service available**
+    **2 services available**
 
 - :material-source-branch: **[Development & CI/CD](#development-cicd)**
 
     ---
 
-    Self-hosted source code hosting and collaboration
+    Self-hosted source code hosting, CI/CD, and dev tools
 
-    **1 service available**
+    **4 services available**
 
 - :material-book-open-variant: **[Knowledge & Learning](#knowledge-learning)**
 
     ---
 
-    Offline knowledge bases and reference materials
+    Offline knowledge bases, reference materials, and comics
 
-    **2 services available**
+    **3 services available**
 
 - :material-view-dashboard: **[Core Infrastructure](#core-infrastructure)**
 
@@ -950,6 +950,42 @@ task ansible:deploy:stack -- -e "stack_name=mealie"
 
 </div>
 
+### FreshRSS {#freshrss}
+
+<div class="service-card">
+
+**Self-hosted RSS and Atom feed aggregator**
+
+- **Domain**: `rss.yourdomain.com`
+- **Port**: `80`
+- **Status**: ✅ Available
+- **Tags**: `productivity` `rss` `news` `sso`
+
+#### Features
+- Aggregate RSS, Atom, and JSON feeds
+- Full-text article fetching
+- Fever and Google Reader compatible API (for mobile apps)
+- Dark/light themes
+- Multi-user support
+- Keyboard shortcuts and reader mode
+- OPML import/export
+
+#### Authentik SSO Integration
+- **Method**: OAuth/OIDC
+- Auto-registration enabled
+
+#### Prerequisites
+- Authentik SSO configured
+
+#### Quick Deploy
+```bash
+task ansible:deploy:stack -- -e "stack_name=freshrss"
+```
+
+[Learn more about FreshRSS →](https://freshrss.org/)
+
+</div>
+
 ---
 
 ## Home Automation
@@ -1263,6 +1299,53 @@ task ansible:deploy:stack -- -e "stack_name=github-runner"
 
 </div>
 
+### Code-server {#code-server}
+
+<div class="service-card">
+
+**VS Code in the browser — full IDE accessible from any device**
+
+- **Domain**: `code.yourdomain.com`
+- **Status**: ✅ Available
+- **Tags**: `development` `ide` `editor`
+
+#### Features
+- Full VS Code experience in a browser tab
+- Extensions, themes, and settings sync
+- Terminal access to the homelab host
+- Persistent workspace across sessions
+
+#### Quick Deploy
+```bash
+task ansible:deploy:stack -- -e "stack_name=code-server"
+```
+
+[Learn more about code-server →](https://github.com/coder/code-server)
+
+</div>
+
+### ClaudeCodeUI {#claudecodeui}
+
+<div class="service-card">
+
+**Web UI for Claude Code — browser-based AI coding assistant**
+
+- **Domain**: `ai.yourdomain.com`
+- **Status**: ✅ Available
+- **Tags**: `development` `ai` `coding`
+
+#### Features
+- Browser-based access to Claude Code sessions
+- Persistent projects and conversation history
+- Integrates with local code-server workspaces
+
+#### Quick Deploy
+```bash
+task ansible:deploy:stack -- -e "stack_name=claudecodeui"
+```
+
+</div>
+
 ---
 
 ## Knowledge & Learning
@@ -1359,6 +1442,42 @@ task ansible:deploy:stack -- -e "stack_name=kolibri"
 **Offline Education**: Provides structured K-12 curriculum access during network outages or for environments with limited connectivity.
 
 [Learn more about Kolibri →](https://learningequality.org/kolibri/)
+
+</div>
+
+### Komga {#komga}
+
+<div class="service-card">
+
+**Self-hosted comics and manga server**
+
+- **Domain**: `komga.yourdomain.com`
+- **Port**: `25600`
+- **Status**: ✅ Available
+- **Tags**: `knowledge` `comics` `manga` `media` `sso`
+
+#### Features
+- Browse and read comics, manga, and graphic novels
+- OPDS catalog server (for compatible reading apps)
+- Library scanning and metadata fetching
+- Reading progress sync across devices
+- Series and collection management
+- User management with access control
+
+#### Authentik SSO Integration
+- **Method**: OAuth/OIDC
+- Auto-registration enabled
+
+#### Storage Requirements
+- Config/database: iSCSI bind mount (`/mnt/iscsi/media-apps/komga`)
+- Library data: CIFS mount to NAS (read-write, `all_data` share)
+
+#### Quick Deploy
+```bash
+task ansible:deploy:stack -- -e "stack_name=komga"
+```
+
+[Learn more about Komga →](https://komga.org/)
 
 </div>
 
@@ -1462,14 +1581,14 @@ Consider contributing your service definition to help others!
 | Media Management | 4 |
 | Media Automation | 6 |
 | Download Clients | 4 (+ VPN) |
-| Productivity & Collaboration | 2 |
+| Productivity & Collaboration | 3 |
 | Home Automation | 2 |
 | AI & Chat | 2 |
-| Development & ML | 1 |
-| Development & CI/CD | 1 |
-| Knowledge & Learning | 2 |
+| Development & ML | 2 |
+| Development & CI/CD | 4 |
+| Knowledge & Learning | 3 |
 | Core Infrastructure | 1 |
-| **Total Application Services** | **31** |
+| **Total Application Services** | **38** |
 
 **Plus 4 Infrastructure Stacks:**
 - Traefik (Reverse Proxy)
@@ -1485,6 +1604,10 @@ Services integrated with Authentik SSO:
 - Vaultwarden
 - Immich
 - Mealie
+- FreshRSS
+- Forgejo
+- Kolibri
+- Komga
 
 **Forward Auth (Traefik Middleware):**
 - Kopia
@@ -1497,7 +1620,7 @@ Services integrated with Authentik SSO:
 **LDAP (Legacy Support):**
 - Emby
 
-**Total**: 10 services with SSO integration
+**Total**: 14 services with SSO integration
 
 ## Storage Architecture Summary
 

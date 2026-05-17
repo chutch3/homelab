@@ -1,6 +1,6 @@
 # Homelab
 
-A Docker Swarm platform for self-hosted services. Deploys 25+ pre-configured services with automatic SSL, centralized SSO, monitoring, and automated backups.
+A Docker Swarm platform for self-hosted services. Deploys 37+ pre-configured services with automatic SSL, centralized SSO, monitoring, and automated backups.
 
 ![License](https://img.shields.io/badge/license-MIT-blue.svg)
 ![Docker](https://img.shields.io/badge/docker-%230db7ed.svg?logo=docker&logoColor=white)
@@ -18,9 +18,10 @@ A Docker Swarm platform for self-hosted services. Deploys 25+ pre-configured ser
 - Kopia — encrypted backups to Backblaze B2
 
 **Applications**
-- Homepage, Actual Budget, Home Assistant, Node-RED, CryptPad, Mealie, Excalidraw
-- PhotoPrism, Immich, Emby
+- Homepage, Actual Budget, Home Assistant, Node-RED, CryptPad, Mealie, Excalidraw, FreshRSS
+- PhotoPrism, Immich, Emby, Komga (comics/manga)
 - Sonarr, Radarr, Prowlarr, Profilarr, qBittorrent, Deluge, SABnzbd, NZBGet
+- Forgejo (Git + CI/CD), GitHub Actions Runner, Code-server (VS Code in browser)
 - Vaultwarden, LibreChat, Kiwix (offline Wikipedia + Stack Overflow)
 
 ---

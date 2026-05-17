@@ -210,7 +210,7 @@ nslookup traefik.yourdomain.com
 The Ansible playbooks use SSH to communicate between nodes. The key path is configured in two places:
 
 - **`.env`** — `SSH_KEY_FILE` used by all homelab scripts
-- **`ansible/inventory/group_vars/ssh.yml`** — gitignored, used by Ansible (copy from `ssh.yml.example`)
+- **`ansible/inventory/group_vars/all/ssh.yml`** — gitignored, used by Ansible (copy from `ssh.yml.example`)
 
 ### Generate SSH Key
 
@@ -227,7 +227,7 @@ This creates `~/.ssh/homelab_rsa` and `~/.ssh/homelab_rsa.pub` (or whatever path
 Copy the example file and verify the key path matches your `.env`:
 
 ```bash
-cp ansible/inventory/group_vars/ssh.yml.example ansible/inventory/group_vars/ssh.yml
+cp ansible/inventory/group_vars/all/ssh.yml.example ansible/inventory/group_vars/all/ssh.yml
 ```
 
 ### Distribute SSH Key to All Nodes
