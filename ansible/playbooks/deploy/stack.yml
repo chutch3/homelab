@@ -29,11 +29,13 @@
         ansible.builtin.stat:
             path: "{{ (playbook_dir ~ '/../../../stacks/' ~ stack_name ~ '/docker-compose.yml') | realpath }}"
         register: compose_file_stacks
+        delegate_to: localhost
 
       - name: Check for compose file in stacks/apps/ directory
         ansible.builtin.stat:
             path: "{{ (playbook_dir ~ '/../../../stacks/apps/' ~ stack_name ~ '/docker-compose.yml') | realpath }}"
         register: compose_file_apps
+        delegate_to: localhost
 
       - name: Fail if compose file does not exist in either location
         ansible.builtin.fail:
