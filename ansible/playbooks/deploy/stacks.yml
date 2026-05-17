@@ -83,6 +83,11 @@
         name: swarm
         tasks_from: load-env
 
+    - name: Detect Docker context endpoint
+      ansible.builtin.include_role:
+        name: swarm
+        tasks_from: get-docker-host
+
     - name: Ensure required overlay networks exist
       ansible.builtin.include_role:
         name: swarm
@@ -95,6 +100,8 @@
         with_registry_auth: true
         compose:
           - "{{ item }}/docker-compose.yml"
+        docker_host: "{{ swarm_docker_host }}"
+        use_ssh_client: "{{ swarm_use_ssh_client }}"
       environment: "{{ swarm_env_vars }}"
       loop: "{{ filtered_stacks }}"
       register: deploy_results

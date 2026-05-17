@@ -6,6 +6,8 @@
 
 - name: Get list of all running stacks
   community.docker.docker_stack_info:
+    docker_host: "{{ swarm_docker_host }}"
+    use_ssh_client: "{{ swarm_use_ssh_client }}"
   register: swarm_current_stacks
   delegate_to: localhost
   run_once: true
@@ -20,6 +22,8 @@
   community.docker.docker_stack:
     state: absent
     name: "{{ item.Name }}"
+    docker_host: "{{ swarm_docker_host }}"
+    use_ssh_client: "{{ swarm_use_ssh_client }}"
   loop: "{{ swarm_current_stacks.results }}"
   delegate_to: localhost
   run_once: true
@@ -27,6 +31,8 @@
 
 - name: Wait for all stacks and containers to fully drain
   community.docker.docker_stack_info:
+    docker_host: "{{ swarm_docker_host }}"
+    use_ssh_client: "{{ swarm_use_ssh_client }}"
   register: swarm_remaining_stacks
   delegate_to: localhost
   run_once: true

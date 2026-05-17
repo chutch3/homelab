@@ -13,10 +13,17 @@
         msg: "The 'stack_name' variable must be defined (e.g., -e stack_name=sonarr)."
       when: stack_name == ""
 
+    - name: Detect Docker context endpoint
+      ansible.builtin.include_role:
+        name: swarm
+        tasks_from: get-docker-host
+
     - name: Remove Docker stack/service
       community.docker.docker_stack:
         name: "{{ stack_name }}"
         state: absent
+        docker_host: "{{ swarm_docker_host }}"
+        use_ssh_client: "{{ swarm_use_ssh_client }}"
       run_once: true
       delegate_to: localhost
       ignore_errors: yes

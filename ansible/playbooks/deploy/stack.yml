@@ -58,6 +58,11 @@
             name: swarm
             tasks_from: load-env
 
+      - name: Detect Docker context endpoint
+        ansible.builtin.include_role:
+            name: swarm
+            tasks_from: get-docker-host
+
       - name: Attempt to deploy as an application stack
         community.docker.docker_stack:
             state: present
@@ -65,6 +70,8 @@
             with_registry_auth: true
             compose:
                 - "{{ compose_file_path }}"
+            docker_host: "{{ swarm_docker_host }}"
+            use_ssh_client: "{{ swarm_use_ssh_client }}"
         environment: "{{ swarm_env_vars }}"
         register: deploy_app_result
         delegate_to: localhost
