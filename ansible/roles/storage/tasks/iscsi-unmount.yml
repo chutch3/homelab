@@ -2,6 +2,15 @@
 # ansible/roles/storage/tasks/iscsi-unmount.yml
 # Safely unmount iSCSI/OCFS2 storage with verification
 
+# Stop Docker so it releases OCFS2-backed volume and bind mounts before we
+# unmount. Swarm drain reschedules tasks but leaves the daemon running, which
+# holds open iSCSI block devices and prevents clean unmount.
+- name: Stop Docker daemon
+  ansible.builtin.systemd:
+    name: docker
+    state: stopped
+  ignore_errors: true
+
 # Define iSCSI mounts (same structure as mount task)
 - name: Define iSCSI mount configurations
   ansible.builtin.set_fact:
@@ -19,10 +28,9 @@
         iqn: "{{ iscsi_cache_iqn }}"
         mount_path: "{{ iscsi_cache_mount_path }}"
 
-# Force lazy-unmount ALL OCFS2 mounts (including Docker volume bind mounts)
-# This handles cases where Docker was killed and left volume mounts behind
+# Unmount all OCFS2 mounts now that Docker is stopped and no longer holding them open
 - name: Force unmount all OCFS2 mounts
-  ansible.builtin.command: umount -a -t ocfs2 -l
+  ansible.builtin.command: umount -a -t ocfs2
   ignore_errors: yes
   changed_when: true
 

@@ -6,9 +6,7 @@
 
 - name: Get list of all running stacks
   community.docker.docker_stack_info:
-    cli_context: "{{ swarm_docker_context }}"
   register: swarm_current_stacks
-  delegate_to: localhost
   run_once: true
 
 - name: Display stacks to be removed
@@ -21,17 +19,13 @@
   community.docker.docker_stack:
     state: absent
     name: "{{ item.Name }}"
-    cli_context: "{{ swarm_docker_context }}"
   loop: "{{ swarm_current_stacks.results }}"
-  delegate_to: localhost
   run_once: true
   when: swarm_current_stacks.results | length > 0
 
 - name: Wait for all stacks and containers to fully drain
   community.docker.docker_stack_info:
-    cli_context: "{{ swarm_docker_context }}"
   register: swarm_remaining_stacks
-  delegate_to: localhost
   run_once: true
   until: swarm_remaining_stacks.results | length == 0
   retries: 20
