@@ -18,7 +18,7 @@
         name: "{{ stack_name }}"
         state: absent
       run_once: true
-      delegate_to: "{{ groups['managers'][0] }}"
+      delegate_to: localhost
       ignore_errors: yes
 
     - name: Wait for Docker to clean up containers
