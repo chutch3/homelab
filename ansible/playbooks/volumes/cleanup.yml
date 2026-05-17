@@ -22,8 +22,7 @@
       community.docker.docker_stack:
         name: "{{ stack_name }}"
         state: absent
-        docker_host: "{{ swarm_docker_host }}"
-        use_ssh_client: "{{ swarm_use_ssh_client }}"
+        cli_context: "{{ swarm_docker_context }}"
       run_once: true
       delegate_to: localhost
       ignore_errors: yes

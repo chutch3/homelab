@@ -100,8 +100,7 @@
         with_registry_auth: true
         compose:
           - "{{ item }}/docker-compose.yml"
-        docker_host: "{{ swarm_docker_host }}"
-        use_ssh_client: "{{ swarm_use_ssh_client }}"
+        cli_context: "{{ swarm_docker_context }}"
       environment: "{{ swarm_env_vars }}"
       loop: "{{ filtered_stacks }}"
       register: deploy_results
