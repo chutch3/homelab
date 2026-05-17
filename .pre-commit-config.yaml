@@ -45,7 +45,7 @@ repos:
       hooks:
           - id: ansible-syntax-check
             name: Ansible Syntax Check
-            entry: bash -c 'export ANSIBLE_CONFIG=ansible/ansible.cfg; for file in "$@"; do ansible-playbook --syntax-check "$file" || exit 1; done' --
+            entry: bash -c 'export ANSIBLE_CONFIG=ansible/ansible.cfg; for file in "$@"; do .venv/bin/ansible-playbook --syntax-check "$file" || exit 1; done' --
             language: system
             files: ^ansible/playbooks/.*\.ya?ml$
             pass_filenames: true

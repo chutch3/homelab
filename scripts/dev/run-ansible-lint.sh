@@ -16,7 +16,7 @@ for file in "$@"; do
 done
 
 if [ ${#ansible_files[@]} -gt 0 ]; then
-    ansible-lint "${ansible_files[@]}" --profile=basic
+    .venv/bin/ansible-lint "${ansible_files[@]}" --profile=basic
 else
     # If no ansible files, exit successfully without running ansible-lint
     echo "No ansible files found to lint. Skipping ansible-lint."
