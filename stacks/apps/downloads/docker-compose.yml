@@ -115,7 +115,6 @@ services:
     sabnzbd:
         image: lscr.io/linuxserver/sabnzbd:latest
         container_name: sabnzbd
-        hostname: sabnzbd.${BASE_DOMAIN}
         configs:
             - source: sabnzbd_fix_whitelist
               target: /custom-cont-init.d/99-fix-whitelist
@@ -148,6 +147,7 @@ services:
                 - "traefik.http.routers.sabnzbd.tls.certresolver=dns"
                 - "traefik.http.routers.sabnzbd.middlewares=authentik@swarm"
                 - "traefik.http.services.sabnzbd.loadbalancer.server.port=8080"
+                - "uptime_kuma.accepted_statuscodes=200,301,302"
                 - homepage.group=Downloads
                 - homepage.name=SABnzbd
                 - homepage.icon=sabnzbd.png
