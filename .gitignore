@@ -182,6 +182,7 @@ ansible/*.vault.yml
 ansible/*.retry
 ansible/.facts/
 ansible/*.log
+ansible/collections/
 
 # Generated files - auto-generated from config/services.yaml
 generated/

@@ -44,7 +44,7 @@ tasks:
         desc: Install Ansible and dependencies
         cmds:
             - uv sync
-            - uv run ansible-galaxy collection install -r ansible/requirements.yml
+            - uv run ansible-galaxy collection install -r ansible/requirements.yml -p ansible/collections
 
     # Ansible Test connectivity
     ping:
