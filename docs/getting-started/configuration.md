@@ -40,18 +40,12 @@ vim .env
 # DOMAIN CONFIGURATION
 # ===========================================
 BASE_DOMAIN=yourdomain.com
-WILDCARD_DOMAIN=*.yourdomain.com
 
 # ===========================================
 # CLOUDFLARE API CONFIGURATION
 # ===========================================
 # Required for automatic SSL certificates
 CF_Token=your_cloudflare_api_token_here
-
-# ===========================================
-# SSL CONFIGURATION
-# ===========================================
-ACME_EMAIL=your-email@domain.com
 
 # ===========================================
 # DOCKER CONFIGURATION
@@ -63,22 +57,26 @@ GID=1000
 # ===========================================
 # DNS SERVER CONFIGURATION
 # ===========================================
-# Admin password for DNS server web interface
-DNS_ADMIN_PASSWORD=your_secure_dns_password
+# PRIMARY_DNS_MANAGED=true:  this repo deploys and manages the DNS server (stacks/dns)
+# PRIMARY_DNS_MANAGED=false: bring your own DNS — set PRIMARY_DNS_HOST to your server
+PRIMARY_DNS_TYPE=technitium
+PRIMARY_DNS_MANAGED=true
+PRIMARY_DNS_API_KEY=your_secure_dns_admin_password
 
-# DNS forwarders (comma-separated)
+# DNS forwarders (comma-separated, Technitium only)
 DNS_SERVER_FORWARDERS=1.1.1.1,1.0.0.1
 
 # ===========================================
-# SECONDARY DNS (Pi-hole) — OPTIONAL
+# SECONDARY DNS — OPTIONAL
 # ===========================================
-# Enable to keep a Pi-hole in sync so services resolve when the primary is down.
-# Requires Pi-hole v6.3+ (uses the REST API at http://<ip>/api).
+# Enable to keep a secondary DNS server in sync so services resolve when the primary is down.
+# Supported types: pihole (requires v6.3+, uses REST API at http://<host>/api).
 # IMPORTANT: Pi-hole must have app_sudo enabled to allow API writes:
 #   sudo pihole-FTL --config webserver.api.app_sudo true
 SECONDARY_DNS_ENABLED=false
-SECONDARY_DNS_IP=192.168.1.x
-PIHOLE_API_PASSWORD=your_pihole_api_password
+SECONDARY_DNS_TYPE=pihole
+SECONDARY_DNS_HOST=192.168.1.x
+SECONDARY_DNS_API_KEY=your_secondary_dns_api_password
 ```
 
 ### Service-Specific Configuration
@@ -227,9 +225,8 @@ networks:
 | Variable | Description | Example | Purpose |
 |----------|-------------|---------|---------|
 | `BASE_DOMAIN` | Your base domain | `yourdomain.com` | Service routing |
-| `WILDCARD_DOMAIN` | Wildcard subdomain | `*.yourdomain.com` | SSL certificates |
 | `CF_Token` | Cloudflare API token | `abc123...` | DNS challenge for SSL |
-| `ACME_EMAIL` | Email for SSL certificates | `you@domain.com` | Let's Encrypt registration |
+| `PRIMARY_DNS_API_KEY` | DNS server admin password | `secure_password` | DNS web interface / API access |
 
 ### Optional Variables
 
@@ -237,11 +234,14 @@ networks:
 |----------|-------------|---------|---------|
 | `UID` | User ID for file permissions | `1000` | Docker volume ownership |
 | `GID` | Group ID for file permissions | `1000` | Docker volume ownership |
-| `DNS_ADMIN_PASSWORD` | DNS server admin password | `admin` | DNS web interface access |
+| `PRIMARY_DNS_TYPE` | DNS provider type | `technitium` | Selects the primary DNS adapter |
+| `PRIMARY_DNS_MANAGED` | Repo deploys the DNS server | `true` | Set `false` to bring your own DNS |
+| `PRIMARY_DNS_API_KEY` | DNS server admin password | _(required)_ | DNS web interface / API access |
 | `DNS_SERVER_FORWARDERS` | Upstream DNS servers | `1.1.1.1,1.0.0.1` | DNS resolution |
-| `SECONDARY_DNS_ENABLED` | Enable Pi-hole secondary DNS sync | `false` | Keep Pi-hole in sync with Technitium |
-| `SECONDARY_DNS_IP` | Pi-hole IP address | _(none)_ | Required when secondary DNS is enabled |
-| `PIHOLE_API_PASSWORD` | Pi-hole web UI / API password | _(none)_ | Required when secondary DNS is enabled |
+| `SECONDARY_DNS_ENABLED` | Enable secondary DNS sync | `false` | Keeps a fallback DNS in sync |
+| `SECONDARY_DNS_TYPE` | Secondary DNS provider type | `pihole` | Selects the secondary DNS adapter |
+| `SECONDARY_DNS_HOST` | Secondary DNS server IP | _(none)_ | Required when secondary DNS is enabled |
+| `SECONDARY_DNS_API_KEY` | Secondary DNS API password | _(none)_ | Required when secondary DNS is enabled |
 
 ### Service Passwords
 
@@ -261,27 +261,67 @@ SMB_USERNAME=storage_user
 SMB_PASSWORD=storage_password
 ```
 
+## Secrets Management
+
+The homelab includes a Bitwarden-backed secrets system for syncing your `.env`, Ansible hosts file, and SSH config across machines. This lets you wipe local secrets from a workstation and restore them later without losing anything.
+
+### Login and Unlock the Vault
+
+```bash
+task secrets:login
+```
+
+For non-interactive use (CI or scripts), set `BW_CLIENTID`, `BW_CLIENTSECRET`, and `BW_PASSWORD` in your environment.
+
+### Push Local Secrets to the Vault
+
+```bash
+task secrets:push
+```
+
+Uploads `.env`, `ansible/inventory/02-hosts.yml`, and `ansible/inventory/group_vars/all/ssh.yml` as Bitwarden file attachments.
+
+### Restore Secrets from the Vault
+
+```bash
+task secrets:pull
+```
+
+Downloads and writes all three files from the vault to their local paths.
+
+### Securely Wipe Local Secrets
+
+```bash
+task secrets:wipe
+```
+
+Removes the local `.env`, hosts file, and SSH config. Run `secrets:pull` to restore them.
+
+---
+
 ## Deployment Commands
 
 ### Main Deployment
 
 ```bash
 # 🚀 Homelab Deployment with Ansible
-task ansible:bootstrap
-task ansible:cluster:init
-task ansible:deploy:full
+task ansible:bootstrap   # install Docker and dependencies on all nodes
+task ansible:deploy      # init Swarm, join workers, deploy all stacks
 ```
 
 This sequence will:
-- Bootstrap all nodes
-- Initialize the Docker Swarm cluster
-- Deploy all services
+- Bootstrap all nodes with Docker and security hardening
+- Initialize Docker Swarm and join all workers
+- Deploy all infrastructure and application stacks
 
 ### Complete Cleanup
 
 ```bash
-# WARNING: Removes all services and data
-task ansible:teardown:full
+# WARNING: Removes all services (preserves volumes)
+task ansible:teardown
+
+# Remove all services and data (DESTRUCTIVE)
+task ansible:teardown:with-volumes
 ```
 
 ## Configuration Examples
@@ -290,12 +330,10 @@ task ansible:teardown:full
 
 ```bash title=".env (Development)"
 BASE_DOMAIN=local.dev
-WILDCARD_DOMAIN=*.local.dev
 CF_Token=your_dev_token
-ACME_EMAIL=dev@local.dev
 
 # Simple passwords for development
-DNS_ADMIN_PASSWORD=admin
+PRIMARY_DNS_API_KEY=admin
 GRAFANA_ADMIN_PASSWORD=admin
 ```
 
@@ -303,12 +341,10 @@ GRAFANA_ADMIN_PASSWORD=admin
 
 ```bash title=".env (Production)"
 BASE_DOMAIN=yourdomain.com
-WILDCARD_DOMAIN=*.yourdomain.com
 CF_Token=your_production_token
-ACME_EMAIL=admin@yourdomain.com
 
 # Secure passwords for production
-DNS_ADMIN_PASSWORD=very_secure_password_here
+PRIMARY_DNS_API_KEY=very_secure_password_here
 GRAFANA_ADMIN_PASSWORD=another_secure_password
 PHOTOPRISM_ADMIN_PASSWORD=yet_another_secure_password
 ```

@@ -67,15 +67,16 @@ nano .env
 ```bash title=".env"
 # Domain Configuration
 BASE_DOMAIN=yourdomain.com
-CF_Token=your_cloudflare_api_token
-ACME_EMAIL=admin@yourdomain.com
 
 # User IDs (usually 1000 for the first user)
 UID=1000
 GID=1000
 
+# Cloudflare API token (for SSL certificates)
+CF_Token=your_cloudflare_api_token
+
 # Service Credentials (generate secure values)
-DNS_ADMIN_PASSWORD=secure_password
+PRIMARY_DNS_API_KEY=secure_password
 GRAFANA_ADMIN_PASSWORD=secure_password
 ```
 
