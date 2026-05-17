@@ -98,6 +98,7 @@
       environment: "{{ swarm_env_vars }}"
       loop: "{{ filtered_stacks }}"
       register: deploy_results
+      delegate_to: localhost
 
     - name: Report deployment status
       ansible.builtin.debug:

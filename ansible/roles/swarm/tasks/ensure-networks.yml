@@ -9,14 +9,14 @@
     driver: overlay
     attachable: yes
     state: present
-  delegate_to: "{{ groups['managers'][0] }}"
+  delegate_to: localhost
   run_once: true
   register: swarm_traefik_network
 
 - name: Verify traefik-public network is available
   community.docker.docker_network_info:
     name: traefik-public
-  delegate_to: "{{ groups['managers'][0] }}"
+  delegate_to: localhost
   run_once: true
   register: swarm_traefik_network_info
   until: swarm_traefik_network_info.network is defined

@@ -67,6 +67,7 @@
                 - "{{ compose_file_path }}"
         environment: "{{ swarm_env_vars }}"
         register: deploy_app_result
+        delegate_to: localhost
 
       - name: Report successful deployment
         ansible.builtin.debug:
