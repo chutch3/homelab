@@ -29,6 +29,10 @@
   register: uptime_kuma_auth
   delegate_to: localhost
   when: uptime_kuma_reachable
+  failed_when: false
+  retries: 5
+  delay: 15
+  until: uptime_kuma_auth.token is defined
 
 - name: Fail if authentication failed
   ansible.builtin.fail:
