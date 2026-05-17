@@ -1,0 +1,18 @@
+---
+# ansible/roles/swarm/tasks/get-docker-host.yml
+# Detects the active Docker context endpoint so community.docker modules
+# can connect correctly regardless of how Docker is configured on the controller.
+
+- name: Get active Docker context endpoint
+  ansible.builtin.command:
+    cmd: docker context inspect --format {% raw %}'{{.Endpoints.docker.Host}}'{% endraw %}
+  register: _swarm_docker_host
+  delegate_to: localhost
+  run_once: true
+  changed_when: false
+
+- name: Set Docker host facts for swarm operations
+  ansible.builtin.set_fact:
+    swarm_docker_host: "{{ _swarm_docker_host.stdout }}"
+    swarm_use_ssh_client: "{{ _swarm_docker_host.stdout.startswith('ssh://') }}"
+  run_once: true
