@@ -15,7 +15,7 @@
   ansible.builtin.set_fact:
     uptime_kuma_compose_files:
       files:
-        - path: "{{ compose_file_path }}"
+        - path: "{{ compose_file_path | default(playbook_dir + '/../../stacks/apps/' + stack_name + '/docker-compose.yml') }}"
   when: stack_name is defined
 
 - name: Parse compose files for service monitoring configs
@@ -140,6 +140,10 @@
     state: absent
   loop: "{{ uptime_kuma_monitors_to_recreate }}"
   delegate_to: localhost
+  register: uptime_kuma_delete_result
+  retries: 3
+  delay: 10
+  until: uptime_kuma_delete_result is succeeded
 
 - name: "[MONITOR] Add HTTP monitor for each discovered service"
   lucasheld.uptime_kuma.monitor:
