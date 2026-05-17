@@ -82,11 +82,11 @@
 
       - name: Set DNS registration flag
         ansible.builtin.set_fact:
-            should_register_dns: "{{ (register_dns == 'auto' and is_new_stack) or (register_dns | bool) }}"
+            should_register_dns: "{{ (register_dns == 'auto' and is_new_stack) or (register_dns != 'auto' and register_dns | bool) }}"
 
       - name: Set uptime registration flag
         ansible.builtin.set_fact:
-            should_register_uptime: "{{ ((register_uptime == 'auto' and is_new_stack) or (register_uptime | bool)) and stack_name not in ['reverse-proxy', 'dns', 'uptime-kuma'] }}"
+            should_register_uptime: "{{ ((register_uptime == 'auto' and is_new_stack) or (register_uptime != 'auto' and register_uptime | bool)) and stack_name not in ['reverse-proxy', 'dns', 'uptime-kuma'] }}"
 
       - name: Wait for DNS server to initialize (dns stack only)
         ansible.builtin.pause:
