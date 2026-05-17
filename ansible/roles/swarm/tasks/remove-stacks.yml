@@ -2,7 +2,12 @@
 # ansible/roles/swarm/tasks/remove-stacks.yml
 # Gracefully remove all Docker Swarm stacks and wait for containers to drain.
 # Called by teardown.yml and repair-storage.yml.
-# Always delegates to the first manager — safe to include from any play.
+# Always delegates to the controller — uses the uv environment on localhost.
+
+- name: Detect Docker context endpoint
+  ansible.builtin.include_role:
+    name: swarm
+    tasks_from: get-docker-host
 
 - name: Get list of all running stacks
   community.docker.docker_stack_info:
