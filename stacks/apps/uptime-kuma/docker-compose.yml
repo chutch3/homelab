@@ -17,6 +17,7 @@ services:
         - "traefik.http.routers.uptime-kuma.entrypoints=websecure"
         - "traefik.http.routers.uptime-kuma.tls.certresolver=dns"
         - "traefik.http.services.uptime-kuma.loadbalancer.server.port=3001"
+        - "traefik.swarm.network=traefik-public"
 
         - "homepage.group=Monitoring"
         - "homepage.name=Uptime Kuma"

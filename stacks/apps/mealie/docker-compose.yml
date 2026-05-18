@@ -38,6 +38,7 @@ services:
                 - "traefik.http.routers.mealie.entrypoints=websecure"
                 - "traefik.http.routers.mealie.tls.certresolver=dns"
                 - "traefik.http.services.mealie.loadbalancer.server.port=9000"
+                - "traefik.swarm.network=traefik-public"
 
                 - homepage.group=Apps
                 - homepage.name=Mealie

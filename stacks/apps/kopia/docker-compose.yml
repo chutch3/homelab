@@ -34,6 +34,7 @@ services:
                 - "traefik.http.routers.kopia.tls.certresolver=dns"
                 - "traefik.http.routers.kopia.middlewares=authentik@swarm"
                 - "traefik.http.services.kopia.loadbalancer.server.port=51515"
+                - "traefik.swarm.network=traefik-public"
                 # Homepage
                 - "homepage.group=Infrastructure"
                 - "homepage.name=Kopia Backup"

@@ -23,6 +23,7 @@ services:
                 - "traefik.http.routers.prometheus.entrypoints=websecure"
                 - "traefik.http.routers.prometheus.tls.certresolver=dns"
                 - "traefik.http.services.prometheus.loadbalancer.server.port=9090"
+                - "traefik.swarm.network=traefik-public"
                 - homepage.group=Monitoring
                 - homepage.name=Prometheus
                 - homepage.icon=prometheus.png
@@ -69,6 +70,7 @@ services:
                 - "traefik.http.routers.grafana.entrypoints=websecure"
                 - "traefik.http.routers.grafana.tls.certresolver=dns"
                 - "traefik.http.services.grafana.loadbalancer.server.port=3000"
+                - "traefik.swarm.network=traefik-public"
                 - homepage.group=Monitoring
                 - homepage.name=Grafana
                 - homepage.icon=grafana.png

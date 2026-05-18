@@ -21,6 +21,7 @@ services:
                 - "traefik.http.routers.emby.entrypoints=websecure"
                 - "traefik.http.routers.emby.tls.certresolver=dns"
                 - "traefik.http.services.emby.loadbalancer.server.port=8096"
+                - "traefik.swarm.network=traefik-public"
 
                 - homepage.group=Media
                 - homepage.name=Emby

@@ -23,6 +23,7 @@ services:
                 - "traefik.http.routers.sonarr.entrypoints=websecure"
                 - "traefik.http.routers.sonarr.tls.certresolver=dns"
                 - "traefik.http.services.sonarr.loadbalancer.server.port=8989"
+                - "traefik.swarm.network=traefik-public"
                 - homepage.group=Downloads
                 - homepage.name=Sonarr
                 - homepage.icon=sonarr.png
