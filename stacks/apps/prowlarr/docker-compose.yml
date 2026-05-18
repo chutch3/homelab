@@ -20,6 +20,7 @@ services:
                 - "traefik.http.routers.prowlarr.entrypoints=websecure"
                 - "traefik.http.routers.prowlarr.tls.certresolver=dns"
                 - "traefik.http.services.prowlarr.loadbalancer.server.port=9696"
+                - "traefik.swarm.network=traefik-public"
                 - homepage.group=Downloads
                 - homepage.name=Prowlarr
                 - homepage.icon=prowlarr.png

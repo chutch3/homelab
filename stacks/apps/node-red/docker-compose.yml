@@ -23,6 +23,7 @@ services:
         - "traefik.http.routers.node-red.tls.certresolver=dns"
         - "traefik.http.routers.node-red.middlewares=authentik@swarm"
         - "traefik.http.services.node-red.loadbalancer.server.port=1880"
+        - "traefik.swarm.network=traefik-public"
 
         # Homepage Labels
         - "homepage.group=Automation"

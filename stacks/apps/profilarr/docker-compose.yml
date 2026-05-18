@@ -23,6 +23,7 @@ services:
                 - "traefik.http.routers.profilarr.entrypoints=websecure"
                 - "traefik.http.routers.profilarr.tls.certresolver=dns"
                 - "traefik.http.services.profilarr.loadbalancer.server.port=6868"
+                - "traefik.swarm.network=traefik-public"
                 # Homepage labels
                 - "homepage.group=Downloads"
                 - "homepage.name=Profilarr"

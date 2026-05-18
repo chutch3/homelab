@@ -21,6 +21,7 @@ services:
         - "traefik.http.routers.kiwix.entrypoints=websecure"
         - "traefik.http.routers.kiwix.tls.certresolver=dns"
         - "traefik.http.services.kiwix.loadbalancer.server.port=8080"
+        - "traefik.swarm.network=traefik-public"
 
         # Homepage dashboard
         - "homepage.group=Knowledge"

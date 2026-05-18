@@ -23,6 +23,7 @@ services:
                 - "traefik.http.routers.whisparr.entrypoints=websecure"
                 - "traefik.http.routers.whisparr.tls.certresolver=dns"
                 - "traefik.http.services.whisparr.loadbalancer.server.port=6969"
+                - "traefik.swarm.network=traefik-public"
                 - homepage.group=Downloads
                 - homepage.name=Whisparr
                 - homepage.icon=whisparr.png

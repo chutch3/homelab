@@ -32,6 +32,7 @@ services:
                 - "traefik.http.routers.takeout-manager.entrypoints=websecure"
                 - "traefik.http.routers.takeout-manager.tls.certresolver=dns"
                 - "traefik.http.services.takeout-manager.loadbalancer.server.port=8000"
+                - "traefik.swarm.network=traefik-public"
 
                 # Homepage Labels
                 - "homepage.group=Services"

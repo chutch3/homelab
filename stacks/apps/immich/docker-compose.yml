@@ -43,6 +43,7 @@ services:
                 - "traefik.http.routers.immich.tls.certresolver=dns"
                 - "traefik.http.services.immich.loadbalancer.server.port=2283"
                 - "traefik.http.services.immich.loadbalancer.server.scheme=http"
+                - "traefik.swarm.network=traefik-public"
                 - homepage.group=Media
                 - homepage.name=Immich
                 - homepage.icon=immich.png

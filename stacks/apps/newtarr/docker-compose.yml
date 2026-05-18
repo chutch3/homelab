@@ -20,6 +20,7 @@ services:
                 - "traefik.http.routers.newtarr.entrypoints=websecure"
                 - "traefik.http.routers.newtarr.tls.certresolver=dns"
                 - "traefik.http.services.newtarr.loadbalancer.server.port=9705"
+                - "traefik.swarm.network=traefik-public"
                 - homepage.group=Downloads
                 - homepage.name=Newtarr
                 - homepage.icon=huntarr.png

@@ -61,6 +61,7 @@ services:
                 - "traefik.http.routers.photoprism.tls.certresolver=dns"
                 - "traefik.http.services.photoprism.loadbalancer.server.port=2342"
                 - "traefik.http.services.photoprism.loadbalancer.server.scheme=http"
+                - "traefik.swarm.network=traefik-public"
 
                 - homepage.group=Media
                 - homepage.name=PhotoPrism

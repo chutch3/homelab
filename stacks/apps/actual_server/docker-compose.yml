@@ -23,6 +23,7 @@ services:
                 - "traefik.http.routers.actual.entrypoints=websecure"
                 - "traefik.http.routers.actual.tls.certresolver=dns"
                 - "traefik.http.services.actual.loadbalancer.server.port=5006"
+                - "traefik.swarm.network=traefik-public"
 
                 - homepage.group=Finance
                 - homepage.name=Actual Budget
@@ -49,6 +50,7 @@ services:
                 - "traefik.http.routers.actual-mcp.entrypoints=websecure"
                 - "traefik.http.routers.actual-mcp.tls.certresolver=dns"
                 - "traefik.http.services.actual-mcp.loadbalancer.server.port=3000"
+                - "traefik.swarm.network=traefik-public"
 
                 - homepage.group=Finance
                 - homepage.name=Actual MCP

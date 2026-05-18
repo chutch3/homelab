@@ -25,6 +25,7 @@ services:
         - "traefik.http.routers.ollama.entrypoints=websecure"
         - "traefik.http.routers.ollama.tls.certresolver=dns"
         - "traefik.http.services.ollama.loadbalancer.server.port=11434"
+        - "traefik.swarm.network=traefik-public"
 
         - "homepage.group=AI & Chat"
         - "homepage.name=Ollama"

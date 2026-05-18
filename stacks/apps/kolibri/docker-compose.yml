@@ -34,6 +34,7 @@ services:
         - "traefik.http.routers.kolibri.entrypoints=websecure"
         - "traefik.http.routers.kolibri.tls.certresolver=dns"
         - "traefik.http.services.kolibri.loadbalancer.server.port=8080"
+        - "traefik.swarm.network=traefik-public"
 
         # Homepage dashboard
         - "homepage.group=Knowledge"

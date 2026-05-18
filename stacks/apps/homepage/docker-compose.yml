@@ -37,6 +37,7 @@ services:
                 - "traefik.http.routers.homepage.tls.certresolver=dns"
                 - "traefik.http.routers.homepage.middlewares=authentik@swarm"
                 - "traefik.http.services.homepage.loadbalancer.server.port=3000"
+                - "traefik.swarm.network=traefik-public"
 
                 - homepage.group=System
                 - homepage.name=Homepage
