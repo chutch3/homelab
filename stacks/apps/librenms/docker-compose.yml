@@ -10,11 +10,11 @@ services:
       - "--character-set-server=utf8mb4"
       - "--collation-server=utf8mb4_unicode_ci"
     environment:
-      TZ: ${TZ:-UTC}
-      MYSQL_DATABASE: librenms
-      MYSQL_USER: librenms
-      MYSQL_PASSWORD: ${LIBRENMS_DB_PASSWORD}
-      MYSQL_ROOT_PASSWORD: ${LIBRENMS_DB_PASSWORD}
+      - TZ=${TZ:-UTC}
+      - MYSQL_DATABASE=librenms
+      - MYSQL_USER=librenms
+      - MYSQL_PASSWORD=${LIBRENMS_DB_PASSWORD}
+      - MYSQL_ROOT_PASSWORD=${LIBRENMS_DB_PASSWORD}
     volumes:
       - db:/var/lib/mysql
     healthcheck:
@@ -57,18 +57,18 @@ services:
   librenms:
     image: librenms/librenms:latest
     environment:
-      TZ: ${TZ:-UTC}
-      PUID: ${UID:-1000}
-      PGID: ${GID:-1000}
-      DB_HOST: db
-      DB_NAME: librenms
-      DB_USER: librenms
-      DB_PASSWORD: ${LIBRENMS_DB_PASSWORD}
-      DB_TIMEOUT: 60
-      REDIS_HOST: redis
-      REDIS_PORT: 6379
-      REDIS_DB: 0
-      BASE_URL: https://librenms.${BASE_DOMAIN}
+      - TZ=${TZ:-UTC}
+      - PUID=${UID:-1000}
+      - PGID=${GID:-1000}
+      - DB_HOST=db
+      - DB_NAME=librenms
+      - DB_USER=librenms
+      - DB_PASSWORD=${LIBRENMS_DB_PASSWORD}
+      - DB_TIMEOUT=60
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - REDIS_DB=0
+      - BASE_URL=https://librenms.${BASE_DOMAIN}
     volumes:
       - librenms-data:/data
     depends_on:
@@ -98,20 +98,20 @@ services:
   dispatcher:
     image: librenms/librenms:latest
     environment:
-      TZ: ${TZ:-UTC}
-      PUID: ${UID:-1000}
-      PGID: ${GID:-1000}
-      DB_HOST: db
-      DB_NAME: librenms
-      DB_USER: librenms
-      DB_PASSWORD: ${LIBRENMS_DB_PASSWORD}
-      DB_TIMEOUT: 60
-      REDIS_HOST: redis
-      REDIS_PORT: 6379
-      REDIS_DB: 0
-      BASE_URL: https://librenms.${BASE_DOMAIN}
-      SIDECAR_DISPATCHER: 1
-      DISPATCHER_NODE_ID: dispatcher1
+      - TZ=${TZ:-UTC}
+      - PUID=${UID:-1000}
+      - PGID=${GID:-1000}
+      - DB_HOST=db
+      - DB_NAME=librenms
+      - DB_USER=librenms
+      - DB_PASSWORD=${LIBRENMS_DB_PASSWORD}
+      - DB_TIMEOUT=60
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - REDIS_DB=0
+      - BASE_URL=https://librenms.${BASE_DOMAIN}
+      - SIDECAR_DISPATCHER=1
+      - DISPATCHER_NODE_ID=dispatcher1
     volumes:
       - librenms-data:/data
     depends_on:
