@@ -1,0 +1,28 @@
+version: "3.9"
+
+services:
+  drawio:
+    image: jgraph/drawio:latest
+    networks:
+      - traefik-public
+    deploy:
+      replicas: 1
+      labels:
+        - "traefik.enable=true"
+        - "traefik.http.routers.drawio.rule=Host(`draw.${BASE_DOMAIN}`)"
+        - "traefik.http.routers.drawio.entrypoints=websecure"
+        - "traefik.http.routers.drawio.tls.certresolver=dns"
+        - "traefik.http.services.drawio.loadbalancer.server.port=8080"
+        - "traefik.swarm.network=traefik-public"
+        - "homepage.group=Tools"
+        - "homepage.name=draw.io"
+        - "homepage.icon=drawio.png"
+        - "homepage.href=https://draw.${BASE_DOMAIN}/"
+        - "homepage.description=Network & architecture diagramming"
+      restart_policy:
+        condition: any
+        delay: 5s
+
+networks:
+  traefik-public:
+    external: true

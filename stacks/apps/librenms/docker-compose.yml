@@ -1,0 +1,151 @@
+version: "3.9"
+
+services:
+  db:
+    image: mariadb:10
+    command:
+      - "mysqld"
+      - "--innodb-file-per-table=1"
+      - "--lower-case-table-names=0"
+      - "--character-set-server=utf8mb4"
+      - "--collation-server=utf8mb4_unicode_ci"
+    environment:
+      TZ: ${TZ:-UTC}
+      MYSQL_DATABASE: librenms
+      MYSQL_USER: librenms
+      MYSQL_PASSWORD: ${LIBRENMS_DB_PASSWORD}
+      MYSQL_ROOT_PASSWORD: ${LIBRENMS_DB_PASSWORD}
+    volumes:
+      - db:/var/lib/mysql
+    healthcheck:
+      test: ["CMD-SHELL", "healthcheck.sh --connect --innodb_initialized"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    networks:
+      - librenms-internal
+    deploy:
+      placement:
+        constraints:
+          - node.labels.database == true
+      restart_policy:
+        condition: any
+        delay: 5s
+
+  redis:
+    image: redis:7-alpine
+    command: "--save 60 1 --loglevel warning"
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli ping | grep PONG"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    volumes:
+      - redis:/data
+    networks:
+      - librenms-internal
+    deploy:
+      placement:
+        constraints:
+          - node.labels.database == true
+      restart_policy:
+        condition: any
+        delay: 5s
+
+  librenms:
+    image: librenms/librenms:latest
+    environment:
+      TZ: ${TZ:-UTC}
+      PUID: ${UID:-1000}
+      PGID: ${GID:-1000}
+      DB_HOST: db
+      DB_NAME: librenms
+      DB_USER: librenms
+      DB_PASSWORD: ${LIBRENMS_DB_PASSWORD}
+      DB_TIMEOUT: 60
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_DB: 0
+      BASE_URL: https://librenms.${BASE_DOMAIN}
+    volumes:
+      - librenms-data:/data
+    depends_on:
+      - db
+      - redis
+    networks:
+      - librenms-internal
+      - traefik-public
+    deploy:
+      replicas: 1
+      labels:
+        - "traefik.enable=true"
+        - "traefik.http.routers.librenms.rule=Host(`librenms.${BASE_DOMAIN}`)"
+        - "traefik.http.routers.librenms.entrypoints=websecure"
+        - "traefik.http.routers.librenms.tls.certresolver=dns"
+        - "traefik.http.services.librenms.loadbalancer.server.port=8000"
+        - "traefik.swarm.network=traefik-public"
+        - "homepage.group=Monitoring"
+        - "homepage.name=LibreNMS"
+        - "homepage.icon=librenms.png"
+        - "homepage.href=https://librenms.${BASE_DOMAIN}/"
+        - "homepage.description=Network monitoring & discovery"
+      restart_policy:
+        condition: any
+        delay: 5s
+
+  dispatcher:
+    image: librenms/librenms:latest
+    environment:
+      TZ: ${TZ:-UTC}
+      PUID: ${UID:-1000}
+      PGID: ${GID:-1000}
+      DB_HOST: db
+      DB_NAME: librenms
+      DB_USER: librenms
+      DB_PASSWORD: ${LIBRENMS_DB_PASSWORD}
+      DB_TIMEOUT: 60
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_DB: 0
+      BASE_URL: https://librenms.${BASE_DOMAIN}
+      SIDECAR_DISPATCHER: 1
+      DISPATCHER_NODE_ID: dispatcher1
+    volumes:
+      - librenms-data:/data
+    depends_on:
+      - librenms
+    networks:
+      - librenms-internal
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: any
+        delay: 5s
+
+networks:
+  librenms-internal:
+    driver: overlay
+  traefik-public:
+    external: true
+
+volumes:
+  db:
+    driver: local
+    driver_opts:
+      type: "none"
+      o: "bind"
+      device: "/mnt/iscsi/app-data/librenms/db"
+  redis:
+    driver: local
+    driver_opts:
+      type: "none"
+      o: "bind"
+      device: "/mnt/iscsi/cache/librenms-redis"
+  librenms-data:
+    driver: local
+    driver_opts:
+      type: "none"
+      o: "bind"
+      device: "/mnt/iscsi/app-data/librenms/data"
