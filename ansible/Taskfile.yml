@@ -491,7 +491,7 @@ tasks:
     # SECRET MANAGEMENT (Sync & Restore)
     # ========================================================================
     secrets:login:
-        desc: Login and unlock Bitwarden vault. Set BW_CLIENTID+BW_CLIENTSECRET+BW_PASSWORD for non-interactive use.
+        desc: Login and unlock Bitwarden vault (always starts fresh to avoid stale session issues).
         dir: "{{.ROOT_DIR}}"
         interactive: true
         cmds:
@@ -499,32 +499,18 @@ tasks:
                 export PATH="$PATH:$HOME/.local/bin"
                 {{.VENV_ANSIBLE_PLAYBOOK}} -i ansible/inventory/ ansible/playbooks/secrets.yml -e secret_op=install {{.CLI_ARGS}}
 
-                if [ -z "$BW_SESSION" ] && [ -f "$HOME/.bw_session" ]; then set -a; source "$HOME/.bw_session"; set +a; fi
+                bw logout 2>/dev/null || true
+                rm -rf "$HOME/.config/Bitwarden CLI/"
+                bw login
+                SESSION=$(bw unlock --raw)
+                echo "BW_SESSION=$SESSION" > "$HOME/.bw_session"
+                chmod 600 "$HOME/.bw_session"
 
-                STATUS=$(bw status 2>/dev/null | uv run python3 -c "import sys,json; print(json.load(sys.stdin)['status'])" 2>/dev/null || echo 'uninstalled')
-
-                if [ "$STATUS" = "unauthenticated" ]; then
-                  if [ -n "$BW_CLIENTID" ] && [ -n "$BW_CLIENTSECRET" ]; then
-                    bw login --apikey
-                  else
-                    bw login
-                  fi
-                  STATUS=$(bw status 2>/dev/null | uv run python3 -c "import sys,json; print(json.load(sys.stdin)['status'])" 2>/dev/null || echo 'uninstalled')
-                fi
-
-                if [ "$STATUS" = "locked" ]; then
-                  if [ -n "$BW_PASSWORD" ]; then
-                    SESSION=$(bw unlock --passwordenv BW_PASSWORD --raw)
-                  else
-                    SESSION=$(bw unlock --raw)
-                  fi
-                  echo "BW_SESSION=$SESSION" > "$HOME/.bw_session"
-                  chmod 600 "$HOME/.bw_session"
+                STATUS=$(bw status 2>/dev/null | uv run python3 -c "import sys,json; print(json.load(sys.stdin)['status'])" 2>/dev/null || echo 'unknown')
+                if [ "$STATUS" = "unlocked" ]; then
                   echo "Vault unlocked. Session saved to ~/.bw_session."
-                elif [ "$STATUS" = "unlocked" ]; then
-                  echo "Vault already unlocked."
                 else
-                  echo "Error: Bitwarden is not authenticated or could not be installed."
+                  echo "Error: vault status is '$STATUS' after unlock. Something went wrong."
                   exit 1
                 fi
 
