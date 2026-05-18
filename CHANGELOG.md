@@ -2,6 +2,205 @@
 
 <!-- version list -->
 
+## v3.14.0 (2026-05-18)
+
+### Bug Fixes
+
+- Add openssh-client so docker ssh contexts work
+  ([`61e1d84`](https://github.com/chutch3/homelab/commit/61e1d840cd9e762ed34b6037982de321a45a21a8))
+
+- Add tls labels to excalidraw-room and health path to storage monitor
+  ([`5893b7a`](https://github.com/chutch3/homelab/commit/5893b7a781b3b98cb244c8b880f4ebebcc47a70e))
+
+- Avoid bool filter on 'auto' string to suppress deprecation warning
+  ([`f1e4c46`](https://github.com/chutch3/homelab/commit/f1e4c46c76213e0a83f76d63194f347ccb3d5066))
+
+- Code-server now accessible via domain
+  ([`28a29cb`](https://github.com/chutch3/homelab/commit/28a29cb4181b5284f80e39bb05887cc59bba99d1))
+
+- Correct truncated panels array in cluster-health dashboard
+  ([`f796029`](https://github.com/chutch3/homelab/commit/f79602923a4334eab3ce455caf0bdf245ee8eee7))
+
+- Correct workspace volume mount path in devbox services
+  ([`5e6412d`](https://github.com/chutch3/homelab/commit/5e6412d56710da7bea9693bd288a3ac51b18a5fb))
+
+- Delegate compose file stat checks to localhost
+  ([`9559f53`](https://github.com/chutch3/homelab/commit/9559f53e903f48d06c905d7adbc68498fcec287c))
+
+- Delegate docker stack operations to localhost to use uv environment
+  ([`336ba13`](https://github.com/chutch3/homelab/commit/336ba130b202d5e90597b100583c20e4ec237e43))
+
+- Delegate secrets push/pull file operations to localhost
+  ([`ea0aa34`](https://github.com/chutch3/homelab/commit/ea0aa345ad2f240f79459ad4aba610f014d1bf4d))
+
+- Derive compose path from stack_name and retry monitor deletion
+  ([`d016014`](https://github.com/chutch3/homelab/commit/d0160149e2cdce282a223b90f5784bf5637ebabd))
+
+- Ensure bitwarden cli is installed and correctly detected during login
+  ([`48ae33f`](https://github.com/chutch3/homelab/commit/48ae33ff9990b43c57026167ef7d2d416defa35f))
+
+- Ensure secret_provider variable is loaded and rename reserved 'action' variable
+  ([`0f6132d`](https://github.com/chutch3/homelab/commit/0f6132d4debb14b4433f7e6d6982ccdc6a10a1b5))
+
+- Exclude older machines from the the claudecode deployment
+  ([`ff2f7b9`](https://github.com/chutch3/homelab/commit/ff2f7b91dae2350f7d4a18041fb1f58c45bf6fdb))
+
+- Improve storage safety and document mount race condition
+  ([`74008d1`](https://github.com/chutch3/homelab/commit/74008d13fe652430de3a9d7eb4a9cd4beb677ecb))
+
+- Install ansible collections project-locally for consistent resolution across environments
+  ([`f5f1c22`](https://github.com/chutch3/homelab/commit/f5f1c226b6f727a86c231416e4b49ba483ad2e39))
+
+- Install ansible galaxy collections as part of install task
+  ([`8e63d68`](https://github.com/chutch3/homelab/commit/8e63d680c51cf5aa47294dc60c93dbe1eb49b480))
+
+- Load docker context before removing stacks in repair and teardown
+  ([`c9d848d`](https://github.com/chutch3/homelab/commit/c9d848da7749c66553015849e8633760ffcb4f2d))
+
+- Pass active docker context endpoint to community.docker modules
+  ([`bdb46b6`](https://github.com/chutch3/homelab/commit/bdb46b647c2be8a4f33087f36eb280a397701f77))
+
+- Pass registry credentials when deploying stacks
+  ([`7ebbef1`](https://github.com/chutch3/homelab/commit/7ebbef1309df6635af8d23b7747d281350723896))
+
+- Publish Technitium port 5380 in host mode
+  ([`e4cc45b`](https://github.com/chutch3/homelab/commit/e4cc45bb5580120ae74070919419b4c492920056))
+
+- Publish Traefik ports in host mode and switch update order to stop-first
+  ([`66e9253`](https://github.com/chutch3/homelab/commit/66e9253ffd5524f908a3a0cd670aa5098b72e8de))
+
+- Remove non-boolean when conditions on DNS and uptime flag tasks
+  ([`3124741`](https://github.com/chutch3/homelab/commit/312474184a6edb5d71bb541d3bb3522314338ea1))
+
+- Remove sabnzbd hostname and add accepted statuscodes for uptime monitor
+  ([`6faf45f`](https://github.com/chutch3/homelab/commit/6faf45f2d38bbc855d82a90fa7d8a67d5673beba))
+
+- Remove silent defaults in favor of explicit validation
+  ([`6b21193`](https://github.com/chutch3/homelab/commit/6b21193a25691d6b2d564578c465c68eb151bbe7))
+
+- Remove traefik exposure from cicd runner and drop unused network
+  ([`d3f4146`](https://github.com/chutch3/homelab/commit/d3f41460f1620629cee04e332be4670cb76d573e))
+
+- Removed ignoring output for bitwarden adapter
+  ([`ae5dc01`](https://github.com/chutch3/homelab/commit/ae5dc01c310f41958c82a1e045ddc23d28990678))
+
+- Replace pip3 and poetry with uv across Taskfile and docs workflow
+  ([`0676110`](https://github.com/chutch3/homelab/commit/0676110dae32e53e40e945cf26fc3f3038c2b857))
+
+- Replace poetry with uv in ci pipeline
+  ([`0e6e79c`](https://github.com/chutch3/homelab/commit/0e6e79c9d903247fcf485bdfc361e0c18ce4347e))
+
+- Retry uptime kuma login on socket.io connection failure
+  ([`b7c5e1c`](https://github.com/chutch3/homelab/commit/b7c5e1c5fafa12fb128ffbaf75d4bfd20ae81c66))
+
+- Run docker stack/network operations on localhost via docker context
+  ([`b2e942c`](https://github.com/chutch3/homelab/commit/b2e942cb60bc9891f5d99cdbe222b148f38b67f4))
+
+- Skip Uptime Kuma steps gracefully when service is unreachable
+  ([`85cfac1`](https://github.com/chutch3/homelab/commit/85cfac1354a28615cc47c8b9085874b5c831a9b3))
+
+- Source existing bw session before status check in secrets:login
+  ([`52db98d`](https://github.com/chutch3/homelab/commit/52db98dd22ecced33422261c3842cecac950a9dd))
+
+- Stop docker before iSCSI unmount and run stack removal on the manager
+  ([`65892dd`](https://github.com/chutch3/homelab/commit/65892ddfe3013ee64b5ba1b1fd802ee98ce5b37a))
+
+- Sync vault before secrets operations to prevent stale cache and session issues
+  ([`25cd92f`](https://github.com/chutch3/homelab/commit/25cd92f2cacd635ad77cd4537c2d68c799a0f88a))
+
+- The devbox image
+  ([`044d987`](https://github.com/chutch3/homelab/commit/044d987e8d404803f4fe8bd7caaf56fe3c90f3f9))
+
+- Use cli_context for docker_stack modules and capture context name in get-docker-host
+  ([`f3e470a`](https://github.com/chutch3/homelab/commit/f3e470ae95549979ce0c987bf535404b8ab4f940))
+
+- Use dnsrr on Loki to bypass broken IPVS VIP routing
+  ([`cab7729`](https://github.com/chutch3/homelab/commit/cab77291d8d1aa053bbea2c630d77a1d7614aab8))
+
+- Use lookup plugin to read .env from controller instead of remote host
+  ([`253058c`](https://github.com/chutch3/homelab/commit/253058c8ffc30e48fbbad4d07c6cba674e2ffb58))
+
+- Use separate execute timeout for ssh_execute_script to allow long-running remote commands
+  ([`c17f419`](https://github.com/chutch3/homelab/commit/c17f419bba804aea299c9c9a6e0f3ad693e66541))
+
+- Use system python3 as default ansible interpreter
+  ([`1bd1f4f`](https://github.com/chutch3/homelab/commit/1bd1f4f7725acec5d0a6ec2dd79b6df5df4afa91))
+
+- Use uv run for ansible commands instead of hardcoded venv paths
+  ([`a8eed5e`](https://github.com/chutch3/homelab/commit/a8eed5e5a4728161db909ac3d839db712be7f8fe))
+
+- Use venv ansible-lint and ansible-playbook in pre-commit hooks
+  ([`931f996`](https://github.com/chutch3/homelab/commit/931f996ba9d79085e2fdd056f306889db64b1a1e))
+
+### Build System
+
+- Add pytest-httpserver dev dependency
+  ([`0e7c429`](https://github.com/chutch3/homelab/commit/0e7c4296fca6cf1f4f69dc8f466143ebbda16e1b))
+
+### Chores
+
+- Removed the old .cursor directory
+  ([`927e7c6`](https://github.com/chutch3/homelab/commit/927e7c672dd8b167ecf374b5aad990ad3a1155b6))
+
+### Documentation
+
+- Sync documentation with recent service and configuration updates
+  ([`0fc4259`](https://github.com/chutch3/homelab/commit/0fc42595e18093525bf1415262e7dfc88058ae7a))
+
+### Features
+
+- Add claudecodeui, code-server, and devbox development tools
+  ([`2f90341`](https://github.com/chutch3/homelab/commit/2f9034122e6e3001cee2d046c2a4a685764cc035))
+
+- Add docker cli to devbox
+  ([`037eb66`](https://github.com/chutch3/homelab/commit/037eb666118728f2692a194e4c848a0c6b821464))
+
+- Add dotnet, rust, kubectl, ansible, tmux, fzf, jq, yq and gpu support to devbox
+  ([`53939dc`](https://github.com/chutch3/homelab/commit/53939dcbdc703a4f92c46930cea2e13e7ac589f5))
+
+- Add network repair tools and improve swarm deployment reliability
+  ([`1fc951a`](https://github.com/chutch3/homelab/commit/1fc951a9d4e941c1e719df3443dcc1227a1c8b8a))
+
+- Add validation and helpful error messages to secrets role
+  ([`025f39e`](https://github.com/chutch3/homelab/commit/025f39ec651b8382028a2f4e9c31f3b6969f6a38))
+
+- Added budget mcp and task to base image
+  ([`82627ec`](https://github.com/chutch3/homelab/commit/82627ecc6e3bfddebea3c02a396188d63ecaf5a7))
+
+- Added hosts and ssh configs to the secrets sync
+  ([`11f95e7`](https://github.com/chutch3/homelab/commit/11f95e7678b8b7a856b4e6bd09c9be548f1d6844))
+
+- Bump radarr
+  ([`82cd272`](https://github.com/chutch3/homelab/commit/82cd27243179943cb07edef0960a8f646162daf2))
+
+- Implement secret orchestration layer for .env sync and restore
+  ([`bb694f7`](https://github.com/chutch3/homelab/commit/bb694f79018a347f6d6d07d0b081224b849b058f))
+
+- Migrate python tooling from poetry to uv, add pre-commit and go-task to devbox, add actual-mcp
+  service
+  ([`7fa056e`](https://github.com/chutch3/homelab/commit/7fa056ee09874d61fc302bbc04d3c3807966231e))
+
+- Pass CLI_ARGS to devbox docker build task and remove unused deploy tasks
+  ([`aee636c`](https://github.com/chutch3/homelab/commit/aee636caa281b6f02f38200fce56b5e963c95811))
+
+- Set actual-mcp to read-only mode
+  ([`b51930d`](https://github.com/chutch3/homelab/commit/b51930df643530b79bee341c543b04a339c5a711))
+
+- Store secrets as bitwarden file attachments with full push/pull workflow
+  ([`f85c4df`](https://github.com/chutch3/homelab/commit/f85c4dfeb955074f2d265aee564b02f53d4ee645))
+
+- Support uptime_kuma.path and accepted_statuscodes labels for per-service monitor configuration
+  ([`8631f44`](https://github.com/chutch3/homelab/commit/8631f44cb39157cbed996e96995a1e2ce4e31b96))
+
+- Sync ansible hosts and ssh config files alongside .env in secrets push/pull
+  ([`647bbb3`](https://github.com/chutch3/homelab/commit/647bbb311c21745d2ca789ae4d4a75a1cb592c0b))
+
+### Refactoring
+
+- Remove manga_volume_migrator. the tranga fork now handles volmes better
+  ([`b9ab855`](https://github.com/chutch3/homelab/commit/b9ab855a164842c9c342d5d996e8167adb39c59b))
+
+
 ## v3.13.0 (2026-05-11)
 
 ### Bug Fixes
