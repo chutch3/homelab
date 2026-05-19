@@ -22,24 +22,24 @@
       command: 'docker volume ls --filter label=com.docker.stack.namespace={{ stack_name }} --format ''{% raw %}{{ .Name }}{% endraw %}'''
       register: stack_volumes_by_label
       changed_when: false
-      when: remove_volumes
+      when: remove_volumes | bool
 
     - name: Get volumes associated with the stack (by name prefix - fallback)
       command: 'docker volume ls --filter name={{ stack_name }}_ --format ''{% raw %}{{ .Name }}{% endraw %}'''
       register: stack_volumes_by_name
       changed_when: false
-      when: remove_volumes and (stack_volumes_by_label.stdout_lines | default([]) | length == 0)
+      when: remove_volumes | bool and (stack_volumes_by_label.stdout_lines | default([]) | length == 0)
 
     - name: Read docker-compose.yml to find volume names (locally)
       set_fact:
         compose_content: "{{ lookup('file', playbook_dir + '/../../../stacks/apps/' + stack_name + '/docker-compose.yml', errors='ignore') | from_yaml }}"
-      when: remove_volumes and (stack_volumes_by_label.stdout_lines | default([]) | length == 0) and (stack_volumes_by_name.stdout_lines | default([]) | length == 0)
+      when: remove_volumes | bool and (stack_volumes_by_label.stdout_lines | default([]) | length == 0) and (stack_volumes_by_name.stdout_lines | default([]) | length == 0)
       ignore_errors: true
 
     - name: Parse volume names from docker-compose.yml
       set_fact:
         compose_volumes: "{{ compose_content.volumes.keys() | list }}"
-      when: remove_volumes and compose_content is defined and compose_content.volumes is defined
+      when: remove_volumes | bool and compose_content is defined and compose_content.volumes is defined
 
     - name: Check which compose volumes actually exist
       command: "docker volume inspect {{ item }}"
@@ -47,17 +47,17 @@
       register: volume_exists
       failed_when: false
       changed_when: false
-      when: remove_volumes and compose_volumes is defined
+      when: remove_volumes | bool and compose_volumes is defined
 
     - name: Build list of existing volumes from compose file
       set_fact:
         stack_volumes_from_compose: "{{ volume_exists.results | selectattr('rc', 'equalto', 0) | map(attribute='item') | list }}"
-      when: remove_volumes and volume_exists is defined and volume_exists.results is defined
+      when: remove_volumes | bool and volume_exists is defined and volume_exists.results is defined
 
     - name: Combine volume lists
       set_fact:
         stack_volumes: "{{ (stack_volumes_by_label.stdout_lines | default([])) + (stack_volumes_by_name.stdout_lines | default([])) + (stack_volumes_from_compose | default([])) }}"
-      when: remove_volumes
+      when: remove_volumes | bool
 
     - name: Get uptime API token
       ansible.builtin.include_role:
@@ -103,10 +103,10 @@
     - name: Wait for stack to fully stop
       pause:
         seconds: 5
-      when: remove_volumes and stack_volumes | length > 0
+      when: remove_volumes | bool and stack_volumes | length > 0
 
     - name: Remove associated Docker volumes
-      when: remove_volumes and stack_volumes | length > 0
+      when: remove_volumes | bool and stack_volumes | length > 0
       ansible.builtin.command:
         cmd: "docker volume rm -f {{ item }}"
       loop: "{{ stack_volumes }}"
@@ -118,6 +118,6 @@
         msg: |
           ✅ Stack '{{ stack_name }}' teardown complete
              - Stack removed: Yes
-             - Volumes removed: {{ 'Yes (' + (stack_volumes | default([]) | join(', ')) + ')' if remove_volumes and stack_volumes | default([]) | length > 0 else ('No' if not remove_volumes else 'None found') }}
+             - Volumes removed: {{ 'Yes (' + (stack_volumes | default([]) | join(', ')) + ')' if remove_volumes | bool and stack_volumes | default([]) | length > 0 else ('No' if not remove_volumes | bool else 'None found') }}
              - DNS records removed: {{ 'Yes' if remove_dns | bool else 'No (preserved)' }}
              - Uptime monitors removed: {{ 'Skipped (not registered)' if stack_name == 'reverse-proxy' else ('Yes' if remove_uptime | bool else 'No (preserved)') }}

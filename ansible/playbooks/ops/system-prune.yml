@@ -43,7 +43,7 @@
       register: prune_dry_run
       changed_when: false
       check_mode: yes
-      when: not execute_prune
+      when: not (execute_prune | bool)
 
     - name: Warn about dry run mode
       ansible.builtin.debug:
@@ -51,7 +51,7 @@
           DRY RUN MODE - No changes will be made.
           To execute the prune, run with: -e "execute_prune=true"
           To skip volumes, run with: -e "include_volumes=false"
-      when: not execute_prune
+      when: not (execute_prune | bool)
 
     - name: Execute docker system prune
       ansible.builtin.command: >
@@ -61,13 +61,13 @@
         --force
       register: prune_result
       changed_when: prune_result.rc == 0
-      when: execute_prune
+      when: execute_prune | bool
 
     - name: Get disk usage after prune
       ansible.builtin.command: docker system df
       register: disk_usage_after
       changed_when: false
-      when: execute_prune
+      when: execute_prune | bool
 
     - name: Display prune results
       ansible.builtin.debug:
@@ -82,7 +82,7 @@
 
           Prune output:
           {{ prune_result.stdout }}
-      when: execute_prune
+      when: execute_prune | bool
 
     - name: Display summary for all nodes
       ansible.builtin.debug:
