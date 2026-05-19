@@ -34,7 +34,7 @@ services:
         delay: 5s
 
   redis:
-    image: redis:7-alpine
+    image: redis:7.2-alpine
     command: "--save 60 1 --loglevel warning"
     healthcheck:
       test: ["CMD-SHELL", "redis-cli ping | grep PONG"]
@@ -56,10 +56,14 @@ services:
 
   librenms:
     image: librenms/librenms:latest
+    hostname: librenms
+    cap_add:
+      - NET_ADMIN
+      - NET_RAW
     environment:
       - TZ=${TZ:-UTC}
-      - PUID=${UID:-1000}
-      - PGID=${GID:-1000}
+      - PUID=${PUID:-1000}
+      - PGID=${PGID:-1000}
       - DB_HOST=db
       - DB_NAME=librenms
       - DB_USER=librenms
@@ -69,6 +73,10 @@ services:
       - REDIS_PORT=6379
       - REDIS_DB=0
       - BASE_URL=https://librenms.${BASE_DOMAIN}
+      - LIBRENMS_SNMP_COMMUNITY=${LIBRENMS_SNMP_COMMUNITY:-public}
+      - LIBRENMS_ADMIN_USER=${LIBRENMS_ADMIN_USER:-admin}
+      - LIBRENMS_ADMIN_PASS=${LIBRENMS_ADMIN_PASS}
+      - LIBRENMS_ADMIN_EMAIL=${LIBRENMS_ADMIN_EMAIL}
     volumes:
       - librenms-data:/data
     depends_on:
@@ -97,10 +105,14 @@ services:
 
   dispatcher:
     image: librenms/librenms:latest
+    hostname: librenms-dispatcher
+    cap_add:
+      - NET_ADMIN
+      - NET_RAW
     environment:
       - TZ=${TZ:-UTC}
-      - PUID=${UID:-1000}
-      - PGID=${GID:-1000}
+      - PUID=${PUID:-1000}
+      - PGID=${PGID:-1000}
       - DB_HOST=db
       - DB_NAME=librenms
       - DB_USER=librenms
@@ -110,10 +122,89 @@ services:
       - REDIS_PORT=6379
       - REDIS_DB=0
       - BASE_URL=https://librenms.${BASE_DOMAIN}
+      - LIBRENMS_SNMP_COMMUNITY=${LIBRENMS_SNMP_COMMUNITY:-public}
       - SIDECAR_DISPATCHER=1
       - DISPATCHER_NODE_ID=dispatcher1
     volumes:
       - librenms-data:/data
+    depends_on:
+      - librenms
+    networks:
+      - librenms-internal
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: any
+        delay: 5s
+
+  syslogng:
+    image: librenms/librenms:latest
+    hostname: librenms-syslogng
+    cap_add:
+      - NET_ADMIN
+      - NET_RAW
+    environment:
+      - TZ=${TZ:-UTC}
+      - PUID=${PUID:-1000}
+      - PGID=${PGID:-1000}
+      - DB_HOST=db
+      - DB_NAME=librenms
+      - DB_USER=librenms
+      - DB_PASSWORD=${LIBRENMS_DB_PASSWORD}
+      - DB_TIMEOUT=60
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - REDIS_DB=0
+      - BASE_URL=https://librenms.${BASE_DOMAIN}
+      - SIDECAR_SYSLOGNG=1
+    volumes:
+      - librenms-data:/data
+    ports:
+      - target: 514
+        published: 514
+        protocol: tcp
+      - target: 514
+        published: 514
+        protocol: udp
+    depends_on:
+      - librenms
+    networks:
+      - librenms-internal
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: any
+        delay: 5s
+
+  snmptrapd:
+    image: librenms/librenms:latest
+    hostname: librenms-snmptrapd
+    cap_add:
+      - NET_ADMIN
+      - NET_RAW
+    environment:
+      - TZ=${TZ:-UTC}
+      - PUID=${PUID:-1000}
+      - PGID=${PGID:-1000}
+      - DB_HOST=db
+      - DB_NAME=librenms
+      - DB_USER=librenms
+      - DB_PASSWORD=${LIBRENMS_DB_PASSWORD}
+      - DB_TIMEOUT=60
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - REDIS_DB=0
+      - BASE_URL=https://librenms.${BASE_DOMAIN}
+      - SIDECAR_SNMPTRAPD=1
+    volumes:
+      - librenms-data:/data
+    ports:
+      - target: 162
+        published: 162
+        protocol: tcp
+      - target: 162
+        published: 162
+        protocol: udp
     depends_on:
       - librenms
     networks:
