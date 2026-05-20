@@ -256,6 +256,33 @@ tasks:
         cmds:
             - "{{.VENV_ANSIBLE_PLAYBOOK}} -i ansible/inventory/ ansible/playbooks/dns.yml -e \"dns_action=add_service_records\" {{.CLI_ARGS}}"
 
+    # SNMP Management
+    snmp:configure:
+        desc: "Install and configure SNMP on all nodes (requires snmpd in packages and snmp.yml)"
+        dir: "{{.ROOT_DIR}}"
+        interactive: true
+        preconditions:
+            - sh: test -f ansible/inventory/group_vars/all/snmp.yml
+              msg: |
+                  ansible/inventory/group_vars/all/snmp.yml not found.
+                  Copy the example and set your community string:
+                    cp ansible/inventory/group_vars/all/snmp.yml.example ansible/inventory/group_vars/all/snmp.yml
+        cmds:
+            - "{{.VENV_ANSIBLE_PLAYBOOK}} --become -i ansible/inventory/ ansible/playbooks/bootstrap.yml --tags snmp {{.CLI_ARGS}}"
+
+    snmp:configure:node:
+        desc: "Configure SNMP on a specific node (usage: task ansible:snmp:configure:node -- worker-01)"
+        dir: "{{.ROOT_DIR}}"
+        interactive: true
+        preconditions:
+            - sh: test -f ansible/inventory/group_vars/all/snmp.yml
+              msg: |
+                  ansible/inventory/group_vars/all/snmp.yml not found.
+                  Copy the example and set your community string:
+                    cp ansible/inventory/group_vars/all/snmp.yml.example ansible/inventory/group_vars/all/snmp.yml
+        cmds:
+            - "{{.VENV_ANSIBLE_PLAYBOOK}} --become -i ansible/inventory/ ansible/playbooks/bootstrap.yml --tags snmp --limit {{.CLI_ARGS}}"
+
     # Tailscale VPN Management
     tailscale:configure:
         desc: "Install and configure Tailscale on all nodes (requires TAILSCALE_AUTH_KEY in .env)"
@@ -535,5 +562,5 @@ tasks:
         dir: "{{.ROOT_DIR}}"
         prompt: "Are you sure you want to delete all local secret files? Make sure you have pushed your changes to the vault first!"
         cmds:
-            - rm -f .env ansible/inventory/02-hosts.yml ansible/inventory/group_vars/all/ssh.yml
+            - rm -f .env ansible/inventory/02-hosts.yml ansible/inventory/group_vars/all/ssh.yml ansible/inventory/group_vars/all/snmp.yml
             - echo "Local secret files removed."

@@ -1,0 +1,6 @@
+# ansible/roles/snmp/handlers/main.yml
+---
+- name: restart snmpd
+  systemd:
+      name: snmpd
+      state: restarted

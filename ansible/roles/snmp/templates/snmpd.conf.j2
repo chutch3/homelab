@@ -1,0 +1,18 @@
+# /etc/snmp/snmpd.conf — managed by Ansible (roles/snmp)
+# Changes made here will be overwritten on next bootstrap run.
+
+agentaddress {{ snmp_agentaddress }}
+
+# SNMPv2c read-only community
+rocommunity {{ snmp_community }} default
+
+# System information
+sysLocation {{ snmp_location }}
+sysContact {{ snmp_contact }}
+sysServices 72
+
+# Expose full OID tree
+view systemonly included .1
+
+# Allow polling from any host (restrict via firewall if needed)
+rocommunity6 {{ snmp_community }} default

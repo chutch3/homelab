@@ -1,0 +1,25 @@
+# ansible/roles/snmp/tasks/main.yml
+---
+- name: Configure snmpd
+  when: "'snmpd' in packages"
+  block:
+    - name: Install SNMP packages
+      apt:
+        name: "{{ packages | select('match', 'snmp.*') | list }}"
+        state: present
+        update_cache: false
+
+    - name: Deploy snmpd configuration
+      template:
+        src: snmpd.conf.j2
+        dest: /etc/snmp/snmpd.conf
+        owner: root
+        group: root
+        mode: "0640"
+      notify: restart snmpd
+
+    - name: Enable and start snmpd
+      systemd:
+        name: snmpd
+        enabled: true
+        state: started

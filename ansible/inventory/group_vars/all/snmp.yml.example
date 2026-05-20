@@ -1,0 +1,9 @@
+# ansible/inventory/group_vars/all/snmp.yml.example
+# Copy to snmp.yml (gitignored) and set values for your environment.
+# snmp.yml is only used when 'snmpd' is present in the packages list.
+---
+snmp_community: "public"
+snmp_location: "Homelab"
+snmp_contact: "admin@localhost"
+# Which addresses snmpd listens on. Restrict to specific IPs if desired.
+snmp_agentaddress: "udp:161,udp6:[::1]:161"
