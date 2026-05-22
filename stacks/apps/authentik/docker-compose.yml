@@ -47,7 +47,7 @@ services:
                 delay: 5s
 
     server:
-        image: ghcr.io/goauthentik/server:2024.12.3
+        image: ghcr.io/goauthentik/server:2024.12.5
         command: server
         environment:
             AUTHENTIK_REDIS__HOST: redis
@@ -86,7 +86,7 @@ services:
                 delay: 5s
 
     worker:
-        image: ghcr.io/goauthentik/server:2024.12.3
+        image: ghcr.io/goauthentik/server:2024.12.5
         command: worker
         environment:
             AUTHENTIK_REDIS__HOST: redis
@@ -122,7 +122,7 @@ services:
     # This is deployed automatically by Authentik when you create an outpost,
     # but you can also define it manually here for more control
     proxy:
-        image: ghcr.io/goauthentik/proxy:2024.12.3
+        image: ghcr.io/goauthentik/proxy:2024.12.5
         environment:
             AUTHENTIK_HOST: https://auth.${BASE_DOMAIN}
             AUTHENTIK_INSECURE: "false"
@@ -155,7 +155,7 @@ services:
 
     # LDAP Outpost - provides LDAP interface for apps like Emby
     ldap:
-        image: ghcr.io/goauthentik/ldap:2024.12.3
+        image: ghcr.io/goauthentik/ldap:2024.12.5
         ports:
             - "389:3389"
             - "636:6636"
