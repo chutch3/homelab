@@ -123,7 +123,8 @@ ENV DOTNET_CLI_TELEMETRY_OPTOUT=1
 
 # npm global tools
 RUN eval "$(fnm env --use-on-cd)" && \
-    npm install -g @anthropic-ai/claude-code@latest @google/gemini-cli@latest @cloudcli-ai/cloudcli@latest
+    npm install -g @anthropic-ai/claude-code@latest @google/gemini-cli@latest @cloudcli-ai/cloudcli@latest && \
+    find "$(fnm root)" -name "claude" -not -type l -print0 | xargs -0 chmod +x 2>/dev/null || true
 
 # Forge Code
 RUN curl -fsSL https://forgecode.dev/install.sh | bash
