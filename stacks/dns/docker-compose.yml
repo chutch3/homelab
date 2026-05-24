@@ -1,6 +1,6 @@
 services:
     dns-server:
-        image: technitium/dns-server:15.0.1
+        image: technitium/dns-server:15.2.0
         hostname: "dns-server"
         ports:
             # host mode: only binds on the node running the container, preventing
@@ -55,8 +55,10 @@ services:
             - DNS_SERVER_LOG_QUERIES=false
             - DNS_SERVER_WEB_SERVICE_HTTP_PORT=5380
             - ASPNETCORE_HTTP_PORTS=5380
+            # Force .NET HTTP client to use IPv4 only; container has no IPv6 routing
+            # so blocklist downloads hang indefinitely when DNS returns AAAA records
+            - DOTNET_SYSTEM_NET_DISABLEIPV6=1
         volumes:
-            # CIFS volume ensures data persists across node failover
             - dns-config:/etc/dns
         sysctls:
             - net.ipv4.ip_local_port_range=1024 65000
@@ -67,9 +69,9 @@ volumes:
     dns-config:
         driver: local
         driver_opts:
-            type: "cifs"
-            o: "username=${SMB_USERNAME},password=${SMB_PASSWORD},vers=3.0,nobrl,uid=0,gid=100,file_mode=0777,dir_mode=0777,soft,actimeo=30"
-            device: "//${NAS_SERVER}/dns"
+            type: "none"
+            o: "bind"
+            device: "/mnt/iscsi/app-data/dns"
 
 networks:
     traefik-public:
