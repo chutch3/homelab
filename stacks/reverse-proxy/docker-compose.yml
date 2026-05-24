@@ -39,6 +39,9 @@ services:
             - "--metrics.prometheus.addServicesLabels=true"
             - "--metrics.prometheus.entryPoint=metrics"
 
+            # Allow Traefik to connect to backends with self-signed certs (e.g. kasmweb)
+            - "--serversTransport.insecureSkipVerify=true"
+
             # Dashboard
             - "--api.dashboard=true"
 

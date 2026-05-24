@@ -1,0 +1,141 @@
+version: "3.9"
+
+services:
+
+    tor-vpn:
+        image: qmcgaw/gluetun:latest
+        cap_add:
+            - NET_ADMIN
+        devices:
+            - /dev/net/tun:/dev/net/tun
+        entrypoint: ["/bin/sh", "/scripts/init-vpn.sh"]
+        configs:
+            - source: tor_vpn_init_script_v1
+              target: /scripts/init-vpn.sh
+              mode: 493
+        environment:
+            - VPN_SERVICE_PROVIDER=${TOR_VPN_SERVICE_PROVIDER}
+            - VPN_TYPE=wireguard
+            - WIREGUARD_PRIVATE_KEY=${TOR_WIREGUARD_PRIVATE_KEY}
+            - WIREGUARD_ADDRESSES=${TOR_WIREGUARD_ADDRESSES}
+            - SERVER_COUNTRIES=${TOR_VPN_SERVER_COUNTRIES}
+            - TZ=${TZ}
+            - SOCKS5_ENABLED=on
+            - SOCKS5_LISTENING_ADDRESS=:1080
+            - FIREWALL_INPUT_PORTS=1080
+        healthcheck:
+            test: ["CMD-SHELL", "wget -qO- https://ipinfo.io/ip || exit 1"]
+            interval: 30s
+            timeout: 15s
+            retries: 3
+            start_period: 30s
+        networks:
+            - tor-internal
+        deploy:
+            placement:
+                constraints:
+                    - node.labels.tor == true
+            restart_policy:
+                condition: any
+                delay: 5s
+
+    tor-browser:
+        image: kasmweb/tor-browser:1.18.0
+        user: "0"
+        init: true
+        cap_add:
+            - NET_ADMIN
+        entrypoint: ["/bin/bash", "/scripts/browser-prestart.sh"]
+        configs:
+            - source: tor_browser_prestart_v10
+              target: /scripts/browser-prestart.sh
+              mode: 493
+        environment:
+            - VNC_PW=${TOR_BROWSER_VNC_PASSWORD}
+            - TZ=${TZ}
+            - DISABLE_CUSTOM_STARTUP=true
+        volumes:
+            - tor_browser_data:/home/kasm-user
+            - type: tmpfs
+              target: /dev/shm
+              tmpfs:
+                  size: 536870912
+        networks:
+            - tor-internal
+            - traefik-public
+        deploy:
+            placement:
+                constraints:
+                    - node.labels.tor == true
+            labels:
+                - "traefik.enable=true"
+                - "traefik.swarm.network=traefik-public"
+                - "traefik.http.routers.tor-browser.rule=Host(`tor.${BASE_DOMAIN}`)"
+                - "traefik.http.routers.tor-browser.entrypoints=websecure"
+                - "traefik.http.routers.tor-browser.tls.certresolver=dns"
+                - "traefik.http.routers.tor-browser.middlewares=authentik@swarm"
+                - "traefik.http.services.tor-browser.loadbalancer.server.port=6901"
+                - "traefik.http.services.tor-browser.loadbalancer.server.scheme=https"
+                - homepage.group=Privacy
+                - homepage.name=Tor Browser
+                - homepage.icon=tor-browser.png
+                - homepage.href=https://tor.${BASE_DOMAIN}/
+                - homepage.description=Tor Browser via VPN
+            restart_policy:
+                condition: any
+                delay: 5s
+
+    ip-check:
+        image: python:3.12-alpine
+        command: ["python3", "/app/server.py"]
+        configs:
+            - source: tor_ip_check_server_v2
+              target: /app/server.py
+        environment:
+            - TOR_VPN_HOST=tor-vpn
+            - TOR_VPN_SOCKS_PORT=1080
+        networks:
+            - tor-internal
+            - traefik-public
+        deploy:
+            placement:
+                constraints:
+                    - node.labels.tor == true
+            labels:
+                - "traefik.enable=true"
+                - "traefik.swarm.network=traefik-public"
+                - "traefik.http.routers.tor-ip-check.rule=Host(`tor-check.${BASE_DOMAIN}`)"
+                - "traefik.http.routers.tor-ip-check.entrypoints=websecure"
+                - "traefik.http.routers.tor-ip-check.tls.certresolver=dns"
+                - "traefik.http.routers.tor-ip-check.middlewares=authentik@swarm"
+                - "traefik.http.services.tor-ip-check.loadbalancer.server.port=8080"
+                - homepage.group=Privacy
+                - homepage.name=VPN Status
+                - homepage.icon=network.png
+                - homepage.href=https://tor-check.${BASE_DOMAIN}/
+                - homepage.description=VPN exit IP verification
+            restart_policy:
+                condition: any
+                delay: 5s
+
+configs:
+    tor_vpn_init_script_v1:
+        file: ./scripts/init-vpn.sh
+    tor_browser_prestart_v10:
+        file: ./scripts/browser-prestart.sh
+    tor_ip_check_server_v2:
+        file: ./ip-check.py
+
+networks:
+    traefik-public:
+        external: true
+    tor-internal:
+        driver: overlay
+
+volumes:
+    tor_browser_data:
+        driver: local
+        driver_opts:
+            type: "none"
+            o: "bind"
+            device: "/mnt/iscsi/app-data/tor-browser"
