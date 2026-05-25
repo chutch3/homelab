@@ -2,7 +2,7 @@
 
 **41 deployed** · **15 SSO-integrated** · **v3.14.0**
 
-Deploy any service: `task ansible:deploy:stack -- -e "stack_name=<name>"`
+Deploy any service: `task ansible:deploy:service -- -e "stack_name=<name>"`
 
 ---
 

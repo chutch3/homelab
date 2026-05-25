@@ -4,8 +4,8 @@
 
 ```bash
 task ansible:deploy                                          # Everything
-task ansible:deploy:quick                                    # Apps only (skip infra)
-task ansible:deploy:stack -- -e "stack_name=homepage"        # Single service
+task ansible:deploy:services                                 # Stacks only (skip cluster init)
+task ansible:deploy:service -- -e "stack_name=homepage"        # Single service
 task ansible:deploy:services -- -e "only_apps=cicd,forgejo"  # Subset only
 task ansible:deploy:services -- -e "skip_apps=sonarr,radarr" # Exclude specific
 ```
@@ -22,8 +22,8 @@ docker service ps homepage_homepage                # Task placement/errors
 ## Remove
 
 ```bash
-task ansible:teardown:stack -- -e "stack_name=homepage"                       # Keep volumes
-task ansible:teardown:stack -- -e "stack_name=homepage remove_volumes=true"   # Delete data
+task ansible:teardown:service -- -e "stack_name=homepage"                       # Keep volumes
+task ansible:teardown:service -- -e "stack_name=homepage remove_volumes=true"   # Delete data
 ```
 
 ---
@@ -62,7 +62,7 @@ volumes:
 ```
 
 ```bash
-task ansible:deploy:stack -- -e "stack_name=myservice"
+task ansible:deploy:service -- -e "stack_name=myservice"
 ```
 
 ---

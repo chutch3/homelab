@@ -83,13 +83,13 @@ To add a new service:
 
 1. Create `stacks/apps/myservice/docker-compose.yml`
 2. Include Traefik labels for routing
-3. Run `task ansible:deploy:stack -- -e "stack_name=myservice"` to deploy it
+3. Run `task ansible:deploy:service -- -e "stack_name=myservice"` to deploy it
 
 ## Removing Services
 
 To remove a service:
 
 1. Delete the `stacks/apps/servicename/` folder
-2. Run `task ansible:teardown:stack -- -e "stack_name=servicename"` to clean up data
+2. Run `task ansible:teardown:service -- -e "stack_name=servicename"` to clean up data
 
 That's it! The system handles the rest automatically.

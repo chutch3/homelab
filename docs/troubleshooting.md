@@ -415,7 +415,7 @@ A few CNAMEs register successfully, then subsequent ones fail with connection re
 **Fix:** Upgrade Pi-hole, then re-run DNS registration:
 ```bash
 sudo pihole -up
-task ansible:dns:register
+task ansible:dns:add-services
 ```
 
 ### Pi-hole Has A Records Instead of CNAMEs for Services
@@ -425,7 +425,7 @@ task ansible:dns:register
 **Fix:** Run the cleanup task, then re-register:
 ```bash
 task ansible:dns:pihole-cleanup
-task ansible:dns:register
+task ansible:dns:add-services
 ```
 
 ### Pi-hole Not Resolving Services When Primary is Down
@@ -437,7 +437,7 @@ task ansible:dns:register
 2. Confirm your router falls back to Pi-hole when Technitium is unreachable
 3. Re-run DNS registration if records are missing:
    ```bash
-   task ansible:dns:register
+   task ansible:dns:add-services
    ```
 
 ---
@@ -891,7 +891,7 @@ docker service update --force <service_name>
 
 **Prevention:**
 - Ensure the `iscsi-wait.conf` systemd drop-in is present (managed by Ansible).
-- Use `task ansible:storage:repair` after a node crash to ensure mounts are healthy before starting services.
+- Use `task ansible:storage:recover` after a node crash to ensure mounts are healthy before starting services.
 
 1. **Check iSCSI session:**
    ```bash
