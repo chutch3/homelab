@@ -1,202 +1,91 @@
 # Service Management
 
-How to add, remove, and manage services in your homelab.
-
-## View Available Services
+## Deploy
 
 ```bash
-# See what services are available
-ls stacks/apps/
-
-# See which have compose files (ready to deploy)
-ls stacks/apps/*/docker-compose.yml
+task ansible:deploy                                          # Everything
+task ansible:deploy:quick                                    # Apps only (skip infra)
+task ansible:deploy:stack -- -e "stack_name=homepage"        # Single service
+task ansible:deploy:services -- -e "only_apps=cicd,forgejo"  # Subset only
+task ansible:deploy:services -- -e "skip_apps=sonarr,radarr" # Exclude specific
 ```
 
-## Deploy Services
+## Status
 
 ```bash
-# Deploy all services (infrastructure + apps)
-task ansible:deploy
-
-# Deploy apps only (skip infrastructure stacks)
-task ansible:deploy:quick
-
-# Deploy only a specific service
-task ansible:deploy:stack -- -e "stack_name=homepage"
+docker stack ls                                    # List deployed stacks
+docker stack services homepage                     # Services in a stack
+docker service logs homepage_homepage --tail 50 -f # Logs
+docker service ps homepage_homepage                # Task placement/errors
 ```
 
-## Advanced Deployment Filters
-
-You can filter which applications are deployed during a full run using `only_apps` or `skip_apps`.
+## Remove
 
 ```bash
-# Deploy ONLY the specified apps
-task ansible:deploy:services -- -e "only_apps=cicd,github-runner"
-
-# Deploy everything EXCEPT the specified apps
-task ansible:deploy:services -- -e "skip_apps=sonarr,radarr"
+task ansible:teardown:stack -- -e "stack_name=homepage"                       # Keep volumes
+task ansible:teardown:stack -- -e "stack_name=homepage remove_volumes=true"   # Delete data
 ```
 
-## Check Service Status
-
-```bash
-# List deployed stacks
-docker stack ls
-
-# Show services in a stack
-docker stack services homepage
-
-# View service logs
-docker service logs homepage_homepage --tail 50 --follow
-```
-
-## Cluster Management
-
-```bash
-# Auto-detect and sync nodes with changed IPs (removes stale entries and rejoins)
-task ansible:cluster:sync
-
-# Update Docker Swarm node labels from inventory
-task ansible:cluster:update-labels
-```
-
-Use `cluster:sync` when a node's IP address has changed and it has been dropped from the swarm. The playbook detects the mismatch, removes the stale swarm entry, and rejoins the node automatically.
-
-Use `cluster:update-labels` after editing node labels in your inventory file to apply the changes to the live swarm without a full re-init.
-
-## Volume Management
-
-```bash
-# List all Docker volumes across the cluster
-task ansible:volume:ls
-
-# Inspect a specific Docker volume
-task ansible:volume:inspect -- -e "service_name=sonarr"
-
-# Clean up stale CIFS volumes for a stack
-task ansible:volume:cleanup -- -e "stack_name=sonarr"
-```
-
-Stale CIFS volumes can accumulate after a service is torn down or if a CIFS mount fails during deployment. `volume:cleanup` removes those leftover volumes so a fresh deployment can create them cleanly.
-
-## Manage Individual Services
-
-```bash
-# Update a service (redeploy with latest configuration)
-task ansible:deploy:stack -- -e "stack_name=homepage"
-
-# Remove a service stack
-task ansible:teardown:stack -- -e "stack_name=homepage"
-
-# Remove a service and its data volumes (add remove_volumes=true)
-task ansible:teardown:stack -- -e "stack_name=homepage remove_volumes=true"
-```
+---
 
 ## Add a New Service
 
-1. **Create compose file**:
-   ```bash
-   mkdir stacks/apps/myservice
-   nano stacks/apps/myservice/docker-compose.yml
-   ```
+```bash
+mkdir stacks/apps/myservice
+```
 
-2. **Basic service template**:
-   ```yaml
-   version: "3.9"
+```yaml
+# stacks/apps/myservice/docker-compose.yml
+services:
+  myservice:
+    image: myapp:latest
+    volumes:
+      - myservice_data:/data
+    networks:
+      - traefik-public
+    deploy:
+      labels:
+        - "traefik.enable=true"
+        - "traefik.http.routers.myservice.rule=Host(`myapp.${BASE_DOMAIN}`)"
+        - "traefik.http.routers.myservice.entrypoints=websecure"
+        - "traefik.http.routers.myservice.tls.certresolver=dns"
+        - "traefik.http.services.myservice.loadbalancer.server.port=8080"
+        - "traefik.swarm.network=traefik-public"
 
-   services:
-     myservice:
-       image: myapp:latest
-       volumes:
-         - myservice_data:/data
-       networks:
-         - traefik-public
-       deploy:
-         labels:
-           - "traefik.enable=true"
-           - "traefik.http.routers.myservice.rule=Host(`myapp.${BASE_DOMAIN}`)"
-           - "traefik.http.routers.myservice.entrypoints=websecure"
-           - "traefik.http.routers.myservice.tls.certresolver=letsencrypt"
-           - "traefik.http.services.myservice.loadbalancer.server.port=8080"
+networks:
+  traefik-public:
+    external: true
 
-   networks:
-     traefik-public:
-       external: true
+volumes:
+  myservice_data:
+    driver: local
+```
 
-   volumes:
-     myservice_data:
-       driver: local
-   ```
+```bash
+task ansible:deploy:stack -- -e "stack_name=myservice"
+```
 
-3. **Deploy it**:
-   ```bash
-   task ansible:deploy:stack -- -e "stack_name=myservice"
-   ```
+---
 
 ## Storage Provisioning
 
-Before deploying a service that uses persistent storage, you must ensure the directories exist on your storage backend with the correct permissions.
-
-### iSCSI (High Performance)
-
-Used for databases and high-I/O applications. These directories must be created on a node where the iSCSI target is mounted (usually `/mnt/iscsi/app-data`).
+### iSCSI (databases, configs)
 
 ```bash
-# 1. Create the directory
-sudo mkdir -p /mnt/iscsi/app-data/prefect/postgresql
-sudo mkdir -p /mnt/iscsi/app-data/prefect/config
+sudo mkdir -p /mnt/iscsi/app-data/myservice
+sudo chown -R 1000:1000 /mnt/iscsi/app-data/myservice
 
-# 2. Set ownership (1000:1000 is the default for most containers in this lab)
-sudo chown -R 1000:1000 /mnt/iscsi/app-data/prefect
-
-# 3. For databases (e.g., PostgreSQL), use 999:999
-sudo chown -R 999:999 /mnt/iscsi/app-data/prefect/postgresql
+# PostgreSQL needs UID 999
+sudo chown -R 999:999 /mnt/iscsi/app-data/myservice/postgresql
 ```
 
-### CIFS/SMB (Bulk Storage)
+### CIFS (media, bulk files)
 
-Used for media files and large data sets. These are typically managed on your NAS.
-
-1. Create the shared folder on your NAS.
-2. Ensure the user defined in `.env` (`SMB_USERNAME`) has read/write permissions.
-3. The Ansible deployment will automatically handle the creation of the Docker volume using these credentials.
-
-## Remove a Service
-
-1. **Remove from Docker Swarm**:
-   ```bash
-   task ansible:teardown:stack -- -e "stack_name=servicename"
-   ```
-
-2. **Clean up data volumes** (optional - destroys all data):
-   ```bash
-   # Add remove_volumes=true to the teardown command
-   task ansible:teardown:stack -- -e "stack_name=servicename remove_volumes=true"
-   ```
-
-3. **Delete the compose file** (optional):
-   ```bash
-   rm -rf stacks/apps/servicename/
-   ```
-
-## Environment Variables
-
-Services use variables from your `.env` file:
-
-- `${BASE_DOMAIN}` - Your domain name
-- `${SMB_USERNAME}` - NAS username
-- `${SMB_PASSWORD}` - NAS password
-- `${NAS_SERVER}` - NAS hostname
-
-Add new variables to `.env` and reference them in your compose files.
-
-## Network Storage
-
-To use NAS storage for a service:
+Create the share on your NAS. The deployment creates the Docker volume automatically using `.env` credentials.
 
 ```yaml
 volumes:
-  myservice_data:
+  myservice_media:
     driver: local
     driver_opts:
       type: "cifs"
@@ -204,37 +93,13 @@ volumes:
       device: "//${NAS_SERVER}/myservice"
 ```
 
-## Troubleshooting
+---
 
-**Service won't start?**
+## Cluster Operations
+
 ```bash
-# Check service logs
-docker service logs stackname_servicename --tail 50
-
-# Check service status
-docker service ps stackname_servicename
-```
-
-**Need to restart/update a service?**
-```bash
-# Redeploy with same configuration
-docker stack deploy -c stacks/apps/servicename/docker-compose.yml servicename
-
-# Force update (pulls latest image)
-docker service update --image newimage:tag stackname_servicename
-```
-
-**Want to see what's running?**
-```bash
-# List all stacks
-docker stack ls
-
-# List services in a stack
-docker stack services stackname
-
-# List all running services
-docker service ls
-
-# See tasks/containers for a stack
-docker stack ps stackname
+task ansible:cluster:sync           # Re-join nodes with changed IPs
+task ansible:cluster:update-labels  # Apply inventory label changes to live swarm
+task ansible:volume:ls              # List all Docker volumes
+task ansible:volume:cleanup -- -e "stack_name=sonarr"  # Remove stale CIFS volumes
 ```

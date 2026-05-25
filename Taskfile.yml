@@ -153,6 +153,14 @@ tasks:
         env:
             MKDOCS_ENABLE_SOCIAL: false
 
+    docs:generate:
+        desc: Auto-generate per-stack API docs (architecture diagrams, env vars, volumes)
+        preconditions:
+            - sh: command -v dockumentor
+              msg: "dockumentor not found. Install with: uv tool install dockumentor"
+        cmds:
+            - ./scripts/dev/generate-stack-docs.sh
+
     secrets:login:
         desc: Login and unlock the configured secret vault
         cmds:

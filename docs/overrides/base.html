@@ -10,7 +10,9 @@
 </head>
 <body>
     <header class="ascii-header">
-        <pre class="ascii-logo">
+        <canvas id="header-bg" aria-hidden="true"></canvas>
+        <div class="header-content">
+            <pre class="ascii-logo" id="ascii-logo" aria-label="HOMELAB">
   ██╗  ██╗ ██████╗ ███╗   ███╗███████╗██╗      █████╗ ██████╗
   ██║  ██║██╔═══██╗████╗ ████║██╔════╝██║     ██╔══██╗██╔══██╗
   ███████║██║   ██║██╔████╔██║█████╗  ██║     ███████║██████╔╝
@@ -18,9 +20,11 @@
   ██║  ██║╚██████╔╝██║ ╚═╝ ██║███████╗███████╗██║  ██║██████╔╝
   ╚═╝  ╚═╝ ╚═════╝ ╚═╝     ╚═╝╚══════╝╚══════╝╚═╝  ╚═╝╚═════╝
 </pre>
-        <div class="header-links">
-            <a href="{{ nav.homepage.url | url }}">Home</a>
-            <a href="{{ config.repo_url }}">Repository</a>
+            <div class="header-status" id="header-status"></div>
+            <div class="header-links">
+                <a href="{{ nav.homepage.url | url }}">Home</a>
+                <a href="{{ config.repo_url }}">Repository</a>
+            </div>
         </div>
     </header>
 
@@ -38,7 +42,7 @@
                             <ul>
                                 {% for child in nav_item.children %}
                                     <li class="{% if child.active %}active{% endif %}">
-                                        <a href="{{ child.url | url }}">- {{ child.title }}</a>
+                                        <a href="{{ child.url | url }}">{{ child.title }}</a>
                                     </li>
                                 {% endfor %}
                             </ul>
@@ -49,7 +53,6 @@
         </nav>
 
         <main class="ascii-content">
-            <h1>{{ page.title }}</h1>
             {{ page.content }}
         </main>
     </div>
@@ -60,5 +63,275 @@
 
     {{ mkdocs_script_tag }}
     <script src="{{ 'assets/javascripts/copy-code.js' | url }}"></script>
+    <script>
+    (function() {
+        var canvas = document.getElementById('header-bg');
+        var ctx = canvas.getContext('2d');
+        var logo = document.getElementById('ascii-logo');
+        var status = document.getElementById('header-status');
+        var header = document.querySelector('.ascii-header');
+
+        // --- Canvas sizing ---
+        function resize() {
+            canvas.width = header.offsetWidth;
+            canvas.height = header.offsetHeight;
+        }
+        resize();
+        window.addEventListener('resize', resize);
+
+        // --- Floating data rain (subtle background) ---
+        var columns = [];
+        var glyphs = '01アイウエオカキクケコサシスセソタチツテトナニヌネノハヒフヘホマミムメモヤユヨラリルレロワヲン';
+        var fontSize = 11;
+        var drops = [];
+
+        function initRain() {
+            var colCount = Math.floor(canvas.width / fontSize);
+            drops = [];
+            for (var i = 0; i < colCount; i++) {
+                drops[i] = Math.random() * -50;
+            }
+        }
+        initRain();
+        window.addEventListener('resize', initRain);
+
+        function drawRain() {
+            ctx.fillStyle = 'rgba(10, 10, 10, 0.12)';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            ctx.font = fontSize + 'px IBM Plex Mono, monospace';
+
+            for (var i = 0; i < drops.length; i++) {
+                if (drops[i] < 0) {
+                    drops[i] += 0.1;
+                    continue;
+                }
+                var char = glyphs[Math.floor(Math.random() * glyphs.length)];
+                var x = i * fontSize;
+                var y = drops[i] * fontSize;
+
+                // Fade based on position
+                var alpha = 0.04 + Math.random() * 0.03;
+                ctx.fillStyle = 'rgba(51, 255, 51, ' + alpha + ')';
+                ctx.fillText(char, x, y);
+
+                if (y > canvas.height && Math.random() > 0.98) {
+                    drops[i] = 0;
+                }
+                drops[i] += 0.3 + Math.random() * 0.2;
+            }
+        }
+
+        // --- Logo boot animation ---
+        var logoText = logo.textContent;
+        var logoChars = logoText.split('');
+        var revealProgress = 0;
+        var booted = false;
+
+        function bootLogo() {
+            if (booted) return;
+            var revealed = '';
+            for (var i = 0; i < logoChars.length; i++) {
+                if (i < revealProgress) {
+                    revealed += logoChars[i];
+                } else if (i < revealProgress + 3 && logoChars[i] !== ' ' && logoChars[i] !== '\n') {
+                    // Scramble zone
+                    revealed += glyphs[Math.floor(Math.random() * glyphs.length)];
+                } else {
+                    revealed += logoChars[i] === '\n' ? '\n' : ' ';
+                }
+            }
+            logo.textContent = revealed;
+            revealProgress += 4;
+            if (revealProgress >= logoChars.length) {
+                logo.textContent = logoText;
+                booted = true;
+            }
+        }
+
+        var bootInterval = setInterval(function() {
+            bootLogo();
+            if (booted) clearInterval(bootInterval);
+        }, 20);
+
+        // --- Idle status messages ---
+        var messages = [
+            'UPTIME: ' + Math.floor(Math.random() * 900 + 100) + 'd ' + Math.floor(Math.random() * 24) + 'h ' + Math.floor(Math.random() * 60) + 'm',
+            'SERVICES: 41 ACTIVE • 0 DEGRADED',
+            'STORAGE: 2.4TB ONLINE • OCFS2 HEALTHY',
+            'SSL: ALL CERTS VALID • NEXT RENEWAL 12d',
+            'SWARM: 3 NODES READY • 47 CONTAINERS',
+            'DNS: 4,218 QUERIES TODAY • 0 FAILURES',
+            'BACKUP: LAST RUN 6h AGO • 847GB STORED',
+            'NET: 12ms LATENCY • 940Mbps THROUGHPUT',
+            'AUTH: 15 SSO PROVIDERS • 0 FAILED LOGINS',
+            'GPU: RTX 3090 • 2.1GB VRAM USED • 34°C',
+        ];
+        var msgIndex = 0;
+        var typing = false;
+        var typeTimeout;
+
+        function typeMessage(msg) {
+            if (typing) return;
+            typing = true;
+            status.textContent = '> ';
+            var i = 0;
+            function typeChar() {
+                if (i < msg.length) {
+                    status.textContent += msg[i];
+                    i++;
+                    typeTimeout = setTimeout(typeChar, 30 + Math.random() * 40);
+                } else {
+                    // Hold, then fade
+                    typeTimeout = setTimeout(function() {
+                        status.style.opacity = '0';
+                        setTimeout(function() {
+                            status.textContent = '';
+                            status.style.opacity = '1';
+                            typing = false;
+                        }, 600);
+                    }, 4000);
+                }
+            }
+            typeChar();
+        }
+
+        // First message after boot
+        setTimeout(function() {
+            typeMessage(messages[0]);
+            msgIndex = 1;
+        }, 2500);
+
+        // Subsequent messages every 12-20 seconds
+        setInterval(function() {
+            if (!document.hidden && booted) {
+                typeMessage(messages[msgIndex % messages.length]);
+                msgIndex++;
+            }
+        }, 14000);
+
+        // --- Occasional glitch on the logo ---
+        function glitchLogo() {
+            if (!booted) return;
+            var chars = logoText.split('');
+            var pos = Math.floor(Math.random() * chars.length);
+            // Find a non-space, non-newline char
+            while (chars[pos] === ' ' || chars[pos] === '\n') {
+                pos = (pos + 1) % chars.length;
+            }
+            var original = chars[pos];
+            chars[pos] = glyphs[Math.floor(Math.random() * glyphs.length)];
+            logo.textContent = chars.join('');
+
+            setTimeout(function() {
+                logo.textContent = logoText;
+            }, 80 + Math.random() * 120);
+        }
+
+        // Random glitch every 8-25 seconds
+        function scheduleGlitch() {
+            var delay = 8000 + Math.random() * 17000;
+            setTimeout(function() {
+                if (!document.hidden) glitchLogo();
+                scheduleGlitch();
+            }, delay);
+        }
+        setTimeout(scheduleGlitch, 5000);
+
+        // --- Animation loop ---
+        function frame() {
+            drawRain();
+            requestAnimationFrame(frame);
+        }
+
+        // Start rain after boot
+        setTimeout(frame, 500);
+    })();
+
+    // --- Code block typewriter effect ---
+    (function() {
+        if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+
+        var blocks = document.querySelectorAll('.ascii-content pre.animate-typing code');
+        var animated = new Set();
+
+        function typeBlock(block) {
+            var pre = block.parentElement;
+            var fullText = block.textContent;
+            var lines = fullText.split('\n');
+
+            // Store original for copy-paste
+            block.dataset.full = fullText;
+            block.textContent = '';
+            pre.classList.add('typing');
+
+            var lineIdx = 0;
+            var charIdx = 0;
+            var current = '';
+
+            function tick() {
+                if (lineIdx >= lines.length) {
+                    pre.classList.remove('typing');
+                    pre.classList.add('typed');
+                    return;
+                }
+
+                var line = lines[lineIdx];
+
+                if (charIdx < line.length) {
+                    // Type faster for whitespace/repeated chars
+                    var chunk = 1;
+                    if (line[charIdx] === ' ' || charIdx > 40) chunk = Math.min(3, line.length - charIdx);
+                    current += line.substring(charIdx, charIdx + chunk);
+                    charIdx += chunk;
+                    block.textContent = current;
+
+                    var delay = 12;
+                    // Pause slightly at special chars
+                    if (line[charIdx - 1] === '=' || line[charIdx - 1] === '/') delay = 20;
+                    requestAnimationFrame(function() { setTimeout(tick, delay); });
+                } else {
+                    // End of line
+                    current += '\n';
+                    block.textContent = current;
+                    lineIdx++;
+                    charIdx = 0;
+
+                    // Brief pause between lines
+                    var pause = (line.trim() === '' || line.trim().startsWith('#')) ? 60 : 30;
+                    setTimeout(tick, pause);
+                }
+            }
+
+            // Small delay before starting
+            setTimeout(tick, 150);
+        }
+
+        // Restore full text on click (for selection/copy)
+        document.addEventListener('click', function(e) {
+            var code = e.target.closest('pre.typing code, pre.typed code');
+            if (code && code.dataset.full) {
+                code.textContent = code.dataset.full;
+                code.parentElement.classList.remove('typing', 'typed');
+            }
+        });
+
+        // Trigger on scroll into view
+        var observer = new IntersectionObserver(function(entries) {
+            entries.forEach(function(entry) {
+                if (entry.isIntersecting && !animated.has(entry.target)) {
+                    animated.add(entry.target);
+                    var code = entry.target.querySelector('code');
+                    if (code && code.textContent.trim().length > 0 && code.textContent.trim().length < 800) {
+                        typeBlock(code);
+                    }
+                }
+            });
+        }, { threshold: 0.3 });
+
+        blocks.forEach(function(block) {
+            observer.observe(block.parentElement);
+        });
+    })();
+    </script>
 </body>
 </html>

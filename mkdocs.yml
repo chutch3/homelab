@@ -2,7 +2,7 @@ site_name: Homelab
 site_url: https://chutch3.github.io/homelab/
 repo_url: https://github.com/chutch3/homelab
 edit_uri: edit/main/docs/
-site_description: "A Docker Swarm homelab platform with 28+ pre-configured services, automatic SSL certificates via Traefik, and network storage integration."
+site_description: "A Docker Swarm homelab platform with 40+ pre-configured services, automatic SSL certificates via Traefik, and network storage integration."
 site_author: "Cody Hutchens"
 
 theme:
@@ -16,7 +16,32 @@ extra_css:
 
 plugins:
   - search
-  - mermaid2
+  - mermaid2:
+      arguments:
+        theme: dark
+        themeVariables:
+          primaryColor: '#0a0a0a'
+          primaryTextColor: '#33ff33'
+          primaryBorderColor: '#33ff33'
+          lineColor: '#33ff33'
+          secondaryColor: '#1a1a1a'
+          tertiaryColor: '#0d0d0d'
+          background: '#0a0a0a'
+          mainBkg: '#0a0a0a'
+          nodeBorder: '#33ff33'
+          clusterBkg: '#0d0d0d'
+          clusterBorder: '#1a5c1a'
+          titleColor: '#ffcc00'
+          edgeLabelBackground: '#0a0a0a'
+          textColor: '#33ff33'
+          actorTextColor: '#ffcc00'
+          actorBorder: '#33ff33'
+          actorBkg: '#0a0a0a'
+          signalColor: '#33ff33'
+          noteBkgColor: '#1a1a1a'
+          noteTextColor: '#ffcc00'
+          noteBorderColor: '#1a5c1a'
+          sequenceNumberColor: '#ffcc00'
 
 markdown_extensions:
   - pymdownx.highlight:
@@ -45,18 +70,16 @@ nav:
   - Home: index.md
   - "Getting Started":
       - "Quick Start": "getting-started/quick-start.md"
-      - "Full Installation": "getting-started/installation.md"
+      - "Installation": "getting-started/installation.md"
       - "Configuration": "getting-started/configuration.md"
       - "Prerequisites": "getting-started/prerequisites.md"
-  - "User Guide":
+  - "Operations":
       - "Service Management": "user-guide/service-management.md"
-      - "Shutdown and Startup": "user-guide/shutdown-startup.md"
+      - "Shutdown & Startup": "user-guide/shutdown-startup.md"
       - "Tailscale VPN": "user-guide/tailscale.md"
       - "Troubleshooting": "troubleshooting.md"
   - "Architecture":
       - "Overview": "architecture/overview.md"
       - "Storage": "architecture/storage.md"
-  - "Services Catalog": "services/index.md"
-  - "Development":
-      - "Roadmap": "roadmap.md"
-      - "Tags": "tags.md"
+  - "Services": "services/index.md"
+  - "Roadmap": "roadmap.md"
