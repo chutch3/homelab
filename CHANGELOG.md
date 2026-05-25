@@ -2,6 +2,63 @@
 
 <!-- version list -->
 
+## v3.15.0 (2026-05-25)
+
+### Bug Fixes
+
+- Add traefik.swarm.network label to all Traefik-exposed stacks
+  ([`2c4e8fd`](https://github.com/chutch3/homelab/commit/2c4e8fd4e4db4f5d0e7e6ef91a83a76ad53cd174))
+
+- Bump authentik images from 2024.12.3 to 2024.12.5
+  ([`718ffa2`](https://github.com/chutch3/homelab/commit/718ffa25d836e195428ffec1dd185d29334b3f9a))
+
+- Cast boolean variables with | bool filter in ops playbooks
+  ([`9b86982`](https://github.com/chutch3/homelab/commit/9b86982a87a346fc08a1631793aa1350a73946e6))
+
+- Convert librenms environment blocks to list format
+  ([`1ef76d6`](https://github.com/chutch3/homelab/commit/1ef76d6fa4ffff3706fe763b1226eb6e231a3ba8))
+
+- Correct invalid task commands and standardize to deploy:service/teardown:service
+  ([`edbab6b`](https://github.com/chutch3/homelab/commit/edbab6bde09c09ab0b507611aa7c24e17a6ddd84))
+
+- Ensure claude-code binary is executable after npm install
+  ([`7923176`](https://github.com/chutch3/homelab/commit/79231763324c11f6c6751e6d7b9129529111fe87))
+
+- Migrate dns volume to iscsi, disable ipv6, bump to 15.2.0
+  ([`a5a21ee`](https://github.com/chutch3/homelab/commit/a5a21ee07f77dece28eca562b3d4e9873f2b1782))
+
+- Simplify secrets login and harden bitwarden session handling
+  ([`801f9c2`](https://github.com/chutch3/homelab/commit/801f9c236705f4084ca318322751d8efa111da63))
+
+### Documentation
+
+- Complete refactor of the documentation
+  ([`cee0570`](https://github.com/chutch3/homelab/commit/cee05709d4bdbaac1277e5be6c53b806cba6a4f4))
+
+### Features
+
+- Add draw.io and LibreNMS application stacks
+  ([`9e1ff2c`](https://github.com/chutch3/homelab/commit/9e1ff2c48ef9f6b59979e1da808dc9f764ecc2e3))
+
+- Add GoatCounter analytics and LLM context files (llms.txt, AGENTS.md)
+  ([`f8c66da`](https://github.com/chutch3/homelab/commit/f8c66dac59155ffc93e52f9f5398468da0a7a72a))
+
+- Add setup scripts for draw.io and LibreNMS stacks
+  ([`283248c`](https://github.com/chutch3/homelab/commit/283248c363fcd278b5c3a769570cd74df8e7ae18))
+
+- Add snmp role with package-driven enable and snmp:configure tasks
+  ([`a783b0a`](https://github.com/chutch3/homelab/commit/a783b0a323a1bf363dc5f9decce7a298776d9836))
+
+- Add snmp.yml to secret sync and wipe
+  ([`19189d5`](https://github.com/chutch3/homelab/commit/19189d54920e7a26348b1d66aaa9e7022d95c656))
+
+- Add syslogng, snmptrapd sidecars and fix librenms compose configuration
+  ([`bc205c4`](https://github.com/chutch3/homelab/commit/bc205c45dadf1a6e7e0266ad25c14705514802fe))
+
+- Added kasmvnc based tor browser app with vpn and kill switch
+  ([`8ff7e47`](https://github.com/chutch3/homelab/commit/8ff7e472c5e807e95c8f18545dbe006023335a1a))
+
+
 ## v3.14.0 (2026-05-18)
 
 ### Bug Fixes
