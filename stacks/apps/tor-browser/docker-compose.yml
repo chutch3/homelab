@@ -10,9 +10,11 @@ services:
             - /dev/net/tun:/dev/net/tun
         entrypoint: ["/bin/sh", "/scripts/init-vpn.sh"]
         configs:
-            - source: tor_vpn_init_script_v1
+            - source: tor_vpn_init_script_v2
               target: /scripts/init-vpn.sh
               mode: 493
+            - source: tor_vpn_auth_config_v1
+              target: /gluetun/auth/config.toml
         environment:
             - VPN_SERVICE_PROVIDER=${TOR_VPN_SERVICE_PROVIDER}
             - VPN_TYPE=wireguard
@@ -23,6 +25,7 @@ services:
             - SOCKS5_ENABLED=on
             - SOCKS5_LISTENING_ADDRESS=:1080
             - FIREWALL_INPUT_PORTS=1080
+            - WIREGUARD_PERSISTENT_KEEPALIVE=25
         healthcheck:
             test: ["CMD-SHELL", "wget -qO- https://ipinfo.io/ip || exit 1"]
             interval: 30s
@@ -87,13 +90,15 @@ services:
 
     ip-check:
         image: python:3.12-alpine
-        command: ["python3", "/app/server.py"]
+        command: ["python3", "-u", "/app/server.py"]
         configs:
-            - source: tor_ip_check_server_v2
+            - source: tor_ip_check_server_v3
               target: /app/server.py
         environment:
             - TOR_VPN_HOST=tor-vpn
             - TOR_VPN_SOCKS_PORT=1080
+            - TOR_VPN_CONTROL_PORT=8000
+            - TOR_VPN_AUTO_ROTATE_INTERVAL=${TOR_VPN_AUTO_ROTATE_INTERVAL:-0}
         networks:
             - tor-internal
             - traefik-public
@@ -119,11 +124,13 @@ services:
                 delay: 5s
 
 configs:
-    tor_vpn_init_script_v1:
+    tor_vpn_init_script_v2:
         file: ./scripts/init-vpn.sh
+    tor_vpn_auth_config_v1:
+        file: ./gluetun-auth.toml
     tor_browser_prestart_v10:
         file: ./scripts/browser-prestart.sh
-    tor_ip_check_server_v2:
+    tor_ip_check_server_v3:
         file: ./ip-check.py
 
 networks:
