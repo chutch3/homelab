@@ -1,0 +1,91 @@
+# Homelab
+
+> A Docker Swarm platform for self-hosting 40+ services with automatic SSL, centralized SSO, and one-command deployment.
+
+## Overview
+
+This is a production homelab running on Docker Swarm across multiple Linux nodes. It uses Ansible for orchestration, Traefik for reverse proxy/SSL, Technitium for DNS, Authentik for SSO, and a hybrid storage architecture (OCFS2 on iSCSI for databases, CIFS/SMB for media files).
+
+## Key Facts
+
+- 41 application services deployed
+- 15 services integrated with Authentik SSO
+- Ansible + Taskfile CLI for all operations
+- Docker Swarm orchestration (not Kubernetes)
+- Let's Encrypt SSL via Cloudflare DNS challenge
+- Semantic versioning, current version: v3.14.0
+
+## Repository Structure
+
+```
+.env.example              # All configuration variables (secrets, domains, API keys)
+Taskfile.yml              # Top-level CLI commands (task ansible:deploy, etc.)
+ansible/
+  Taskfile.yml            # All ansible:* task definitions
+  inventory/              # Host definitions and group variables
+  playbooks/              # Deployment, teardown, ops playbooks
+  roles/                  # Reusable roles (secrets, storage, tailscale, snmp)
+stacks/
+  apps/                   # 41 application docker-compose.yml files
+  reverse-proxy/          # Traefik configuration
+  monitoring/             # Prometheus + Grafana + Loki
+  dns/                    # Technitium DNS server
+docs/                     # MkDocs documentation site
+scripts/                  # Utility scripts (health check, doc generation)
+```
+
+## Common Operations
+
+```bash
+task ansible:deploy                                        # Full cluster deploy
+task ansible:deploy:service -- -e "stack_name=homepage"    # Deploy single service
+task ansible:teardown:service -- -e "stack_name=homepage"  # Remove single service
+task ansible:bootstrap                                     # Install Docker, harden nodes
+task ansible:ping                                          # Test connectivity
+task ansible:node:reboot -- -e "target_node=mini" -K      # Safe single-node reboot
+task ansible:storage:recover                               # Recover from OCFS2 crash
+```
+
+## Adding a Service
+
+1. Create `stacks/apps/<name>/docker-compose.yml`
+2. Add Traefik labels for routing and `traefik.swarm.network=traefik-public`
+3. Run `task ansible:deploy:service -- -e "stack_name=<name>"`
+
+## Configuration
+
+All secrets and config in `.env`. Key variables:
+- `BASE_DOMAIN` — your domain (e.g. yourdomain.com)
+- `CF_Token` — Cloudflare API token for SSL
+- `PRIMARY_DNS_API_KEY` — Technitium admin password
+- `NAS_SERVER`, `SMB_USERNAME`, `SMB_PASSWORD` — NAS credentials
+
+Hosts defined in `ansible/inventory/02-hosts.yml`. Node labels control service placement.
+
+## Storage Architecture
+
+- **OCFS2 on iSCSI** (`/mnt/iscsi/app-data/`, `/mnt/iscsi/media-apps/`, `/mnt/iscsi/cache/`) — cluster filesystem for databases and configs. All nodes mount simultaneously.
+- **CIFS/SMB** — NAS shares for media files (movies, photos, downloads).
+- **Local volumes** — temporary/cache data.
+
+Critical: SQLite databases MUST use OCFS2, not CIFS (causes corruption).
+
+## Services by Category
+
+Infrastructure: Traefik, Technitium DNS, Prometheus, Grafana, Loki, Uptime Kuma, LibreNMS, Authentik
+Media: PhotoPrism, Immich, Emby, Sonarr, Radarr, Prowlarr, qBittorrent, SABnzbd
+Productivity: CryptPad, Mealie, FreshRSS, draw.io, Home Assistant, Node-RED
+AI/Dev: Ollama, LibreChat, MLflow, Prefect, Forgejo, Code-server
+Privacy: Tor Browser (KasmVNC + WireGuard VPN)
+Education: Kiwix (offline Wikipedia), Kolibri (offline K-12)
+Finance: Actual Budget
+Backup: Kopia (encrypted to Backblaze B2)
+
+## Documentation
+
+Full docs at https://chutch3.github.io/homelab/
+- Getting Started: docs/getting-started/quick-start.md
+- Services Catalog: docs/services/index.md
+- Configuration: docs/getting-started/configuration.md
+- Storage: docs/architecture/storage.md
+- Troubleshooting: docs/troubleshooting.md
