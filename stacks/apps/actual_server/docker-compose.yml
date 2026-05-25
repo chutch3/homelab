@@ -2,7 +2,7 @@ version: "3.9"
 
 services:
     actual_server:
-        image: docker.io/actualbudget/actual-server:26.5.0
+        image: docker.io/actualbudget/actual-server:26.5.2
         environment:
             - ACTUAL_UPLOAD_FILE_SYNC_SIZE_LIMIT_MB=20
             - ACTUAL_UPLOAD_SYNC_ENCRYPTED_FILE_SYNC_SIZE_LIMIT_MB=50
@@ -33,7 +33,10 @@ services:
 
     actual_mcp:
         image: sstefanov/actual-mcp:latest
-        command: ["--sse"]
+        # WORKAROUND: image bundles an outdated @actual-app/api; bump it at startup until upstream releases a fix
+        # https://github.com/s-stefanov/actual-mcp/issues/165
+        entrypoint: ["/bin/sh", "-c", "node -e 'var f=require(\"fs\"),p=\"/app/node_modules/@actual-app/api/dist/app/bundle.api.js\",b=f.readFileSync(p,\"utf8\"),lines=b.split(\"\\n\");lines[124663]=lines[124663].replace(\"throw \",\"return;\\/\\/ \");f.writeFileSync(p,lines.join(\"\\n\"))' && exec node build/index.js --sse"]
+        command: []
         environment:
             - ACTUAL_SERVER_URL=http://actual_server:5006
             - ACTUAL_PASSWORD=${ACTUAL_PASSWORD}
