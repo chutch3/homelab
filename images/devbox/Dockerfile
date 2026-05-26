@@ -123,7 +123,7 @@ ENV DOTNET_CLI_TELEMETRY_OPTOUT=1
 
 # npm global tools
 RUN eval "$(fnm env --use-on-cd)" && \
-    npm install -g @anthropic-ai/claude-code@latest @google/gemini-cli@latest @cloudcli-ai/cloudcli@latest typescript@latest
+    npm install -g @anthropic-ai/claude-code@latest @google/gemini-cli@latest @cloudcli-ai/cloudcli@latest typescript@latest task-master-ai@latest
 
 # Forge Code
 RUN curl -fsSL https://forgecode.dev/install.sh | bash
