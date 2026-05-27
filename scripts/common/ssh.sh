@@ -52,13 +52,22 @@ ssh_copy_id() {
 
 # Execute command on remote host using SSH key authentication
 # Args:
+#   [--login]: optional flag — run command in a login shell (loads full PATH)
 #   $1: user@hostname
 #   $2: command to execute
 # Returns:
 #   SSH command exit code
 ssh_execute() {
+    local login=false
+    if [[ "${1:-}" == "--login" ]]; then
+        login=true
+        shift
+    fi
     local user_host="$1"
     local command="$2"
+    if [[ "$login" == true ]]; then
+        command="bash -l -c '${command//\'/\'\\\'\'}'"
+    fi
     ssh_key_auth "$user_host" "$command"
 }
 

@@ -20,6 +20,9 @@ includes:
     monitoring:
         taskfile: stacks/monitoring/Taskfile.yml
         dir: stacks/monitoring
+    status-pipeline:
+        taskfile: scripts/status-pipeline/Taskfile.yml
+        dir: scripts/status-pipeline
 
 env:
     REGISTRY_NAMESPACE: $GITHUB_USERNAME

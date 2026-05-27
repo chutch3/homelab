@@ -32,6 +32,48 @@ EOF
     chmod +x "$STUB_BIN/timeout"
 }
 
+# --- ssh_execute ---
+
+@test "ssh_execute passes command to ssh" {
+    _stub_timeout
+    cat > "$STUB_BIN/ssh" << 'EOF'
+#!/usr/bin/env bash
+echo "ssh $*"
+EOF
+    chmod +x "$STUB_BIN/ssh"
+
+    run ssh_execute "root@host" "uptime"
+    assert_success
+    assert_output --partial "uptime"
+}
+
+@test "ssh_execute without --login does not wrap in bash -l" {
+    _stub_timeout
+    cat > "$STUB_BIN/ssh" << 'EOF'
+#!/usr/bin/env bash
+echo "ssh $*"
+EOF
+    chmod +x "$STUB_BIN/ssh"
+
+    run ssh_execute "root@host" "uptime"
+    assert_success
+    refute_output --partial "bash -l"
+}
+
+@test "ssh_execute --login wraps command in bash -l -c" {
+    _stub_timeout
+    cat > "$STUB_BIN/ssh" << 'EOF'
+#!/usr/bin/env bash
+echo "ssh $*"
+EOF
+    chmod +x "$STUB_BIN/ssh"
+
+    run ssh_execute --login "root@host" "tailscale version"
+    assert_success
+    assert_output --partial "bash -l -c"
+    assert_output --partial "tailscale version"
+}
+
 # --- scp_copy_file ---
 
 @test "scp_copy_file exists as a function" {

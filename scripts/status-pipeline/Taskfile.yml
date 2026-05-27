@@ -1,0 +1,76 @@
+version: "3"
+
+vars:
+    SCRIPT_DIR: "{{.TASKFILE_DIR}}"
+    SETUP_SCRIPT: "{{.TASKFILE_DIR}}/setup-nas.sh"
+    NAS_ROOT: "root@{{.NAS_SERVER}}"
+
+tasks:
+    setup:
+        desc: Deploy sync script and cron job to NAS via SSH
+        cmds:
+            - "{{.SETUP_SCRIPT}} setup"
+
+    update:
+        desc: Update the sync script on NAS (preserves config and cron)
+        cmds:
+            - "{{.SETUP_SCRIPT}} update"
+
+    funnel:on:
+        desc: Enable Tailscale Funnel on NAS port 9000
+        cmds:
+            - |
+                source ../../scripts/common/ssh.sh >/dev/null 2>&1
+                SSH_TIMEOUT=30 ssh_execute --login "{{.NAS_ROOT}}" "tailscale funnel reset"
+                FUNNEL_BACKEND="https://nas.{{.BASE_DOMAIN}}:9000/public-status"
+                SSH_TIMEOUT=30 ssh_execute --login "{{.NAS_ROOT}}" \
+                    "tailscale funnel --bg --set-path /public-status $FUNNEL_BACKEND"
+
+    funnel:off:
+        desc: Disable Tailscale Funnel on NAS (killswitch)
+        cmds:
+            - |
+                source ../../scripts/common/ssh.sh >/dev/null 2>&1
+                SSH_TIMEOUT=30 ssh_execute --login "{{.NAS_ROOT}}" "tailscale funnel off"
+                echo "Funnel disabled"
+
+    funnel:status:
+        desc: Show Tailscale Funnel status on NAS
+        cmds:
+            - |
+                source ../../scripts/common/ssh.sh >/dev/null 2>&1
+                SSH_TIMEOUT=30 ssh_execute --login "{{.NAS_ROOT}}" "tailscale funnel status"
+
+    cron:remove:
+        desc: Remove the status pipeline cron job from OMV
+        cmds:
+            - "{{.SCRIPT_DIR}}/remove-cron.sh"
+
+    verify:
+        desc: Run a one-shot sync and verify anonymous read
+        cmds:
+            - |
+                echo "1. Running sync on NAS..."
+                source ../../scripts/common/ssh.sh >/dev/null 2>&1
+                SSH_TIMEOUT=30 ssh_execute --login "{{.NAS_ROOT}}" "/usr/local/bin/sync-status.sh"
+                echo "2. Verifying anonymous read..."
+                FUNNEL_URL="${STATUS_PIPELINE_URL:-}"
+                if [ -n "$FUNNEL_URL" ]; then
+                    GROUPS=$(curl -sf --max-time 15 "$FUNNEL_URL" \
+                        | jq '.publicGroupList | length')
+                    echo "   Groups found: $GROUPS (via Funnel)"
+                else
+                    echo "   STATUS_PIPELINE_URL not set, skipping Funnel check"
+                    GROUPS=$(SSH_TIMEOUT=30 ssh_execute --login "{{.NAS_ROOT}}" \
+                        "wget -qO- https://nas.\${BASE_DOMAIN}:9000/public-status/status.json" \
+                        | jq '.publicGroupList | length')
+                    echo "   Groups found: $GROUPS (via NAS direct)"
+                fi
+                echo "Pipeline verified"
+
+    logs:
+        desc: Tail the status pipeline log on NAS
+        cmds:
+            - |
+                source ../../scripts/common/ssh.sh >/dev/null 2>&1
+                SSH_TIMEOUT=30 ssh_execute --login "{{.NAS_ROOT}}" "tail -50 /var/log/status-pipeline.log"

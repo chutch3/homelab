@@ -54,6 +54,12 @@ omv-salt deploy run certificates
 omv-salt deploy run nginx
 systemctl restart nginx
 
+# Restart MinIO Caddy proxy if running (it caches certs at startup)
+if command -v podman &>/dev/null && podman container exists minio-proxy 2>/dev/null; then
+    echo "Restarting MinIO proxy to pick up new certificate..."
+    podman restart minio-proxy
+fi
+
 # Clean up temporary files
 rm -f /tmp/nas_cert.pem /tmp/nas_key.pem
 

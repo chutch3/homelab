@@ -143,6 +143,19 @@ scrape_configs:
         regex: manager
         action: keep
 
+  # MinIO metrics (NAS — status pipeline bucket monitoring)
+  # Optional: remove this job if not using the status pipeline.
+  # Update the target to match your NAS_SERVER hostname/IP.
+  - job_name: "minio"
+    metrics_path: /minio/v2/metrics/cluster
+    scheme: https
+    tls_config:
+      insecure_skip_verify: true
+    static_configs:
+      - targets: ["REPLACE_WITH_NAS_SERVER:9000"]
+        labels:
+          instance: nas
+
   # iperf3 Exporter (inter-node bandwidth testing)
   - job_name: "iperf3-bandwidth"
     metrics_path: /probe

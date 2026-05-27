@@ -6,6 +6,7 @@
     //
     // Tags:
     //   tag:homelab-server  — all cluster nodes (cody-X570, giant, imac, mini)
+    //   tag:homelab-nas     — NAS (OpenMediaVault), used for Tailscale Funnel
     //   tag:homelab-router  — reserved for OPNsense firewall (add when ready)
     //
     // Access model:
@@ -23,6 +24,7 @@
 
     "tagOwners": {
         "tag:homelab-server": ["autogroup:admin"],
+        "tag:homelab-nas":    ["autogroup:admin"],
         "tag:homelab-router": ["autogroup:admin"],
     },
 
@@ -62,5 +64,14 @@
         //     "src":    ["tag:homelab-router"],
         //     "dst":    ["tag:homelab-server:*"],
         // },
+    ],
+
+    // Tailscale Funnel: allow the NAS to serve traffic to the public internet.
+    // The NAS runs MinIO and exposes a single read-only status.json via Funnel.
+    "nodeAttrs": [
+        {
+            "target": ["tag:homelab-nas"],
+            "attr":   ["funnel"],
+        },
     ],
 }

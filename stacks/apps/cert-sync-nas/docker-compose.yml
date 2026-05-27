@@ -36,7 +36,7 @@ services:
       echo 'Running initial sync to NAS...' &&
       /scripts/sync-nas-cert.sh &&
       echo 'Installing crontab for weekly renewal and sync...' &&
-      echo '0 3 * * 0 acme.sh --renew -d nas.${BASE_DOMAIN:-example.com} && /scripts/sync-nas-cert.sh || exit 1' > /etc/crontabs/root &&
+      echo '0 3 * * 0 acme.sh --renew -d nas.${BASE_DOMAIN:-example.com}; /scripts/sync-nas-cert.sh' > /etc/crontabs/root &&
       echo 'Starting cron daemon...' &&
       crond -f
       "
