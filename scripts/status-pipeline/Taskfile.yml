@@ -22,7 +22,7 @@ tasks:
             - |
                 source ../../scripts/common/ssh.sh >/dev/null 2>&1
                 SSH_TIMEOUT=30 ssh_execute --login "{{.NAS_ROOT}}" "tailscale funnel reset"
-                FUNNEL_BACKEND="https://nas.{{.BASE_DOMAIN}}:9000/public-status"
+                FUNNEL_BACKEND="https://{{.STATUS_PIPELINE_MINIO_HOST}}/public-status"
                 SSH_TIMEOUT=30 ssh_execute --login "{{.NAS_ROOT}}" \
                     "tailscale funnel --bg --set-path /public-status $FUNNEL_BACKEND"
 
@@ -74,3 +74,24 @@ tasks:
             - |
                 source ../../scripts/common/ssh.sh >/dev/null 2>&1
                 SSH_TIMEOUT=30 ssh_execute --login "{{.NAS_ROOT}}" "tail -50 /var/log/status-pipeline.log"
+
+    prometheus:enable:
+        desc: Add MinIO scrape target and create bearer token secret
+        cmds:
+            - |
+                HOST="${STATUS_PIPELINE_MINIO_HOST:?STATUS_PIPELINE_MINIO_HOST is required}"
+                TOKEN="${STATUS_PIPELINE_MINIO_METRICS_TOKEN:?STATUS_PIPELINE_MINIO_METRICS_TOKEN is required}"
+                echo "[{\"targets\":[\"${HOST}\"],\"labels\":{\"instance\":\"nas\"}}]" \
+                    > ../../stacks/monitoring/minio-targets.json
+                echo "Created minio-targets.json"
+                printf '%s' "$TOKEN" | docker secret create status_pipeline_minio_token - 2>/dev/null \
+                    || echo "Secret already exists"
+                echo "Done. Redeploy monitoring stack to apply."
+
+    prometheus:disable:
+        desc: Remove MinIO scrape target and secret
+        cmds:
+            - |
+                rm -f ../../stacks/monitoring/minio-targets.json
+                docker secret rm status_pipeline_minio_token 2>/dev/null || true
+                echo "Removed. Redeploy monitoring stack to apply."

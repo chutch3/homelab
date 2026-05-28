@@ -63,7 +63,7 @@
       "targets": [
         {
           "datasource": { "type": "prometheus", "uid": "prometheus" },
-          "expr": "rate(minio_s3_requests_total{api=\"GetObject\", bucket=\"public-status\"}[5m])",
+          "expr": "rate(minio_bucket_requests_total{api=\"getobject\", bucket=\"public-status\"}[5m])",
           "legendFormat": "GET requests/s",
           "refId": "A"
         }
@@ -106,7 +106,7 @@
       "targets": [
         {
           "datasource": { "type": "prometheus", "uid": "prometheus" },
-          "expr": "rate(minio_s3_traffic_sent_bytes{bucket=\"public-status\"}[5m])",
+          "expr": "rate(minio_bucket_traffic_sent_bytes{bucket=\"public-status\"}[5m])",
           "legendFormat": "bytes/s",
           "refId": "A"
         }
@@ -148,7 +148,7 @@
       "targets": [
         {
           "datasource": { "type": "prometheus", "uid": "prometheus" },
-          "expr": "increase(minio_s3_requests_total{bucket=\"public-status\"}[15m])",
+          "expr": "increase(minio_bucket_requests_total{bucket=\"public-status\"}[15m])",
           "legendFormat": "{{api}}",
           "refId": "A"
         }
@@ -196,14 +196,14 @@
       "targets": [
         {
           "datasource": { "type": "prometheus", "uid": "prometheus" },
-          "expr": "increase(minio_s3_requests_4xx_errors_total{bucket=\"public-status\"}[15m])",
+          "expr": "increase(minio_bucket_requests_4xx_errors_total{bucket=\"public-status\"}[15m])",
           "legendFormat": "4xx errors",
           "refId": "A"
         },
         {
           "datasource": { "type": "prometheus", "uid": "prometheus" },
-          "expr": "increase(minio_s3_requests_5xx_errors_total{bucket=\"public-status\"}[15m])",
-          "legendFormat": "5xx errors",
+          "expr": "increase(minio_s3_requests_errors_total[15m])",
+          "legendFormat": "server errors",
           "refId": "B"
         }
       ]
@@ -298,7 +298,7 @@
       "targets": [
         {
           "datasource": { "type": "prometheus", "uid": "prometheus" },
-          "expr": "minio_s3_traffic_sent_bytes{bucket=\"public-status\"}",
+          "expr": "minio_bucket_traffic_sent_bytes{bucket=\"public-status\"}",
           "legendFormat": "sent",
           "refId": "A"
         }
@@ -338,7 +338,7 @@
       "targets": [
         {
           "datasource": { "type": "prometheus", "uid": "prometheus" },
-          "expr": "minio_s3_requests_total{api=\"GetObject\", bucket=\"public-status\"}",
+          "expr": "minio_bucket_requests_total{api=\"getobject\", bucket=\"public-status\"}",
           "legendFormat": "total",
           "refId": "A"
         }

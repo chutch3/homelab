@@ -91,7 +91,7 @@
 
 - name: Merge Docker daemon configuration
   set_fact:
-    docker_daemon_config: "{{ docker_daemon_config | combine({'log-driver': 'json-file', 'log-opts': {'max-size': '10m', 'max-file': '3'}, 'metrics-addr': '127.0.0.1:9323', 'experimental': false}, recursive=true) }}"
+    docker_daemon_config: "{{ docker_daemon_config | combine({'log-driver': 'json-file', 'log-opts': {'max-size': '10m', 'max-file': '3'}, 'metrics-addr': ansible_host ~ ':9323', 'experimental': false}, recursive=true) }}"
 
 - name: Write Docker daemon configuration
   copy:

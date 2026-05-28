@@ -8,8 +8,14 @@ services:
             - traefik-public
         volumes:
             - prometheus_data:/prometheus
-            - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
             - /var/run/docker.sock:/var/run/docker.sock:ro
+        configs:
+            - source: prometheus_config_v7
+              target: /etc/prometheus/prometheus.yml
+            - source: minio_targets
+              target: /etc/prometheus/targets/minio-targets.json
+        secrets:
+            - status_pipeline_minio_token
         deploy:
             # dnsrr bypasses Swarm's default VIP/IPVS load balancing, which fails to
             # program kernel IPVS rules correctly on this host, making the VIP unreachable.
@@ -38,13 +44,23 @@ services:
         volumes:
             - grafana_data:/var/lib/grafana
             - grafana_dashboards:/etc/grafana/provisioning/dashboards
-            - ./dashboards/dashboards.yml:/etc/grafana/provisioning/dashboards/dashboards.yml:ro
-            - ./dashboards/local:/etc/grafana/provisioning/dashboards-local:ro
         configs:
             - source: prometheus_datasource
               target: /etc/grafana/provisioning/datasources/prometheus.yml
             - source: loki_datasource
               target: /etc/grafana/provisioning/datasources/loki.yml
+            - source: grafana_dashboards_provisioning
+              target: /etc/grafana/provisioning/dashboards/dashboards.yml
+            - source: dashboard_cluster_health
+              target: /etc/grafana/provisioning/dashboards-local/cluster-health.json
+            - source: dashboard_inter_node_bandwidth
+              target: /etc/grafana/provisioning/dashboards-local/inter-node-bandwidth.json
+            - source: dashboard_node_resources
+              target: /etc/grafana/provisioning/dashboards-local/node-resources.json
+            - source: dashboard_status_pipeline_v2
+              target: /etc/grafana/provisioning/dashboards-local/status-pipeline.json
+            - source: dashboard_system_logs
+              target: /etc/grafana/provisioning/dashboards-local/system-logs.json
         environment:
             - GF_SECURITY_ADMIN_USER=admin
             - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD}
@@ -255,6 +271,22 @@ volumes:
             device: "//${NAS_SERVER}/grafana_dashboards"
 
 configs:
+    prometheus_config_v7:
+        file: ./prometheus.yml
+    minio_targets:
+        file: ./minio-targets.json
+    grafana_dashboards_provisioning:
+        file: ./dashboards/dashboards.yml
+    dashboard_cluster_health:
+        file: ./dashboards/local/cluster-health.json
+    dashboard_inter_node_bandwidth:
+        file: ./dashboards/local/inter-node-bandwidth.json
+    dashboard_node_resources:
+        file: ./dashboards/local/node-resources.json
+    dashboard_status_pipeline_v2:
+        file: ./dashboards/local/status-pipeline.json
+    dashboard_system_logs:
+        file: ./dashboards/local/system-logs.json
     prometheus_datasource:
         file: ./datasources/prometheus.yml
     loki_datasource:
@@ -263,3 +295,7 @@ configs:
         file: ./loki-config.yml
     promtail_config:
         file: ./promtail-config.yml
+
+secrets:
+    status_pipeline_minio_token:
+        external: true

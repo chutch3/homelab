@@ -122,9 +122,10 @@ get_pipeline_config() {
 
     STATUS_PIPELINE_MINIO_ACCESS_KEY="${STATUS_PIPELINE_MINIO_ACCESS_KEY:?STATUS_PIPELINE_MINIO_ACCESS_KEY is required in .env}"
     STATUS_PIPELINE_MINIO_SECRET_KEY="${STATUS_PIPELINE_MINIO_SECRET_KEY:?STATUS_PIPELINE_MINIO_SECRET_KEY is required in .env}"
+    STATUS_PIPELINE_MINIO_HOST="${STATUS_PIPELINE_MINIO_HOST:?STATUS_PIPELINE_MINIO_HOST is required in .env}"
     log_info "Using MinIO credentials from .env"
 
-    export STATUS_PIPELINE_STATUS_SLUG STATUS_PIPELINE_MINIO_ACCESS_KEY STATUS_PIPELINE_MINIO_SECRET_KEY
+    export STATUS_PIPELINE_STATUS_SLUG STATUS_PIPELINE_MINIO_ACCESS_KEY STATUS_PIPELINE_MINIO_SECRET_KEY STATUS_PIPELINE_MINIO_HOST
 }
 
 check_nas_dependencies() {
@@ -143,7 +144,7 @@ check_nas_dependencies() {
 create_minio_bucket() {
     log_info "Creating MinIO bucket and applying policy..."
 
-    local minio="https://nas.${BASE_DOMAIN}:9000"
+    local minio="https://${STATUS_PIPELINE_MINIO_HOST}"
     local date sig
 
     # Create bucket via S3 PUT (ignore failure if already exists)
@@ -182,7 +183,7 @@ install_sync_script() {
     ssh_execute "$NAS_USER_HOST" "cat > /etc/status-pipeline.conf <<EOF
 STATUS_PIPELINE_UPTIME_KUMA_URL=https://uptime.${BASE_DOMAIN}
 STATUS_PIPELINE_STATUS_SLUG=${STATUS_PIPELINE_STATUS_SLUG}
-STATUS_PIPELINE_MINIO_ENDPOINT=https://nas.${BASE_DOMAIN}:9000
+STATUS_PIPELINE_MINIO_ENDPOINT=https://${STATUS_PIPELINE_MINIO_HOST}
 STATUS_PIPELINE_MINIO_BUCKET=public-status
 STATUS_PIPELINE_MINIO_OBJECT=status.json
 STATUS_PIPELINE_MINIO_ACCESS_KEY=${STATUS_PIPELINE_MINIO_ACCESS_KEY}
@@ -246,7 +247,7 @@ verify_pipeline() {
     log_info "Verifying anonymous read..."
     local http_code
     http_code=$(ssh_execute --login "$NAS_USER_HOST" \
-        "wget -qS --timeout=10 -O /dev/null https://nas.${BASE_DOMAIN}:9000/public-status/status.json 2>&1 | grep 'HTTP/' | tail -1 | awk '{print \$2}'"
+        "wget -qS --timeout=10 -O /dev/null https://${STATUS_PIPELINE_MINIO_HOST}/public-status/status.json 2>&1 | grep 'HTTP/' | tail -1 | awk '{print \$2}'"
     ) || true
 
     if [[ "$http_code" == "200" ]]; then
