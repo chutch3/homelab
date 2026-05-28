@@ -60,6 +60,7 @@ services:
             - DOTNET_SYSTEM_NET_DISABLEIPV6=1
         volumes:
             - dns-config:/etc/dns
+            - dns-logs:/etc/dns/logs
         sysctls:
             - net.ipv4.ip_local_port_range=1024 65000
         networks:
@@ -72,6 +73,7 @@ volumes:
             type: "none"
             o: "bind"
             device: "/mnt/iscsi/app-data/dns"
+    dns-logs:
 
 networks:
     traefik-public:

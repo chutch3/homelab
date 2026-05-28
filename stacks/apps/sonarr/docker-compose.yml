@@ -17,6 +17,7 @@ services:
         networks:
             - traefik-public
         deploy:
+            endpoint_mode: dnsrr
             labels:
                 - "traefik.enable=true"
                 - "traefik.http.routers.sonarr.rule=Host(`sonarr.${BASE_DOMAIN}`)"
