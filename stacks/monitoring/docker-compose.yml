@@ -10,8 +10,10 @@ services:
             - prometheus_data:/prometheus
             - /var/run/docker.sock:/var/run/docker.sock:ro
         configs:
-            - source: prometheus_config_v7
+            - source: prometheus_config_v8
               target: /etc/prometheus/prometheus.yml
+            - source: prometheus_alert_rules
+              target: /etc/prometheus/alert-rules.yml
             - source: minio_targets
               target: /etc/prometheus/targets/minio-targets.json
         secrets:
@@ -51,6 +53,8 @@ services:
               target: /etc/grafana/provisioning/datasources/loki.yml
             - source: grafana_dashboards_provisioning
               target: /etc/grafana/provisioning/dashboards/dashboards.yml
+            - source: dashboard_homelab_health_v8
+              target: /etc/grafana/provisioning/dashboards-local/homelab-health.json
             - source: dashboard_cluster_health
               target: /etc/grafana/provisioning/dashboards-local/cluster-health.json
             - source: dashboard_inter_node_bandwidth
@@ -271,12 +275,16 @@ volumes:
             device: "//${NAS_SERVER}/grafana_dashboards"
 
 configs:
-    prometheus_config_v7:
+    prometheus_config_v8:
         file: ./prometheus.yml
+    prometheus_alert_rules:
+        file: ./alert-rules.yml
     minio_targets:
         file: ./minio-targets.json
     grafana_dashboards_provisioning:
         file: ./dashboards/dashboards.yml
+    dashboard_homelab_health_v8:
+        file: ./dashboards/local/homelab-health.json
     dashboard_cluster_health:
         file: ./dashboards/local/cluster-health.json
     dashboard_inter_node_bandwidth:

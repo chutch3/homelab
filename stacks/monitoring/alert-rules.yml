@@ -1,0 +1,45 @@
+groups:
+  # Status Pipeline: detect bot abuse on the public Funnel endpoint
+  - name: status-pipeline
+    interval: 30s
+    rules:
+      - alert: StatusPipelineRequestSurge
+        expr: rate(minio_bucket_requests_total{bucket="public-status",api="getobject"}[5m]) > 5
+        for: 5m
+        labels:
+          severity: warning
+          component: status-pipeline
+        annotations:
+          summary: "Elevated traffic to public status endpoint"
+          description: "{{ $value | printf \"%.2f\" }} req/s on public-status for the last 5 minutes (threshold: 5 req/s)"
+
+      - alert: StatusPipelineAbuse
+        expr: rate(minio_bucket_requests_total{bucket="public-status",api="getobject"}[5m]) > 50
+        for: 2m
+        labels:
+          severity: critical
+          component: status-pipeline
+          action: kill-funnel
+        annotations:
+          summary: "Status pipeline being slammed — consider killing Funnel"
+          description: "{{ $value | printf \"%.2f\" }} req/s sustained for 2m. Run: task status-pipeline:funnel:off"
+
+      - alert: StatusPipelineHighBandwidth
+        expr: rate(minio_bucket_traffic_sent_bytes{bucket="public-status"}[5m]) > 5242880
+        for: 5m
+        labels:
+          severity: warning
+          component: status-pipeline
+        annotations:
+          summary: "Status pipeline sending high bandwidth"
+          description: "{{ $value | humanize }}B/s outbound from public-status (threshold: 5 MB/s)"
+
+      - alert: StatusPipelineStale
+        expr: time() - minio_bucket_usage_last_activity_nano_seconds{bucket="public-status"} / 1e9 > 1800
+        for: 5m
+        labels:
+          severity: warning
+          component: status-pipeline
+        annotations:
+          summary: "Status pipeline not syncing"
+          description: "No activity on public-status bucket for >30min. Cron may be broken — check logs: task status-pipeline:logs"
