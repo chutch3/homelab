@@ -96,8 +96,8 @@ ENV HOME=/home/coder
 
 # fnm + Node 22
 RUN curl -fsSL https://fnm.vercel.app/install | bash -s -- --install-dir "$HOME/.local/share/fnm" --skip-shell
-ENV PATH="$HOME/.local/share/fnm:$PATH"
-RUN eval "$(fnm env --use-on-cd)" && fnm install 22 && fnm default 22
+ENV PATH="$HOME/.local/share/fnm/aliases/default/bin:$HOME/.local/share/fnm:$PATH"
+RUN fnm install 22 && fnm default 22
 
 # uv (Python package manager)
 RUN curl -LsSf https://astral.sh/uv/install.sh | sh
@@ -122,15 +122,14 @@ ENV DOTNET_ROOT="$HOME/.dotnet"
 ENV DOTNET_CLI_TELEMETRY_OPTOUT=1
 
 # npm global tools
-RUN eval "$(fnm env --use-on-cd)" && \
-    npm install -g @anthropic-ai/claude-code@latest @google/gemini-cli@latest @cloudcli-ai/cloudcli@latest typescript@latest task-master-ai@latest
+RUN npm install -g @anthropic-ai/claude-code@latest @google/gemini-cli@latest @cloudcli-ai/cloudcli@latest typescript@latest task-master-ai@latest
 
 # Forge Code
 RUN curl -fsSL https://forgecode.dev/install.sh | bash
 
 # Shell configuration — done last so all tools are present
 # hadolint ignore=SC2016
-RUN echo 'export PATH="$HOME/.local/share/fnm:$HOME/.local/bin:$HOME/.cargo/bin:$HOME/.pyenv/bin:$HOME/.dotnet:$HOME/.dotnet/tools:$PATH"' >> ~/.bashrc && \
+RUN echo 'export PATH="$HOME/.local/share/fnm/aliases/default/bin:$HOME/.local/share/fnm:$HOME/.local/bin:$HOME/.cargo/bin:$HOME/.pyenv/bin:$HOME/.dotnet:$HOME/.dotnet/tools:$PATH"' >> ~/.bashrc && \
     echo 'export DOTNET_ROOT="$HOME/.dotnet"'                                                                                                    >> ~/.bashrc && \
     echo 'export DOTNET_CLI_TELEMETRY_OPTOUT=1'                                                                                                  >> ~/.bashrc && \
     echo 'export PYENV_ROOT="$HOME/.pyenv"'                                                                                                      >> ~/.bashrc && \
@@ -141,7 +140,6 @@ RUN echo 'export PATH="$HOME/.local/share/fnm:$HOME/.local/bin:$HOME/.cargo/bin:
 RUN mkdir -p ~/.claude ~/.config/gemini ~/.cloudcli ~/.forge ~/.ssh ~/.local/share/code-server
 
 ENV PORT=3001
-ENV NODE_ENV=production
 ENV VITE_IS_PLATFORM=true
 
 ENTRYPOINT ["/usr/bin/dumb-init", "--"]
