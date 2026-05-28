@@ -161,33 +161,11 @@ actions:
     - 'librechat.ai'
     - 'google.com'
 
-# Example MCP Servers Object Structure
-# mcpServers:
-#   everything:
-#     # type: sse # type can optionally be omitted
-#     url: http://localhost:3001/sse
-#     timeout: 60000  # 1 minute timeout for this server, this is the default timeout for MCP servers.
-#   puppeteer:
-#     type: stdio
-#     command: npx
-#     args:
-#       - -y
-#       - "@modelcontextprotocol/server-puppeteer"
-#     timeout: 300000  # 5 minutes timeout for this server
-#   filesystem:
-#     # type: stdio
-#     command: npx
-#     args:
-#       - -y
-#       - "@modelcontextprotocol/server-filesystem"
-#       - /home/user/LibreChat/
-#     iconPath: /home/user/LibreChat/client/public/assets/logo.svg
-#   mcp-obsidian:
-#     command: npx
-#     args:
-#       - -y
-#       - "mcp-obsidian"
-#       - /path/to/obsidian/vault
+mcpServers:
+  actual-budget:
+    type: sse
+    url: '${ACTUAL_MCP_URL}'
+    timeout: 60000
 
 # Definition of custom endpoints
 endpoints:
@@ -221,6 +199,17 @@ endpoints:
   #   # (optional) Agent Capabilities available to all users. Omit the ones you wish to exclude. Defaults to list below.
   #   capabilities: ["execute_code", "file_search", "actions", "tools"]
   custom:
+    # Ollama (internal Docker DNS)
+    - name: 'Ollama'
+      apiKey: 'ollama'
+      baseURL: '${OLLAMA_BASE_URL}/v1/'
+      models:
+        default: ['${OLLAMA_DEFAULT_MODEL}']
+        fetch: true
+      titleConvo: true
+      titleModel: 'current_model'
+      modelDisplayLabel: 'Ollama'
+
     # Groq Example
     - name: 'groq'
       apiKey: '${GROQ_API_KEY}'

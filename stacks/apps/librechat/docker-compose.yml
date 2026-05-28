@@ -3,16 +3,45 @@ version: "3.9"
 services:
     api:
         image: ghcr.io/danny-avila/librechat-dev-api:latest
-        env_file: .env
         environment:
             - HOST=0.0.0.0
             - NODE_ENV=production
             - MONGO_URI=mongodb://mongodb:27017/LibreChat
             - MEILI_HOST=http://meilisearch:7700
+            - MEILI_MASTER_KEY=${LIBRECHAT_MEILI_MASTER_KEY}
             - RAG_PORT=${RAG_PORT:-8000}
             - RAG_API_URL=http://rag_api:${RAG_PORT:-8000}
+            - JWT_SECRET=${LIBRECHAT_JWT_SECRET}
+            - JWT_REFRESH_SECRET=${LIBRECHAT_JWT_REFRESH_SECRET}
+            - CREDS_KEY=${LIBRECHAT_CREDS_KEY}
+            - CREDS_IV=${LIBRECHAT_CREDS_IV}
+            - ALLOW_SOCIAL_LOGIN=true
+            - ALLOW_REGISTRATION=true
+            - GROQ_API_KEY=${GROQ_API_KEY}
+            - MISTRAL_API_KEY=${MISTRAL_API_KEY}
+            - OPENROUTER_KEY=${OPENROUTER_KEY}
+            - PORTKEY_API_KEY=${PORTKEY_API_KEY}
+            - PORTKEY_OPENAI_VIRTUAL_KEY=${PORTKEY_OPENAI_VIRTUAL_KEY}
+            - TTS_API_KEY=${TTS_API_KEY}
+            - STT_API_KEY=${STT_API_KEY}
+            - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+            - OLLAMA_BASE_URL=http://ollama_ollama:11434
+            - OLLAMA_DEFAULT_MODEL=${LIBRECHAT_OLLAMA_DEFAULT_MODEL}
+            - ACTUAL_MCP_URL=${LIBRECHAT_ACTUAL_MCP_URL}
+            - OPENID_ISSUER=https://auth.${BASE_DOMAIN}/application/o/librechat/.well-known/openid-configuration
+            - OPENID_CLIENT_ID=${LIBRECHAT_OAUTH_CLIENT_ID}
+            - OPENID_CLIENT_SECRET=${LIBRECHAT_OAUTH_CLIENT_SECRET}
+            - OPENID_SESSION_SECRET=${LIBRECHAT_OAUTH_SESSION_SECRET}
+            - DOMAIN_SERVER=https://chat.${BASE_DOMAIN}
+            - DOMAIN_CLIENT=https://chat.${BASE_DOMAIN}
+            - OPENID_CALLBACK_URL=/oauth/openid/callback
+            - OPENID_SCOPE=openid profile email
+            - OPENID_BUTTON_LABEL=Login with Authentik
+            - OPENID_IMAGE_URL=https://cdn.jsdelivr.net/gh/selfhst/icons/png/authentik.png
+            - OPENID_GENERATE_NONCE=true
+            - OPENID_USE_END_SESSION_ENDPOINT=true
         configs:
-            - source: librechat_config
+            - source: librechat_config_v4
               target: /app/librechat.yaml
         volumes:
             - librechat_images:/app/client/public/images
@@ -60,9 +89,9 @@ services:
 
     meilisearch:
         image: getmeili/meilisearch:v1.12.3
-        env_file: .env
         environment:
             - MEILI_NO_ANALYTICS=true
+            - MEILI_MASTER_KEY=${LIBRECHAT_MEILI_MASTER_KEY}
         volumes:
             - librechat_meilisearch:/meili_data
         networks:
@@ -113,7 +142,7 @@ networks:
         external: true
 
 configs:
-    librechat_config:
+    librechat_config_v4:
         file: ./librechat.yaml
 
 volumes:
