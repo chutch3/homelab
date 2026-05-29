@@ -5,4 +5,4 @@
 
 - name: Load and parse .env file
   ansible.builtin.set_fact:
-    swarm_env_vars: "{{ dict(lookup('file', playbook_dir ~ '/../../../.env') | regex_findall('^([A-Za-z_][A-Za-z0-9_]*)=(.*)$', multiline=True)) }}"
+    swarm_env_vars: "{{ dict(lookup('file', role_path ~ '/../../../.env') | regex_findall('^([A-Za-z_][A-Za-z0-9_]*)=(.*)$', multiline=True)) }}"
