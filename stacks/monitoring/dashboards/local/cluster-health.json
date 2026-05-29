@@ -19,7 +19,32 @@
   "fiscalYearStartMonth": 0,
   "graphTooltip": 0,
   "id": null,
-  "links": [],
+  "links": [
+    {
+      "asDropdown": false,
+      "icon": "external link",
+      "includeVars": false,
+      "keepTime": true,
+      "tags": [],
+      "targetBlank": false,
+      "title": "Homelab Health",
+      "tooltip": "5-second overview",
+      "type": "link",
+      "url": "/d/homelab-health"
+    },
+    {
+      "asDropdown": false,
+      "icon": "external link",
+      "includeVars": false,
+      "keepTime": true,
+      "tags": [],
+      "targetBlank": false,
+      "title": "Node Resources",
+      "tooltip": "CPU/memory/disk per node",
+      "type": "link",
+      "url": "/d/node-resources"
+    }
+  ],
   "liveNow": false,
   "panels": [
     {
@@ -816,7 +841,7 @@
   "time": { "from": "now-1h", "to": "now" },
   "timepicker": {},
   "timezone": "",
-  "title": "Cluster Health",
+  "title": "Cluster Diagnostics",
   "uid": "cluster-health",
   "version": 1,
   "weekStart": ""

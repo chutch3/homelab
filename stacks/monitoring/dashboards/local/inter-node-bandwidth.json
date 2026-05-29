@@ -19,7 +19,32 @@
   "fiscalYearStartMonth": 0,
   "graphTooltip": 1,
   "id": null,
-  "links": [],
+  "links": [
+    {
+      "asDropdown": false,
+      "icon": "external link",
+      "includeVars": false,
+      "keepTime": true,
+      "tags": [],
+      "targetBlank": false,
+      "title": "Homelab Health",
+      "tooltip": "5-second overview",
+      "type": "link",
+      "url": "/d/homelab-health"
+    },
+    {
+      "asDropdown": false,
+      "icon": "external link",
+      "includeVars": false,
+      "keepTime": true,
+      "tags": [],
+      "targetBlank": false,
+      "title": "Cluster Diagnostics",
+      "tooltip": "Deep-dive view",
+      "type": "link",
+      "url": "/d/cluster-health"
+    }
+  ],
   "liveNow": false,
   "panels": [
     {
@@ -738,7 +763,7 @@
       "type": "timeseries"
     }
   ],
-  "refresh": "30s",
+  "refresh": "5m",
   "schemaVersion": 39,
   "tags": [
     "networking",

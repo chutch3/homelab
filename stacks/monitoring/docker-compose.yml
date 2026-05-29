@@ -53,18 +53,14 @@ services:
               target: /etc/grafana/provisioning/datasources/loki.yml
             - source: grafana_dashboards_provisioning
               target: /etc/grafana/provisioning/dashboards/dashboards.yml
-            - source: dashboard_homelab_health_v8
+            - source: dashboard_homelab_health_v11
               target: /etc/grafana/provisioning/dashboards-local/homelab-health.json
-            - source: dashboard_cluster_health
+            - source: dashboard_cluster_diagnostics_v4
               target: /etc/grafana/provisioning/dashboards-local/cluster-health.json
-            - source: dashboard_inter_node_bandwidth
+            - source: dashboard_inter_node_bandwidth_v3
               target: /etc/grafana/provisioning/dashboards-local/inter-node-bandwidth.json
-            - source: dashboard_node_resources
+            - source: dashboard_node_resources_v3
               target: /etc/grafana/provisioning/dashboards-local/node-resources.json
-            - source: dashboard_status_pipeline_v2
-              target: /etc/grafana/provisioning/dashboards-local/status-pipeline.json
-            - source: dashboard_system_logs
-              target: /etc/grafana/provisioning/dashboards-local/system-logs.json
         environment:
             - GF_SECURITY_ADMIN_USER=admin
             - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD}
@@ -283,18 +279,14 @@ configs:
         file: ./minio-targets.json
     grafana_dashboards_provisioning:
         file: ./dashboards/dashboards.yml
-    dashboard_homelab_health_v8:
+    dashboard_homelab_health_v11:
         file: ./dashboards/local/homelab-health.json
-    dashboard_cluster_health:
+    dashboard_cluster_diagnostics_v4:
         file: ./dashboards/local/cluster-health.json
-    dashboard_inter_node_bandwidth:
+    dashboard_inter_node_bandwidth_v3:
         file: ./dashboards/local/inter-node-bandwidth.json
-    dashboard_node_resources:
+    dashboard_node_resources_v3:
         file: ./dashboards/local/node-resources.json
-    dashboard_status_pipeline_v2:
-        file: ./dashboards/local/status-pipeline.json
-    dashboard_system_logs:
-        file: ./dashboards/local/system-logs.json
     prometheus_datasource:
         file: ./datasources/prometheus.yml
     loki_datasource:
