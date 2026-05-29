@@ -541,6 +541,14 @@ tasks:
                   exit 1
                 fi
 
+    secrets:compare:
+        desc: Compare local secret files against Bitwarden — shows which keys differ (values masked) and recommends push or pull
+        dir: "{{.ROOT_DIR}}"
+        cmds:
+            - |
+                if [ -z "$BW_SESSION" ] && [ -f "$HOME/.bw_session" ]; then set -a; source "$HOME/.bw_session"; set +a; fi
+                {{.VENV_ANSIBLE_PLAYBOOK}} -i ansible/inventory/ ansible/playbooks/secrets.yml -e secret_op=compare {{.CLI_ARGS}}
+
     secrets:pull:
         desc: Restore .env from the configured secret provider (e.g., Bitwarden)
         dir: "{{.ROOT_DIR}}"
