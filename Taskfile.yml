@@ -28,6 +28,11 @@ env:
     REGISTRY_NAMESPACE: $GITHUB_USERNAME
 
 tasks:
+    setup:
+        desc: Bootstrap this machine — install all tools and project dependencies
+        cmds:
+            - bash setup.sh
+
     registry:login:
         desc: Login to ghcr.io using GITHUB_TOKEN from .env
         cmds:

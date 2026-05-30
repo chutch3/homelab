@@ -5,7 +5,10 @@ The [Quick Start](quick-start.md) terminal session covers the full deployment fl
 ## Deploy
 
 ```bash
-task ansible:install        # Install Ansible + dependencies
+# First time on a new machine
+bash setup.sh
+
+# Configure .env and ansible/inventory/02-hosts.yml, then:
 task ansible:ssh:generate   # Create SSH key pair
 task ansible:ssh:distribute # Push to all nodes
 task ansible:ping           # Verify connectivity

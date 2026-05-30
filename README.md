@@ -28,8 +28,8 @@ A Docker Swarm platform for self-hosted services. Deploys 37+ pre-configured ser
 
 ## Requirements
 
-- Docker with Compose v2
-- [Taskfile](https://taskfile.dev/installation/)
+- Ubuntu/Debian machine (control node — does not need to be a cluster node)
+- Docker installed on each cluster node (handled by `task ansible:bootstrap`)
 - Domain name with Cloudflare DNS management
 - Cloudflare API token for DNS-01 challenge
 
@@ -37,25 +37,45 @@ A Docker Swarm platform for self-hosted services. Deploys 37+ pre-configured ser
 
 ## Quick Start
 
+**1. Clone and bootstrap the control node**
+
 ```bash
 git clone https://github.com/chutch3/homelab.git
 cd homelab
-
-cp .env.example .env
-nano .env  # set your domain, Cloudflare token, and passwords
-
-cp ansible/inventory/03-hosts.yml.example ansible/inventory/02-hosts.yml
-nano ansible/inventory/02-hosts.yml  # add your nodes
+bash setup.sh
 ```
 
+`setup.sh` installs all required tools (`uv`, `task`, Node.js via fnm, Bitwarden CLI) and project dependencies. It is safe to re-run.
+
+**2. Configure**
+
 ```bash
-task ansible:install     # install Ansible and dependencies
-task ansible:bootstrap   # install Docker on all nodes
-task ansible:cluster:init  # initialize Docker Swarm
-task ansible:deploy      # deploy all services
+# Edit .env with your domain, Cloudflare token, and passwords
+nano .env
+
+# Add your cluster nodes
+cp ansible/inventory/01-structure.yml ansible/inventory/02-hosts.yml
+nano ansible/inventory/02-hosts.yml
+```
+
+**3. Deploy**
+
+```bash
+task ansible:ssh:generate    # create the homelab SSH key
+task ansible:ssh:distribute  # push the key to your nodes
+task ansible:bootstrap       # install Docker on all nodes
+task ansible:cluster:init    # initialize Docker Swarm
+task ansible:deploy          # deploy all services
 ```
 
 Then visit `https://homepage.yourdomain.com`.
+
+**Restore secrets from Bitwarden** (if you've used this repo before)
+
+```bash
+task ansible:secrets:login
+task secrets:pull            # restores .env and ansible config from vault
+```
 
 ---
 
