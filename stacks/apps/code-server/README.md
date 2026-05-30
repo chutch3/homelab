@@ -26,7 +26,7 @@ This stack relies entirely on the **iSCSI + OCFS2 Cluster Filesystem** to ensure
 
 1. **iSCSI mount available** at `/mnt/iscsi/app-data/` on your cluster nodes.
 2. A valid **homelab SSH key** (`~/.ssh/homelab_rsa`) on the machine where you run the setup script.
-3. (Optional) Set `CODE_SERVER_PASSWORD="your-secure-password"` in your root `.env` file. If not set, the default is `secretpassword`.
+3. (Optional) Set `SSH_EXTRA_HOSTS="hostname1 hostname2"` in your root `.env` file to add extra host patterns to the generated SSH config (e.g., short hostnames for internal machines).
 
 ## Installation & Setup
 
