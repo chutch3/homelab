@@ -4,28 +4,15 @@
 # Safe to run on an already-configured cluster — idempotent.
 
 - name: Ensure traefik-public overlay network exists
-  community.docker.docker_network:
-    name: traefik-public
-    driver: overlay
-    attachable: yes
-    state: present
-    docker_host: "{{ swarm_docker_host }}"
-    use_ssh_client: "{{ swarm_use_ssh_client }}"
+  ansible.builtin.command:
+    cmd: docker --context "{{ swarm_docker_context }}" network create --driver overlay --attachable traefik-public
   delegate_to: localhost
   run_once: true
   register: swarm_traefik_network
-
-- name: Verify traefik-public network is available
-  community.docker.docker_network_info:
-    name: traefik-public
-    docker_host: "{{ swarm_docker_host }}"
-    use_ssh_client: "{{ swarm_use_ssh_client }}"
-  delegate_to: localhost
-  run_once: true
-  register: swarm_traefik_network_info
-  until: swarm_traefik_network_info.network is defined
-  retries: 5
-  delay: 2
+  changed_when: swarm_traefik_network.rc == 0
+  failed_when:
+    - swarm_traefik_network.rc != 0
+    - '"already exists" not in swarm_traefik_network.stderr'
 
 - name: Report network status
   ansible.builtin.debug:
