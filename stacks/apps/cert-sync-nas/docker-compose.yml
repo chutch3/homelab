@@ -10,15 +10,26 @@ services:
       - CERT_DOMAIN=nas.${BASE_DOMAIN:-example.com}
       - SSH_KEY_FILE=/root/.ssh/id_rsa
       - TZ=${TZ:-America/New_York}
+      - COMMON_DIR=/scripts/common
     volumes:
-      # Mount acme.sh certificate storage
       - acme_certs:/acme.sh
-      # Mount sync script directly from stack directory
-      - ./sync-nas-cert.sh:/scripts/sync-nas-cert.sh:ro
-      # Mount common scripts from project root
-      - ../../../scripts/common:/scripts/common:ro
+    configs:
+      - source: cert_sync_script_v1
+        target: /scripts/sync-nas-cert.sh
+        mode: 0555
+      - source: cert_sync_omv_v1
+        target: /scripts/common/nas/omv.sh
+        mode: 0555
+      - source: cert_sync_install_cert_v1
+        target: /scripts/common/nas/install-cert-remote.sh
+        mode: 0555
+      - source: cert_sync_cert_sh_v1
+        target: /scripts/common/cert.sh
+        mode: 0555
+      - source: cert_sync_ssh_sh_v1
+        target: /scripts/common/ssh.sh
+        mode: 0555
     secrets:
-      # Mount SSH key from Docker secret
       - source: cert_sync_ssh_key
         target: /ssh-key/id_rsa
         mode: 0400
@@ -46,7 +57,6 @@ services:
       replicas: 1
       placement:
         constraints:
-          # Run on manager node
           - node.role == manager
       restart_policy:
         condition: any
@@ -55,6 +65,18 @@ services:
 volumes:
   acme_certs:
     driver: local
+
+configs:
+  cert_sync_script_v1:
+    file: ./sync-nas-cert.sh
+  cert_sync_omv_v1:
+    file: ../../../scripts/common/nas/omv.sh
+  cert_sync_install_cert_v1:
+    file: ../../../scripts/common/nas/install-cert-remote.sh
+  cert_sync_cert_sh_v1:
+    file: ../../../scripts/common/cert.sh
+  cert_sync_ssh_sh_v1:
+    file: ../../../scripts/common/ssh.sh
 
 secrets:
   cert_sync_ssh_key:

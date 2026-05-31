@@ -20,14 +20,12 @@ On every container start, the startup script:
 ## Setup & Deployment
 
 ```bash
-# 1. Create the Docker secret from your SSH key
-./stacks/apps/cert-sync-nas/init-secrets.sh
-
-# 2. Deploy the stack
-docker stack deploy -c stacks/apps/cert-sync-nas/docker-compose.yml cert-sync-nas
+task ansible:deploy:service -- -e "stack_name=cert-sync-nas" -K
 ```
 
-The init script reads the key at `$SSH_KEY_FILE` (via `scripts/common/ssh.sh`) and stores it as the `cert_sync_ssh_key` Docker secret. The corresponding public key must already be in `root@nas.<your-domain>:~/.ssh/authorized_keys`.
+The deploy pipeline reads `pre-flight.yml`, creates the `cert_sync_ssh_key` Docker secret from the key at `$SSH_KEY_FILE`, and validates that `CLOUDFLARE_DNS_API_TOKEN` and `SSH_KEY_FILE` are set in `.env` before deploying. The corresponding public key must already be in `root@nas.<your-domain>:~/.ssh/authorized_keys`.
+
+Note: `CF_Token` is the internal container environment variable name set from `CLOUDFLARE_DNS_API_TOKEN` — you only need to set `CLOUDFLARE_DNS_API_TOKEN` in `.env`.
 
 ### Verify Deployment
 
@@ -78,12 +76,11 @@ docker service scale cert-sync-nas_nas-cert=0
 # 2. Detach the secret from the service (required before deletion)
 docker service update --secret-rm cert_sync_ssh_key cert-sync-nas_nas-cert
 
-# 3. Remove and recreate the secret with the current key
+# 3. Remove the stale secret
 docker secret rm cert_sync_ssh_key
-docker secret create cert_sync_ssh_key "$SSH_KEY_FILE"
 
-# 4. Redeploy
-docker stack deploy -c docker-compose.yml cert-sync-nas
+# 4. Redeploy — pre-flight recreates the secret automatically
+task ansible:deploy:service -- -e "stack_name=cert-sync-nas" -K
 ```
 
 Also ensure the new public key is in `root@nas.<your-domain>:~/.ssh/authorized_keys`:
