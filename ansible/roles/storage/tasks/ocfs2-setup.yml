@@ -51,15 +51,13 @@
     name: o2cb
     state: restarted
 
-- name: Wait for O2CB cluster to be ready
-  ansible.builtin.pause:
-    seconds: 3
-
 - name: Verify O2CB cluster is online
   ansible.builtin.command: /usr/sbin/o2cb cluster-status homelab
   register: storage_o2cb_status
   changed_when: false
-  failed_when: "'Online' not in storage_o2cb_status.stdout"
+  until: "'online' in storage_o2cb_status.stdout | lower"
+  retries: 10
+  delay: 3
 
 - name: Display O2CB cluster status
   ansible.builtin.debug:
