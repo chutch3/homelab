@@ -1,0 +1,71 @@
+# tests/ansible/unit/test-preflight-hooks.yml
+# Tests that hooks.sh is executed by the preflight role with become: true,
+# that root operations succeed, and that DOCKER_CONFIG/DOCKER_CONTEXT are
+# passed through correctly so Docker is accessible under become.
+# Run with: task ansible:test:preflight:hooks  (requires -K)
+---
+- name: "TEST: pre_deploy hook runs with become, root ops succeed, Docker context passed"
+  hosts: managers
+  gather_facts: false
+  tasks:
+    - name: Remove sentinel files from any previous run
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: absent
+      delegate_to: localhost
+      loop:
+        - /tmp/preflight-hook-test.txt
+        - /tmp/preflight-root-test
+
+    - name: Run preflight role against fixture with hooks.sh
+      ansible.builtin.include_role:
+        name: preflight
+      vars:
+        preflight_stack_path: "{{ playbook_dir }}/fixtures/with-hooks"
+        preflight_stack_name: "test-with-hooks"
+
+    - name: Read sentinel file written by hook
+      ansible.builtin.slurp:
+        src: /tmp/preflight-hook-test.txt
+      delegate_to: localhost
+      register: hook_sentinel
+
+    - name: Parse sentinel content
+      ansible.builtin.set_fact:
+        sentinel: "{{ hook_sentinel.content | b64decode }}"
+
+    - name: Assert hook executed
+      ansible.builtin.assert:
+        that: "'pre_deploy hook executed' in sentinel"
+        success_msg: "✓ hook executed"
+
+    - name: Assert root operation succeeded
+      ansible.builtin.assert:
+        that: "'root operation succeeded' in sentinel"
+        success_msg: "✓ root operation (chown) succeeded under become"
+        fail_msg: "root operation failed — become may not be working"
+
+    - name: Assert DOCKER_CONTEXT was passed
+      ansible.builtin.assert:
+        that: "'DOCKER_CONTEXT=unset' not in sentinel"
+        success_msg: "✓ DOCKER_CONTEXT passed through to hook"
+        fail_msg: "DOCKER_CONTEXT was not set in hook environment"
+
+    - name: Assert DOCKER_CONFIG was passed
+      ansible.builtin.assert:
+        that: "'DOCKER_CONFIG=unset' not in sentinel"
+        success_msg: "✓ DOCKER_CONFIG passed through to hook"
+        fail_msg: "DOCKER_CONFIG was not set in hook environment"
+
+    - name: Show hook output for inspection
+      ansible.builtin.debug:
+        msg: "{{ sentinel.split('\n') }}"
+
+    - name: Clean up sentinel files
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: absent
+      delegate_to: localhost
+      loop:
+        - /tmp/preflight-hook-test.txt
+        - /tmp/preflight-root-test

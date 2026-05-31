@@ -1,0 +1,4 @@
+validate:
+  env:
+    - REQUIRED_VAR_THAT_EXISTS
+    - REQUIRED_VAR_THAT_IS_MISSING

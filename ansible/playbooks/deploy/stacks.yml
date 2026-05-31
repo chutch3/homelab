@@ -93,6 +93,37 @@
         name: swarm
         tasks_from: ensure-networks
 
+    - name: Run pre-flight checks and setup
+      ansible.builtin.include_role:
+        name: preflight
+      vars:
+        preflight_stack_path: "{{ item }}"
+        preflight_stack_name: "{{ item.split('/')[-1] }}"
+      loop: "{{ filtered_stacks }}"
+      ignore_errors: true
+      register: preflight_results
+
+    - name: Build list of stacks that passed preflight
+      ansible.builtin.set_fact:
+        deployable_stacks: >-
+          {{
+            filtered_stacks | difference(
+              preflight_results.results
+              | selectattr('failed', 'equalto', true)
+              | map(attribute='item')
+              | list
+            )
+          }}
+      when: preflight_results is defined
+
+    - name: Warn about stacks that failed preflight
+      ansible.builtin.debug:
+        msg: "SKIPPING deploy of '{{ item.item.split('/')[-1] }}' — preflight failed: {{ item.msg | default('see above') }}"
+      loop: "{{ preflight_results.results | selectattr('failed', 'equalto', true) | list }}"
+      loop_control:
+        label: "{{ item.item.split('/')[-1] }}"
+      when: preflight_results is defined
+
     - name: Deploy Docker stack
       community.docker.docker_stack:
         state: present
@@ -102,7 +133,7 @@
           - "{{ item }}/docker-compose.yml"
         cli_context: "{{ swarm_docker_context }}"
       environment: "{{ swarm_env_vars }}"
-      loop: "{{ filtered_stacks }}"
+      loop: "{{ deployable_stacks | default(filtered_stacks) }}"
       register: deploy_results
       delegate_to: localhost
 

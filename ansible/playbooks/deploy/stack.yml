@@ -63,6 +63,18 @@
             name: swarm
             tasks_from: get-docker-host
 
+      - name: Ensure required overlay networks exist
+        ansible.builtin.include_role:
+            name: swarm
+            tasks_from: ensure-networks
+
+      - name: Run pre-flight checks and setup
+        ansible.builtin.include_role:
+            name: preflight
+        vars:
+            preflight_stack_path: "{{ compose_file_path | dirname }}"
+            preflight_stack_name: "{{ stack_name }}"
+
       - name: Attempt to deploy as an application stack
         community.docker.docker_stack:
             state: present

@@ -1,0 +1,14 @@
+# ansible/roles/preflight/tasks/validate-env.yml
+# Fails fast with a clear message when a required .env variable is missing or empty.
+---
+- name: Verify required env vars are set
+  ansible.builtin.fail:
+    msg: >-
+      Stack '{{ preflight_stack_name }}' requires env var '{{ preflight_env_var }}' but it is
+      missing or empty in .env. Add it before deploying.
+  when: >-
+    preflight_env_var not in swarm_env_vars or
+    swarm_env_vars[preflight_env_var] | default('') | trim == ''
+  loop: "{{ preflight.validate.env }}"
+  loop_control:
+    loop_var: preflight_env_var

@@ -1,0 +1,27 @@
+---
+# Stub vars that the preflight role depends on from the wider play context.
+# become is disabled so --check runs don't prompt for sudo password.
+ansible_become: false
+
+# These allow --check dry-runs to render all templates without a real cluster.
+
+swarm_docker_context: "test-context"
+swarm_docker_host: "unix:///var/run/docker.sock"
+swarm_use_ssh_client: false
+
+swarm_env_vars:
+  BASE_DOMAIN: "test.example.com"
+  CLOUDFLARE_DNS_API_TOKEN: "test-token"
+  REQUIRED_VAR_THAT_EXISTS: "set"
+  # REQUIRED_VAR_THAT_IS_MISSING is intentionally absent — used by negative test
+  SSH_KEY_FILE: "/tmp/test_key"
+  STATUS_PIPELINE_MINIO_METRICS_TOKEN: "test-token"
+  STATUS_PIPELINE_MINIO_HOST: "nas.test.example.com:9000"
+  GRAFANA_ADMIN_PASSWORD: "test-password"
+  DOWNLOADS_OPENVPN_PASSWORD: "test-password"
+  DOWNLOADS_TRANGA_DB_PASSWORD: "test-password"
+  PRIMARY_DNS_API_KEY: "test-key"
+  LIBRENMS_DB_PASSWORD: "test-password"
+  TOR_WIREGUARD_PRIVATE_KEY: "test-key"
+  TOR_WIREGUARD_ADDRESSES: "10.5.0.2/32"
+  TOR_BROWSER_VNC_PASSWORD: "test-password"

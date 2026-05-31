@@ -1,0 +1,81 @@
+# ansible/roles/preflight/tasks/main.yml
+# Runs pre-deployment checks and setup for a single stack.
+# Called by deploy/stacks.yml with preflight_stack_path and preflight_stack_name vars.
+# Safe no-op when no pre-flight.yml exists in the stack directory.
+---
+- name: Check for pre-flight manifest
+  ansible.builtin.stat:
+    path: "{{ preflight_stack_path }}/pre-flight.yml"
+  delegate_to: localhost
+  register: preflight_stat
+
+- name: Check for hooks.sh
+  ansible.builtin.stat:
+    path: "{{ preflight_stack_path }}/hooks.sh"
+  delegate_to: localhost
+  register: preflight_hooks_stat
+
+- name: Load pre-flight manifest
+  ansible.builtin.include_vars:
+    file: "{{ preflight_stack_path }}/pre-flight.yml"
+    name: preflight
+  when: preflight_stat.stat.exists
+
+- name: Validate environment variables
+  ansible.builtin.include_tasks: validate-env.yml
+  when:
+    - preflight_stat.stat.exists
+    - preflight is defined
+    - preflight.validate is defined
+    - preflight.validate.env is defined
+
+- name: Validate node labels
+  ansible.builtin.include_tasks: validate-labels.yml
+  when:
+    - preflight_stat.stat.exists
+    - preflight is defined
+    - preflight.validate is defined
+    - preflight.validate.labels is defined
+
+- name: Create Docker secrets
+  ansible.builtin.include_tasks: create-secrets.yml
+  when:
+    - preflight_stat.stat.exists
+    - preflight is defined
+    - preflight.secrets is defined
+
+- name: Query hook execution mode for pre_deploy
+  ansible.builtin.command:
+    cmd: "bash {{ preflight_stack_path }}/hooks.sh hook_mode pre_deploy"
+  delegate_to: localhost
+  changed_when: false
+  failed_when: false
+  register: preflight_hook_mode
+  when: preflight_hooks_stat.stat.exists
+
+- name: Run pre-deploy hook as root
+  ansible.builtin.command:
+    cmd: "bash {{ preflight_stack_path }}/hooks.sh pre_deploy"
+  delegate_to: localhost
+  become: true
+  changed_when: true
+  environment: "{{ swarm_env_vars | combine({
+    'DOCKER_CONFIG': lookup('env', 'HOME') + '/.docker',
+    'DOCKER_CONTEXT': swarm_docker_context
+  }) }}"
+  when:
+    - preflight_hooks_stat.stat.exists
+    - (preflight_hook_mode.stdout | default('user') | trim) == 'root'
+
+- name: Run pre-deploy hook as user
+  ansible.builtin.command:
+    cmd: "bash {{ preflight_stack_path }}/hooks.sh pre_deploy"
+  delegate_to: localhost
+  changed_when: true
+  environment: "{{ swarm_env_vars | combine({
+    'DOCKER_CONFIG': lookup('env', 'HOME') + '/.docker',
+    'DOCKER_CONTEXT': swarm_docker_context
+  }) }}"
+  when:
+    - preflight_hooks_stat.stat.exists
+    - (preflight_hook_mode.stdout | default('user') | trim) != 'root'

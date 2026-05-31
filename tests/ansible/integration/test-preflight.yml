@@ -1,0 +1,170 @@
+# tests/ansible/integration/test-preflight.yml
+# Integration tests for the preflight role — requires a running Docker Swarm.
+# Creates and cleans up isolated test resources. Cleanup runs even on failure
+# via a block/rescue/always pattern (play-level always: is not valid Ansible).
+# Run with: task ansible:test:preflight:integration
+---
+- name: "INTEGRATION: preflight secret creation and idempotency"
+  hosts: managers
+  gather_facts: false
+  vars:
+    # Unique names scoped to this test run — never clash with real stack secrets
+    test_secret_env: "preflight_test_from_env"
+    test_secret_file: "preflight_test_from_file"
+    test_key_file: "/tmp/preflight-integration-test-key.txt"
+
+  tasks:
+    # ── Load swarm context ──────────────────────────────────────────────────
+    - name: Load .env file
+      ansible.builtin.include_role:
+        name: swarm
+        tasks_from: load-env
+
+    - name: Detect Docker context
+      ansible.builtin.include_role:
+        name: swarm
+        tasks_from: get-docker-host
+
+    - name: Inject test vars into swarm_env_vars
+      ansible.builtin.set_fact:
+        swarm_env_vars: >-
+          {{ swarm_env_vars | combine({
+            'PREFLIGHT_TEST_SECRET_VALUE': 'preflight-integration-test-value',
+            'PREFLIGHT_TEST_KEY_FILE': test_key_file
+          }) }}
+
+    - name: Run tests with guaranteed teardown
+      block:
+        # ── Setup ─────────────────────────────────────────────────────────
+        - name: Ensure test secrets do not exist before run
+          ansible.builtin.command:
+            cmd: "docker --context {{ swarm_docker_context }} secret rm {{ item }}"
+          loop:
+            - "{{ test_secret_env }}"
+            - "{{ test_secret_file }}"
+          failed_when: false
+          changed_when: true
+          delegate_to: localhost
+
+        - name: Create temp key file for from-file test
+          ansible.builtin.copy:
+            content: "test-key-content-for-preflight-integration"
+            dest: "{{ test_key_file }}"
+            mode: "0600"
+          delegate_to: localhost
+
+        # ── TEST 1: Secret created from env var ───────────────────────────
+        - name: "TEST 1: Create secret from env var"
+          ansible.builtin.include_role:
+            name: preflight
+          vars:
+            preflight_stack_path: "{{ playbook_dir }}/fixtures/from-env-secret"
+            preflight_stack_name: "test-from-env-secret"
+
+        - name: Verify secret exists
+          ansible.builtin.command:
+            cmd: docker --context {{ swarm_docker_context }} secret inspect {{ test_secret_env }}
+          delegate_to: localhost
+          changed_when: false
+          register: env_secret_check
+
+        - name: Assert secret was created
+          ansible.builtin.assert:
+            that: env_secret_check.rc == 0
+            success_msg: "✓ Secret {{ test_secret_env }} created from env var"
+
+        # ── TEST 2: Idempotency — second run skips existing secret ────────
+        - name: "TEST 2: Idempotency — second run skips existing secret"
+          ansible.builtin.include_role:
+            name: preflight
+          vars:
+            preflight_stack_path: "{{ playbook_dir }}/fixtures/from-env-secret"
+            preflight_stack_name: "test-from-env-secret"
+
+        - name: Verify secret still exists after second run
+          ansible.builtin.command:
+            cmd: docker --context {{ swarm_docker_context }} secret inspect {{ test_secret_env }}
+          delegate_to: localhost
+          changed_when: false
+          register: idempotent_check
+
+        - ansible.builtin.assert:
+            that: idempotent_check.rc == 0
+            success_msg: "✓ Second run is idempotent — secret unchanged"
+
+        # ── TEST 3: Secret created from file ─────────────────────────────
+        - name: "TEST 3: Create secret from file"
+          ansible.builtin.include_role:
+            name: preflight
+          vars:
+            preflight_stack_path: "{{ playbook_dir }}/fixtures/from-file-secret"
+            preflight_stack_name: "test-from-file-secret"
+
+        - name: Verify file-based secret exists
+          ansible.builtin.command:
+            cmd: docker --context {{ swarm_docker_context }} secret inspect {{ test_secret_file }}
+          delegate_to: localhost
+          changed_when: false
+          register: file_secret_check
+
+        - ansible.builtin.assert:
+            that: file_secret_check.rc == 0
+            success_msg: "✓ Secret {{ test_secret_file }} created from file"
+
+        # ── TEST 4: from_file idempotency ─────────────────────────────────
+        - name: "TEST 4: from_file idempotency — second run skips existing secret"
+          ansible.builtin.include_role:
+            name: preflight
+          vars:
+            preflight_stack_path: "{{ playbook_dir }}/fixtures/from-file-secret"
+            preflight_stack_name: "test-from-file-secret"
+
+        - name: Verify file secret still exists after second run
+          ansible.builtin.command:
+            cmd: docker --context {{ swarm_docker_context }} secret inspect {{ test_secret_file }}
+          delegate_to: localhost
+          changed_when: false
+          register: file_idempotent_check
+
+        - ansible.builtin.assert:
+            that: file_idempotent_check.rc == 0
+            success_msg: "✓ from_file idempotent — secret unchanged on second run"
+
+        # ── TEST 5: Missing label causes a clear failure ──────────────────
+        - name: "TEST 5: Missing label causes a clear failure"
+          block:
+            - ansible.builtin.include_role:
+                name: preflight
+              vars:
+                preflight_stack_path: "{{ playbook_dir }}/fixtures/missing-label"
+                preflight_stack_name: "test-missing-label"
+          rescue:
+            - name: Mark expected failure as caught
+              ansible.builtin.set_fact:
+                missing_label_test_rescued: true
+          always:
+            - ansible.builtin.assert:
+                that: missing_label_test_rescued | default(false)
+                fail_msg: "Expected preflight to fail for missing label but it did not"
+                success_msg: "✓ Missing label correctly causes preflight failure"
+
+      # ── Teardown — always runs even if tests fail ────────────────────────
+      always:
+        - name: Remove test secrets
+          ansible.builtin.command:
+            cmd: "docker --context {{ swarm_docker_context }} secret rm {{ item }}"
+          loop:
+            - "{{ test_secret_env }}"
+            - "{{ test_secret_file }}"
+          failed_when: false
+          changed_when: true
+          delegate_to: localhost
+
+        - name: Remove temp key file
+          ansible.builtin.file:
+            path: "{{ test_key_file }}"
+            state: absent
+          delegate_to: localhost
+
+        - ansible.builtin.debug:
+            msg: "✓ Integration test resources cleaned up"

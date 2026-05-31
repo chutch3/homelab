@@ -1,0 +1,3 @@
+secrets:
+  - name: preflight_test_from_env
+    from_env: PREFLIGHT_TEST_SECRET_VALUE

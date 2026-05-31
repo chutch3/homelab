@@ -1,0 +1,99 @@
+# tests/ansible/unit/test-preflight.yml
+# Unit tests for the preflight role — no Docker, no cluster required.
+# Uses --check mode and local fixtures to test logic and templates.
+# Run with: task ansible:test:preflight:unit
+---
+
+# ── Test 1: Happy path — all real stacks render cleanly ──────────────────────
+- name: "TEST 1: All real stacks with pre-flight.yml render without error"
+  hosts: managers
+  gather_facts: false
+  tasks:
+    - name: Find stacks with pre-flight.yml
+      ansible.builtin.find:
+        paths: "{{ playbook_dir }}/../../../stacks"
+        patterns: "pre-flight.yml"
+        recurse: true
+      delegate_to: localhost
+      register: preflight_files
+
+    - name: Run preflight role for each stack
+      ansible.builtin.include_role:
+        name: preflight
+      vars:
+        preflight_stack_path: "{{ preflight_file | dirname }}"
+        preflight_stack_name: "{{ preflight_file | dirname | basename }}"
+      loop: "{{ preflight_files.files | map(attribute='path') | list }}"
+      loop_control:
+        loop_var: preflight_file
+        label: "{{ preflight_file | dirname | basename }}"
+
+    - name: Assert all stacks processed
+      ansible.builtin.assert:
+        that: preflight_files.files | length > 0
+        success_msg: "✓ {{ preflight_files.files | length }} stacks processed without error"
+
+# ── Test 2: Missing env var → correct failure ─────────────────────────────────
+- name: "TEST 2: Missing required env var causes a clear failure"
+  hosts: managers
+  gather_facts: false
+  tasks:
+    - name: Run preflight role against fixture with a missing var
+      block:
+        - ansible.builtin.include_role:
+            name: preflight
+          vars:
+            preflight_stack_path: "{{ playbook_dir }}/fixtures/requires-env"
+            preflight_stack_name: "test-requires-env"
+      rescue:
+        - name: Mark expected failure as caught
+          ansible.builtin.set_fact:
+            missing_var_test_rescued: true
+
+    - name: Assert role correctly failed for missing env var
+      ansible.builtin.assert:
+        that: missing_var_test_rescued | default(false)
+        fail_msg: "Expected preflight to fail for missing env var but it did not"
+        success_msg: "✓ Missing env var correctly causes preflight failure"
+
+# ── Test 3: No pre-flight.yml → no-op ────────────────────────────────────────
+- name: "TEST 3: Stack with no pre-flight.yml is a complete no-op"
+  hosts: managers
+  gather_facts: false
+  tasks:
+    - name: Run preflight role against fixture with no pre-flight.yml
+      ansible.builtin.include_role:
+        name: preflight
+      vars:
+        preflight_stack_path: "{{ playbook_dir }}/fixtures/no-preflight"
+        preflight_stack_name: "test-no-preflight"
+
+    - name: Assert no-op completed without error
+      ansible.builtin.debug:
+        msg: "✓ Stack with no pre-flight.yml completed without error"
+
+# Note: hook execution testing is in test-preflight-hooks.yml (runs without --check)
+
+# ── Test 4: ocfs2-setup.yml uses retry loop not failed_when ──────────────────
+- name: "TEST 4: ocfs2-setup.yml O2CB check uses until/retries not failed_when"
+  hosts: managers
+  gather_facts: false
+  tasks:
+    - name: Read ocfs2-setup.yml
+      ansible.builtin.slurp:
+        src: "{{ playbook_dir }}/../../../ansible/roles/storage/tasks/ocfs2-setup.yml"
+      delegate_to: localhost
+      register: ocfs2_content
+
+    - name: Assert retry loop is used for the O2CB cluster check
+      ansible.builtin.assert:
+        that:
+          - "'until:' in (ocfs2_content.content | b64decode)"
+          - "'retries:' in (ocfs2_content.content | b64decode)"
+          - "'Verify O2CB cluster is online' in (ocfs2_content.content | b64decode)"
+          # The old brittle pattern — must not appear on the verify task
+          - >-
+            not (ocfs2_content.content | b64decode
+              | regex_search("Verify O2CB.*\n(?:.*\n)*?.*failed_when:"))
+        success_msg: "✓ ocfs2-setup.yml Verify task uses until/retries not failed_when"
+        fail_msg: "ocfs2-setup.yml Verify O2CB task still uses failed_when instead of until/retries"

@@ -1,0 +1,3 @@
+validate:
+  labels:
+    - preflight_test_nonexistent_label: "True"

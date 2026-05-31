@@ -1,0 +1,4 @@
+validate:
+  labels:
+    - test_label_present: "True"
+    - test_label_absent: "True"

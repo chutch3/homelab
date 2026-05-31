@@ -1,0 +1,62 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/chutch3/homelab/schemas/pre-flight.schema.json",
+  "title": "pre-flight.yml",
+  "description": "Homelab stack pre-deployment requirements. Read by the preflight Ansible role before docker stack deploy.",
+  "type": ["object", "null"],
+  "additionalProperties": false,
+  "properties": {
+    "secrets": {
+      "description": "Docker Swarm secrets to create before deploying. Idempotent — skipped if the secret already exists.",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["name"],
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Name of the Docker secret"
+          },
+          "from_env": {
+            "type": "string",
+            "description": "Name of the .env variable whose value becomes the secret data"
+          },
+          "from_file": {
+            "type": "string",
+            "description": "Path to a file whose contents become the secret data. Use $VAR to reference a .env variable as the path."
+          }
+        },
+        "oneOf": [
+          { "required": ["from_env"], "not": { "required": ["from_file"] } },
+          { "required": ["from_file"], "not": { "required": ["from_env"] } }
+        ]
+      },
+      "minItems": 1
+    },
+    "validate": {
+      "description": "Pre-deployment validation checks. Ansible fails with a clear message if any check fails.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "env": {
+          "description": "Environment variable names that must be non-empty in .env before deploying.",
+          "type": "array",
+          "items": { "type": "string" },
+          "minItems": 1
+        },
+        "labels": {
+          "description": "Node labels — at least one Swarm node must carry each label before deploying.",
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": { "type": "string" },
+            "minProperties": 1,
+            "maxProperties": 1
+          },
+          "minItems": 1
+        }
+      }
+    }
+  }
+}

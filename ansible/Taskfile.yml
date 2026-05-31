@@ -565,6 +565,19 @@ tasks:
                 if [ -z "$BW_SESSION" ] && [ -f "$HOME/.bw_session" ]; then set -a; source "$HOME/.bw_session"; set +a; fi
                 {{.VENV_ANSIBLE_PLAYBOOK}} -i ansible/inventory/ ansible/playbooks/secrets.yml -e secret_op=push {{.CLI_ARGS}}
 
+    test:preflight:unit:
+        desc: "Unit tests for preflight role — no cluster required (template/logic in --check mode, hook execution with -K for become)"
+        dir: "{{.ROOT_DIR}}"
+        cmds:
+            - "{{.VENV_ANSIBLE_PLAYBOOK}} --check -i tests/ansible/unit/inventory/ tests/ansible/unit/test-preflight.yml {{.CLI_ARGS}}"
+            - "{{.VENV_ANSIBLE_PLAYBOOK}} -K -i tests/ansible/unit/hooks-inventory/ tests/ansible/unit/test-preflight-hooks.yml {{.CLI_ARGS}}"
+
+    test:preflight:integration:
+        desc: "Integration tests for preflight role — requires running Swarm (creates and cleans up isolated test secrets)"
+        dir: "{{.ROOT_DIR}}"
+        cmds:
+            - "{{.VENV_ANSIBLE_PLAYBOOK}} -i ansible/inventory/ tests/ansible/integration/test-preflight.yml -K {{.CLI_ARGS}}"
+
     secrets:wipe:
         desc: "DESTRUCTIVE: Securely remove local secret files (.env, ansible hosts, ssh config)"
         dir: "{{.ROOT_DIR}}"

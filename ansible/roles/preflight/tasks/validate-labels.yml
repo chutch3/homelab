@@ -1,0 +1,34 @@
+# ansible/roles/preflight/tasks/validate-labels.yml
+# Checks that at least one Swarm node carries each required label key.
+# Uses the same docker node inspect approach as update-labels.yml — the only
+# label-checking method proven to work in this cluster.
+---
+- name: Get labels for all Swarm nodes
+  ansible.builtin.shell:
+    cmd: >-
+      docker --context {{ swarm_docker_context }} node inspect
+      $(docker --context {{ swarm_docker_context }} node ls -q)
+      --format {% raw %}'{{json .Spec.Labels}}'{% endraw %}
+  delegate_to: localhost
+  changed_when: false
+  # run_once: node labels are cluster-wide and don't change mid-deploy.
+  # Querying once and reusing the result across all stacks is intentional.
+  run_once: true
+  register: preflight_node_labels
+
+- name: Fail if no node has required label
+  ansible.builtin.fail:
+    msg: >-
+      Stack '{{ preflight_stack_name }}' requires a Swarm node with label
+      '{{ preflight_label.keys() | first }}'.
+      Add it in ansible/inventory/02-hosts.yml under node_labels and run:
+      task ansible:cluster:update-labels
+  when: >-
+    not ansible_check_mode and
+    not (preflight_node_labels.stdout_lines
+    | select('search', '"' + (preflight_label.keys() | first) + '":')
+    | list | length > 0)
+  loop: "{{ preflight.validate.labels }}"
+  loop_control:
+    loop_var: preflight_label
+    label: "{{ preflight_label.keys() | first }}"
