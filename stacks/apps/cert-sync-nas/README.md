@@ -17,13 +17,35 @@ On every container start, the startup script:
 - SSHes in and runs `omv-rpc CertificateMgmt set` to import the cert
 - Applies dirty config modules and restarts nginx
 
+## Prerequisites
+
+### NAS SSH access
+
+The SSH key used by the container must be authorized on the NAS for `NAS_USER` (default: `cody`):
+
+```bash
+ssh-copy-id -i "$SSH_KEY_FILE" cody@nas.<your-domain>
+```
+
+### NAS sudoers rule (required for OMV 7)
+
+The NAS user needs passwordless sudo for the OMV management commands. On the NAS:
+
+```bash
+echo 'cody ALL=(ALL) NOPASSWD: /usr/sbin/omv-rpc, /usr/sbin/omv-salt, /usr/bin/systemctl restart nginx' \
+  | sudo tee /etc/sudoers.d/omv-cert-sync
+sudo chmod 440 /etc/sudoers.d/omv-cert-sync
+```
+
+This is required because OMV 7 stores the engine socket in a root-only directory. There is no group delegation available.
+
 ## Setup & Deployment
 
 ```bash
 task ansible:deploy:service -- -e "stack_name=cert-sync-nas" -K
 ```
 
-The deploy pipeline reads `pre-flight.yml`, creates the `cert_sync_ssh_key` Docker secret from the key at `$SSH_KEY_FILE`, and validates that `CLOUDFLARE_DNS_API_TOKEN` and `SSH_KEY_FILE` are set in `.env` before deploying. The corresponding public key must already be in `root@nas.<your-domain>:~/.ssh/authorized_keys`.
+The deploy pipeline reads `pre-flight.yml`, creates the `cert_sync_ssh_key` Docker secret from the key at `$SSH_KEY_FILE`, and validates that `CLOUDFLARE_DNS_API_TOKEN` and `SSH_KEY_FILE` are set in `.env` before deploying.
 
 Note: `CF_Token` is the internal container environment variable name set from `CLOUDFLARE_DNS_API_TOKEN` — you only need to set `CLOUDFLARE_DNS_API_TOKEN` in `.env`.
 

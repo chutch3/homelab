@@ -20,7 +20,7 @@ services:
       - source: cert_sync_omv_v1
         target: /scripts/common/nas/omv.sh
         mode: 0555
-      - source: cert_sync_install_cert_v2
+      - source: cert_sync_install_cert_v3
         target: /scripts/common/nas/install-cert-remote.sh
         mode: 0555
       - source: cert_sync_cert_sh_v1
@@ -76,7 +76,7 @@ configs:
     file: ./sync-nas-cert.sh
   cert_sync_omv_v1:
     file: ../../../scripts/common/nas/omv.sh
-  cert_sync_install_cert_v2:
+  cert_sync_install_cert_v3:
     file: ../../../scripts/common/nas/install-cert-remote.sh
   cert_sync_cert_sh_v1:
     file: ../../../scripts/common/cert.sh
