@@ -57,6 +57,7 @@ services:
             - immich_model_cache:/cache
         environment:
             NVIDIA_VISIBLE_DEVICES: "all"
+            NVIDIA_DRIVER_CAPABILITIES: "compute,utility"
         restart: unless-stopped
         healthcheck:
             test: ["CMD-SHELL", "python /usr/src/healthcheck.py || exit 1"]
