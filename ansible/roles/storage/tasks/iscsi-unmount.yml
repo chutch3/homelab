@@ -82,29 +82,41 @@
   register: storage_unmount_result
   failed_when: false
 
-# If clean unmount failed, kill blockers and force unmount
-- name: Check if any OCFS2 mounts remain after clean attempt
-  ansible.builtin.command: mount
-  register: storage_mounts_after_first
+# Sync after unmount attempt — ensures kernel finishes processing before we check
+- name: Sync after unmount attempt
+  ansible.builtin.command: sync
   changed_when: false
 
-- name: Kill processes blocking OCFS2 unmount
-  ansible.builtin.command: fuser -km {{ item.mount_path }}
+# Use mountpoint -q per path — more reliable than parsing mount output which can lag
+- name: Check which mount points are still active after clean attempt
+  ansible.builtin.command: mountpoint -q {{ item.mount_path }}
   loop: "{{ storage_iscsi_mounts }}"
   when:
     - item.enabled | bool
     - item.mount_path is defined
-    - "'ocfs2' in storage_mounts_after_first.stdout"
+  register: storage_mountpoint_after_first
+  # mountpoint -q returns 0 if still mounted, 1 if not — we want 1 (unmounted)
+  changed_when: false
+  failed_when: false
+
+# Only kill blockers if a mount point is genuinely still active
+- name: Kill processes blocking OCFS2 unmount
+  ansible.builtin.command: fuser -km {{ item.item.mount_path }}
+  loop: "{{ storage_mountpoint_after_first.results }}"
+  when:
+    - item.item.enabled | bool
+    - item.item.mount_path is defined
+    - item.rc == 0
   failed_when: false
   changed_when: true
 
 - name: Force unmount remaining OCFS2 filesystems
-  ansible.builtin.command: umount -f {{ item.mount_path }}
-  loop: "{{ storage_iscsi_mounts }}"
+  ansible.builtin.command: umount -f {{ item.item.mount_path }}
+  loop: "{{ storage_mountpoint_after_first.results }}"
   when:
-    - item.enabled | bool
-    - item.mount_path is defined
-    - "'ocfs2' in storage_mounts_after_first.stdout"
+    - item.item.enabled | bool
+    - item.item.mount_path is defined
+    - item.rc == 0
   failed_when: false
   changed_when: true
 
