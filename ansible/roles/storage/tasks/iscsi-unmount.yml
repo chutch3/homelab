@@ -26,20 +26,19 @@
     state: stopped
   ignore_errors: true
 
-- name: Wait for Docker to fully release file handles
-  ansible.builtin.pause:
-    seconds: 5
-
-- name: Verify Docker is stopped
+- name: Wait for Docker to fully stop (poll up to 90s)
   ansible.builtin.command: systemctl is-active docker
   register: storage_docker_status
+  until: storage_docker_status.stdout == "inactive"
+  retries: 18
+  delay: 5
   changed_when: false
   failed_when: false
 
 - name: Assert Docker is stopped
   ansible.builtin.assert:
     that: storage_docker_status.stdout == "inactive"
-    fail_msg: "Docker is still active — file handles may still be open on OCFS2 volumes"
+    fail_msg: "Docker still active after 90s — containers may be holding OCFS2 file handles open"
     success_msg: "✓ Docker stopped"
 
 # ── Step 2: Define mounts and flush ────────────────────────────────────────
