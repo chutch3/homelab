@@ -1,7 +1,6 @@
 version: "3.9"
 
 services:
-    # 1. THE MAIN APPLICATION (Requires 1 replica for SQLite)
     profilarr:
         image: santiagosayshey/profilarr:latest
         environment:
@@ -24,29 +23,11 @@ services:
                 - "traefik.http.routers.profilarr.tls.certresolver=dns"
                 - "traefik.http.services.profilarr.loadbalancer.server.port=6868"
                 - "traefik.swarm.network=traefik-public"
-                # Homepage labels
                 - "homepage.group=Downloads"
                 - "homepage.name=Profilarr"
                 - "homepage.icon=profilarr.png"
                 - "homepage.href=https://profilarr.${BASE_DOMAIN}/"
                 - "homepage.description=Profile Management for Arr Services"
-
-    # 2. THE BACKUP SIDECAR
-    profilarr-backup:
-        image: alpine:latest
-        # depends_on is largely ignored in Swarm
-        environment:
-            - TZ=${TZ}
-        volumes:
-            - profilarr_config:/source:ro
-            - profilarr_nas_backup:/dest
-            - ./backup.sh:/backup.sh:ro
-        command: ["/bin/sh", "/backup.sh"]
-        deploy:
-            mode: replicated
-            replicas: 1
-            restart_policy:
-                condition: any
 
 networks:
     traefik-public:
@@ -59,10 +40,3 @@ volumes:
             type: "none"
             o: "bind"
             device: "/mnt/iscsi/media-apps/profilarr"
-
-    profilarr_nas_backup:
-        driver: local
-        driver_opts:
-            type: "cifs"
-            o: "username=${SMB_USERNAME},password=${SMB_PASSWORD},vers=3.0,uid=1000,gid=1000,file_mode=0777,dir_mode=0777"
-            device: "//${NAS_SERVER}/profilarr"
