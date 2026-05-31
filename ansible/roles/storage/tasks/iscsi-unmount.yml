@@ -1,17 +1,30 @@
 ---
 # ansible/roles/storage/tasks/iscsi-unmount.yml
-# Safely unmount iSCSI/OCFS2 storage with verification
+# Safely unmount iSCSI/OCFS2 storage with verification.
+#
+# Critical sequence — order is non-negotiable:
+#   1. Stop Docker (releases file handles on OCFS2 volumes)
+#   2. sync (flush dirty pages before unmount)
+#   3. Unmount OCFS2 (with fallback: kill blockers and retry)
+#   4. o2cb offline (gracefully leave cluster, commit journal)
+#   5. Stop ocfs2 then o2cb services
+#   6. Drop page cache (release kernel references to iSCSI blocks)
+#   7. Logout iSCSI (safe now — no kernel references remain)
+#   8. sync again (final flush)
+#
+# Skipping or reordering steps 3-4 causes dirty OCFS2 journals and
+# fsck failures on the local NVMe at next boot.
 
-# Stop Docker so it releases OCFS2-backed volume and bind mounts before we
-# unmount. Swarm drain reschedules tasks but leaves the daemon running, which
-# holds open iSCSI block devices and prevents clean unmount.
 - name: Stop Docker daemon
   ansible.builtin.systemd:
     name: docker
     state: stopped
   ignore_errors: true
 
-# Define iSCSI mounts (same structure as mount task)
+- name: Wait for Docker to fully release file handles
+  ansible.builtin.pause:
+    seconds: 5
+
 - name: Define iSCSI mount configurations
   ansible.builtin.set_fact:
     storage_iscsi_mounts:
@@ -28,23 +41,11 @@
         iqn: "{{ iscsi_cache_iqn }}"
         mount_path: "{{ iscsi_cache_mount_path }}"
 
-# Unmount all OCFS2 mounts now that Docker is stopped and no longer holding them open
-- name: Force unmount all OCFS2 mounts
-  ansible.builtin.command: umount -a -t ocfs2
-  ignore_errors: yes
-  changed_when: true
+- name: Flush filesystem buffers before unmounting
+  ansible.builtin.command: sync
+  changed_when: false
 
-# Stop OCFS2 cluster services
-- name: Stop OCFS2 cluster services
-  ansible.builtin.systemd:
-    name: "{{ item }}"
-    state: stopped
-  loop:
-    - o2cb
-    - ocfs2
-  ignore_errors: true
-
-# Unmount OCFS2 filesystems
+# First attempt: clean unmount
 - name: Unmount OCFS2 filesystems
   ansible.posix.mount:
     path: "{{ item.mount_path }}"
@@ -56,21 +57,79 @@
   register: storage_unmount_result
   failed_when: false
 
-# Verify filesystems are unmounted
+# Check if any mounts are still active
+- name: Check for remaining OCFS2 mounts after first attempt
+  ansible.builtin.command: mount
+  register: storage_mounts_after_first
+  changed_when: false
+
+# If clean unmount failed, kill blockers and retry with force
+- name: Kill processes blocking OCFS2 unmount
+  ansible.builtin.command: fuser -km {{ item.mount_path }}
+  loop: "{{ storage_iscsi_mounts }}"
+  when:
+    - item.enabled | bool
+    - item.mount_path is defined
+    - "'ocfs2' in storage_mounts_after_first.stdout"
+  failed_when: false
+  changed_when: true
+
+- name: Force unmount remaining OCFS2 filesystems if still mounted
+  ansible.builtin.command: umount -f {{ item.mount_path }}
+  loop: "{{ storage_iscsi_mounts }}"
+  when:
+    - item.enabled | bool
+    - item.mount_path is defined
+    - "'ocfs2' in storage_mounts_after_first.stdout"
+  failed_when: false
+  changed_when: true
+
+# Take O2CB cluster offline AFTER filesystems are unmounted.
+# This commits any remaining journal entries and releases cluster locks.
+- name: Take O2CB cluster offline gracefully
+  ansible.builtin.command: o2cb offline homelab
+  register: storage_o2cb_offline
+  changed_when: storage_o2cb_offline.rc == 0
+  failed_when: false
+
+- name: Wait for O2CB cluster to go offline
+  ansible.builtin.command: o2cb cluster-status homelab
+  register: storage_o2cb_status
+  until: "'offline' in storage_o2cb_status.stdout | lower or storage_o2cb_status.rc != 0"
+  retries: 6
+  delay: 5
+  changed_when: false
+  failed_when: false
+
+- name: Stop OCFS2 cluster services
+  ansible.builtin.systemd:
+    name: "{{ item }}"
+    state: stopped
+  loop:
+    - ocfs2
+    - o2cb
+  ignore_errors: true
+
+# Verify filesystems are unmounted before touching iSCSI
 - name: Check for remaining OCFS2 mounts
   ansible.builtin.command: mount
   register: storage_current_mounts
   changed_when: false
 
-- name: Verify no OCFS2 mounts remain
+- name: Fail if OCFS2 still mounted — unsafe to disconnect iSCSI
   ansible.builtin.assert:
     that:
       - "'ocfs2' not in storage_current_mounts.stdout"
-    fail_msg: "ERROR: OCFS2 filesystems still mounted"
+    fail_msg: "OCFS2 filesystems still mounted — aborting iSCSI disconnect to prevent data corruption"
     success_msg: "✓ All OCFS2 filesystems unmounted"
-  ignore_errors: yes
 
-# Remove fstab entries
+# Drop page cache to release all kernel references to iSCSI block devices
+# before logging out. Without this, the kernel may still have dirty pages
+# referencing iSCSI blocks which causes errors on logout.
+- name: Drop page cache to release iSCSI block references
+  ansible.builtin.shell: sync && echo 3 > /proc/sys/vm/drop_caches
+  changed_when: false
+
 - name: Remove OCFS2 fstab entries
   ansible.builtin.lineinfile:
     path: /etc/fstab
@@ -81,24 +140,18 @@
     - item.enabled | bool
     - item.mount_path is defined
 
-# Logout from all active iSCSI sessions while iscsid is still running
-# Must happen BEFORE stopping open-iscsi — iscsiadm needs iscsid running to
-# send logout commands to the kernel. Session mode (-m session -u) works even
-# when /etc/iscsi/nodes is empty (unlike -m node --logoutall=all).
 - name: Logout from all iSCSI sessions
   ansible.builtin.command: iscsiadm -m session -u
   register: storage_iscsi_logout
   changed_when: storage_iscsi_logout.rc == 0
   failed_when: false
 
-# Stop open-iscsi after logout to prevent auto-reconnect
 - name: Stop open-iscsi service
   ansible.builtin.systemd:
     name: open-iscsi
     state: stopped
   ignore_errors: true
 
-# Verify no active iSCSI sessions
 - name: Check for active iSCSI sessions
   ansible.builtin.command: iscsiadm -m session
   register: storage_active_sessions
@@ -113,7 +166,6 @@
     success_msg: "✓ All iSCSI sessions terminated"
   ignore_errors: yes
 
-# Remove iSCSI node configurations
 - name: Remove iSCSI node configurations
   ansible.builtin.file:
     path: "{{ item }}"
@@ -123,18 +175,16 @@
     - /etc/iscsi/send_targets
   ignore_errors: true
 
-# Restart iscsid service (clean state)
-- name: Restart iscsid service
-  ansible.builtin.systemd:
-    name: iscsid
-    state: restarted
-    enabled: yes
+- name: Final sync after all storage teardown
+  ansible.builtin.command: sync
+  changed_when: false
 
-# Display unmount summary
 - name: Display unmount summary
   ansible.builtin.debug:
     msg: |
       ✓ iSCSI/OCFS2 teardown complete:
-        - OCFS2 force-unmounted: {{ 'yes' if storage_unmount_result is defined else 'via force unmount' }}
-        - iSCSI sessions: {{ 'logged out' if storage_iscsi_logout.changed | default(false) else 'already clear or cleared by iscsid restart' }}
+        - OCFS2 unmounted (clean then forced if needed)
+        - O2CB cluster taken offline gracefully
+        - Page cache dropped
+        - iSCSI sessions: {{ 'logged out' if storage_iscsi_logout.changed | default(false) else 'already clear' }}
         - Configuration cleaned

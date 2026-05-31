@@ -109,6 +109,7 @@
           {{
             filtered_stacks | difference(
               preflight_results.results
+              | selectattr('failed', 'defined')
               | selectattr('failed', 'equalto', true)
               | map(attribute='item')
               | list
@@ -119,7 +120,7 @@
     - name: Warn about stacks that failed preflight
       ansible.builtin.debug:
         msg: "SKIPPING deploy of '{{ item.item.split('/')[-1] }}' — preflight failed: {{ item.msg | default('see above') }}"
-      loop: "{{ preflight_results.results | selectattr('failed', 'equalto', true) | list }}"
+      loop: "{{ preflight_results.results | selectattr('failed', 'defined') | selectattr('failed', 'equalto', true) | list }}"
       loop_control:
         label: "{{ item.item.split('/')[-1] }}"
       when: preflight_results is defined

@@ -73,9 +73,14 @@
   gather_facts: false
 
   tasks:
+    - name: "[PHASE 3] Final buffer flush before reboot"
+      ansible.builtin.command: sync
+      changed_when: false
+      when: inventory_hostname == target_node
+
     - name: "[PHASE 3] Reboot node and wait for it to come back online"
       ansible.builtin.reboot:
-        reboot_timeout: 300
+        reboot_timeout: 600
         post_reboot_delay: 30
         msg: "System reboot initiated by Ansible for maintenance."
       when: inventory_hostname == target_node
