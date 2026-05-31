@@ -59,8 +59,8 @@
         iqn: "{{ iscsi_cache_iqn }}"
         mount_path: "{{ iscsi_cache_mount_path }}"
 
-- name: Read O2CB cluster name from config
-  ansible.builtin.shell: grep -oP '(?<=^name = ).*' /etc/ocfs2/cluster.conf | head -1
+- name: Read O2CB cluster name
+  ansible.builtin.command: o2cb list-clusters
   register: storage_o2cb_cluster_name
   changed_when: false
   failed_when: storage_o2cb_cluster_name.stdout == ""
