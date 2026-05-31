@@ -56,6 +56,8 @@
   hosts: all
   become: yes
   gather_facts: false
+  # Abort the entire playbook if unmount fails — do NOT reboot with OCFS2 still mounted
+  any_errors_fatal: true
 
   tasks:
     - name: "[PHASE 2] Unmount OCFS2 filesystems and disconnect iSCSI"
