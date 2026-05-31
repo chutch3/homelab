@@ -133,27 +133,9 @@
   failed_when: storage_mountpoint_check.rc == 0
   changed_when: false
 
-- name: Verify mount directories are empty (no iSCSI data visible)
-  ansible.builtin.find:
-    paths: "{{ item.mount_path }}"
-    file_type: any
-  loop: "{{ storage_iscsi_mounts }}"
-  when:
-    - item.enabled | bool
-    - item.mount_path is defined
-  register: storage_mount_dir_contents
-
-- name: Assert mount directories are empty after unmount
-  ansible.builtin.assert:
-    that: item.files | length == 0
-    fail_msg: >-
-      {{ item.item.mount_path }} still has {{ item.files | length }} entries —
-      unmount may have silently failed or stale data is visible
-    success_msg: "✓ {{ item.item.mount_path }} is empty — unmounted cleanly"
-  loop: "{{ storage_mount_dir_contents.results }}"
-  when:
-    - item.item.enabled | bool
-    - item.skipped is not defined or not item.skipped
+# Note: mount directories contain local scaffolding (subdirs created during bootstrap)
+# even when nothing is mounted — we do NOT check for empty directories.
+# mountpoint -q above is the authoritative check for whether a filesystem is mounted.
 
 # ── Step 5: Take O2CB cluster offline ─────────────────────────────────────
 
