@@ -20,7 +20,7 @@ services:
       - source: cert_sync_omv_v1
         target: /scripts/common/nas/omv.sh
         mode: 0555
-      - source: cert_sync_install_cert_v1
+      - source: cert_sync_install_cert_v2
         target: /scripts/common/nas/install-cert-remote.sh
         mode: 0555
       - source: cert_sync_cert_sh_v1
@@ -35,7 +35,12 @@ services:
         mode: 0400
     command: >
       sh -c "
-      apk add --no-cache openssh-client bash &&
+      echo 'Waiting for DNS...' &&
+      for i in 1 2 3 4 5 6; do
+        apk add --no-cache openssh-client bash && break;
+        echo 'DNS not ready, retrying in 10s...';
+        sleep 10;
+      done &&
       mkdir -p /root/.ssh &&
       if [ -f /ssh-key/id_rsa ]; then
         cp /ssh-key/id_rsa /root/.ssh/id_rsa &&
@@ -71,7 +76,7 @@ configs:
     file: ./sync-nas-cert.sh
   cert_sync_omv_v1:
     file: ../../../scripts/common/nas/omv.sh
-  cert_sync_install_cert_v1:
+  cert_sync_install_cert_v2:
     file: ../../../scripts/common/nas/install-cert-remote.sh
   cert_sync_cert_sh_v1:
     file: ../../../scripts/common/cert.sh

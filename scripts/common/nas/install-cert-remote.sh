@@ -15,11 +15,11 @@ JSON_PAYLOAD=$(jq -n \
     '{uuid: $uuid, certificate: $cert, privatekey: $key, comment: $comment}')
 
 # Try to import certificate
-if ! omv-rpc -u admin "CertificateMgmt" "set" "$JSON_PAYLOAD"; then
+if ! /usr/sbin/omv-rpc -u admin "CertificateMgmt" "set" "$JSON_PAYLOAD"; then
     echo "Failed to create new certificate, trying to update existing..." >&2
 
     # Get current certificate UUID
-    CURRENT_UUID=$(omv-rpc -u admin "WebGui" "getSettings" | jq -r '.sslcertificateref')
+    CURRENT_UUID=$(/usr/sbin/omv-rpc -u admin "WebGui" "getSettings" | jq -r '.sslcertificateref')
 
     if [[ -n "$CURRENT_UUID" && "$CURRENT_UUID" != "null" ]]; then
         JSON_PAYLOAD=$(jq -n \
@@ -29,7 +29,7 @@ if ! omv-rpc -u admin "CertificateMgmt" "set" "$JSON_PAYLOAD"; then
             --arg comment "Auto-synced from acme.sh - $(date)" \
             '{uuid: $uuid, certificate: $cert, privatekey: $key, comment: $comment}')
 
-        omv-rpc -u admin "CertificateMgmt" "set" "$JSON_PAYLOAD"
+        /usr/sbin/omv-rpc -u admin "CertificateMgmt" "set" "$JSON_PAYLOAD"
     else
         exit 1
     fi
@@ -44,14 +44,14 @@ else
 fi)
 
 if [[ "$MODULES_JSON" != "[]" ]]; then
-    omv-rpc -u admin "Config" "applyChanges" "{\"modules\":${MODULES_JSON},\"force\":false}"
+    /usr/sbin/omv-rpc -u admin "Config" "applyChanges" "{\"modules\":${MODULES_JSON},\"force\":false}"
 else
     echo "No pending changes to apply."
 fi
 
 # Write certificate files to disk and apply nginx configuration
-omv-salt deploy run certificates
-omv-salt deploy run nginx
+/usr/sbin/omv-salt deploy run certificates
+/usr/sbin/omv-salt deploy run nginx
 systemctl restart nginx
 
 # Restart MinIO Caddy proxy if running (it caches certs at startup)
