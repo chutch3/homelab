@@ -30,21 +30,11 @@ This stack relies entirely on the **iSCSI + OCFS2 Cluster Filesystem** to ensure
 
 ## Installation & Setup
 
-### Step 1: Run the Setup Script
-Before deploying the stacks, you **must** run the setup script. This script creates the necessary OCFS2 directories, sets the correct `1000:1000` ownership, copies your homelab SSH key, and generates an SSH config file.
-
-```bash
-# Run this from any node in the cluster
-sudo ./stacks/apps/code-server/setup.sh
-```
-
-### Step 2: Deploy the Stacks
-
-You can deploy the tools together or individually using the homelab's standard Ansible pipeline:
+Deploy using the standard Ansible pipeline. The pre-flight system automatically creates the required iSCSI directories, sets ownership, copies your SSH key, and generates an SSH config before the stack is deployed.
 
 ```bash
 # Deploy code-server (Web IDE)
-task ansible:deploy:service -- -e "stack_name=code-server"
+task ansible:deploy:service -- -e "stack_name=code-server" -K
 
 # Deploy ClaudeCodeUI (AI Agents)
 task ansible:deploy:service -- -e "stack_name=claudecodeui"

@@ -12,25 +12,22 @@ Before deploying, ensure the following are in place on the target Swarm node:
   ```sh
   task ansible:cluster:update-labels
   ```
-- iSCSI target mounted at `/mnt/iscsi/app-data/tor-browser/` (run `sudo ./setup.sh` to create and chown the directory)
+- iSCSI target mounted at `/mnt/iscsi/app-data/tor-browser/` (created automatically by the deploy pipeline)
 - `traefik-public` external overlay network exists
 - Root `.env` is populated with all `TOR_*` variables (see [Environment variables](#environment-variables))
 
 ## Setup
 
 ```sh
-# 1. Create iSCSI data directory on the target node
-sudo ./setup.sh
-
-# 2. Fetch NordVPN WireGuard credentials and write to .env
+# 1. Fetch NordVPN WireGuard credentials and write to .env
 ./nordvpn-setup.sh --token <nordvpn_access_token>
 # Other providers: populate TOR_WIREGUARD_PRIVATE_KEY and TOR_WIREGUARD_ADDRESSES in .env manually
 
-# 3. Set remaining env vars in .env
+# 2. Set remaining env vars in .env
 TOR_BROWSER_VNC_PASSWORD=$(openssl rand -base64 16)
 
-# 4. Deploy
-task ansible:deploy:service -- -e 'stack_name=tor-browser'
+# 3. Deploy — iSCSI directory setup runs automatically
+task ansible:deploy:service -- -e 'stack_name=tor-browser' -K
 ```
 
 ## Services
@@ -132,7 +129,9 @@ All stack-specific variables are prefixed `TOR_` in the root `.env`. Shared vari
 
 ```
 docker-compose.yml
-setup.sh               create iSCSI data dir and set ownership
+pre-flight.yml         validates required env vars and node labels before deploy
+hooks.sh               called by deploy pipeline — runs setup.sh automatically
+setup.sh               create iSCSI data dir and set ownership (called by hooks.sh)
 nordvpn-setup.sh       fetch NordVPN NordLynx credentials and write to .env
 ip-check.py            VPN exit IP check HTTP server (pure Python, no runtime deps)
 scripts/
