@@ -1,0 +1,6 @@
+validate:
+  env:
+    - DOWNLOADS_OPENVPN_PASSWORD
+    - DOWNLOADS_TRANGA_DB_PASSWORD
+  labels:
+    - downloads: "true"

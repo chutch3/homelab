@@ -1,0 +1,5 @@
+validate:
+  env:
+    - LIBRENMS_DB_PASSWORD
+  labels:
+    - database: "true"

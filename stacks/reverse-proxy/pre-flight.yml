@@ -1,0 +1,5 @@
+validate:
+  env:
+    - CLOUDFLARE_DNS_API_TOKEN
+  labels:
+    - traefik: "true"

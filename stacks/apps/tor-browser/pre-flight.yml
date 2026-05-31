@@ -1,0 +1,7 @@
+validate:
+  env:
+    - TOR_WIREGUARD_PRIVATE_KEY
+    - TOR_WIREGUARD_ADDRESSES
+    - TOR_BROWSER_VNC_PASSWORD
+  labels:
+    - tor: "true"

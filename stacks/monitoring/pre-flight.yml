@@ -1,0 +1,7 @@
+secrets:
+  - name: status_pipeline_minio_token
+    from_env: STATUS_PIPELINE_MINIO_METRICS_TOKEN
+
+validate:
+  env:
+    - GRAFANA_ADMIN_PASSWORD

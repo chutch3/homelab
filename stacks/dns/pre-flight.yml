@@ -1,0 +1,5 @@
+validate:
+  env:
+    - PRIMARY_DNS_API_KEY
+  labels:
+    - dns: "true"

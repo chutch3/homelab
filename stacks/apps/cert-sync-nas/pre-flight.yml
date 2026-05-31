@@ -1,0 +1,5 @@
+validate:
+  env:
+    - CLOUDFLARE_DNS_API_TOKEN
+    # CERT_SYNC_SSH_KEY_FILE is optional — defaults to ~/.ssh/homelab_rsa.
+    # Set it in .env if you want a dedicated NAS-only key instead.
