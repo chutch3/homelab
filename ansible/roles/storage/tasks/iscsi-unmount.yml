@@ -202,9 +202,13 @@
 
 # ── Step 10: VERIFY no active iSCSI sessions ──────────────────────────────
 
-- name: Check for active iSCSI sessions
+# Kernel may take a moment to fully close sessions after logout
+- name: Wait for iSCSI sessions to terminate
   ansible.builtin.command: iscsiadm -m session
   register: storage_active_sessions
+  until: storage_active_sessions.rc != 0
+  retries: 6
+  delay: 5
   changed_when: false
   failed_when: false
 
