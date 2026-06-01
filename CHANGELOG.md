@@ -2,6 +2,133 @@
 
 <!-- version list -->
 
+## v3.16.0 (2026-06-01)
+
+### Bug Fixes
+
+- Abort reboot playbook if OCFS2 unmount fails
+  ([`4a50c81`](https://github.com/chutch3/homelab/commit/4a50c81b3cc308b7062456a530dbb471422966e7))
+
+- Add dnsrr endpoint mode to immich-postgres
+  ([`8024ed4`](https://github.com/chutch3/homelab/commit/8024ed4c263458cddef04bbb8d203699d2ea9f19))
+
+- Add NVIDIA driver capabilities and remove generic resource constraint from GPU services
+  ([`f9e1bd8`](https://github.com/chutch3/homelab/commit/f9e1bd8fdcf565b283413fdb36968e27afa53a9c))
+
+- Add step-by-step verification to OCFS2 unmount sequence
+  ([`0219226`](https://github.com/chutch3/homelab/commit/0219226c479f9bd525f4cad278e1fbcab9142e72))
+
+- Add sudo to omv-rpc and omv-salt calls in cert install script
+  ([`1b14dea`](https://github.com/chutch3/homelab/commit/1b14deac17413001c6f65e849015578b850cd52d))
+
+- Add typescript and remove dead fnm root chmod in devbox
+  ([`0c82bc6`](https://github.com/chutch3/homelab/commit/0c82bc641f7e0457d660d27bc6e08a2b2c5f07b1))
+
+- Convert cert-sync-nas scripts to docker configs for swarm node portability
+  ([`981c672`](https://github.com/chutch3/homelab/commit/981c672c3bc6cd471b32447552e6eadd86f5a0bc))
+
+- Correct OCFS2 unmount sequence to prevent journal corruption on reboot
+  ([`fb05f0b`](https://github.com/chutch3/homelab/commit/fb05f0b707830fa39838844a50f98384a0bc6a1e))
+
+- Patch actual-mcp migration check and bump actual-server to 26.5.2
+  ([`4b116ac`](https://github.com/chutch3/homelab/commit/4b116acd6090223aa5f9f76c5606a877fdd057e4))
+
+- Poll for docker shutdown instead of fixed pause before OCFS2 unmount
+  ([`4a87fc4`](https://github.com/chutch3/homelab/commit/4a87fc43048d4d5b89a6dde28059fa3bf50126fe))
+
+- Poll for iSCSI session termination after logout
+  ([`faa0d61`](https://github.com/chutch3/homelab/commit/faa0d6199c1b0b77443ec08cae37897639617e3e))
+
+- Remove false empty-directory check — mountpoint -q is sufficient
+  ([`e725dcd`](https://github.com/chutch3/homelab/commit/e725dcddc655bca518e31523469cd3dd4506160c))
+
+- Remove profilarr backup sidecar replaced by kopia
+  ([`5cc2b6c`](https://github.com/chutch3/homelab/commit/5cc2b6c58b85f4c0a81e7131f0eda24bad410332))
+
+- Replace blocking O2CB cluster-offline check with informational log
+  ([`17f2400`](https://github.com/chutch3/homelab/commit/17f24008deaceac948055d7a4a5365b4b1eaf27b))
+
+- Replace broken nordvpn credential variable indirection with direct env vars
+  ([`2d5bf36`](https://github.com/chutch3/homelab/commit/2d5bf3659bc503bd9c3f1e51af55a67971c51a72))
+
+- Replace community.docker SDK network module with CLI command
+  ([`6048bea`](https://github.com/chutch3/homelab/commit/6048bea251f89bf4a01c280743a9ed4c53e1e886))
+
+- Replace deprecated ansible fact vars and O2CB failed_when with retry loop
+  ([`be09e89`](https://github.com/chutch3/homelab/commit/be09e89c624ae99c09a76aa5c2ecae8b000b0924))
+
+- Resolve load-env path when swarm role is invoked via import_playbook
+  ([`a7c69fd`](https://github.com/chutch3/homelab/commit/a7c69fd464772d2787aa38087a0a2f0c3b196656))
+
+- Restore bookmarks.yaml with valid empty state
+  ([`b613eb0`](https://github.com/chutch3/homelab/commit/b613eb0abf11c89dab60b012d053f51f1725d80b))
+
+- Simplify fnm path setup in devbox and claudecodeui
+  ([`cc0cc85`](https://github.com/chutch3/homelab/commit/cc0cc859827221dfa091ba48a26eba026cd330af))
+
+- Use dnsrr for immich and sonarr, move Technitium query logs off iSCSI
+  ([`7802546`](https://github.com/chutch3/homelab/commit/7802546ee03e82f05f82921f8985cd1292315920))
+
+- Use full path for omv-rpc and omv-salt in cert install script
+  ([`f823171`](https://github.com/chutch3/homelab/commit/f82317180e3cd3fe971b13b23f21a51075ab0000))
+
+- Use mountpoint -q and sync after unmount to prevent premature fuser execution
+  ([`f2ac1cb`](https://github.com/chutch3/homelab/commit/f2ac1cbb4608cc97e3bf2cbb81e977254f6e89fc))
+
+- Use o2cb list-clusters to read cluster name instead of parsing cluster.conf
+  ([`260a154`](https://github.com/chutch3/homelab/commit/260a1542c4821010587b76d94b81062fea9a1d6c))
+
+### Chores
+
+- Bump homelab version in uv lock
+  ([`b07121d`](https://github.com/chutch3/homelab/commit/b07121dd120e473c83e55d14878e0b5017d5f333))
+
+### Documentation
+
+- Update code-server and tor-browser readmes to reflect automated pre-flight
+  ([`86f758f`](https://github.com/chutch3/homelab/commit/86f758f8689a5ba143e85470026e327cc0f6c3b7))
+
+- Update code-server README to document SSH_EXTRA_HOSTS variable
+  ([`5849425`](https://github.com/chutch3/homelab/commit/584942521f07a5eddaca35653122500c78738919))
+
+### Features
+
+- Add homelab-health dashboard and status pipeline alert rules
+  ([`9d6e010`](https://github.com/chutch3/homelab/commit/9d6e010920f0821006a7ee7277a75602cf01022e))
+
+- Add preflight role for automated stack deployment prerequisites
+  ([`446746d`](https://github.com/chutch3/homelab/commit/446746da00e19b7d16d5d9a03cce8546131c1a0f))
+
+- Add secrets compare command to diff local vs Bitwarden with masked values
+  ([`e27862c`](https://github.com/chutch3/homelab/commit/e27862ce64da6e68dcd1545df9e91824cd671262))
+
+- Add setup.sh and update getting started docs
+  ([`59b6c7d`](https://github.com/chutch3/homelab/commit/59b6c7d1f1c25fcb388325c32416550f93c8a4ad))
+
+- Add status pipeline to publish Uptime Kuma data via Tailscale Funnel
+  ([`c46f1d3`](https://github.com/chutch3/homelab/commit/c46f1d3008c91b3071d4f86dab451ff1ba835428))
+
+- Add task-master-ai to devbox npm globals
+  ([`8666ac9`](https://github.com/chutch3/homelab/commit/8666ac9c9f3c5d7ee7c01671432e770a5035bee9))
+
+- Add VPN rotation, WireGuard keepalive, and gluetun auth for tor-browser
+  ([`5840a5a`](https://github.com/chutch3/homelab/commit/5840a5a147497893c0d00b66d5255077127f14f3))
+
+- Convert monitoring configs to swarm and enable minio metrics scraping
+  ([`fba87ba`](https://github.com/chutch3/homelab/commit/fba87babc9c5cdc91c17eca7584a8c765987ec17))
+
+- Refine grafana dashboards with cross-links node variable and gossip events panel
+  ([`d4df524`](https://github.com/chutch3/homelab/commit/d4df52415c31a6099016721c5c9005c06b639c57))
+
+- Replace manual setup scripts with hooks.sh lifecycle interface per stack
+  ([`0439cc0`](https://github.com/chutch3/homelab/commit/0439cc03e9b681a3ff2bc3304ec661a59aebb790))
+
+### Refactoring
+
+- Inline librechat env vars from .env file
+  ([`8b54b80`](https://github.com/chutch3/homelab/commit/8b54b806257d29372b04fc830f9c76c89322b87a))
+
+
 ## v3.15.0 (2026-05-25)
 
 ### Bug Fixes
