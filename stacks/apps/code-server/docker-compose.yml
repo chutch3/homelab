@@ -13,7 +13,7 @@ services:
       - GIT_COMMITTER_EMAIL=${GIT_AUTHOR_EMAIL}
     ports:
       - target: 22
-        published: 2222
+        published: 2200
         protocol: tcp
         mode: ingress
     volumes:
