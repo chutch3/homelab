@@ -165,7 +165,7 @@ mcpServers:
   actual-budget:
     type: sse
     url: '${ACTUAL_MCP_URL}'
-    timeout: 60000
+    timeout: 300000
 
 # Definition of custom endpoints
 endpoints:
