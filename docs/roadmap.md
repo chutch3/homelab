@@ -35,7 +35,7 @@ Operations hardening and platform expansion.
 | Ollama | Local LLM inference integrated with LibreChat |
 | Excalidraw | Collaborative whiteboard with real-time rooms |
 | FreshRSS | RSS aggregator with Authentik SSO |
-| Komga + Tranga | Manga library with automated MangaDex downloads |
+| Komga + Kenku | Manga library with automated MangaDex downloads |
 | Newtarr | Unified arr services portal |
 | Cluster health | Grafana dashboard + shell health check + reboot playbook |
 

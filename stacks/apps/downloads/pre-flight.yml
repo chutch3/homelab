@@ -1,6 +1,8 @@
 validate:
   env:
     - DOWNLOADS_OPENVPN_PASSWORD
-    - DOWNLOADS_TRANGA_DB_PASSWORD
+    - DOWNLOADS_KENKU_DB_PASSWORD
+    - DOWNLOADS_KENKU_DB_USER
+    - DOWNLOADS_KENKU_DB_NAME
   labels:
     - downloads: "true"

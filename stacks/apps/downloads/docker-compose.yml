@@ -213,16 +213,18 @@ services:
                     - node.labels.downloads == true
         shm_size: "1g"
 
-    # === TRANGA ===
-    tranga-pg:
+    # === KENKU (manga downloader: single image serves UI + API on :6531) ===
+    kenku-pg:
         image: postgres:15-alpine
-        container_name: tranga-pg
+        container_name: kenku-pg
         environment:
-            - POSTGRES_USER=${DOWNLOADS_TRANGA_DB_USER}
-            - POSTGRES_PASSWORD=${DOWNLOADS_TRANGA_DB_PASSWORD}
-            - POSTGRES_DB=${DOWNLOADS_TRANGA_DB_NAME}
+            - POSTGRES_USER=${DOWNLOADS_KENKU_DB_USER}
+            - POSTGRES_PASSWORD=${DOWNLOADS_KENKU_DB_PASSWORD}
+            - POSTGRES_DB=${DOWNLOADS_KENKU_DB_NAME}
         volumes:
-            - tranga_pg:/var/lib/postgresql/data
+            # Live data on a node-local volume (NOT the OCFS2 cluster FS). Recovery
+            # is from the logical dumps written by kenku-pg-backup below.
+            - kenku_pg:/var/lib/postgresql/data
         networks:
             - downloads-internal
         restart: unless-stopped
@@ -231,25 +233,69 @@ services:
                 constraints:
                     - node.labels.downloads == true
 
-    tranga-api:
-        image: ghcr.io/chutch3/tranga-api:cuttingedge@sha256:67333c5f0fef2578a80f846d002fd9eefd8a580bab20ee1b1aa4514d6f1cde38
-        container_name: tranga-api
-        configs:
-            - source: tranga_settings_v4
-              target: /usr/share/tranga-api/settings.json
+    # Consistent logical backups: pg_dump on a schedule into an iSCSI dir that Kopia
+    # captures (the live data dir is local and intentionally NOT backed up at the FS level).
+    kenku-pg-backup:
+        image: prodrigestivill/postgres-backup-local:15-alpine
+        container_name: kenku-pg-backup
         environment:
-            - POSTGRES_HOST=tranga-pg:5432
-            - POSTGRES_USER=${DOWNLOADS_TRANGA_DB_USER}
-            - POSTGRES_PASSWORD=${DOWNLOADS_TRANGA_DB_PASSWORD}
-            - POSTGRES_DB=${DOWNLOADS_TRANGA_DB_NAME}
+            - POSTGRES_HOST=kenku-pg
+            - POSTGRES_DB=${DOWNLOADS_KENKU_DB_NAME}
+            - POSTGRES_USER=${DOWNLOADS_KENKU_DB_USER}
+            - POSTGRES_PASSWORD=${DOWNLOADS_KENKU_DB_PASSWORD}
+            - SCHEDULE=@daily
+            - BACKUP_KEEP_DAYS=7
+            - BACKUP_KEEP_WEEKS=4
+            - BACKUP_KEEP_MONTHS=6
+            - TZ=${TZ}
+        volumes:
+            - kenku_db_backups:/backups
+        depends_on:
+            - kenku-pg
+        networks:
+            - downloads-internal
+        restart: unless-stopped
+        deploy:
+            placement:
+                constraints:
+                    - node.labels.downloads == true
+
+    kenku:
+        image: ghcr.io/chutch3/kenku:0.11.0
+        container_name: kenku
+        # settings.json + imageCache live under /usr/share/kenku-api and are written by the
+        # app at runtime, so this is a plain writable volume (kenku_config). Configure
+        # download clients / FlareSolverr / naming scheme in the UI; values persist in the
+        # volume. Previous tuned defaults kept for reference at ./kenku/settings.json.
+        environment:
+            - POSTGRES_HOST=kenku-pg:5432
+            - POSTGRES_USER=${DOWNLOADS_KENKU_DB_USER}
+            - POSTGRES_PASSWORD=${DOWNLOADS_KENKU_DB_PASSWORD}
+            - POSTGRES_DB=${DOWNLOADS_KENKU_DB_NAME}
             - HTTP_PROXY=http://vpn:8888
             - HTTPS_PROXY=http://vpn:8888
             - NO_PROXY=localhost,127.0.0.1
             - TZ=${TZ}
+            # Rate-limit queue-wait is charged against this HTTP timeout (bug #31): at the
+            # 60s default, large rate-limited series (e.g. Ichi the Killer ~200 imgs) cancel
+            # mid-chapter, discard all images, and re-queue forever. Pin 600s here so the
+            # mitigation survives redeploys (a `service update` env is reverted on redeploy).
+            - HTTP_REQUEST_TIMEOUT=600
+            # Pin the default download/library root so a settings.json reset can never
+            # silently drop downloads into ephemeral container storage (was defaulting to
+            # /Series). Manga lives under /series/manga, comics under /series/comics.
+            - DOWNLOAD_LOCATION=/series/manga
+            # Internal swarm DNS of the flaresolverr service (overlay alias + port, no Traefik).
+            # WeebCentral JS-loads chapter images, so kenku must fetch via FlareSolverr or it
+            # writes empty stubs. Pinned here so a settings reset can't blank it.
+            - FLARESOLVERR_URL=http://flaresolverr:8191
         volumes:
-            - torrents:/Manga
+            # Mounts the series/ subfolder of the torrents share, exposing the manga and
+            # comics libraries at /series/manga and /series/comics.
+            - series:/series
+            - kenku_config:/usr/share/kenku-api
         depends_on:
-            - tranga-pg
+            - kenku-pg
             - vpn
             - flaresolverr
         networks:
@@ -260,33 +306,18 @@ services:
             placement:
                 constraints:
                     - node.labels.downloads == true
-    tranga-website:
-        image: ghcr.io/chutch3/tranga-website:cuttingedge@sha256:bbe6864b603167ff17c7a010eda2c26cc242b88a58e10f9bb7f39dad87848011
-        container_name: tranga-website
-        environment:
-            - TRANGA_API_URL=http://tranga-api:6531
-        networks:
-            - traefik-public
-            - downloads-internal
-        restart: unless-stopped
-        depends_on:
-            - tranga-api
-        deploy:
-            placement:
-                constraints:
-                    - node.labels.downloads == true
             labels:
                 - "traefik.enable=true"
                 - "traefik.swarm.network=traefik-public"
-                - "traefik.http.routers.tranga.rule=Host(`tranga.${BASE_DOMAIN}`)"
-                - "traefik.http.routers.tranga.entrypoints=websecure"
-                - "traefik.http.routers.tranga.tls.certresolver=dns"
-                - "traefik.http.routers.tranga.middlewares=authentik@swarm"
-                - "traefik.http.services.tranga.loadbalancer.server.port=80"
+                - "traefik.http.routers.kenku.rule=Host(`kenku.${BASE_DOMAIN}`)"
+                - "traefik.http.routers.kenku.entrypoints=websecure"
+                - "traefik.http.routers.kenku.tls.certresolver=dns"
+                - "traefik.http.routers.kenku.middlewares=authentik@swarm"
+                - "traefik.http.services.kenku.loadbalancer.server.port=6531"
                 - homepage.group=Downloads
-                - homepage.name=Tranga
-                - homepage.icon=tranga.png
-                - homepage.href=https://tranga.${BASE_DOMAIN}/
+                - homepage.name=Kenku
+                - homepage.icon=mdi-book-arrow-down
+                - homepage.href=https://kenku.${BASE_DOMAIN}/
                 - homepage.description=Manga Downloader
 
 configs:
@@ -294,8 +325,6 @@ configs:
         file: ./scripts/init-vpn.sh
     sabnzbd_fix_whitelist:
         file: ./sabnzbd/99-fix-whitelist
-    tranga_settings_v4:
-        file: ./tranga/settings.json
 networks:
     traefik-public:
         external: true
@@ -310,6 +339,16 @@ volumes:
             type: "cifs"
             o: "username=${SMB_USERNAME},password=${SMB_PASSWORD},domain=${SMB_DOMAIN},vers=3.0,file_mode=0770,dir_mode=0770,uid=1000,gid=1000,soft,actimeo=30,nobrl"
             device: "//${NAS_SERVER}/torrents"
+
+    # Dedicated mount of the series/ subfolder of the torrents share, used only by kenku.
+    # Exposes /series/manga and /series/comics as separate libraries, so Komga (which reads
+    # the same share) and kenku agree on where chapters live.
+    series:
+        driver: local
+        driver_opts:
+            type: "cifs"
+            o: "username=${SMB_USERNAME},password=${SMB_PASSWORD},domain=${SMB_DOMAIN},vers=3.0,file_mode=0770,dir_mode=0770,uid=1000,gid=1000,soft,actimeo=30,nobrl"
+            device: "//${NAS_SERVER}/torrents/series"
 
     usenet:
         driver: local
@@ -346,9 +385,21 @@ volumes:
             o: "bind"
             device: "/mnt/iscsi/media-apps/nzbget"
 
-    tranga_pg:
+    # Node-local volume, off the OCFS2 cluster FS (see the kenku-pg service comment).
+    # Docker manages it under /var/lib/docker/volumes on the pinned downloads node.
+    kenku_pg:
+        driver: local
+
+    # Writable persistence for the kenku app dir (settings.json + imageCache). Node-local;
+    # the service is pinned to the downloads node. The app creates settings.json on first
+    # boot; configure it through the UI (defaults reference: ./kenku/settings.json).
+    kenku_config:
+        driver: local
+
+    # iSCSI/OCFS2 bind so Kopia's app-data policy captures the pg_dump archives offsite.
+    kenku_db_backups:
         driver: local
         driver_opts:
             type: "none"
             o: "bind"
-            device: "/mnt/iscsi/media-apps/tranga-pg"
+            device: "/mnt/iscsi/app-data/kenku/db-backups"

@@ -17,17 +17,17 @@ flowchart TD
     sabnzbd(["<b>sabnzbd</b><br/><i>sabnzbd:latest</i><br/>🔌 "]):::exposed
     nzbget(["<b>nzbget</b><br/><i>nzbget:latest</i><br/>🔌 "]):::exposed
     flaresolverr["<b>flaresolverr</b><br/><i>flaresolverr:latest</i>"]:::internal
-    tranga_pg[("<b>tranga-pg</b><br/><i>postgres:15-alpine</i><br/>💾 Datastore")]:::datastore
-    tranga_api["<b>tranga-api</b><br/><i>tranga-api:cuttingedge@sha256:67333c5f0fef2578a80f846d002fd9eefd8a580bab20ee1b1aa4514d6f1cde38</i>"]:::internal
-    tranga_website["<b>tranga-website</b><br/><i>tranga-website:cuttingedge@sha256:bbe6864b603167ff17c7a010eda2c26cc242b88a58e10f9bb7f39dad87848011</i>"]:::internal
+    kenku_pg[("<b>kenku-pg</b><br/><i>postgres:15-alpine</i><br/>💾 Datastore")]:::datastore
+    kenku_pg_backup[("<b>kenku-pg-backup</b><br/><i>postgres-backup-local:15-alpine</i><br/>💾 Datastore")]:::datastore
+    kenku["<b>kenku</b><br/><i>kenku@sha256:5b84ba1f9fa87d8e6b3dc15436292a140a7e68a52739ca336bb3123f8c8e162c</i>"]:::internal
     qbittorrent --> vpn
     deluge --> vpn
     sabnzbd --> vpn
     nzbget --> vpn
     flaresolverr --> vpn
-    tranga_api --> flaresolverr
-    tranga_api --> tranga_pg
-    tranga_website --> tranga_api
+    kenku_pg_backup --> kenku_pg
+    kenku --> flaresolverr
+    kenku --> kenku_pg
 ```
 
 ---
@@ -43,18 +43,18 @@ sequenceDiagram
     participant sabnzbd as sabnzbd
     participant nzbget as nzbget
     participant flaresolverr as flaresolverr
-    participant tranga_pg as tranga-pg
-    participant tranga_api as tranga-api
-    participant tranga_website as tranga-website
+    participant kenku_pg as kenku-pg
+    participant kenku_pg_backup as kenku-pg-backup
+    participant kenku as kenku
     qbittorrent->>vpn: Connection / Init
     deluge->>vpn: Connection / Init
     sabnzbd->>vpn: Connection / Init
     nzbget->>vpn: Connection / Init
     flaresolverr->>vpn: Connection / Init
-    tranga_api->>tranga_pg: Connection / Init
-    tranga_api->>vpn: Connection / Init
-    tranga_api->>flaresolverr: Connection / Init
-    tranga_website->>tranga_api: Connection / Init
+    kenku_pg_backup->>kenku_pg: Connection / Init
+    kenku->>kenku_pg: Connection / Init
+    kenku->>vpn: Connection / Init
+    kenku->>flaresolverr: Connection / Init
 ```
 
 ---
@@ -239,7 +239,7 @@ NO_PROXY=localhost,127.0.0.1
 
 ---
 
-### tranga-pg
+### kenku-pg
 
 **Image:** `postgres:15-alpine`
 
@@ -253,37 +253,70 @@ NO_PROXY=localhost,127.0.0.1
 **Environment:**
 
 ```
-POSTGRES_USER=${DOWNLOADS_TRANGA_DB_USER}
-POSTGRES_PASSWORD=${DOWNLOADS_TRANGA_DB_PASSWORD}
-POSTGRES_DB=${DOWNLOADS_TRANGA_DB_NAME}
+POSTGRES_USER=${DOWNLOADS_KENKU_DB_USER}
+POSTGRES_PASSWORD=${DOWNLOADS_KENKU_DB_PASSWORD}
+POSTGRES_DB=${DOWNLOADS_KENKU_DB_NAME}
 ```
 
 
 **Volumes:**
 
-- `tranga_pg:/var/lib/postgresql/data`
+- `kenku_pg:/var/lib/postgresql/data`
 
 
 ---
 
-### tranga-api
+### kenku-pg-backup
 
-**Image:** `ghcr.io/chutch3/tranga-api:cuttingedge@sha256:67333c5f0fef2578a80f846d002fd9eefd8a580bab20ee1b1aa4514d6f1cde38`
+**Image:** `prodrigestivill/postgres-backup-local:15-alpine`
 
 
 | Property | Value |
 |----------|-------|
-| **Networks** | traefik-public, downloads-internal |
-| **Depends on** | tranga-pg, vpn, flaresolverr |
+| **Networks** | downloads-internal |
+| **Depends on** | kenku-pg |
 
 
 **Environment:**
 
 ```
-POSTGRES_HOST=tranga-pg:5432
-POSTGRES_USER=${DOWNLOADS_TRANGA_DB_USER}
-POSTGRES_PASSWORD=${DOWNLOADS_TRANGA_DB_PASSWORD}
-POSTGRES_DB=${DOWNLOADS_TRANGA_DB_NAME}
+POSTGRES_HOST=kenku-pg
+POSTGRES_DB=${DOWNLOADS_KENKU_DB_NAME}
+POSTGRES_USER=${DOWNLOADS_KENKU_DB_USER}
+POSTGRES_PASSWORD=${DOWNLOADS_KENKU_DB_PASSWORD}
+SCHEDULE=@daily
+BACKUP_KEEP_DAYS=7
+BACKUP_KEEP_WEEKS=4
+BACKUP_KEEP_MONTHS=6
+TZ=${TZ}
+```
+
+
+**Volumes:**
+
+- `kenku_db_backups:/backups`
+
+
+---
+
+### kenku
+
+**Image:** `ghcr.io/chutch3/kenku@sha256:5b84ba1f9fa87d8e6b3dc15436292a140a7e68a52739ca336bb3123f8c8e162c`
+
+
+| Property | Value |
+|----------|-------|
+| **Networks** | traefik-public, downloads-internal |
+| **Depends on** | kenku-pg, vpn, flaresolverr |
+
+
+**Environment:**
+
+```
+POSTGRES_HOST=kenku-pg:5432
+POSTGRES_USER=${DOWNLOADS_KENKU_DB_USER}
+POSTGRES_PASSWORD=${DOWNLOADS_KENKU_DB_PASSWORD}
+POSTGRES_DB=${DOWNLOADS_KENKU_DB_NAME}
 HTTP_PROXY=http://vpn:8888
 HTTPS_PROXY=http://vpn:8888
 NO_PROXY=localhost,127.0.0.1
@@ -294,27 +327,6 @@ TZ=${TZ}
 **Volumes:**
 
 - `torrents:/Manga`
-
-
----
-
-### tranga-website
-
-**Image:** `ghcr.io/chutch3/tranga-website:cuttingedge@sha256:bbe6864b603167ff17c7a010eda2c26cc242b88a58e10f9bb7f39dad87848011`
-
-
-| Property | Value |
-|----------|-------|
-| **Networks** | traefik-public, downloads-internal |
-| **Depends on** | tranga-api |
-
-
-**Environment:**
-
-```
-TRANGA_API_URL=http://tranga-api:6531
-```
-
 
 
 ---
@@ -330,10 +342,9 @@ sankey-beta
     Internal Scope, qbittorrent, 1
     Internal Scope, sabnzbd, 1
     Net: downloads-internal, flaresolverr, 1
-    Net: downloads-internal, tranga_api, 1
-    Net: downloads-internal, tranga_pg, 1
-    Net: downloads-internal, tranga_website, 1
-    Net: traefik-public, tranga_api, 1
-    Net: traefik-public, tranga_website, 1
+    Net: downloads-internal, kenku, 1
+    Net: downloads-internal, kenku_pg, 1
+    Net: downloads-internal, kenku_pg_backup, 1
+    Net: traefik-public, kenku, 1
 ```
 <!-- DOCKUMENTOR END -->
