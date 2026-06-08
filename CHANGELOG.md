@@ -2,6 +2,49 @@
 
 <!-- version list -->
 
+## v3.17.0 (2026-06-08)
+
+### Bug Fixes
+
+- Add GIT_AUTHOR_NAME and GIT_AUTHOR_EMAIL to code-server pre-flight
+  ([`3b2d471`](https://github.com/chutch3/homelab/commit/3b2d471ebf950f35268ab90a36483d96159d88a7))
+
+- Bump authentik to 2026.5.2 and expand proxy outpost /dev/shm to 512MB
+  ([`c0250ea`](https://github.com/chutch3/homelab/commit/c0250ea4b719964f9ba5b24064e92037e89b5bcc))
+
+- Increase actual-budget MCP timeout to 300s
+  ([`f37264c`](https://github.com/chutch3/homelab/commit/f37264c45e8f529051446f896ab6b2062f17d257))
+
+- Propagate bitwarden session via block-level environment
+  ([`a5a5407`](https://github.com/chutch3/homelab/commit/a5a5407c25757cab78c7362bc33221733cb86c5a))
+
+### Chores
+
+- Bump kenku to 0.12.0 in downloads stack
+  ([`61d90b1`](https://github.com/chutch3/homelab/commit/61d90b1a2a6b29db38423ed1a01ade660dd19d43))
+
+- Untrack devbox spec from repo
+  ([`a94b329`](https://github.com/chutch3/homelab/commit/a94b329720fdd345872c61d00d680907da2bdba0))
+
+### Continuous Integration
+
+- Run preflight unit hook only on relevant changes and stop lockfile churn
+  ([`4dd3260`](https://github.com/chutch3/homelab/commit/4dd3260bda53fa8b7939d314e24293ff93334a0b))
+
+### Documentation
+
+- Add devbox SSH and dev environment design spec
+  ([`7352c4a`](https://github.com/chutch3/homelab/commit/7352c4a28b4c3a9a14d6b75b445864e5a8747ac9))
+
+### Features
+
+- Add SSH access, supervisord, R, and mc to devbox
+  ([`c4f3b22`](https://github.com/chutch3/homelab/commit/c4f3b22e95fad39550a464a7ab30e6c34db8b3fa))
+
+- Replace tranga with kenku as manga downloader
+  ([`d4ab15b`](https://github.com/chutch3/homelab/commit/d4ab15bb7805daf6e5fbb3701cc849a1ecada472))
+
+
 ## Unreleased
 
 ### Bug Fixes
