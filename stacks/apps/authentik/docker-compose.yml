@@ -47,7 +47,7 @@ services:
                 delay: 5s
 
     server:
-        image: ghcr.io/goauthentik/server:2024.12.5
+        image: ghcr.io/goauthentik/server:2026.5.2
         command: server
         environment:
             AUTHENTIK_REDIS__HOST: redis
@@ -86,7 +86,7 @@ services:
                 delay: 5s
 
     worker:
-        image: ghcr.io/goauthentik/server:2024.12.5
+        image: ghcr.io/goauthentik/server:2026.5.2
         command: worker
         environment:
             AUTHENTIK_REDIS__HOST: redis
@@ -122,11 +122,20 @@ services:
     # This is deployed automatically by Authentik when you create an outpost,
     # but you can also define it manually here for more control
     proxy:
-        image: ghcr.io/goauthentik/proxy:2024.12.5
+        image: ghcr.io/goauthentik/proxy:2026.5.2
         environment:
             AUTHENTIK_HOST: https://auth.${BASE_DOMAIN}
             AUTHENTIK_INSECURE: "false"
             AUTHENTIK_TOKEN: ${AUTHENTIK_OUTPOST_TOKEN}
+        # The proxy outpost writes per-request forward-auth session state to
+        # /dev/shm. Docker's default 64MB tmpfs fills up (unfinished states from
+        # health probes accumulate), after which the outpost returns HTTP 400
+        # for every protected app. Give it a larger tmpfs so it can't fill.
+        volumes:
+            - type: tmpfs
+              target: /dev/shm
+              tmpfs:
+                size: 536870912 # 512MB
         networks:
             - traefik-public
         deploy:
@@ -155,7 +164,7 @@ services:
 
     # LDAP Outpost - provides LDAP interface for apps like Emby
     ldap:
-        image: ghcr.io/goauthentik/ldap:2024.12.5
+        image: ghcr.io/goauthentik/ldap:2026.5.2
         ports:
             - "389:3389"
             - "636:6636"

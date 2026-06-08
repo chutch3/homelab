@@ -2,6 +2,12 @@
 
 <!-- version list -->
 
+## Unreleased
+
+### Bug Fixes
+
+- Bump authentik images from 2024.12.5 to 2026.5.2
+
 ## v3.16.0 (2026-06-01)
 
 ### Bug Fixes

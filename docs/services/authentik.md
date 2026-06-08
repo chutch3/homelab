@@ -13,10 +13,10 @@ flowchart TD
     classDef datastore fill:#2b6cb0,stroke:#63b3ed,stroke-width:2px,color:#fff,rx:8px,ry:8px;
     postgresql[("<b>postgresql</b><br/><i>postgres:16-alpine</i><br/>💾 Datastore")]:::datastore
     redis[("<b>redis</b><br/><i>redis:alpine</i><br/>💾 Datastore")]:::datastore
-    server["<b>server</b><br/><i>server:2024.12.5</i>"]:::internal
-    worker["<b>worker</b><br/><i>server:2024.12.5</i>"]:::internal
-    proxy["<b>proxy</b><br/><i>proxy:2024.12.5</i>"]:::internal
-    ldap(["<b>ldap</b><br/><i>ldap:2024.12.5</i><br/>🔌 389:3389 | 636:6636"]):::exposed
+    server["<b>server</b><br/><i>server:2026.5.2</i>"]:::internal
+    worker["<b>worker</b><br/><i>server:2026.5.2</i>"]:::internal
+    proxy["<b>proxy</b><br/><i>proxy:2026.5.2</i>"]:::internal
+    ldap(["<b>ldap</b><br/><i>ldap:2026.5.2</i><br/>🔌 389:3389 | 636:6636"]):::exposed
     server --> postgresql
     server --> redis
     worker --> postgresql
@@ -98,7 +98,7 @@ POSTGRES_DB=authentik
 
 ### server
 
-**Image:** `ghcr.io/goauthentik/server:2024.12.5`
+**Image:** `ghcr.io/goauthentik/server:2026.5.2`
 
 
 **Command:** `server`
@@ -132,7 +132,7 @@ AUTHENTIK_SECRET_KEY=${AUTHENTIK_SECRET_KEY}
 
 ### worker
 
-**Image:** `ghcr.io/goauthentik/server:2024.12.5`
+**Image:** `ghcr.io/goauthentik/server:2026.5.2`
 
 
 **Command:** `worker`
@@ -168,7 +168,7 @@ AUTHENTIK_SECRET_KEY=${AUTHENTIK_SECRET_KEY}
 
 ### proxy
 
-**Image:** `ghcr.io/goauthentik/proxy:2024.12.5`
+**Image:** `ghcr.io/goauthentik/proxy:2026.5.2`
 
 
 | Property | Value |
@@ -191,7 +191,7 @@ AUTHENTIK_TOKEN=${AUTHENTIK_OUTPOST_TOKEN}
 
 ### ldap
 
-**Image:** `ghcr.io/goauthentik/ldap:2024.12.5`
+**Image:** `ghcr.io/goauthentik/ldap:2026.5.2`
 
 
 | Property | Value |
