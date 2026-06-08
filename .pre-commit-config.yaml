@@ -62,12 +62,14 @@ repos:
             name: Unit tests — preflight role (no cluster required)
             entry: >-
                 bash -c 'ANSIBLE_CONFIG=ansible/ansible.cfg
-                uv run ansible-playbook --check
+                uv run --frozen ansible-playbook --check
                 -i tests/ansible/unit/inventory/
                 tests/ansible/unit/test-preflight.yml'
             language: system
             pass_filenames: false
-            always_run: true
+            # Only run when the preflight role, its tests, or a stack manifest it renders changes —
+            # not on every commit. --frozen stops uv from rewriting uv.lock during the run.
+            files: '^(ansible/roles/preflight/|tests/ansible/unit/|stacks/.*/pre-flight\.yml$)'
 
           - id: ansible-vault-check
             name: Check for unencrypted Ansible secrets
