@@ -121,7 +121,7 @@ RUN rm -f /etc/ssh/ssh_host_* && \
         'stderr_logfile_maxbytes=0' \
         '' \
         '[program:code-server]' \
-        'command=/usr/local/bin/code-server --auth none --bind-addr 0.0.0.0:3001 /home/coder/workspace' \
+        'command=/usr/bin/code-server --auth none --bind-addr 0.0.0.0:3001 /home/coder/workspace' \
         'user=coder' \
         'environment=HOME="/home/coder"' \
         'autostart=true' \
@@ -222,4 +222,4 @@ ENV PORT=3001
 ENV VITE_IS_PLATFORM=true
 
 ENTRYPOINT ["/usr/bin/dumb-init", "--"]
-CMD ["/usr/local/bin/devbox-start.sh"]
+CMD ["sudo", "-E", "/usr/local/bin/devbox-start.sh"]
