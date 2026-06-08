@@ -530,11 +530,15 @@ tasks:
                 rm -rf "$HOME/.config/Bitwarden CLI/"
                 bw login
                 SESSION=$(bw unlock --raw)
-                echo "BW_SESSION=$SESSION" > "$HOME/.bw_session"
-                chmod 600 "$HOME/.bw_session"
 
-                STATUS=$(bw status 2>/dev/null | uv run python3 -c "import sys,json; print(json.load(sys.stdin)['status'])" 2>/dev/null || echo 'unknown')
+                # Verify the captured session actually unlocks the vault before trusting it.
+                # bw keeps the vault encrypted at rest, so "unlocked" is a property of THIS
+                # session key, not global state — a bare `bw status` always reports "locked".
+                STATUS=$(BW_SESSION="$SESSION" bw status 2>/dev/null | uv run python3 -c "import sys,json; print(json.load(sys.stdin)['status'])" 2>/dev/null || echo 'unknown')
                 if [ "$STATUS" = "unlocked" ]; then
+                  # Persist only a known-good session so pull/push/compare work afterwards.
+                  echo "BW_SESSION=$SESSION" > "$HOME/.bw_session"
+                  chmod 600 "$HOME/.bw_session"
                   echo "Vault unlocked. Session saved to ~/.bw_session."
                 else
                   echo "Error: vault status is '$STATUS' after unlock. Something went wrong."
