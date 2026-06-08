@@ -39,6 +39,13 @@ pre_deploy() {
         fi
     fi
 
+    local auth_keys="$ssh_dest/authorized_keys"
+    if [[ ! -f "$auth_keys" ]] && [[ -f "$ssh_dest/${ssh_key_name}.pub" ]]; then
+        cp "$ssh_dest/${ssh_key_name}.pub" "$auth_keys"
+        chmod 600 "$auth_keys"
+        chown 1000:1000 "$auth_keys"
+    fi
+
     local domain_pattern="${BASE_DOMAIN:+*.${BASE_DOMAIN}}"
     local ssh_host_pattern="192.168.* 10.* ${domain_pattern} ${SSH_EXTRA_HOSTS:-}"
     cat > "$ssh_dest/config" <<EOF

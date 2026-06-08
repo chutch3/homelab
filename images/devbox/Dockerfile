@@ -55,9 +55,13 @@ RUN mkdir -p /etc/apt/keyrings && \
             locales \
             lsb-release \
             openssh-client \
+            openssh-server \
             pre-commit \
             procps \
+            r-base \
+            r-base-dev \
             sudo \
+            supervisor \
             tk-dev \
             tmux \
             unzip \
@@ -82,6 +86,81 @@ RUN KUBECTL_VERSION=$(curl -fsSL https://dl.k8s.io/release/stable.txt) && \
     YQ_VERSION=$(curl -fsSL https://api.github.com/repos/mikefarah/yq/releases/latest | jq -r .tag_name) && \
     curl -fsSL "https://github.com/mikefarah/yq/releases/download/${YQ_VERSION}/yq_linux_amd64" \
         -o /usr/local/bin/yq && chmod +x /usr/local/bin/yq
+
+# mc (MinIO client)
+RUN curl -fsSL https://dl.min.io/client/mc/release/linux-amd64/mc \
+        -o /usr/local/bin/mc && chmod +x /usr/local/bin/mc
+
+# R languageserver (required by VS Code R extension)
+RUN Rscript -e "install.packages('languageserver', repos='https://cloud.r-project.org')"
+
+# SSH server + supervisor configuration
+# hadolint ignore=SC2016
+RUN rm -f /etc/ssh/ssh_host_* && \
+    mkdir -p /etc/ssh/sshd_config.d /etc/supervisor/conf.d && \
+    \
+    printf '%s\n' \
+        'PasswordAuthentication no' \
+        'PubkeyAuthentication yes' \
+        'PermitRootLogin no' \
+        'AllowUsers coder' \
+        'UsePAM no' \
+        > /etc/ssh/sshd_config.d/devbox.conf && \
+    \
+    printf '%s\n' \
+        '[supervisord]' \
+        'nodaemon=true' \
+        '' \
+        '[program:sshd]' \
+        'command=/usr/sbin/sshd -D -e' \
+        'autostart=true' \
+        'autorestart=true' \
+        'stdout_logfile=/dev/stdout' \
+        'stdout_logfile_maxbytes=0' \
+        'stderr_logfile=/dev/stderr' \
+        'stderr_logfile_maxbytes=0' \
+        '' \
+        '[program:code-server]' \
+        'command=/usr/local/bin/code-server --auth none --bind-addr 0.0.0.0:3001 /home/coder/workspace' \
+        'user=coder' \
+        'environment=HOME="/home/coder"' \
+        'autostart=true' \
+        'autorestart=true' \
+        'stdout_logfile=/dev/stdout' \
+        'stdout_logfile_maxbytes=0' \
+        'stderr_logfile=/dev/stderr' \
+        'stderr_logfile_maxbytes=0' \
+        > /etc/supervisor/conf.d/devbox.conf && \
+    \
+    printf '%s\n' \
+        '#!/usr/bin/env bash' \
+        'set -euo pipefail' \
+        '' \
+        'mkdir -p /run/sshd' \
+        'SSH_DIR="/home/coder/.ssh"' \
+        'mkdir -p "$SSH_DIR"' \
+        'chown 1000:1000 "$SSH_DIR"' \
+        'chmod 700 "$SSH_DIR"' \
+        '' \
+        '# Restore host keys from volume, or generate and persist them on first boot.' \
+        '# Storing in the volume prevents "host key changed" warnings on redeploy.' \
+        'if [[ -f "${SSH_DIR}/ssh_host_ed25519_key" ]]; then' \
+        '    for key_file in "${SSH_DIR}"/ssh_host_*; do' \
+        '        cp "$key_file" /etc/ssh/' \
+        '    done' \
+        'else' \
+        '    ssh-keygen -A' \
+        '    for key_file in /etc/ssh/ssh_host_*; do' \
+        '        cp "$key_file" "${SSH_DIR}/"' \
+        '    done' \
+        '    chown 1000:1000 "${SSH_DIR}"/ssh_host_*' \
+        'fi' \
+        'chmod 600 /etc/ssh/ssh_host_*_key' \
+        'chmod 644 /etc/ssh/ssh_host_*_key.pub' \
+        '' \
+        'exec /usr/bin/supervisord -n -c /etc/supervisor/conf.d/devbox.conf' \
+        > /usr/local/bin/devbox-start.sh && \
+    chmod +x /usr/local/bin/devbox-start.sh
 
 # Create coder user and install code-server — last root operations before user switch
 RUN userdel -r ubuntu && \
@@ -143,4 +222,4 @@ ENV PORT=3001
 ENV VITE_IS_PLATFORM=true
 
 ENTRYPOINT ["/usr/bin/dumb-init", "--"]
-CMD ["/bin/bash", "-c", "cloudcli start"]
+CMD ["/usr/local/bin/devbox-start.sh"]

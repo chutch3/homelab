@@ -25,6 +25,7 @@ services:
             - "--entrypoints.websecure.address=:443"
             - "--entrypoints.metrics.address=:9100"
             - "--entrypoints.hubitat.address=:8181"
+            - "--entrypoints.ssh.address=:2222"
 
             # ACME / Let's Encrypt (DNS-01 via Cloudflare)
             - "--certificatesresolvers.dns.acme.caServer=https://acme-v02.api.letsencrypt.org/directory"
@@ -63,6 +64,10 @@ services:
               mode: host
             - target: 8181
               published: 8181
+              protocol: tcp
+              mode: host
+            - target: 2222
+              published: 2222
               protocol: tcp
               mode: host
 

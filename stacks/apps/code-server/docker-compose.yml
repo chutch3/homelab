@@ -3,16 +3,24 @@ version: "3.9"
 services:
   code-server:
     image: ${REGISTRY_URL:-ghcr.io}/${GITHUB_USERNAME}/homelab-devbox:${IMAGE_TAG:-latest}
-    user: "1000:1000"
     environment:
       - TZ=${TZ:-America/New_York}
       - NVIDIA_VISIBLE_DEVICES=all
       - NVIDIA_DRIVER_CAPABILITIES=compute,utility
-    command: code-server --auth none --bind-addr 0.0.0.0:3001 /home/coder/workspace
+      - GIT_AUTHOR_NAME=${GIT_AUTHOR_NAME}
+      - GIT_AUTHOR_EMAIL=${GIT_AUTHOR_EMAIL}
+      - GIT_COMMITTER_NAME=${GIT_AUTHOR_NAME}
+      - GIT_COMMITTER_EMAIL=${GIT_AUTHOR_EMAIL}
+    ports:
+      - target: 22
+        published: 2222
+        protocol: tcp
+        mode: ingress
     volumes:
       - code_server_config:/home/coder/.config/code-server
       - workspace:/home/coder/workspace
       - shared_ssh:/home/coder/.ssh
+      - claude_config:/home/coder/.claude
     networks:
       - traefik-public
     deploy:
@@ -28,6 +36,10 @@ services:
         - "traefik.http.routers.codeserver.middlewares=authentik@swarm"
         - "traefik.http.services.codeserver.loadbalancer.server.port=3001"
         - "traefik.swarm.network=traefik-public"
+        - "traefik.tcp.routers.codeserver-ssh.rule=HostSNI(`*`)"
+        - "traefik.tcp.routers.codeserver-ssh.entrypoints=ssh"
+        - "traefik.tcp.routers.codeserver-ssh.service=codeserver-ssh"
+        - "traefik.tcp.services.codeserver-ssh.loadbalancer.server.port=22"
         - "homepage.group=Development"
         - "homepage.name=Code Server"
         - "homepage.icon=vscode.png"
@@ -60,3 +72,9 @@ volumes:
       type: "none"
       o: "bind"
       device: "/mnt/iscsi/app-data/dev-env/shared-ssh"
+  claude_config:
+    driver: local
+    driver_opts:
+      type: "none"
+      o: "bind"
+      device: "/mnt/iscsi/app-data/dev-env/ai-configs/claude"
