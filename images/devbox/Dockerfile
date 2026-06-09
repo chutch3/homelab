@@ -123,7 +123,7 @@ RUN rm -f /etc/ssh/ssh_host_* && \
         '[program:code-server]' \
         'command=/usr/bin/code-server --auth none --bind-addr 0.0.0.0:3001 /home/coder/workspace' \
         'user=coder' \
-        'environment=HOME="/home/coder"' \
+        'environment=HOME="/home/coder",USER="coder",LOGNAME="coder"' \
         'autostart=true' \
         'autorestart=true' \
         'stdout_logfile=/dev/stdout' \
