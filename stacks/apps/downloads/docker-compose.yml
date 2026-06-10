@@ -261,7 +261,7 @@ services:
                     - node.labels.downloads == true
 
     kenku:
-        image: ghcr.io/chutch3/kenku:0.13.2
+        image: ghcr.io/chutch3/kenku:0.14.0
         container_name: kenku
         # settings.json + imageCache live under /usr/share/kenku-api and are written by the
         # app at runtime, so this is a plain writable volume (kenku_config). Configure
