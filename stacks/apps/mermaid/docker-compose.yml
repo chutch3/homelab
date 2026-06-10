@@ -63,6 +63,10 @@ services:
         image: ghcr.io/jihchi/mermaid.ink:latest
         networks:
             - traefik-public
+        environment:
+            # AppArmor on the swarm nodes blocks unprivileged user namespaces;
+            # CI=1 makes mermaid.ink launch Chromium with --no-sandbox
+            - CI=1
         volumes:
             # Chromium needs shared-memory headroom; tmpfs avoids SYS_ADMIN
             - type: tmpfs
