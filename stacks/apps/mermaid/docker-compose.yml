@@ -1,0 +1,87 @@
+version: "3.9"
+
+services:
+    mermaid-editor:
+        image: ghcr.io/mermaid-js/mermaid-live-editor:latest
+        networks:
+            - traefik-public
+        environment:
+            - RENDERER_URL=https://mermaid-ink.${BASE_DOMAIN}
+        entrypoint: /bin/sh
+        command:
+            - -c
+            - |
+                echo "--- Patching renderer URL to $$RENDERER_URL ---"
+                if [ -z "$$RENDERER_URL" ]; then
+                  echo "FATAL: RENDERER_URL is empty - BASE_DOMAIN missing from deploy environment" >&2
+                  exit 1
+                fi
+                # Guard: the upstream string must exist, or fail loudly
+                if ! grep -rlqF "https://mermaid.ink" /usr/share/nginx/html; then
+                  echo "FATAL: 'https://mermaid.ink' not found in assets - upstream image changed, patch is broken" >&2
+                  exit 1
+                fi
+                find /usr/share/nginx/html -name '*.js' | while read -r f; do
+                  sed -i "s|https://mermaid\.ink|$$RENDERER_URL|g" "$$f"
+                done
+                # Verify: no occurrence may remain anywhere (not just .js)
+                if grep -rlqF "https://mermaid.ink" /usr/share/nginx/html; then
+                  echo "FATAL: patch incomplete - 'https://mermaid.ink' still present after sed" >&2
+                  exit 1
+                fi
+                # Delete precompressed files so nginx serves the patched versions
+                find /usr/share/nginx/html \( -name '*.gz' -o -name '*.br' \) -delete
+                if find /usr/share/nginx/html \( -name '*.gz' -o -name '*.br' \) | grep -q .; then
+                  echo "FATAL: precompressed assets still present after delete" >&2
+                  exit 1
+                fi
+                echo "--- Patching complete ---"
+                nginx -g 'daemon off;'
+        healthcheck:
+            test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8080"]
+            interval: 30s
+        deploy:
+            replicas: 1
+            labels:
+                - "traefik.enable=true"
+                - "traefik.http.routers.mermaid.rule=Host(`mermaid.${BASE_DOMAIN}`)"
+                - "traefik.http.routers.mermaid.entrypoints=websecure"
+                - "traefik.http.routers.mermaid.tls.certresolver=dns"
+                - "traefik.http.routers.mermaid.middlewares=authentik@swarm"
+                - "traefik.http.services.mermaid.loadbalancer.server.port=8080"
+                - "traefik.swarm.network=traefik-public"
+                - "homepage.group=Tools"
+                - "homepage.name=Mermaid"
+                - "homepage.icon=mermaid.png"
+                - "homepage.href=https://mermaid.${BASE_DOMAIN}/"
+                - "homepage.description=Mermaid diagram live editor"
+            restart_policy:
+                condition: any
+                delay: 5s
+
+    mermaid-ink:
+        image: ghcr.io/jihchi/mermaid.ink:latest
+        networks:
+            - traefik-public
+        volumes:
+            # Chromium needs shared-memory headroom; tmpfs avoids SYS_ADMIN
+            - type: tmpfs
+              target: /dev/shm
+              tmpfs:
+                  size: 536870912
+        deploy:
+            replicas: 1
+            labels:
+                - "traefik.enable=true"
+                - "traefik.http.routers.mermaid-ink.rule=Host(`mermaid-ink.${BASE_DOMAIN}`)"
+                - "traefik.http.routers.mermaid-ink.entrypoints=websecure"
+                - "traefik.http.routers.mermaid-ink.tls.certresolver=dns"
+                - "traefik.http.services.mermaid-ink.loadbalancer.server.port=3000"
+                - "traefik.swarm.network=traefik-public"
+            restart_policy:
+                condition: any
+                delay: 5s
+
+networks:
+    traefik-public:
+        external: true
