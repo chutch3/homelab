@@ -2,12 +2,17 @@ version: "3.9"
 
 services:
   runner:
-    image: gitea/act_runner:latest
+    image: gitea/act_runner:0.6.1
     environment:
       - GITEA_INSTANCE_URL=https://git.${BASE_DOMAIN}
       - GITEA_RUNNER_REGISTRATION_TOKEN=${FORGEJO_RUNNER_TOKEN}
       - GITEA_RUNNER_NAME=homelab-runner
-      - GITEA_RUNNER_LABELS=ubuntu-latest:docker://node:16-bullseye,self-hosted
+      # Labels live in config.yaml: the env var is only read at first registration,
+      # after which it's frozen in /data/.runner and edits silently do nothing.
+      - CONFIG_FILE=/config.yaml
+    configs:
+      - source: cicd_runner_config_v1
+        target: /config.yaml
     volumes:
       - runner-data:/data
       - /var/run/docker.sock:/var/run/docker.sock
@@ -20,6 +25,10 @@ services:
         - "homepage.icon=gitea.png"
         - "homepage.href=https://git.${BASE_DOMAIN}/"
         - "homepage.description=Forgejo Actions Runner (compatible with GHA)"
+
+configs:
+  cicd_runner_config_v1:
+    file: ./config.yaml
 
 volumes:
   runner-data:

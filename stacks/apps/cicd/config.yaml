@@ -1,0 +1,24 @@
+# act_runner daemon config, delivered as a swarm config (see docker-compose.yml).
+# Swarm configs are immutable: bump the _vN suffix in docker-compose.yml when editing.
+log:
+  level: info
+
+runner:
+  # Declared to Forgejo on every startup. Unlike GITEA_RUNNER_LABELS (read once at
+  # registration, then frozen in /data/.runner), edits here apply on redeploy.
+  # catthehacker images are act-style runner environments: git, node, docker CLI + buildx.
+  labels:
+    - "ubuntu-latest:docker://ghcr.io/catthehacker/ubuntu:act-latest"
+    - "ubuntu-22.04:docker://ghcr.io/catthehacker/ubuntu:act-22.04"
+    - "self-hosted:docker://ghcr.io/catthehacker/ubuntu:act-latest"
+
+cache:
+  # The built-in actions/cache server listens inside the runner container, which sits
+  # on the stack overlay network; job containers are spawned on the host daemon's
+  # bridge network and can't reach it. Cache lookups would just time out — keep off.
+  enabled: false
+
+container:
+  # Mount the host docker socket into each job container so steps that drive docker
+  # (setup-buildx, build-push-action, plain `docker build`) reach the host daemon.
+  docker_host: automount
