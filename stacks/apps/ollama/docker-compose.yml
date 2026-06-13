@@ -12,6 +12,9 @@ services:
       - OLLAMA_HOST=0.0.0.0
       - OLLAMA_ORIGINS=*
       - OLLAMA_DEBUG=1
+      # Default num_ctx for all models; Ollama's 4096 default silently
+      # truncates prompts that carry MCP tool definitions (~9K tokens)
+      - OLLAMA_CONTEXT_LENGTH=16384
       - NVIDIA_VISIBLE_DEVICES=all
       - NVIDIA_DRIVER_CAPABILITIES=compute,utility
     deploy:
