@@ -2,7 +2,7 @@ version: "3.9"
 
 services:
   claudecodeui:
-    image: ${REGISTRY_URL:-ghcr.io}/${GITHUB_USERNAME}/homelab-devbox:${IMAGE_TAG:-latest}
+    image: ${REGISTRY_URL:-ghcr.io}/${GITHUB_USERNAME}/homelab-devbox:latest@sha256:1ae7a9442f5e82f4e771cb36c7d47fe8096e530c752f81c64ccfb88fffadccf9
     user: "1000:1000"
     environment:
       - TZ=${TZ:-America/New_York}
