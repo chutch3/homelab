@@ -24,10 +24,13 @@ services:
             - PORTKEY_OPENAI_VIRTUAL_KEY=${PORTKEY_OPENAI_VIRTUAL_KEY}
             - TTS_API_KEY=${TTS_API_KEY}
             - STT_API_KEY=${STT_API_KEY}
-            - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+            - ANTHROPIC_API_KEY=${LIBRECHAT_ANTHROPIC_API_KEY}
             - OLLAMA_BASE_URL=http://ollama_ollama:11434
             - OLLAMA_DEFAULT_MODEL=${LIBRECHAT_OLLAMA_DEFAULT_MODEL}
             - ACTUAL_MCP_URL=${LIBRECHAT_ACTUAL_MCP_URL}
+            - HOMEASSISTANT_MCP_URL=${LIBRECHAT_HOMEASSISTANT_MCP_URL}
+            - HOMEASSISTANT_MCP_TOKEN=${LIBRECHAT_HOMEASSISTANT_API_TOKEN}
+            - HAMCP_MCP_URL=${LIBRECHAT_HAMCP_MCP_URL}
             - OPENID_ISSUER=https://auth.${BASE_DOMAIN}/application/o/librechat/.well-known/openid-configuration
             - OPENID_CLIENT_ID=${LIBRECHAT_OAUTH_CLIENT_ID}
             - OPENID_CLIENT_SECRET=${LIBRECHAT_OAUTH_CLIENT_SECRET}
@@ -41,7 +44,7 @@ services:
             - OPENID_GENERATE_NONCE=true
             - OPENID_USE_END_SESSION_ENDPOINT=true
         configs:
-            - source: librechat_config_v5
+            - source: librechat_config_v8
               target: /app/librechat.yaml
         volumes:
             - librechat_images:/app/client/public/images
@@ -142,7 +145,7 @@ networks:
         external: true
 
 configs:
-    librechat_config_v5:
+    librechat_config_v8:
         file: ./librechat.yaml
 
 volumes:

@@ -161,11 +161,30 @@ actions:
     - 'librechat.ai'
     - 'google.com'
 
+mcpSettings:
+  allowedAddresses:
+    - "actual_mcp:3000"
+    - "homeassistant:8123"
+    - "ha-mcp:8086"
+
 mcpServers:
   actual-budget:
     type: sse
     url: '${ACTUAL_MCP_URL}'
     timeout: 300000
+
+  home-assistant:
+    type: streamable-http
+    url: '${HOMEASSISTANT_MCP_URL}'
+    headers:
+      Authorization: "Bearer ${HOMEASSISTANT_MCP_TOKEN}"
+    timeout: 120000
+
+  ha-mcp:
+    type: streamable-http
+    url: '${HAMCP_MCP_URL}'
+    timeout: 120000
+
 
 # Definition of custom endpoints
 endpoints:
@@ -182,22 +201,22 @@ endpoints:
   #   retrievalModels: ["gpt-4-turbo-preview"]
   #   # (optional) Assistant Capabilities available to all users. Omit the ones you wish to exclude. Defaults to list below.
   #   capabilities: ["code_interpreter", "retrieval", "actions", "tools", "image_vision"]
-  # agents:
-  #   # (optional) Default recursion depth for agents, defaults to 25
-  #   recursionLimit: 50
-  #   # (optional) Max recursion depth for agents, defaults to 25
-  #   maxRecursionLimit: 100
-  #   # (optional) Disable the builder interface for agents
-  #   disableBuilder: false
-  #   # (optional) Maximum total citations to include in agent responses, defaults to 30
-  #   maxCitations: 30
-  #   # (optional) Maximum citations per file to include in agent responses, defaults to 7
-  #   maxCitationsPerFile: 7
-  #   # (optional) Minimum relevance score for sources to be included in responses, defaults to 0.45 (45% relevance threshold)
-  #   # Set to 0.0 to show all sources (no filtering), or higher like 0.7 for stricter filtering
-  #   minRelevanceScore: 0.45
-  #   # (optional) Agent Capabilities available to all users. Omit the ones you wish to exclude. Defaults to list below.
-  #   capabilities: ["execute_code", "file_search", "actions", "tools"]
+  agents:
+    # (optional) Default recursion depth for agents, defaults to 25
+    recursionLimit: 50
+    # (optional) Max recursion depth for agents, defaults to 25
+    maxRecursionLimit: 100
+    # (optional) Disable the builder interface for agents
+    disableBuilder: false
+    # (optional) Maximum total citations to include in agent responses, defaults to 30
+    maxCitations: 30
+    # (optional) Maximum citations per file to include in agent responses, defaults to 7
+    maxCitationsPerFile: 7
+    # (optional) Minimum relevance score for sources to be included in responses, defaults to 0.45 (45% relevance threshold)
+    # Set to 0.0 to show all sources (no filtering), or higher like 0.7 for stricter filtering
+    minRelevanceScore: 0.45
+    # (optional) Agent Capabilities available to all users. Omit the ones you wish to exclude. Defaults to list below.
+    capabilities: ["execute_code", "file_search", "actions", "tools"]
   custom:
     # Ollama (internal Docker DNS)
     - name: 'Ollama'
