@@ -281,6 +281,10 @@ services:
             # mid-chapter, discard all images, and re-queue forever. Pin 600s here so the
             # mitigation survives redeploys (a `service update` env is reverted on redeploy).
             - HTTP_REQUEST_TIMEOUT=600
+            # Chapter-sync cadence. The 3h default re-hits every source ~8x/day; with weekly
+            # releases that's wasted polling and extra Cloudflare/500 exposure. 24h is plenty
+            # for new chapters, and the reconciler staggers each tick's syncs across a window.
+            - HOURS_BETWEEN_NEW_CHAPTERS_CHECK=24
             # Pin the default download/library root so a settings.json reset can never
             # silently drop downloads into ephemeral container storage (was defaulting to
             # /Series). Manga lives under /series/manga, comics under /series/comics.

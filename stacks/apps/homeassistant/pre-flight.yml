@@ -1,0 +1,4 @@
+validate:
+  env:
+    - HA_MCP_TOKEN
+    - HA_MCP_SECRET_PATH

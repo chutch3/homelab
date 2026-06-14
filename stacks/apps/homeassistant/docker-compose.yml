@@ -36,6 +36,34 @@ services:
                 - "traefik.http.services.homeassistant-hubitat-events.loadbalancer.server.port=8123"
                 - "traefik.http.routers.homeassistant-hubitat-events.service=homeassistant-hubitat-events"
 
+    ha-mcp:
+        image: "ghcr.io/homeassistant-ai/ha-mcp:7.7.0"
+        command: ["ha-mcp-web"]
+        environment:
+            - HOMEASSISTANT_URL=http://homeassistant:8123
+            - HOMEASSISTANT_TOKEN=${HA_MCP_TOKEN}
+            # MCP endpoint auth is URL-path secrecy; never leave the default /mcp
+            - MCP_SECRET_PATH=${HA_MCP_SECRET_PATH}
+            # Persist tool_config.json / feature flags across restarts
+            - HA_MCP_CONFIG_DIR=/data
+            # Search-based tool discovery (~4 proxy tools instead of ~76,
+            # ~5K idle context instead of ~46K) for small-context models
+            - ENABLE_TOOL_SEARCH=true
+        volumes:
+            - ha-mcp:/data
+        restart: unless-stopped
+        networks:
+            - traefik-public
+        deploy:
+            labels:
+                - "traefik.enable=true"
+                - "traefik.swarm.network=traefik-public"
+                - "traefik.http.routers.ha-mcp.rule=Host(`hamcp.${BASE_DOMAIN}`)"
+                - "traefik.http.routers.ha-mcp.entrypoints=websecure"
+                - "traefik.http.routers.ha-mcp.tls.certresolver=dns"
+                - "traefik.http.services.ha-mcp.loadbalancer.server.port=8086"
+                - "traefik.http.routers.ha-mcp.service=ha-mcp"
+
 networks:
     traefik-public:
         external: true
@@ -47,3 +75,9 @@ volumes:
             type: "none"
             o: "bind"
             device: "/mnt/iscsi/app-data/homeassistant"
+    ha-mcp:
+        driver: local
+        driver_opts:
+            type: "none"
+            o: "bind"
+            device: "/mnt/iscsi/app-data/ha-mcp"
