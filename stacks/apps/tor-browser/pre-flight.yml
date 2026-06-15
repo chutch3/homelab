@@ -5,3 +5,7 @@ validate:
     - TOR_BROWSER_VNC_PASSWORD
   labels:
     - tor: "true"
+
+# Data dir on shared storage (created cluster-side by the preflight role).
+directories:
+  - { path: tor-browser, owner: 1000, group: 1000 }
