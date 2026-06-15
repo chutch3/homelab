@@ -21,10 +21,10 @@ services:
       replicas: 1
       placement:
         constraints:
-          # Pinned to the manager's RTX 3090 (24 GB). giant/imac also carry the
-          # generic `gpu` label, so target the host explicitly. To use giant's
-          # 15.5 GB card instead, switch back to `node.labels.llm == true`.
-          - node.hostname == cody-X570-GAMING-X
+          # `llm` label marks the LLM-inference node (currently the manager's
+          # RTX 3090). To move Ollama, relocate the `llm` label in
+          # ansible/inventory/02-hosts.yml and run `task ansible:cluster:update-labels`.
+          - node.labels.llm == true
       labels:
         - "traefik.enable=true"
         - "traefik.http.routers.ollama.rule=Host(`ollama.${BASE_DOMAIN}`)"
