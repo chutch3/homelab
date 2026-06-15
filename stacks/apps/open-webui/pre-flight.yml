@@ -1,0 +1,3 @@
+validate:
+  env:
+    - OPENWEBUI_SECRET_KEY

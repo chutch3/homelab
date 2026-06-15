@@ -1,0 +1,57 @@
+version: "3.9"
+
+services:
+    open-webui:
+        image: "ghcr.io/open-webui/open-webui:0.9.6"
+        environment:
+            # Local models — same internal Ollama as LibreChat uses
+            - OLLAMA_BASE_URL=http://ollama_ollama:11434
+            - ENABLE_OPENAI_API=false
+            # Session/key persistence across restarts (must be stable)
+            - WEBUI_SECRET_KEY=${OPENWEBUI_SECRET_KEY}
+            - WEBUI_URL=https://openwebui.${BASE_DOMAIN}
+            # New signups land in "pending" until an admin approves them
+            # (first account created becomes the admin automatically)
+            - DEFAULT_USER_ROLE=pending
+            # --- Authentik SSO (enable once the trial is proven) ---
+            # Create an OAuth2/OIDC provider+app in Authentik with redirect URI
+            #   https://openwebui.${BASE_DOMAIN}/oauth/oidc/callback
+            # then fill OPENWEBUI_OAUTH_* in .env and uncomment:
+            # - ENABLE_OAUTH_SIGNUP=true
+            # - OAUTH_PROVIDER_NAME=Authentik
+            # - OPENID_PROVIDER_URL=https://auth.${BASE_DOMAIN}/application/o/openwebui/.well-known/openid-configuration
+            # - OAUTH_CLIENT_ID=${OPENWEBUI_OAUTH_CLIENT_ID}
+            # - OAUTH_CLIENT_SECRET=${OPENWEBUI_OAUTH_CLIENT_SECRET}
+            # - OAUTH_SCOPES=openid email profile groups
+        volumes:
+            - open-webui:/app/backend/data
+        restart: unless-stopped
+        networks:
+            - traefik-public
+        deploy:
+            labels:
+                - "traefik.enable=true"
+                - "traefik.swarm.network=traefik-public"
+                - "traefik.http.routers.open-webui.rule=Host(`openwebui.${BASE_DOMAIN}`)"
+                - "traefik.http.routers.open-webui.entrypoints=websecure"
+                - "traefik.http.routers.open-webui.tls.certresolver=dns"
+                - "traefik.http.services.open-webui.loadbalancer.server.port=8080"
+                - "traefik.http.routers.open-webui.service=open-webui"
+                - homepage.group=AI
+                - homepage.name=Open WebUI
+                - homepage.icon=open-webui.png
+                - homepage.href=https://openwebui.${BASE_DOMAIN}/
+                - homepage.description=Local AI Chat (Ollama + MCP)
+            replicas: 1
+
+networks:
+    traefik-public:
+        external: true
+
+volumes:
+    open-webui:
+        driver: local
+        driver_opts:
+            type: "none"
+            o: "bind"
+            device: "/mnt/iscsi/app-data/open-webui"
