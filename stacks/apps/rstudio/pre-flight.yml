@@ -7,3 +7,7 @@ validate:
 directories:
   - { path: rstudio, owner: 1000, group: 1000 }
   - { path: rstudio/R/library, owner: 1000, group: 1000 }
+  # Shared with the code-server devbox — ensure they exist so rstudio can deploy
+  # independently of code-server. Idempotent; shared-ssh must stay 0700 for SSH.
+  - { path: dev-env/workspace, owner: 1000, group: 1000 }
+  - { path: dev-env/shared-ssh, owner: 1000, group: 1000, mode: "0700" }

@@ -9,11 +9,15 @@ services:
             # Persist user-installed R packages inside the bind-mounted home,
             # so they survive container recreation
             - R_LIBS_USER=/home/rstudio/R/library
-            # rocker default user is uid/gid 1000 (matches the chown in hooks.sh)
+            # rocker default user is uid/gid 1000 (same as the code-server devbox,
+            # so the shared workspace/ssh mounts below line up on ownership)
             - USERID=1000
             - GROUPID=1000
         volumes:
             - rstudio:/home/rstudio
+            # Shared with the code-server devbox: same source tree + ssh keys
+            - dev_env_workspace:/home/rstudio/workspace
+            - dev_env_ssh:/home/rstudio/.ssh
         restart: unless-stopped
         networks:
             - traefik-public
@@ -46,3 +50,16 @@ volumes:
             type: "none"
             o: "bind"
             device: "/mnt/iscsi/app-data/rstudio"
+    # Bind to the code-server devbox's dirs so RStudio shares the same source + ssh
+    dev_env_workspace:
+        driver: local
+        driver_opts:
+            type: "none"
+            o: "bind"
+            device: "/mnt/iscsi/app-data/dev-env/workspace"
+    dev_env_ssh:
+        driver: local
+        driver_opts:
+            type: "none"
+            o: "bind"
+            device: "/mnt/iscsi/app-data/dev-env/shared-ssh"
