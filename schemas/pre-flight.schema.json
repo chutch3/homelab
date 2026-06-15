@@ -44,7 +44,12 @@
         "properties": {
           "path": {
             "type": "string",
-            "description": "Directory path relative to the app-data mount, e.g. 'rstudio' or 'rstudio/R/library'."
+            "description": "Directory path relative to the selected shared mount, e.g. 'rstudio' or 'librenms/db'."
+          },
+          "base": {
+            "type": "string",
+            "enum": ["app_data", "cache"],
+            "description": "Which shared mount the path is relative to. Default: app_data."
           },
           "owner": {
             "type": ["integer", "string"],
