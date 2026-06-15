@@ -1,0 +1,6 @@
+Host 192.168.* 10.*{% if swarm_env_vars.BASE_DOMAIN is defined %} *.{{ swarm_env_vars.BASE_DOMAIN }}{% endif %}{% if swarm_env_vars.SSH_EXTRA_HOSTS | default('') %} {{ swarm_env_vars.SSH_EXTRA_HOSTS }}{% endif %}
+    StrictHostKeyChecking accept-new
+    IdentityFile ~/.ssh/homelab_rsa
+
+Host *
+    StrictHostKeyChecking accept-new
