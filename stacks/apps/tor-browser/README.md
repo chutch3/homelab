@@ -129,9 +129,8 @@ All stack-specific variables are prefixed `TOR_` in the root `.env`. Shared vari
 
 ```
 docker-compose.yml
-pre-flight.yml         validates required env vars and node labels before deploy
-hooks.sh               called by deploy pipeline — runs setup.sh automatically
-setup.sh               create iSCSI data dir and set ownership (called by hooks.sh)
+pre-flight.yml         validates env vars + node labels, and provisions the iSCSI
+                       data dir (directories:) cluster-side before deploy
 nordvpn-setup.sh       fetch NordVPN NordLynx credentials and write to .env
 ip-check.py            VPN exit IP check HTTP server (pure Python, no runtime deps)
 scripts/

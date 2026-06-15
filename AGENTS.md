@@ -80,6 +80,28 @@ volumes:
     driver: local
 ```
 
+**Pre-flight provisioning** (`stacks/apps/<name>/pre-flight.yml`, optional) — declarative
+per-stack setup run by the `preflight` role before deploy. All of it executes
+cluster-side (delegated to a node that mounts the storage), so it never depends on the
+controller's mounts:
+```yaml
+validate:
+  env: [REQUIRED_VAR]                                  # must be non-empty in .env
+  labels: [{ some_label: "true" }]                     # ≥1 node must carry it
+secrets:
+  - { name: my_secret, from_env: MY_VAR }              # or from_file: $KEY_PATH
+directories:                                           # created + chowned on shared storage
+  - { path: <svc>, owner: 1000, group: 1000 }          # under iSCSI app-data
+  - { path: <svc>-redis, base: cache, owner: 999 }     # under /mnt/iscsi/cache
+files:                                                  # copy a controller file onto storage
+  - { from_env: SSH_KEY_FILE, dest: <svc>/key, mode: "0600", optional: true }
+templates:                                             # render a stack-dir .j2 onto storage
+  - { src: foo.j2, dest: <svc>/foo.conf }
+```
+Schema: `schemas/pre-flight.schema.json`. **Prefer this over `hooks.sh`** — a hook is only
+for genuinely imperative steps (conditional logic). Never `mkdir`/`chown` shared storage in
+a hook: hooks run on the controller, which may not mount `/mnt/iscsi`.
+
 **Node placement constraints**:
 ```yaml
 deploy:
