@@ -72,15 +72,10 @@
       "type": "array",
       "items": {
         "type": "object",
-        "required": ["dest"],
+        "required": ["from_file", "dest"],
         "additionalProperties": false,
-        "oneOf": [
-          { "required": ["from_env"] },
-          { "required": ["src"] }
-        ],
         "properties": {
-          "from_env": { "type": "string", "description": ".env variable holding the source path on the controller." },
-          "src": { "type": "string", "description": "Literal source path on the controller." },
+          "from_file": { "type": "string", "description": "Source path on the controller; use $ENV_VAR to read the path from .env (same convention as secrets)." },
           "suffix": { "type": "string", "description": "Appended to the resolved source path, e.g. '.pub'." },
           "dest": { "type": "string", "description": "Destination path relative to the selected base." },
           "base": { "type": "string", "enum": ["app_data", "cache"], "description": "Shared mount the dest is relative to. Default app_data." },

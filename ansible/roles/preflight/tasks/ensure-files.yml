@@ -5,40 +5,57 @@
 #
 # pre-flight.yml schema:
 #   files:
-#     - from_env: <ENV var holding the source path>   # OR
-#       src: <literal source path on the controller>
-#       suffix: ".pub"        # optional, appended to the resolved source path
+#     - from_file: <path>   # literal path, or $ENV_VAR to read the path from .env
+#                           # (same convention as secrets:)
+#       suffix: ".pub"      # optional, appended to the resolved source path
 #       dest: <path under the selected base>
 #       base: app_data|cache  # default app_data
 #       owner/group/mode      # optional
 #       optional: true        # skip silently if the source file is absent
 ---
-- name: Stat source files (so optional sources can be skipped)
-  ansible.builtin.stat:
-    path: >-
-      {{ (swarm_env_vars[preflight_file.from_env] if preflight_file.from_env is defined
-          else preflight_file.src) ~ (preflight_file.suffix | default('')) }}
+# Resolve each source path once (path-from-env via the leading $, like secrets),
+# so the stat and copy steps don't repeat the expression.
+- name: Reset resolved files list
+  ansible.builtin.set_fact:
+    preflight_files_resolved: []
+
+- name: Resolve declared file source paths
+  ansible.builtin.set_fact:
+    preflight_files_resolved: >-
+      {{ preflight_files_resolved + [preflight_file | combine({
+           'src': (
+             (swarm_env_vars[preflight_file.from_file[1:]]
+                if preflight_file.from_file.startswith('$')
+                else preflight_file.from_file)
+             ~ (preflight_file.suffix | default(''))
+           )
+         })] }}
   loop: "{{ preflight.files }}"
   loop_control:
     loop_var: preflight_file
     label: "{{ preflight_file.dest }}"
+
+- name: Stat source files (so optional sources can be skipped)
+  ansible.builtin.stat:
+    path: "{{ item.src }}"
+  loop: "{{ preflight_files_resolved }}"
+  loop_control:
+    label: "{{ item.dest }}"
   delegate_to: localhost
   register: preflight_file_stats
 
 - name: Copy stack files to shared storage
   ansible.builtin.copy:
-    src: >-
-      {{ (swarm_env_vars[item.preflight_file.from_env] if item.preflight_file.from_env is defined
-          else item.preflight_file.src) ~ (item.preflight_file.suffix | default('')) }}
+    src: "{{ item.item.src }}"
     dest: >-
-      {{ preflight_storage_roots[item.preflight_file.base | default('app_data')]
-         ~ '/' ~ item.preflight_file.dest }}
-    owner: "{{ item.preflight_file.owner | default(omit) }}"
-    group: "{{ item.preflight_file.group | default(omit) }}"
-    mode: "{{ item.preflight_file.mode | default('0644') }}"
+      {{ preflight_storage_roots[item.item.base | default('app_data')]
+         ~ '/' ~ item.item.dest }}
+    owner: "{{ item.item.owner | default(omit) }}"
+    group: "{{ item.item.group | default(omit) }}"
+    mode: "{{ item.item.mode | default('0644') }}"
   loop: "{{ preflight_file_stats.results }}"
   loop_control:
-    label: "{{ item.preflight_file.dest }}"
+    label: "{{ item.item.dest }}"
   delegate_to: "{{ groups['managers'][0] }}"
   become: "{{ preflight_provision_become | default(true) }}"
-  when: not (item.preflight_file.optional | default(false)) or item.stat.exists
+  when: not (item.item.optional | default(false)) or item.stat.exists

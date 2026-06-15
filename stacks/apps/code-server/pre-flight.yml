@@ -17,11 +17,12 @@ directories:
   - { path: dev-env/ai-configs/forge, owner: 1000, group: 1000 }
 
 # SSH key into the shared-ssh dir the container mounts at ~/.ssh. Optional —
-# skipped if the key isn't on the controller. authorized_keys = the public key
+# skipped if the key isn't on the controller. The key keeps its own basename
+# (so the ssh config's IdentityFile matches); authorized_keys = the public key
 # (lets you SSH into the container).
 files:
-  - { from_env: SSH_KEY_FILE, dest: dev-env/shared-ssh/homelab_rsa, owner: 1000, group: 1000, mode: "0600", optional: true }
-  - { from_env: SSH_KEY_FILE, suffix: ".pub", dest: dev-env/shared-ssh/authorized_keys, owner: 1000, group: 1000, mode: "0600", optional: true }
+  - { from_file: "$SSH_KEY_FILE", dest: "dev-env/shared-ssh/{{ swarm_env_vars.SSH_KEY_FILE | basename }}", owner: 1000, group: 1000, mode: "0600", optional: true }
+  - { from_file: "$SSH_KEY_FILE", suffix: ".pub", dest: dev-env/shared-ssh/authorized_keys, owner: 1000, group: 1000, mode: "0600", optional: true }
 
 templates:
   - { src: ssh-config.j2, dest: dev-env/shared-ssh/config, owner: 1000, group: 1000, mode: "0644" }

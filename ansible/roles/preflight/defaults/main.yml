@@ -1,8 +1,9 @@
 # ansible/roles/preflight/defaults/main.yml
-# Shared-storage mount roots, resolved from .env with sensible fallbacks.
-# Used by the directories:/files:/templates: provisioning tasks. The test
+# Shared-storage mount roots for the directories:/files:/templates: provisioning
+# tasks. Reuses the canonical iscsi_*_mount_path vars from group_vars/all/main.yml
+# (fallbacks keep the unit test green, where those vars aren't defined). The test
 # inventory overrides preflight_provision_become to keep --check unprivileged.
 ---
 preflight_storage_roots:
-  app_data: "{{ swarm_env_vars.ISCSI_APP_DATA_MOUNT_PATH | default('/mnt/iscsi/app-data') }}"
-  cache: "{{ swarm_env_vars.ISCSI_CACHE_MOUNT_PATH | default('/mnt/iscsi/cache') }}"
+  app_data: "{{ iscsi_app_data_mount_path | default('/mnt/iscsi/app-data') }}"
+  cache: "{{ iscsi_cache_mount_path | default('/mnt/iscsi/cache') }}"
