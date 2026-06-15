@@ -1,0 +1,27 @@
+# ansible/roles/preflight/tasks/ensure-templates.yml
+# Render a Jinja template (from the stack dir) onto the cluster's shared storage
+# on a real node. Used for generated config files (e.g. an ssh config). The
+# template has access to swarm_env_vars.
+#
+# pre-flight.yml schema:
+#   templates:
+#     - src: <template filename in the stack dir, e.g. ssh-config.j2>
+#       dest: <path under the selected base>
+#       base: app_data|cache  # default app_data
+#       owner/group/mode      # optional
+---
+- name: Render stack templates to shared storage
+  ansible.builtin.template:
+    src: "{{ preflight_stack_path }}/{{ preflight_template.src }}"
+    dest: >-
+      {{ preflight_storage_roots[preflight_template.base | default('app_data')]
+         ~ '/' ~ preflight_template.dest }}
+    owner: "{{ preflight_template.owner | default(omit) }}"
+    group: "{{ preflight_template.group | default(omit) }}"
+    mode: "{{ preflight_template.mode | default('0644') }}"
+  loop: "{{ preflight.templates }}"
+  loop_control:
+    loop_var: preflight_template
+    label: "{{ preflight_template.dest }}"
+  delegate_to: "{{ groups['managers'][0] }}"
+  become: "{{ preflight_provision_become | default(true) }}"

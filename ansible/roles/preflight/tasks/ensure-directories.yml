@@ -9,12 +9,6 @@
 #     - { path: <dir>, base: app_data|cache, owner: <uid>, group: <gid>, mode: <octal> }
 #   `base` selects which shared mount the path is relative to (default: app_data).
 ---
-- name: Resolve shared-storage roots
-  ansible.builtin.set_fact:
-    preflight_storage_roots:
-      app_data: "{{ swarm_env_vars.ISCSI_APP_DATA_MOUNT_PATH | default('/mnt/iscsi/app-data') }}"
-      cache: "{{ swarm_env_vars.ISCSI_CACHE_MOUNT_PATH | default('/mnt/iscsi/cache') }}"
-
 - name: Ensure stack data directories exist on shared storage
   ansible.builtin.file:
     path: >-

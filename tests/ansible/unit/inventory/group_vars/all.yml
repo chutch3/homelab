@@ -5,6 +5,9 @@ ansible_become: false
 # Same reason for the declarative `directories:` provisioning task — keep it
 # unprivileged under --check so it never tries to escalate against a fake host.
 preflight_provision_become: false
+# Stage module temp files under /tmp so the template task doesn't depend on a
+# writable HOME (CI/devbox shells can run as root with no /root/.ansible/tmp).
+ansible_remote_tmp: /tmp/.ansible-preflight-test-tmp
 
 # These allow --check dry-runs to render all templates without a real cluster.
 

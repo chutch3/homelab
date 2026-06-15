@@ -67,6 +67,49 @@
       },
       "minItems": 1
     },
+    "files": {
+      "description": "Files copied from the controller onto the cluster's shared storage before deploying (e.g. an SSH key a container bind-mounts).",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["dest"],
+        "additionalProperties": false,
+        "oneOf": [
+          { "required": ["from_env"] },
+          { "required": ["src"] }
+        ],
+        "properties": {
+          "from_env": { "type": "string", "description": ".env variable holding the source path on the controller." },
+          "src": { "type": "string", "description": "Literal source path on the controller." },
+          "suffix": { "type": "string", "description": "Appended to the resolved source path, e.g. '.pub'." },
+          "dest": { "type": "string", "description": "Destination path relative to the selected base." },
+          "base": { "type": "string", "enum": ["app_data", "cache"], "description": "Shared mount the dest is relative to. Default app_data." },
+          "owner": { "type": ["integer", "string"] },
+          "group": { "type": ["integer", "string"] },
+          "mode": { "type": "string" },
+          "optional": { "type": "boolean", "description": "Skip silently if the source file is absent." }
+        }
+      },
+      "minItems": 1
+    },
+    "templates": {
+      "description": "Jinja templates (from the stack dir) rendered onto the cluster's shared storage. Templates can reference swarm_env_vars.",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["src", "dest"],
+        "additionalProperties": false,
+        "properties": {
+          "src": { "type": "string", "description": "Template filename in the stack dir, e.g. 'ssh-config.j2'." },
+          "dest": { "type": "string", "description": "Destination path relative to the selected base." },
+          "base": { "type": "string", "enum": ["app_data", "cache"], "description": "Shared mount the dest is relative to. Default app_data." },
+          "owner": { "type": ["integer", "string"] },
+          "group": { "type": ["integer", "string"] },
+          "mode": { "type": "string" }
+        }
+      },
+      "minItems": 1
+    },
     "validate": {
       "description": "Pre-deployment validation checks. Ansible fails with a clear message if any check fails.",
       "type": "object",

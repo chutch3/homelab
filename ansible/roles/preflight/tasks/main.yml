@@ -51,6 +51,20 @@
     - preflight is defined
     - preflight.directories is defined
 
+- name: Copy files to shared storage
+  ansible.builtin.include_tasks: ensure-files.yml
+  when:
+    - preflight_stat.stat.exists
+    - preflight is defined
+    - preflight.files is defined
+
+- name: Render templates to shared storage
+  ansible.builtin.include_tasks: ensure-templates.yml
+  when:
+    - preflight_stat.stat.exists
+    - preflight is defined
+    - preflight.templates is defined
+
 - name: Query hook execution mode for pre_deploy
   ansible.builtin.command:
     cmd: "bash {{ preflight_stack_path }}/hooks.sh hook_mode pre_deploy"

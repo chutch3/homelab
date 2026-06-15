@@ -1,0 +1,44 @@
+# ansible/roles/preflight/tasks/ensure-files.yml
+# Copy files from the controller onto the cluster's shared storage (on a real
+# node via delegate, NOT the controller's own mount). Used for things like an
+# SSH key that must land in a shared-storage dir a container bind-mounts.
+#
+# pre-flight.yml schema:
+#   files:
+#     - from_env: <ENV var holding the source path>   # OR
+#       src: <literal source path on the controller>
+#       suffix: ".pub"        # optional, appended to the resolved source path
+#       dest: <path under the selected base>
+#       base: app_data|cache  # default app_data
+#       owner/group/mode      # optional
+#       optional: true        # skip silently if the source file is absent
+---
+- name: Stat source files (so optional sources can be skipped)
+  ansible.builtin.stat:
+    path: >-
+      {{ (swarm_env_vars[preflight_file.from_env] if preflight_file.from_env is defined
+          else preflight_file.src) ~ (preflight_file.suffix | default('')) }}
+  loop: "{{ preflight.files }}"
+  loop_control:
+    loop_var: preflight_file
+    label: "{{ preflight_file.dest }}"
+  delegate_to: localhost
+  register: preflight_file_stats
+
+- name: Copy stack files to shared storage
+  ansible.builtin.copy:
+    src: >-
+      {{ (swarm_env_vars[item.preflight_file.from_env] if item.preflight_file.from_env is defined
+          else item.preflight_file.src) ~ (item.preflight_file.suffix | default('')) }}
+    dest: >-
+      {{ preflight_storage_roots[item.preflight_file.base | default('app_data')]
+         ~ '/' ~ item.preflight_file.dest }}
+    owner: "{{ item.preflight_file.owner | default(omit) }}"
+    group: "{{ item.preflight_file.group | default(omit) }}"
+    mode: "{{ item.preflight_file.mode | default('0644') }}"
+  loop: "{{ preflight_file_stats.results }}"
+  loop_control:
+    label: "{{ item.preflight_file.dest }}"
+  delegate_to: "{{ groups['managers'][0] }}"
+  become: "{{ preflight_provision_become | default(true) }}"
+  when: not (item.preflight_file.optional | default(false)) or item.stat.exists
