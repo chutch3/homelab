@@ -44,7 +44,7 @@ services:
             - OPENID_GENERATE_NONCE=true
             - OPENID_USE_END_SESSION_ENDPOINT=true
         configs:
-            - source: librechat_config_v9
+            - source: librechat_config_v10
               target: /app/librechat.yaml
         volumes:
             - librechat_images:/app/client/public/images
@@ -145,7 +145,7 @@ networks:
         external: true
 
 configs:
-    librechat_config_v9:
+    librechat_config_v10:
         file: ./librechat.yaml
 
 volumes:

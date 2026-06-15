@@ -219,7 +219,9 @@ endpoints:
     capabilities: ["execute_code", "file_search", "actions", "tools"]
   custom:
     # Ollama (internal Docker DNS)
-    - name: 'Ollama'
+    # NOTE: endpoint name must NOT be "Ollama" — LibreChat hardcodes special-case
+    # routing for that exact name that breaks the agents/MCP tool path (issue #10327).
+    - name: 'ollama-local'
       apiKey: 'ollama'
       baseURL: '${OLLAMA_BASE_URL}/v1/'
       models:
