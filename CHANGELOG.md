@@ -2,6 +2,69 @@
 
 <!-- version list -->
 
+## v3.18.0 (2026-06-15)
+
+### Bug Fixes
+
+- Bump librechat config to v9 to drop internal ip from allowedaddresses
+  ([`3a95d04`](https://github.com/chutch3/homelab/commit/3a95d04ca208fa05fdc0a5b59694d93245e2fb25))
+
+- Disable chromium sandbox for mermaid renderer
+  ([`b4f645c`](https://github.com/chutch3/homelab/commit/b4f645ceb39c714f60302f531aa2c25e8f4c7dcc))
+
+- Raise ollama default context length to 16384 for mcp tool schemas
+  ([`d3b9753`](https://github.com/chutch3/homelab/commit/d3b975358cd616e4dd0d74ffc09c1382153e18bd))
+
+- Set USER and LOGNAME env vars in devbox code-server sessions
+  ([`f103f1d`](https://github.com/chutch3/homelab/commit/f103f1d0a977250967eff15d54401d6b4c49f3b4))
+
+- Switch published ssh port for the code server stack
+  ([`79f764b`](https://github.com/chutch3/homelab/commit/79f764b3d1f7a98e778180486b5fc7002d1e6ca6))
+
+### Chores
+
+- Bump kenku to 0.13.1 in downloads stack
+  ([`a462f13`](https://github.com/chutch3/homelab/commit/a462f13254e269f6b0a12ab5e7f26b97f8b82f42))
+
+- Bump kenku to 0.13.2 in downloads stack
+  ([`e9d5edd`](https://github.com/chutch3/homelab/commit/e9d5eddf9cad356317585c1c348c8a9650a7deb9))
+
+- Bump kenku to 0.14.0 in downloads stack
+  ([`3f87656`](https://github.com/chutch3/homelab/commit/3f87656dcaa5a31e782e5f9efd4d3c04d28aff36))
+
+- Bump kenku to 0.24.0 in downloads stack
+  ([`34f85e2`](https://github.com/chutch3/homelab/commit/34f85e23f61ef69401fb8acadefa060397a111e4))
+
+- Pin claudecodeui devbox image to sha256 digest
+  ([`37b82ba`](https://github.com/chutch3/homelab/commit/37b82bac7591a128fdc65cbe257ea76e95bc0264))
+
+- **kenku**: Bump chapter-sync interval to 24h
+  ([`9ece3de`](https://github.com/chutch3/homelab/commit/9ece3dea4f42b12cecedcbe59a2afa213a81bdbe))
+
+- **kenku**: Pin 0.25.1 (per-series chapter ids, sync save-failure surfacing)
+  ([`6506f76`](https://github.com/chutch3/homelab/commit/6506f765f8376d778b759c41e892a75a37fc3423))
+
+### Features
+
+- Add home assistant mcp servers to librechat
+  ([`0efc5d9`](https://github.com/chutch3/homelab/commit/0efc5d97866958bdb2a6bc86805fcf3ae6309501))
+
+- Add mermaid live editor stack
+  ([`bee8d7c`](https://github.com/chutch3/homelab/commit/bee8d7c1273d1e79b49df6a3ae14e69f9087826f))
+
+- Bump kenku
+  ([`d5abb96`](https://github.com/chutch3/homelab/commit/d5abb967e23aa952896703ca58606d7651da4635))
+
+- Bump kenku version
+  ([`6adf013`](https://github.com/chutch3/homelab/commit/6adf013dff72f3a639132e01409b4f17ffdbadc2))
+
+- Configure act_runner labels via config file and pin to 0.6.1
+  ([`3904520`](https://github.com/chutch3/homelab/commit/39045203cdc1bc880069d059efe996da2aa2199e))
+
+- Updated devbox and pinned it to a sha
+  ([`d698c4f`](https://github.com/chutch3/homelab/commit/d698c4f9e27d9e063863c645216fae41d72374dc))
+
+
 ## v3.17.0 (2026-06-08)
 
 ### Bug Fixes
