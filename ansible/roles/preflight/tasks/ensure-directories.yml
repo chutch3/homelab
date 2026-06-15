@@ -1,0 +1,27 @@
+# ansible/roles/preflight/tasks/ensure-directories.yml
+# Declaratively provision a stack's data directories on the cluster's shared
+# storage. Runs on a real cluster node via `delegate_to` (NOT the controller,
+# which may not mount /mnt/iscsi), so it works no matter where the deploy is run
+# from. Replaces the fragile mkdir/chown-in-hooks.sh pattern.
+#
+# pre-flight.yml schema:
+#   directories:
+#     - { path: <dir under app-data>, owner: <uid>, group: <gid>, mode: <octal> }
+---
+- name: Ensure stack data directories exist on shared storage
+  ansible.builtin.file:
+    path: >-
+      {{ (swarm_env_vars.ISCSI_APP_DATA_MOUNT_PATH | default('/mnt/iscsi/app-data'))
+         ~ '/' ~ preflight_directory.path }}
+    state: directory
+    owner: "{{ preflight_directory.owner | default(omit) }}"
+    group: "{{ preflight_directory.group | default(omit) }}"
+    mode: "{{ preflight_directory.mode | default('0755') }}"
+  loop: "{{ preflight.directories }}"
+  loop_control:
+    loop_var: preflight_directory
+    label: "{{ preflight_directory.path }}"
+  # Create on a node that actually mounts the OCFS2 app-data volume; it is
+  # shared, so creating once on the manager makes it visible cluster-wide.
+  delegate_to: "{{ groups['managers'][0] }}"
+  become: "{{ preflight_provision_become | default(true) }}"

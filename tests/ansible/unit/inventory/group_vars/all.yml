@@ -2,6 +2,9 @@
 # Stub vars that the preflight role depends on from the wider play context.
 # become is disabled so --check runs don't prompt for sudo password.
 ansible_become: false
+# Same reason for the declarative `directories:` provisioning task — keep it
+# unprivileged under --check so it never tries to escalate against a fake host.
+preflight_provision_become: false
 
 # These allow --check dry-runs to render all templates without a real cluster.
 
@@ -29,3 +32,7 @@ swarm_env_vars:
   TOR_WIREGUARD_PRIVATE_KEY: "test-key"
   TOR_WIREGUARD_ADDRESSES: "10.5.0.2/32"
   TOR_BROWSER_VNC_PASSWORD: "test-password"
+  HA_MCP_TOKEN: "test-token"
+  HA_MCP_SECRET_PATH: "/private_test"
+  OPENWEBUI_SECRET_KEY: "test-secret"
+  RSTUDIO_PASSWORD: "test-password"

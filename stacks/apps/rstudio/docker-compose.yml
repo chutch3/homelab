@@ -1,0 +1,48 @@
+version: "3.9"
+
+services:
+    rstudio:
+        image: "rocker/rstudio:4.5.1"
+        environment:
+            # Login: user "rstudio" + this password
+            - PASSWORD=${RSTUDIO_PASSWORD}
+            # Persist user-installed R packages inside the bind-mounted home,
+            # so they survive container recreation
+            - R_LIBS_USER=/home/rstudio/R/library
+            # rocker default user is uid/gid 1000 (matches the chown in hooks.sh)
+            - USERID=1000
+            - GROUPID=1000
+        volumes:
+            - rstudio:/home/rstudio
+        restart: unless-stopped
+        networks:
+            - traefik-public
+        deploy:
+            # No placement constraint — plain R is CPU-only and runs anywhere.
+            # (For GPU/ML R later: switch to rocker/ml + NVIDIA env + a gpu label.)
+            replicas: 1
+            labels:
+                - "traefik.enable=true"
+                - "traefik.swarm.network=traefik-public"
+                - "traefik.http.routers.rstudio.rule=Host(`rstudio.${BASE_DOMAIN}`)"
+                - "traefik.http.routers.rstudio.entrypoints=websecure"
+                - "traefik.http.routers.rstudio.tls.certresolver=dns"
+                - "traefik.http.services.rstudio.loadbalancer.server.port=8787"
+                - "traefik.http.routers.rstudio.service=rstudio"
+                - homepage.group=Development
+                - homepage.name=RStudio
+                - homepage.icon=rstudio.png
+                - homepage.href=https://rstudio.${BASE_DOMAIN}/
+                - homepage.description=R IDE (rocker/rstudio)
+
+networks:
+    traefik-public:
+        external: true
+
+volumes:
+    rstudio:
+        driver: local
+        driver_opts:
+            type: "none"
+            o: "bind"
+            device: "/mnt/iscsi/app-data/rstudio"

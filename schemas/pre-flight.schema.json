@@ -34,6 +34,34 @@
       },
       "minItems": 1
     },
+    "directories": {
+      "description": "Data directories to create on the cluster's shared storage (relative to the iSCSI app-data mount) before deploying. Created on a cluster node by the preflight role.",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["path"],
+        "additionalProperties": false,
+        "properties": {
+          "path": {
+            "type": "string",
+            "description": "Directory path relative to the app-data mount, e.g. 'rstudio' or 'rstudio/R/library'."
+          },
+          "owner": {
+            "type": ["integer", "string"],
+            "description": "Owner uid (or username) for the directory."
+          },
+          "group": {
+            "type": ["integer", "string"],
+            "description": "Group gid (or group name) for the directory."
+          },
+          "mode": {
+            "type": "string",
+            "description": "Octal mode string, e.g. '0755' (default)."
+          }
+        }
+      },
+      "minItems": 1
+    },
     "validate": {
       "description": "Pre-deployment validation checks. Ansible fails with a clear message if any check fails.",
       "type": "object",

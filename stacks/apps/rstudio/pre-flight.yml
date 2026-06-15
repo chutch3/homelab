@@ -1,0 +1,9 @@
+validate:
+  env:
+    - RSTUDIO_PASSWORD
+
+# Data dirs on shared storage (created cluster-side by the preflight role, not a
+# hooks.sh mkdir on the controller). rocker/rstudio runs as uid/gid 1000.
+directories:
+  - { path: rstudio, owner: 1000, group: 1000 }
+  - { path: rstudio/R/library, owner: 1000, group: 1000 }

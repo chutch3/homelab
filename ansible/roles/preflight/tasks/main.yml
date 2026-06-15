@@ -44,6 +44,13 @@
     - preflight is defined
     - preflight.secrets is defined
 
+- name: Ensure data directories on shared storage
+  ansible.builtin.include_tasks: ensure-directories.yml
+  when:
+    - preflight_stat.stat.exists
+    - preflight is defined
+    - preflight.directories is defined
+
 - name: Query hook execution mode for pre_deploy
   ansible.builtin.command:
     cmd: "bash {{ preflight_stack_path }}/hooks.sh hook_mode pre_deploy"
