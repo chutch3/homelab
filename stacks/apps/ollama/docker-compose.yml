@@ -14,14 +14,17 @@ services:
       - OLLAMA_DEBUG=1
       # Default num_ctx for all models; Ollama's 4096 default silently
       # truncates prompts that carry MCP tool definitions (~9K tokens)
-      - OLLAMA_CONTEXT_LENGTH=16384
+      - OLLAMA_CONTEXT_LENGTH=24576
       - NVIDIA_VISIBLE_DEVICES=all
       - NVIDIA_DRIVER_CAPABILITIES=compute,utility
     deploy:
       replicas: 1
       placement:
         constraints:
-          - node.labels.llm == true
+          # Pinned to the manager's RTX 3090 (24 GB). giant/imac also carry the
+          # generic `gpu` label, so target the host explicitly. To use giant's
+          # 15.5 GB card instead, switch back to `node.labels.llm == true`.
+          - node.hostname == cody-X570-GAMING-X
       labels:
         - "traefik.enable=true"
         - "traefik.http.routers.ollama.rule=Host(`ollama.${BASE_DOMAIN}`)"
