@@ -1,6 +1,8 @@
 from __future__ import annotations
 
-from typing import Any, Callable
+from typing import Any
+
+from fiber.clients.discovery import LazyDockerGateway
 
 
 def extract_services(raw_services: list[dict[str, Any]]) -> dict[str, dict[str, str]]:
@@ -24,16 +26,7 @@ def extract_image(raw_service: dict[str, Any]) -> tuple[str | None, str | None]:
     return tag, (digest or None)
 
 
-class DockerSwarmGateway:
-    def __init__(self, client_factory: Callable[[], Any]) -> None:
-        self._client_factory = client_factory
-        self._client: Any = None
-
-    def _get_client(self) -> Any:
-        if self._client is None:
-            self._client = self._client_factory()
-        return self._client
-
+class DockerSwarmGateway(LazyDockerGateway):
     def list_dump_services(self) -> dict[str, dict[str, str]]:
         client = self._get_client()
         raw = [s.attrs for s in client.services.list()]

@@ -1,11 +1,20 @@
 from __future__ import annotations
 
+from types import SimpleNamespace
 from unittest.mock import MagicMock, create_autospec
 
 import docker
 import pytest
 
-from fiber.clients.container import DockerContainerGateway
+from fiber.clients.container import DockerContainerGateway, extract_containers
+
+
+def test_extract_containers_maps_name_to_labels() -> None:
+    containers = [
+        SimpleNamespace(name="e2e-pg", labels={"fiber.enable": "true"}),
+        SimpleNamespace(name="bare", labels=None),
+    ]
+    assert extract_containers(containers) == {"e2e-pg": {"fiber.enable": "true"}, "bare": {}}
 
 
 class TestDockerContainerGateway:
@@ -28,14 +37,24 @@ class TestDockerContainerGateway:
         docker_client.containers.list.assert_called_once_with(filters={"label": "fiber.enable=true"})
         assert result == {"e2e-pg": {"fiber.enable": "true", "fiber.provider": "docker"}}
 
-    def test_image_of_returns_first_tag(self, subject, docker_client) -> None:
+    def test_image_of_returns_first_tag_and_no_digest_when_absent(self, subject, docker_client) -> None:
         fake = MagicMock()
         fake.image.tags = ["ghcr.io/chutch3/app:1.2.3"]
+        fake.image.attrs = {"RepoDigests": []}
         docker_client.containers.get.return_value = fake
         tag, digest = subject.image_of("e2e-pg")
         docker_client.containers.get.assert_called_once_with("e2e-pg")
         assert tag == "ghcr.io/chutch3/app:1.2.3"
         assert digest is None
+
+    def test_image_of_extracts_digest_from_repo_digests(self, subject, docker_client) -> None:
+        fake = MagicMock()
+        fake.image.tags = ["ghcr.io/chutch3/app:1.2.3"]
+        fake.image.attrs = {"RepoDigests": ["ghcr.io/chutch3/app@sha256:abc123"]}
+        docker_client.containers.get.return_value = fake
+        tag, digest = subject.image_of("e2e-pg")
+        assert tag == "ghcr.io/chutch3/app:1.2.3"
+        assert digest == "sha256:abc123"
 
     def test_construction_with_raising_factory_does_not_raise(self) -> None:
         def bad_factory() -> docker.DockerClient:
