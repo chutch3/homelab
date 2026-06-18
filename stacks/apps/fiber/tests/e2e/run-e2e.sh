@@ -40,7 +40,7 @@ until docker exec fiber-e2e-restore pg_isready -U postgres >/dev/null 2>&1; do s
 docker exec fiber-e2e-restore psql -U postgres -c 'CREATE DATABASE e2e;' >/dev/null
 docker compose -p "$PROJECT" exec -T fiber sh -c "cat $dump" > /tmp/e2e.dump
 docker cp /tmp/e2e.dump fiber-e2e-restore:/tmp/e2e.dump
-docker exec fiber-e2e-restore pg_restore -U postgres -d e2e /tmp/e2e.dump
+docker exec fiber-e2e-restore pg_restore -U postgres -d e2e --no-owner --no-privileges /tmp/e2e.dump
 count=$(docker exec fiber-e2e-restore psql -U postgres -d e2e -tAc 'SELECT count(*) FROM e2e_data;' | tr -d '[:space:]')
 
 echo "    rows restored: $count"
