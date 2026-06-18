@@ -25,7 +25,7 @@ echo "==> Waiting for Fiber to produce a dump (<=120s)"
 deadline=$((SECONDS + 120))
 dump=""
 while [ $SECONDS -lt $deadline ]; do
-  dump=$(docker compose -p "$PROJECT" exec -T fiber sh -c 'ls /backups/e2e/*.dump 2>/dev/null | head -1' || true)
+  dump=$(docker compose -p "$PROJECT" exec -T fiber sh -c 'ls /backups/*/*.dump 2>/dev/null | head -1' || true)
   [ -n "$dump" ] && break
   sleep 3
 done
@@ -35,7 +35,7 @@ fi
 echo "    dump: $dump"
 
 echo "==> Restoring into a scratch postgres and asserting row count"
-docker run -d --rm --name fiber-e2e-restore --network "$NET" -e POSTGRES_PASSWORD=restore postgres:16 >/dev/null
+docker run -d --name fiber-e2e-restore --network "$NET" -e POSTGRES_PASSWORD=restore postgres:16 >/dev/null
 until docker exec fiber-e2e-restore pg_isready -U postgres >/dev/null 2>&1; do sleep 1; done
 docker exec fiber-e2e-restore psql -U postgres -c 'CREATE DATABASE e2e;' >/dev/null
 docker compose -p "$PROJECT" exec -T fiber sh -c "cat $dump" > /tmp/e2e.dump
