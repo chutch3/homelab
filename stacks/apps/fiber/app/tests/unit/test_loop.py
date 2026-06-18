@@ -11,12 +11,13 @@ from fiber.clock import SystemClock
 from fiber.repositories.history import HistoryRepository
 from fiber.metrics import Metrics
 from fiber.clients.swarm import DockerSwarmGateway
+from fiber.clients.probe import ConnectivityProbe, ProbeResult
 from fiber.services.registry_state import RegistryState
 from fiber.services.worker_pool import WorkerPool
 from tests.factories import DumpJobFactory
 
 
-def _base_mocks() -> tuple[MagicMock, MagicMock, MagicMock, MagicMock, Metrics, asyncio.Event, RegistryState]:
+def _base_mocks() -> tuple[MagicMock, MagicMock, MagicMock, MagicMock, Metrics, asyncio.Event, RegistryState, AsyncMock]:
     swarm = MagicMock(spec=DockerSwarmGateway)
     swarm.list_dump_services.return_value = {
         "kenku-pg": {
@@ -46,12 +47,15 @@ def _base_mocks() -> tuple[MagicMock, MagicMock, MagicMock, MagicMock, Metrics, 
 
     registry_state = RegistryState()
 
-    return swarm, history, pool, clock, metrics, stop, registry_state
+    probe = AsyncMock(spec=ConnectivityProbe)
+    probe.check.return_value = ProbeResult(ok=True, detail="")
+
+    return swarm, history, pool, clock, metrics, stop, registry_state, probe
 
 
 async def test_skipped_overlap_incremented_when_pool_returns_none() -> None:
     """When pool.submit returns None (already running), skipped_overlap counter must be incremented."""
-    swarm, history, pool, clock, metrics, stop, registry_state = _base_mocks()
+    swarm, history, pool, clock, metrics, stop, registry_state, probe = _base_mocks()
     pool.submit.return_value = None  # signals overlap
     orchestrator = AsyncMock()
 
@@ -66,6 +70,8 @@ async def test_skipped_overlap_incremented_when_pool_returns_none() -> None:
         stop=stop,
         interval=0,
         registry_state=registry_state,
+        active_provider="swarm",
+        probe=probe,
     )
 
     count = metrics.registry.get_sample_value("fiber_skipped_overlap_total", {"db": "kenku-pg"})
@@ -74,7 +80,7 @@ async def test_skipped_overlap_incremented_when_pool_returns_none() -> None:
 
 async def test_job_enqueued_when_pool_submit_returns_task() -> None:
     """When pool.submit returns a task (not None), the job is enqueued (else branch covered)."""
-    swarm, history, pool, clock, metrics, stop, registry_state = _base_mocks()
+    swarm, history, pool, clock, metrics, stop, registry_state, probe = _base_mocks()
     pool.submit.return_value = asyncio.create_task(asyncio.sleep(0))  # non-None task
     orchestrator = AsyncMock()
 
@@ -89,6 +95,8 @@ async def test_job_enqueued_when_pool_submit_returns_task() -> None:
         stop=stop,
         interval=0,
         registry_state=registry_state,
+        active_provider="swarm",
+        probe=probe,
     )
 
     pool.submit.assert_called_once()
@@ -111,6 +119,8 @@ async def test_misconfigured_service_logs_warning() -> None:
     stop.set()
     orchestrator = AsyncMock()
     registry_state = RegistryState()
+    probe = AsyncMock(spec=ConnectivityProbe)
+    probe.check.return_value = ProbeResult(ok=True, detail="")
 
     from fiber.loop import _scan_loop_inner
     # Should not raise; warning is logged
@@ -124,12 +134,14 @@ async def test_misconfigured_service_logs_warning() -> None:
         stop=stop,
         interval=0,
         registry_state=registry_state,
+        active_provider="swarm",
+        probe=probe,
     )
 
 
 async def test_scan_loop_updates_registry_state_with_snapshot() -> None:
     """After one scan iteration, registry_state holds the discovered jobs and skipped services."""
-    swarm, history, pool, clock, metrics, stop, registry_state = _base_mocks()
+    swarm, history, pool, clock, metrics, stop, registry_state, probe = _base_mocks()
     # Add an unenrolled service to be skipped
     swarm.list_dump_services.return_value = {
         "kenku-pg": {
@@ -157,6 +169,8 @@ async def test_scan_loop_updates_registry_state_with_snapshot() -> None:
         stop=stop,
         interval=0,
         registry_state=registry_state,
+        active_provider="swarm",
+        probe=probe,
     )
 
     snap = registry_state.get()
@@ -168,7 +182,7 @@ async def test_scan_loop_updates_registry_state_with_snapshot() -> None:
 
 async def test_scan_loop_sets_scanned_at_on_success() -> None:
     """After a successful scan, snapshot.scanned_at is set to a non-None datetime."""
-    swarm, history, pool, clock, metrics, stop, registry_state = _base_mocks()
+    swarm, history, pool, clock, metrics, stop, registry_state, probe = _base_mocks()
     pool.submit.return_value = None
     orchestrator = AsyncMock()
 
@@ -183,6 +197,8 @@ async def test_scan_loop_sets_scanned_at_on_success() -> None:
         stop=stop,
         interval=0,
         registry_state=registry_state,
+        active_provider="swarm",
+        probe=probe,
     )
 
     snap = registry_state.get()
@@ -199,7 +215,7 @@ async def test_scan_loop_preserves_jobs_on_swarm_error() -> None:
     # First, seed the registry_state with a known good snapshot
     from fiber.services.registry_state import Snapshot
     from fiber.models import DumpJob
-    swarm, history, pool, clock, metrics, _, registry_state = _base_mocks()
+    swarm, history, pool, clock, metrics, _, registry_state, probe = _base_mocks()
 
     # Pre-seed registry with one job and a scanned_at
     good_job = DumpJobFactory.build(service="kenku-pg")
@@ -228,6 +244,8 @@ async def test_scan_loop_preserves_jobs_on_swarm_error() -> None:
         stop=stop,
         interval=0,
         registry_state=registry_state,
+        active_provider="swarm",
+        probe=probe,
     )
 
     snap = registry_state.get()
@@ -238,6 +256,25 @@ async def test_scan_loop_preserves_jobs_on_swarm_error() -> None:
     assert snap.scanned_at == datetime(2026, 6, 16, 3, 0, tzinfo=timezone.utc)
     # error set
     assert snap.error == "docker down"
+
+
+async def test_skips_and_counts_when_probe_not_ready() -> None:
+    """When probe reports not-ready, pool.submit must not be called and skipped_not_ready is incremented."""
+    swarm, history, pool, clock, metrics, stop, registry_state, _ = _base_mocks()
+    orchestrator = AsyncMock()
+    probe = AsyncMock()
+    probe.check.return_value = ProbeResult(ok=False, detail="no response")
+
+    from fiber.loop import _scan_loop_inner
+    await _scan_loop_inner(
+        swarm=swarm, history=history, pool=pool, orchestrator=orchestrator,
+        clock=clock, metrics=metrics, stop=stop, interval=0,
+        registry_state=registry_state, active_provider="swarm", probe=probe,
+    )
+
+    pool.submit.assert_not_called()
+    count = metrics.registry.get_sample_value("fiber_skipped_not_ready_total", {"db": "kenku-pg"})
+    assert count == 1.0
 
 
 async def test_scan_loop_runs_until_stop_is_set() -> None:
