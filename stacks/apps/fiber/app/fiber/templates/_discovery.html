@@ -1,0 +1,10 @@
+{% for r in rows %}
+<tr>
+  <td><b>{{ r.service }}</b></td>
+  <td class="{% if r.result == 'discovered' %}ok{% endif %}"
+      {% if r.result == 'misconfigured' %}style="color:var(--misconfig)"{% endif %}>
+    {% if r.result == 'discovered' %}✓ discovered{% elif r.result == 'misconfigured' %}⚠ misconfigured{% else %}— skipped{% endif %}
+  </td>
+  <td>{{ r.detail }}</td>
+</tr>
+{% endfor %}

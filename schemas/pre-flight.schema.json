@@ -35,7 +35,7 @@
       "minItems": 1
     },
     "directories": {
-      "description": "Data directories to create on the cluster's shared storage (relative to the iSCSI app-data mount) before deploying. Created on a cluster node by the preflight role.",
+      "description": "Data directories to create on a storage mount (iSCSI app-data/cache, or node-local nvme) before deploying. Created on a cluster node by the preflight role.",
       "type": "array",
       "items": {
         "type": "object",
@@ -48,8 +48,8 @@
           },
           "base": {
             "type": "string",
-            "enum": ["app_data", "cache"],
-            "description": "Which shared mount the path is relative to. Default: app_data."
+            "enum": ["app_data", "cache", "nvme"],
+            "description": "Which storage mount the path is relative to (app_data/cache = shared iSCSI; nvme = node-local). Default: app_data."
           },
           "owner": {
             "type": ["integer", "string"],
@@ -78,7 +78,7 @@
           "from_file": { "type": "string", "description": "Source path on the controller; use $ENV_VAR to read the path from .env (same convention as secrets)." },
           "suffix": { "type": "string", "description": "Appended to the resolved source path, e.g. '.pub'." },
           "dest": { "type": "string", "description": "Destination path relative to the selected base." },
-          "base": { "type": "string", "enum": ["app_data", "cache"], "description": "Shared mount the dest is relative to. Default app_data." },
+          "base": { "type": "string", "enum": ["app_data", "cache", "nvme"], "description": "Shared mount the dest is relative to. Default app_data." },
           "owner": { "type": ["integer", "string"] },
           "group": { "type": ["integer", "string"] },
           "mode": { "type": "string" },
@@ -97,7 +97,7 @@
         "properties": {
           "src": { "type": "string", "description": "Template filename in the stack dir, e.g. 'ssh-config.j2'." },
           "dest": { "type": "string", "description": "Destination path relative to the selected base." },
-          "base": { "type": "string", "enum": ["app_data", "cache"], "description": "Shared mount the dest is relative to. Default app_data." },
+          "base": { "type": "string", "enum": ["app_data", "cache", "nvme"], "description": "Shared mount the dest is relative to. Default app_data." },
           "owner": { "type": ["integer", "string"] },
           "group": { "type": ["integer", "string"] },
           "mode": { "type": "string" }

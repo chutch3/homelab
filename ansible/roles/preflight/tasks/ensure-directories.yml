@@ -7,8 +7,15 @@
 # pre-flight.yml schema:
 #   directories:
 #     - { path: <dir>, base: app_data|cache, owner: <uid>, group: <gid>, mode: <octal> }
-#   `base` selects which shared mount the path is relative to (default: app_data).
+#   `base` selects which storage mount the path is relative to (default: app_data).
 ---
+- name: Verify directory storage roots are mounted
+  ansible.builtin.include_tasks: assert-storage-roots-mounted.yml
+  vars:
+    preflight_roots_to_check: >-
+      {{ preflight.directories | map(attribute='base', default='app_data')
+         | map('extract', preflight_storage_roots) | list }}
+
 - name: Ensure stack data directories exist on shared storage
   ansible.builtin.file:
     path: >-

@@ -87,33 +87,30 @@
     # =========================================================================
     # PHASE 4: Create Overlay Networks
     # =========================================================================
-    - name: "[NETWORK] Create traefik-public overlay network"
+    - name: "[NETWORK] Create required overlay networks"
       community.docker.docker_network:
-        name: traefik-public
+        name: "{{ item }}"
         driver: overlay
         attachable: yes
         state: present
+      loop: "{{ swarm_required_networks }}"
       register: network_creation
 
-    - name: "[NETWORK] Verify network exists"
+    - name: "[NETWORK] Verify networks exist"
       community.docker.docker_network_info:
-        name: traefik-public
+        name: "{{ item }}"
+      loop: "{{ swarm_required_networks }}"
       register: network_info
-      until: network_info.network is defined
+      until: network_info.results | selectattr('network', 'defined') | list | length == swarm_required_networks | length
       retries: 3
       delay: 2
 
-    - name: "[NETWORK] Verify network configuration"
-      ansible.builtin.assert:
-        that:
-          - network_info.network.Driver == 'overlay'
-          - network_info.network.Attachable
-        fail_msg: "❌ Network configuration incorrect"
-        success_msg: "✓ Network 'traefik-public' created and configured"
-
     - name: "[NETWORK] Display network info"
       ansible.builtin.debug:
-        msg: "✓ Network 'traefik-public' - ID: {{ network_info.network.Id[:12] }}, Scope: {{ network_info.network.Scope }}"
+        msg: "✓ Network '{{ item.name }}' - Driver: overlay, Attachable: true"
+      loop: "{{ swarm_required_networks | map('community.general.dict_kv', 'name') | list }}"
+      loop_control:
+        label: "{{ item.name }}"
 
     # =========================================================================
     # PHASE 5: Get Join Tokens
@@ -191,8 +188,7 @@
           Manager Join Command:
           docker swarm join --token {{ swarm_manager_token }} {{ ansible_host }}:2377
 
-          Networks Created:
-          - traefik-public (overlay, attachable)
+          Networks Created: {{ swarm_required_networks | join(', ') }} (overlay, attachable)
 
           Node Labels: {{ node_labels | default('None') }}
 

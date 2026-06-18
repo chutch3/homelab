@@ -1,0 +1,39 @@
+{% set st_icon = {'clean': '✓', 'straining': '⏳', 'pinched': '⊘', 'constipated': '!', 'clogged': '✕', 'misconfigured': '⚠'} %}
+{% set st_label = {'clean': 'Clean', 'straining': 'Straining', 'pinched': 'Pinched', 'constipated': 'Constipated', 'clogged': 'Clogged', 'misconfigured': 'Misconfig'} %}
+{% set sv = c.status.value %}
+<div class="tile s-{{ sv }}" id="tile-{{ c.service }}"
+     tabindex="0" role="button" aria-label="{{ c.service }} — {{ st_label[sv] }}"
+     hx-get="db/{{ c.service }}" hx-target="#d_body" hx-swap="innerHTML"
+     hx-on::after-request="openDrawer('{{ c.service }}', '{{ c.engine }}', '{{ sv }}', '{{ st_icon[sv] }} {{ st_label[sv] }}')"
+     title="{{ st_label[sv] }}">
+  <div class="hd">
+    <span class="ico">💾</span>
+    <div>
+      <div class="nm">{{ c.service }}</div>
+      <div class="eng">{{ c.engine }}</div>
+    </div>
+    <span class="stat">{{ st_icon[sv] }}</span>
+  </div>
+  {% if sv == 'straining' %}
+  <div class="mid">
+    <div class="strainbar">
+      <div class="f"></div>
+      <div class="l" data-strain>{{ c.progress or (c.size ~ ' · running') }}</div>
+    </div>
+  </div>
+  {% elif sv == 'clogged' %}
+  <div class="mid"><div class="k">last dump</div><b>FAILED</b></div>
+  {% elif sv == 'constipated' %}
+  <div class="mid"><div class="k">overdue</div><b>{{ c.last_rel }}</b></div>
+  {% elif sv == 'misconfigured' %}
+  <div class="mid"><div class="k">problem</div><b style="font-size:clamp(12px,4cqmin,18px)">{{ c.error or '—' }}</b></div>
+  {% elif sv == 'pinched' %}
+  <div class="mid"><div class="k">last run</div><b>CANCELLED</b></div>
+  {% else %}
+  <div class="mid"><div class="k">last dump</div><b>{{ c.size }}</b></div>
+  {% endif %}
+  <div class="foot">
+    <span>{{ st_icon[sv] }} {{ st_label[sv] }}</span>
+    <span style="opacity:.8">{% if sv == 'clean' %}{{ c.last_rel }}{% elif sv == 'straining' %}running…{% else %}{{ st_label[sv] }}{% endif %}</span>
+  </div>
+</div>

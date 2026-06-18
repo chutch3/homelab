@@ -1,0 +1,13 @@
+{% set cnt = {} %}
+{% for c in vm.cards %}{% set _ = cnt.update({c.status.value: cnt.get(c.status.value, 0) + 1}) %}{% endfor %}
+{% set order = ['clogged', 'misconfigured', 'constipated', 'straining', 'pinched', 'clean'] %}
+{% set labels = {'clean': 'Clean', 'straining': 'Straining', 'pinched': 'Pinched', 'constipated': 'Constipated', 'clogged': 'Clogged', 'misconfigured': 'Misconfig'} %}
+{% set css = {'clean': '--clean', 'straining': '--strain', 'pinched': '--pinched', 'constipated': '--constipated', 'clogged': '--clogged', 'misconfigured': '--misconfig'} %}
+{% if vm.verdict_ok %}
+<span class="big ok pix">ALL REGULAR</span>
+{% else %}
+<span class="big bad pix">⚠ {{ vm.needs_attention }} NEED ATTENTION</span>
+{% endif %}
+<span class="counts">
+{% for st in order %}{% if cnt.get(st) %}<span class="pill" style="color:var({{ css[st] }});border-color:var({{ css[st] }});background:color-mix(in srgb, var({{ css[st] }}) 16%, #0a2436)">{{ cnt[st] }} {{ labels[st] }}</span>{% endif %}{% endfor %}
+</span>

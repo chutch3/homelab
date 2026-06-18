@@ -1,0 +1,94 @@
+services:
+    fiber:
+        image: ${FIBER_REGISTRY_URL:-ghcr.io}/${FIBER_REGISTRY_NAMESPACE:-chutch3}/fiber:${FIBER_IMAGE_TAG:-latest}
+        environment:
+            - TZ=${TZ:-UTC}
+            - FIBER_BOWL_PATH=/backups
+            - FIBER_DB_PATH=/state/fiber.db
+            - FIBER_DOCKER_HOST=unix:///var/run/docker.sock
+            - FIBER_METRICS_PORT=9090
+        volumes:
+            # The Bowl — dumps land here; Kopia's app-data policy sweeps it offsite (Treatment Plant).
+            - fiber_bowl:/backups
+            # SQLite movement history (small, reconstructible).
+            - fiber_state:/state
+            # Read-only manager Docker API for label-based discovery (privileged; manager-pinned).
+            - /var/run/docker.sock:/var/run/docker.sock:ro
+        networks:
+            - backups
+            - traefik-public
+        secrets:
+            # Each DB stack creates its own <db>_db_password secret (preflight, from its .env);
+            # Fiber is granted them here and reads /run/secrets/<name> at dump time (spec §8).
+            - authentik_db_password
+            - immich_db_password
+            - forgejo_db_password
+            - excalidraw_db_password
+            - prefect_db_password
+            - librechat_db_password
+            - downloads_kenku_db_password
+        deploy:
+            replicas: 1
+            placement:
+                constraints:
+                    # Needs the manager Docker API; single replica (no double-dumping).
+                    - node.role == manager
+            resources:
+                limits:
+                    memory: 512M
+            labels:
+                # Traefik
+                - "traefik.enable=true"
+                - "traefik.swarm.network=traefik-public"
+                - "traefik.http.routers.fiber.rule=Host(`fiber.${BASE_DOMAIN}`)"
+                - "traefik.http.routers.fiber.entrypoints=websecure"
+                - "traefik.http.routers.fiber.tls.certresolver=dns"
+                - "traefik.http.routers.fiber.middlewares=authentik@swarm"
+                - "traefik.http.services.fiber.loadbalancer.server.port=9090"
+                # Prometheus (swarm-tasks SD scrapes fiber:9090/metrics)
+                - "prometheus.scrape=true"
+                - "prometheus.port=fiber:9090"
+                - "prometheus.path=/metrics"
+                # Homepage
+                - homepage.group=Services
+                - homepage.name=Fiber
+                - homepage.icon=mdi-backup-restore
+                - homepage.href=https://fiber.${BASE_DOMAIN}/
+                - homepage.description=Keeps your databases regular
+
+networks:
+    backups:
+        external: true
+    traefik-public:
+        external: true
+
+secrets:
+    authentik_db_password:
+        external: true
+    immich_db_password:
+        external: true
+    forgejo_db_password:
+        external: true
+    excalidraw_db_password:
+        external: true
+    prefect_db_password:
+        external: true
+    librechat_db_password:
+        external: true
+    downloads_kenku_db_password:
+        external: true
+
+volumes:
+    # iSCSI/OCFS2 binds under app-data so Kopia's app-data policy captures them offsite.
+    fiber_bowl:
+        driver: local
+        driver_opts:
+            type: "none"
+            o: "bind"
+            device: "/mnt/iscsi/app-data/fiber/bowl"
+    fiber_state:
+        driver: local
+        driver_opts:
+            type: "none"
+            o: "bind"
+            device: "/mnt/iscsi/app-data/fiber/state"

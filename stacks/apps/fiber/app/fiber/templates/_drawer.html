@@ -1,0 +1,101 @@
+{% set st_icon = {'clean': '✓', 'straining': '⏳', 'pinched': '⊘', 'constipated': '!', 'clogged': '✕', 'misconfigured': '⚠'} %}
+{% set sv = d.status.value %}
+
+{# ── STATUS block ── #}
+<div>
+  <div class="sub">STATUS</div>
+  <div class="plain" style="margin-bottom:8px">{{ d.plain }}</div>
+  <div class="kv">
+    <span class="k">last movement</span><span class="v">{{ d.last_rel }}</span>
+    <span class="k">next flush</span><span class="v">{{ d.next_run }}</span>
+    <span class="k">size</span><span class="v">{{ d.size }}</span>
+    <span class="k">writes to</span><span class="v">{{ d.writes_to }}/{{ d.service }}</span>
+  </div>
+</div>
+
+{% if sv == 'misconfigured' %}
+{# ── MISCONFIGURED explanation ── #}
+<div>
+  <div class="sub" style="color:var(--misconfig)">⚠ WHY NOT BACKED UP</div>
+  <div class="hint">{{ d.error or '—' }}. Add the label below and redeploy.</div>
+</div>
+{% else %}
+
+{# ── LAST RECEIPT ── #}
+<div>
+  <div class="sub">LAST RECEIPT</div>
+  <div class="kv">
+    <span class="k">app version</span><span class="v">{{ d.app_version or '—' }}</span>
+    <span class="k">bristol</span><span class="v">{% if d.bristol %}Type {{ d.bristol }}/7{% else %}—{% endif %}</span>
+    <span class="k">format</span><span class="v">{{ d.fmt }}</span>
+    <span class="k">writes to</span><span class="v">{{ d.writes_to }}/{{ d.service }}</span>
+    <span class="k">sha256</span><span class="v">{{ d.sha or '—' }}</span>
+  </div>
+</div>
+
+{# ── RECENT MOVEMENTS timeline ── #}
+{% if d.timeline %}
+<div>
+  <div class="sub">RECENT MOVEMENTS</div>
+  <div class="timeline">
+    {% for rel, outcome in d.timeline %}
+    <div class="ev">
+      <span class="dot {{ outcome }}">{{ st_icon.get(outcome, '?') }}</span>
+      <span class="t">{{ rel }}</span>
+      <span>{{ outcome | capitalize }}</span>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+{% endif %}
+
+{% endif %}
+
+{# ── STOOL SAMPLE (when present) ── #}
+{% if d.sample %}
+<div>
+  <div class="sub" style="color:var(--clogged)">STOOL SAMPLE</div>
+  <div class="sample">{{ d.sample }}</div>
+  <div class="hint" style="margin-top:6px">Fix: grant the secret to Fiber's stack, then re-flush to validate.</div>
+</div>
+{% endif %}
+
+{# ── EFFECTIVE LABELS ── #}
+{% if d.labels %}
+<div>
+  <div class="sub">EFFECTIVE LABELS <a class="copy" onclick="copy(this)">copy ▣</a></div>
+  <div class="codeblock">{{ d.labels }}</div>
+</div>
+{% endif %}
+
+{# ── ACTION BUTTONS ── #}
+<div class="dact-inline">
+{% if sv == 'misconfigured' %}
+  <button class="btn ghost" onclick="openAdd()">Label help</button>
+{% else %}
+  <button class="btn ghost"
+          hx-post="db/{{ d.service }}/test"
+          hx-target="#probe-result-{{ d.service }}"
+          hx-swap="innerHTML">Test connection</button>
+  <span id="probe-result-{{ d.service }}" style="font-size:15px;align-self:center"></span>
+  <button class="btn"
+          hx-post="db/{{ d.service }}/flush"
+          hx-target="#tile-{{ d.service }}"
+          hx-swap="outerHTML"
+          hx-on::after-request="toast('Queued a flush for {{ d.service }}')">Courtesy Flush</button>
+  {% if sv == 'straining' %}
+  <button class="btn pinch"
+          hx-post="db/{{ d.service }}/pinch"
+          hx-target="#tile-{{ d.service }}"
+          hx-swap="outerHTML"
+          hx-on::after-request="toast('Pinched {{ d.service }}');closeD()">Pinch it off</button>
+  {% endif %}
+  {% if sv == 'clogged' %}
+  <button class="btn ghost"
+          hx-post="db/{{ d.service }}/flush"
+          hx-target="#tile-{{ d.service }}"
+          hx-swap="outerHTML"
+          hx-on::after-request="toast('Flushing to validate {{ d.service }}')">Flush to validate</button>
+  {% endif %}
+{% endif %}
+</div>

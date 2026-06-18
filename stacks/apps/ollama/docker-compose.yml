@@ -5,7 +5,7 @@ services:
     image: ollama/ollama:latest
     container_name: ollama
     volumes:
-      - ollama-data:/root/.ollama
+      - ollama-models:/root/.ollama
     networks:
       - traefik-public
     environment:
@@ -15,6 +15,11 @@ services:
       # Default num_ctx for all models; Ollama's 4096 default silently
       # truncates prompts that carry MCP tool definitions (~9K tokens)
       - OLLAMA_CONTEXT_LENGTH=24576
+      # Pin loaded models in VRAM indefinitely. Without this Ollama unloads
+      # after 5 min idle, forcing a full ~18GB reload from disk on the next
+      # request (the dominant source of "slowness"). Model store is now on
+      # local NVMe (see volume below), so it stays resident on the 3090.
+      - OLLAMA_KEEP_ALIVE=-1
       - NVIDIA_VISIBLE_DEVICES=all
       - NVIDIA_DRIVER_CAPABILITIES=compute,utility
     deploy:
@@ -44,9 +49,16 @@ networks:
     external: true
 
 volumes:
-  ollama-data:
+  # Renamed from ollama-data (which was bound to iSCSI) to force Docker to create
+  # a fresh volume on the new device — `docker stack deploy` never updates an
+  # existing volume's driver_opts, so a rename is the clean way to repoint it.
+  ollama-models:
     driver: local
     driver_opts:
       type: "none"
       o: "bind"
-      device: "/mnt/iscsi/app-data/ollama"
+      # Node-local NVMe on the manager (llm node), NOT shared iSCSI. Ollama is a
+      # single-node service pinned via the `llm` label, so its model store has no
+      # reason to live on slow shared OCFS2/iSCSI. /mnt/nvme is the dedicated
+      # Samsung 970 EVO; see the migration note in the ollama README.
+      device: "/mnt/nvme/ollama"

@@ -13,6 +13,13 @@
 #       owner/group/mode      # optional
 #       optional: true        # skip silently if the source file is absent
 ---
+- name: Verify file storage roots are mounted
+  ansible.builtin.include_tasks: assert-storage-roots-mounted.yml
+  vars:
+    preflight_roots_to_check: >-
+      {{ preflight.files | map(attribute='base', default='app_data')
+         | map('extract', preflight_storage_roots) | list }}
+
 # Resolve each source path once (path-from-env via the leading $, like secrets),
 # so the stat and copy steps don't repeat the expression.
 - name: Reset resolved files list

@@ -10,6 +10,13 @@
 #       base: app_data|cache  # default app_data
 #       owner/group/mode      # optional
 ---
+- name: Verify template storage roots are mounted
+  ansible.builtin.include_tasks: assert-storage-roots-mounted.yml
+  vars:
+    preflight_roots_to_check: >-
+      {{ preflight.templates | map(attribute='base', default='app_data')
+         | map('extract', preflight_storage_roots) | list }}
+
 - name: Render stack templates to shared storage
   ansible.builtin.template:
     src: "{{ preflight_stack_path }}/{{ preflight_template.src }}"

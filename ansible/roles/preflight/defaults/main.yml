@@ -1,9 +1,14 @@
 # ansible/roles/preflight/defaults/main.yml
-# Shared-storage mount roots for the directories:/files:/templates: provisioning
-# tasks. Reuses the canonical iscsi_*_mount_path vars from group_vars/all/main.yml
+# Storage mount roots for the directories:/files:/templates: provisioning tasks.
+# Reuses the canonical iscsi_*_mount_path vars from group_vars/all/main.yml
 # (fallbacks keep the unit test green, where those vars aren't defined). The test
 # inventory overrides preflight_provision_become to keep --check unprivileged.
 ---
 preflight_storage_roots:
   app_data: "{{ iscsi_app_data_mount_path | default('/mnt/iscsi/app-data') }}"
   cache: "{{ iscsi_cache_mount_path | default('/mnt/iscsi/cache') }}"
+  # Node-local NVMe (NOT shared). For single-node, label-pinned stacks whose data
+  # should live on fast local disk rather than shared OCFS2/iSCSI — e.g. ollama's
+  # model store on the manager's EVO. The mount-guard in
+  # assert-storage-roots-mounted.yml protects against a `nofail` mount missing.
+  nvme: "{{ local_nvme_mount_path | default('/mnt/nvme') }}"

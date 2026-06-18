@@ -1,0 +1,7 @@
+# Fiber is manager-pinned (node.role == manager), so no custom node label is
+# required, and the compose defaults every FIBER_* var — so there's nothing to
+# validate. We only need the Bowl + state directories on shared storage; Kopia's
+# app-data policy then sweeps the Bowl offsite (the Treatment Plant).
+directories:
+  - { path: "fiber/bowl", base: app_data }
+  - { path: "fiber/state", base: app_data }

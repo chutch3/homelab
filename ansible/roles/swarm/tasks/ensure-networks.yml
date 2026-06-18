@@ -3,18 +3,22 @@
 # Ensures required overlay networks exist before deploying stacks.
 # Safe to run on an already-configured cluster — idempotent.
 
-- name: Ensure traefik-public overlay network exists
+- name: Ensure required overlay networks exist
   ansible.builtin.command:
-    cmd: docker --context "{{ swarm_docker_context }}" network create --driver overlay --attachable traefik-public
+    cmd: docker --context "{{ swarm_docker_context }}" network create --driver overlay --attachable {{ item }}
   delegate_to: localhost
   run_once: true
-  register: swarm_traefik_network
-  changed_when: swarm_traefik_network.rc == 0
+  loop: "{{ swarm_required_networks }}"
+  register: swarm_net
+  changed_when: swarm_net.rc == 0
   failed_when:
-    - swarm_traefik_network.rc != 0
-    - '"already exists" not in swarm_traefik_network.stderr'
+    - swarm_net.rc != 0
+    - '"already exists" not in swarm_net.stderr'
 
 - name: Report network status
   ansible.builtin.debug:
-    msg: "{{ '✓ traefik-public network created' if swarm_traefik_network.changed else '✓ traefik-public network already exists' }}"
+    msg: "{{ '✓ ' + item.item + ' network created' if item.changed else '✓ ' + item.item + ' network already exists' }}"
+  loop: "{{ swarm_net.results }}"
+  loop_control:
+    label: "{{ item.item }}"
   run_once: true

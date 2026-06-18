@@ -1,0 +1,10 @@
+validate:
+  labels:
+    - llm: "true"
+
+# Ollama's model store lives on node-local NVMe (the manager's EVO at /mnt/nvme),
+# NOT shared iSCSI — it's a single-node, llm-pinned service. The preflight
+# mount-guard refuses to deploy if /mnt/nvme isn't actually mounted, so a failed
+# `nofail` mount can't silently land 50GB of models on the root disk.
+directories:
+  - { path: ollama, base: nvme, owner: 0, group: 0 }

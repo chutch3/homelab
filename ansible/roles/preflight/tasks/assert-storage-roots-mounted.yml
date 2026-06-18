@@ -1,0 +1,39 @@
+# ansible/roles/preflight/tasks/assert-storage-roots-mounted.yml
+# Guard: refuse to provision into a storage root that isn't an actual mountpoint.
+# Without this, a plain mkdir under a root whose `nofail` mount silently failed
+# (local NVMe, or even OCFS2/iSCSI) would land data on the ROOT disk — e.g.
+# ollama would re-download 50GB of models onto `/`. The caller passes the list of
+# resolved root paths in `preflight_roots_to_check`.
+#
+# Skipped under --check (the unit test renders against fixture paths that aren't
+# mounted on the test runner); it's a real-deploy safety net, not a structural one.
+---
+- name: Check each storage root is a mounted filesystem
+  ansible.builtin.command:
+    cmd: "mountpoint -q {{ preflight_root }}"
+  register: preflight_root_mount_checks
+  changed_when: false
+  failed_when: false
+  loop: "{{ preflight_roots_to_check | default([]) | unique }}"
+  loop_control:
+    loop_var: preflight_root
+  delegate_to: "{{ groups['managers'][0] }}"
+  # Read-only check (stat-based) — runs as the deploy user, no privilege needed.
+  # Keeping become off means the guard never forces a sudo password (-K).
+  become: false
+  when: not ansible_check_mode
+
+- name: Fail clearly if any storage root is not mounted
+  ansible.builtin.assert:
+    that: preflight_root_check.rc == 0
+    fail_msg: >-
+      Storage root '{{ preflight_root_check.preflight_root }}' is NOT a mounted
+      filesystem on {{ groups['managers'][0] }}. Refusing to provision — a
+      `nofail` mount has likely failed, and creating directories here would write
+      data onto the root disk. Fix the mount and re-deploy.
+    quiet: true
+  loop: "{{ preflight_root_mount_checks.results | default([]) }}"
+  loop_control:
+    loop_var: preflight_root_check
+    label: "{{ preflight_root_check.preflight_root | default('?') }}"
+  when: not ansible_check_mode

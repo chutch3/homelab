@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+{% block content %}
+<header class="panel bar">
+  <div class="brand">
+    <img src="static/assets/mascot_avatar.png" alt="Fiber">
+    <div>
+      <div class="w pix">FIBER</div>
+      <div class="s">stay regular</div>
+    </div>
+  </div>
+  <div class="summary" id="summary">
+    {% include "_summary.html" %}
+  </div>
+  <div class="spacer"></div>
+  <div class="tools">
+    <label class="toggle"><input type="checkbox" id="calm" onchange="document.body.classList.toggle('calm',this.checked)"> calm</label>
+    <button class="btn ghost" onclick="openAdd()">+ Add DB</button>
+    <button class="btn"
+            hx-post="flush-all"
+            hx-target="#summary"
+            hx-swap="innerHTML"
+            onclick="return confirmFlushAll(event)">⟳ Flush all</button>
+  </div>
+</header>
+
+<main class="wall" id="wall">
+  {% for c in vm.cards %}
+  {% include "_tile.html" %}
+  {% endfor %}
+</main>
+
+<footer class="panel sys">
+  <span>THE BOWL <b style="color:var(--ink)">{{ vm.bowl_path }}</b> · <b style="color:var(--ink)">{{ vm.bowl_used }}</b> on disk</span>
+  <span style="font-size:22px">🐕</span>
+  <a class="disc" hx-get="discovery" hx-target="#disctbl" hx-swap="innerHTML"
+     onclick="document.getElementById('disc').classList.toggle('on')">▸ DISCOVERY · {{ vm.discovery | length }} services seen</a>
+  {% if vm.discovery_error %}
+  <span style="color:var(--amber,#f59e0b)">⚠ discovery failing: {{ vm.discovery_error }}</span>
+  {% else %}
+  <span>discovery: updated {{ vm.discovery_rel }}</span>
+  {% endif %}
+</footer>
+<section class="panel discpanel" id="disc"><table id="disctbl"></table></section>
+{% endblock %}

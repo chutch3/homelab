@@ -123,3 +123,9 @@ tailscale_health_check_interval_minutes: 5
 # Supported providers: bitwarden
 secret_provider: "{{ lookup('env', 'SECRET_PROVIDER') | default('bitwarden', true) }}"
 secret_vault_item: "{{ lookup('env', 'SECRET_VAULT_ITEM') | default('Homelab Secrets', true) }}"
+
+# Swarm overlay networks that must exist before any stack is deployed.
+# Add an entry here to have ensure-networks.yml create it automatically.
+swarm_required_networks:
+    - traefik-public
+    - backups

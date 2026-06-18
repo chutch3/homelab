@@ -43,3 +43,27 @@ groups:
         annotations:
           summary: "Status pipeline not syncing"
           description: "No activity on public-status bucket for >30min. Cron may be broken — check logs: task status-pipeline:logs"
+
+  # Fiber: alert on stale or failed database dumps
+  - name: fiber
+    interval: 30s
+    rules:
+      - alert: FiberBackupStale
+        expr: time() - max by (db) (fiber_last_success_timestamp) > 129600
+        for: 10m
+        labels:
+          severity: warning
+          component: fiber
+        annotations:
+          summary: "Fiber: {{ $labels.db }} has no clean dump in 36h"
+          description: "No successful dump for {{ $labels.db }} in over 36h — check the Throne Room."
+
+      - alert: FiberBackupClogged
+        expr: increase(fiber_movements_total{status="clogged"}[1h]) > 0
+        for: 5m
+        labels:
+          severity: warning
+          component: fiber
+        annotations:
+          summary: "Fiber: {{ $labels.db }} dump failed (clogged)"
+          description: "A dump for {{ $labels.db }} failed in the last hour — pull the stool sample in the drawer."

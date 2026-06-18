@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>FIBER — The Throne Room</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Silkscreen:wght@400;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="static/fiber.css">
+<script src="https://unpkg.com/htmx.org@2.0.4" defer></script>
+<script src="static/wall.js" defer></script>
+</head>
+<body>
+<div class="app">
+{% block content %}{% endblock %}
+</div>
+
+<div class="scrim" id="scrim" onclick="closeD()"></div>
+<aside class="panel drawer" id="drawer">
+  <div class="dh">
+    <div><div class="nm" id="d_nm">—</div><div class="eng" id="d_eng">—</div></div>
+    <span id="d_badge" class="dbadge">—</span>
+    <span class="x" onclick="closeD()">✕</span>
+  </div>
+  <div class="dbody" id="d_body"></div>
+  <div class="dact" id="d_act"></div>
+</aside>
+<div class="modal" id="modal">
+  <div class="panel box">
+    <h3 id="m_title">—</h3>
+    <p id="m_msg">—</p>
+    <div class="acts">
+      <button class="btn ghost" onclick="closeModal()">Cancel</button>
+      <button class="btn" id="m_ok">Confirm</button>
+    </div>
+  </div>
+</div>
+<div class="toast" id="toast"></div>
+</body>
+</html>

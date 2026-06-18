@@ -14,6 +14,12 @@ includes:
     takeout-manager:
         taskfile: stacks/apps/takeout-manager/Taskfile.yml
         dir: stacks/apps/takeout-manager
+    warden:
+        taskfile: stacks/apps/warden/Taskfile.yml
+        dir: stacks/apps/warden
+    fiber:
+        taskfile: stacks/apps/fiber/Taskfile.yml
+        dir: stacks/apps/fiber
     devbox:
         taskfile: images/devbox/Taskfile.yml
         dir: images/devbox
