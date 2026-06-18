@@ -29,3 +29,11 @@ def test_reconcile_returns_skipped_services_without_fiber_enable() -> None:
     assert "immich" in skipped_services
     for svc, reason in skipped:
         assert reason == "no fiber.enable label"
+
+
+def test_reconcile_threads_active_provider() -> None:
+    services = {"e2e-pg": {"fiber.enable": "true", "fiber.dbname": "e2e",
+                           "fiber.user": "e2e", "fiber.secret": "s", "fiber.provider": "swarm"}}
+    jobs, misconfigured, _ = reconcile(services, active_provider="docker")
+    assert jobs == []
+    assert [m.service for m in misconfigured] == ["e2e-pg"]
