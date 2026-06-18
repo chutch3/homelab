@@ -2,7 +2,7 @@ version: "3.9"
 
 services:
   code-server:
-    image: ${REGISTRY_URL:-ghcr.io}/${GITHUB_USERNAME}/homelab-devbox:latest@sha256:37d0de7142d3b34f9e1ee4a226e85e4c6549ac02fb66e6348297538031ea1bb4
+    image: ${REGISTRY_URL:-ghcr.io}/${GITHUB_USERNAME}/homelab-devbox:latest@sha256:fbc55a6043d0b18ca831290ea7723ee8755578e1082c2a1822c3efbbad7413b9
     environment:
       - TZ=${TZ:-America/New_York}
       - NVIDIA_VISIBLE_DEVICES=all
