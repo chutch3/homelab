@@ -2,11 +2,11 @@ from __future__ import annotations
 
 from fiber.clients.bowl import BowlStorage
 from fiber.repositories.history import HistoryRepository
-from fiber.clients.swarm import DockerSwarmGateway
+from fiber.clients.discovery import DiscoveryProvider
 
 
 class Readiness:
-    def __init__(self, bowl: BowlStorage, history: HistoryRepository, swarm: DockerSwarmGateway) -> None:
+    def __init__(self, bowl: BowlStorage, history: HistoryRepository, swarm: DiscoveryProvider) -> None:
         self._bowl = bowl
         self._history = history
         self._swarm = swarm

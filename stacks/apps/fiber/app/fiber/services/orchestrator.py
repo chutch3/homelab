@@ -14,7 +14,7 @@ from fiber.metrics import Metrics
 from fiber.models import (DumpFormat, DumpJob, Manifest, MovementOutcome, MovementRecord)
 from fiber.plunger import plan_sweep
 from fiber.clients.secrets import SecretReader
-from fiber.clients.swarm import DockerSwarmGateway
+from fiber.clients.discovery import DiscoveryProvider
 
 _EXT = {DumpFormat.CUSTOM: "dump", DumpFormat.DIRECTORY: "dir", DumpFormat.PLAIN: "sql"}
 
@@ -22,7 +22,7 @@ _EXT = {DumpFormat.CUSTOM: "dump", DumpFormat.DIRECTORY: "dir", DumpFormat.PLAIN
 class MovementOrchestrator:
     def __init__(self, bowl_factory: Callable[[str], BowlStorage], bowl_root: str,
                  secrets: SecretReader, runner: DumpRunner,
-                 history: HistoryRepository, swarm: DockerSwarmGateway, clock: SystemClock,
+                 history: HistoryRepository, swarm: DiscoveryProvider, clock: SystemClock,
                  fiber_version: str, metrics: Metrics, events: EventBroker) -> None:
         self._bowl_factory = bowl_factory
         self._bowl_root = bowl_root
