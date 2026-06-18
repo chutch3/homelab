@@ -89,7 +89,10 @@ def test_provider_mismatch_is_misconfigured() -> None:
               "fiber.secret": "s", "fiber.provider": "swarm"}
     result = parse_job("e2e-pg", labels, active_provider="docker")
     assert isinstance(result, MisconfiguredJob)
-    assert any("provider mismatch" in e for e in result.errors)
+    assert len(result.errors) == 1
+    assert "provider mismatch" in result.errors[0]
+    assert "label=swarm" in result.errors[0]
+    assert "active=docker" in result.errors[0]
 
 
 def test_docker_provider_label_accepted_when_active() -> None:

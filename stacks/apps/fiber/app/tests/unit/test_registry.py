@@ -37,3 +37,4 @@ def test_reconcile_threads_active_provider() -> None:
     jobs, misconfigured, _ = reconcile(services, active_provider="docker")
     assert jobs == []
     assert [m.service for m in misconfigured] == ["e2e-pg"]
+    assert "provider mismatch" in misconfigured[0].errors[0]
