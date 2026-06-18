@@ -86,7 +86,7 @@ class TestHealthRoutes:
         bowl_mock.has_room.return_value = True
         history_mock = MagicMock(spec=HistoryRepository)
         history_mock.last_success.return_value = None
-        real_readiness = Readiness(bowl=bowl_mock, history=history_mock, swarm=bad_swarm)
+        real_readiness = Readiness(bowl=bowl_mock, history=history_mock, discovery=bad_swarm)
 
         metrics = Metrics(registry=CollectorRegistry())
         container.metrics.override(metrics)

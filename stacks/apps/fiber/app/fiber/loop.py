@@ -22,7 +22,7 @@ _logger = get_logger("fiber.main")
 
 
 async def _scan_loop_inner(
-    swarm: DiscoveryProvider,
+    discovery: DiscoveryProvider,
     history: HistoryRepository,
     pool: WorkerPool,
     orchestrator: MovementOrchestrator,
@@ -37,7 +37,7 @@ async def _scan_loop_inner(
     now = clock.now()
     prev = registry_state.get()
     try:
-        jobs, misconfigured, skipped = reconcile(swarm.list_dump_services(), active_provider)
+        jobs, misconfigured, skipped = reconcile(discovery.list_dump_services(), active_provider)
     except Exception as exc:
         _logger.error("discovery failed: %s", exc)
         registry_state.set(Snapshot(
@@ -78,7 +78,7 @@ async def _scan_loop_inner(
 @inject
 async def _scan_loop(
     stop: asyncio.Event,
-    swarm: DiscoveryProvider = Provide[Container.discovery],
+    discovery: DiscoveryProvider = Provide[Container.discovery],
     history: HistoryRepository = Provide[Container.history_repository],
     pool: WorkerPool = Provide[Container.pool],
     orchestrator: MovementOrchestrator = Provide[Container.orchestrator],
@@ -86,12 +86,12 @@ async def _scan_loop(
     metrics: Metrics = Provide[Container.metrics],
     interval: float = Provide[Container.config.provided.scan_interval],
     registry_state: RegistryState = Provide[Container.registry_state],
-    active_provider: str = Provide[Container._active_provider],
+    active_provider: str = Provide[Container.active_provider],
     probe: ConnectivityProbe = Provide[Container.probe],
 ) -> None:
     while not stop.is_set():
         await _scan_loop_inner(
-            swarm=swarm,
+            discovery=discovery,
             history=history,
             pool=pool,
             orchestrator=orchestrator,

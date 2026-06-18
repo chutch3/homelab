@@ -31,7 +31,7 @@ class TestReadiness:
 
     @pytest.fixture()
     def subject(self, bowl: MagicMock, history: MagicMock, swarm: MagicMock) -> Readiness:
-        return Readiness(bowl=bowl, history=history, swarm=swarm)
+        return Readiness(bowl=bowl, history=history, discovery=swarm)
 
     def test_readiness_true_when_all_ok(self, subject: Readiness, bowl: MagicMock) -> None:
         assert subject() is True
@@ -69,7 +69,7 @@ class TestReadiness:
         bowl.has_room.side_effect = RuntimeError("bowl exploded")
         history.last_success.side_effect = RuntimeError("db exploded")
         swarm.list_dump_services.side_effect = RuntimeError("swarm exploded")
-        subject = Readiness(bowl=bowl, history=history, swarm=swarm)
+        subject = Readiness(bowl=bowl, history=history, discovery=swarm)
         # Must return False, not raise
         result = subject()
         assert result is False
@@ -85,5 +85,5 @@ class TestReadiness:
             raise docker.errors.DockerException("no docker socket")
 
         real_swarm = DockerSwarmGateway(client_factory=bad_factory)
-        subject = Readiness(bowl=bowl, history=history, swarm=real_swarm)
+        subject = Readiness(bowl=bowl, history=history, discovery=real_swarm)
         assert subject() is False

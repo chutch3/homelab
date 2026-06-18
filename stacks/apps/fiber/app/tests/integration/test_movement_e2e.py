@@ -27,7 +27,7 @@ def _make_orch(tmp_path: Path) -> MovementOrchestrator:
         secrets=SecretReader(base_dir=str(tmp_path / "secrets")),
         runner=DumpRunner(),
         history=HistoryRepository(session_factory=db.session),
-        swarm=DockerSwarmGateway(client_factory=lambda: None),
+        discovery=DockerSwarmGateway(client_factory=lambda: None),
         clock=SystemClock(),
         fiber_version="0.1.0",
         metrics=Metrics(registry=CollectorRegistry()),

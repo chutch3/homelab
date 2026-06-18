@@ -10,7 +10,7 @@ from prometheus_client import CollectorRegistry
 from fiber.clock import SystemClock
 from fiber.repositories.history import HistoryRepository
 from fiber.metrics import Metrics
-from fiber.clients.swarm import DockerSwarmGateway
+from fiber.clients.discovery import DiscoveryProvider
 from fiber.clients.probe import ConnectivityProbe, ProbeResult
 from fiber.services.registry_state import RegistryState
 from fiber.services.worker_pool import WorkerPool
@@ -18,7 +18,7 @@ from tests.factories import DumpJobFactory
 
 
 def _base_mocks() -> tuple[MagicMock, MagicMock, MagicMock, MagicMock, Metrics, asyncio.Event, RegistryState, AsyncMock]:
-    swarm = MagicMock(spec=DockerSwarmGateway)
+    swarm = MagicMock(spec=DiscoveryProvider)
     swarm.list_dump_services.return_value = {
         "kenku-pg": {
             "fiber.enable": "true",
@@ -61,7 +61,7 @@ async def test_skipped_overlap_incremented_when_pool_returns_none() -> None:
 
     from fiber.loop import _scan_loop_inner
     await _scan_loop_inner(
-        swarm=swarm,
+        discovery=swarm,
         history=history,
         pool=pool,
         orchestrator=orchestrator,
@@ -86,7 +86,7 @@ async def test_job_enqueued_when_pool_submit_returns_task() -> None:
 
     from fiber.loop import _scan_loop_inner
     await _scan_loop_inner(
-        swarm=swarm,
+        discovery=swarm,
         history=history,
         pool=pool,
         orchestrator=orchestrator,
@@ -104,7 +104,7 @@ async def test_job_enqueued_when_pool_submit_returns_task() -> None:
 
 async def test_misconfigured_service_logs_warning() -> None:
     """Misconfigured services (missing required labels) are logged as warnings."""
-    swarm = MagicMock(spec=DockerSwarmGateway)
+    swarm = MagicMock(spec=DiscoveryProvider)
     # Service opted in but missing required labels — will be misconfigured
     swarm.list_dump_services.return_value = {
         "bad-svc": {"fiber.enable": "true"}  # missing host, port, user, dbname, secret
@@ -125,7 +125,7 @@ async def test_misconfigured_service_logs_warning() -> None:
     from fiber.loop import _scan_loop_inner
     # Should not raise; warning is logged
     await _scan_loop_inner(
-        swarm=swarm,
+        discovery=swarm,
         history=history,
         pool=pool,
         orchestrator=orchestrator,
@@ -160,7 +160,7 @@ async def test_scan_loop_updates_registry_state_with_snapshot() -> None:
 
     from fiber.loop import _scan_loop_inner
     await _scan_loop_inner(
-        swarm=swarm,
+        discovery=swarm,
         history=history,
         pool=pool,
         orchestrator=orchestrator,
@@ -188,7 +188,7 @@ async def test_scan_loop_sets_scanned_at_on_success() -> None:
 
     from fiber.loop import _scan_loop_inner
     await _scan_loop_inner(
-        swarm=swarm,
+        discovery=swarm,
         history=history,
         pool=pool,
         orchestrator=orchestrator,
@@ -235,7 +235,7 @@ async def test_scan_loop_preserves_jobs_on_swarm_error() -> None:
     orchestrator = AsyncMock()
 
     await _scan_loop_inner(
-        swarm=swarm,
+        discovery=swarm,
         history=history,
         pool=pool,
         orchestrator=orchestrator,
@@ -262,12 +262,12 @@ async def test_skips_and_counts_when_probe_not_ready() -> None:
     """When probe reports not-ready, pool.submit must not be called and skipped_not_ready is incremented."""
     swarm, history, pool, clock, metrics, stop, registry_state, _ = _base_mocks()
     orchestrator = AsyncMock()
-    probe = AsyncMock()
+    probe = AsyncMock(spec=ConnectivityProbe)
     probe.check.return_value = ProbeResult(ok=False, detail="no response")
 
     from fiber.loop import _scan_loop_inner
     await _scan_loop_inner(
-        swarm=swarm, history=history, pool=pool, orchestrator=orchestrator,
+        discovery=swarm, history=history, pool=pool, orchestrator=orchestrator,
         clock=clock, metrics=metrics, stop=stop, interval=0,
         registry_state=registry_state, active_provider="swarm", probe=probe,
     )
@@ -284,7 +284,7 @@ async def test_scan_loop_runs_until_stop_is_set() -> None:
     from fiber.services.registry_state import RegistryState
 
     c = Container()
-    swarm_mock = MagicMock(spec=DockerSwarmGateway)
+    swarm_mock = MagicMock(spec=DiscoveryProvider)
     swarm_mock.list_dump_services.return_value = {}
     history_mock = MagicMock(spec=HistoryRepository)
     history_mock.last_success.return_value = None
