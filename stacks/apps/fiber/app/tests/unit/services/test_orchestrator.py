@@ -89,7 +89,7 @@ class TestMovementOrchestrator:
         return MovementOrchestrator(
             bowl_factory=bowl_factory, bowl_root="/backups",
             secrets=secrets, runner=runner, history=history,
-            swarm=swarm, clock=clock, fiber_version="0.1.0", metrics=metrics,
+            discovery=swarm, clock=clock, fiber_version="0.1.0", metrics=metrics,
             events=broker,
         )
 

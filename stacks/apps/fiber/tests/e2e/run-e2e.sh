@@ -1,130 +1,48 @@
 #!/usr/bin/env bash
+# Unprivileged Fiber e2e: plain docker compose (bridge net), real dump -> restore -> assert.
 set -euo pipefail
+cd "$(dirname "$0")"
 
-STACK=fiber-e2e
-SECRET=e2e_db_password
-NETWORK=backups
-# Script must be invocable from any working directory; resolve paths relative to itself.
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPO_ROOT="$(cd "${SCRIPT_DIR}/../../../.." && pwd)"
+PROJECT="fiber-e2e"
+NET="${PROJECT}_fibernet"
 
 cleanup() {
-    echo "--- cleanup ---"
-    docker stack rm "${STACK}" 2>/dev/null || true
-    # Wait for stack services to drain before removing shared resources
-    local attempts=0
-    while docker stack ps "${STACK}" --no-trunc -q 2>/dev/null | grep -q .; do
-        attempts=$(( attempts + 1 ))
-        if [ "${attempts}" -ge 30 ]; then
-            echo "WARNING: stack tasks still running after 30s" >&2
-            break
-        fi
-        sleep 1
-    done
-    docker secret rm "${SECRET}" 2>/dev/null || true
-    docker network rm "${NETWORK}" 2>/dev/null || true
-    docker swarm leave --force 2>/dev/null || true
+  docker compose -p "$PROJECT" down -v --remove-orphans >/dev/null 2>&1 || true
+  docker rm -f fiber-e2e-restore >/dev/null 2>&1 || true
+  rm -f e2e_db_password /tmp/e2e.dump
 }
 trap cleanup EXIT
 
-# ---------------------------------------------------------------------------
-# 1. Bootstrap single-node swarm (idempotent)
-# ---------------------------------------------------------------------------
-docker swarm init 2>/dev/null || true
+echo "e2e_password" > e2e_db_password
 
-# ---------------------------------------------------------------------------
-# 2. Overlay network
-# ---------------------------------------------------------------------------
-docker network create -d overlay --attachable "${NETWORK}" 2>/dev/null || true
+echo "==> Building fiber:e2e image"
+docker build -t fiber:e2e -f ../../app/Dockerfile ../../
 
-# ---------------------------------------------------------------------------
-# 3. Secret
-# ---------------------------------------------------------------------------
-printf 'testpass' | docker secret create "${SECRET}" - 2>/dev/null || true
+echo "==> Bringing up the compose stack"
+docker compose -p "$PROJECT" up -d
 
-# ---------------------------------------------------------------------------
-# 4. Build fiber image
-# ---------------------------------------------------------------------------
-docker build \
-    -t fiber:e2e \
-    -f "${REPO_ROOT}/stacks/apps/fiber/app/Dockerfile" \
-    "${REPO_ROOT}/stacks/apps/fiber"
-
-# ---------------------------------------------------------------------------
-# 5. Deploy stack
-# ---------------------------------------------------------------------------
-docker stack deploy \
-    -c "${SCRIPT_DIR}/stack.yml" \
-    "${STACK}"
-
-# ---------------------------------------------------------------------------
-# 6. Poll for a .dump artifact in the fiber bowl (up to 150 s)
-# ---------------------------------------------------------------------------
-echo "--- waiting for dump artifact ---"
-DUMP_PATH=""
-attempts=0
-while [ "${attempts}" -lt 150 ]; do
-    # Get the container ID of the running fiber task
-    FIBER_CONTAINER=$(docker ps --filter "name=${STACK}_fiber" --format "{{.ID}}" 2>/dev/null | head -1)
-    if [ -n "${FIBER_CONTAINER}" ]; then
-        DUMP_PATH=$(docker exec "${FIBER_CONTAINER}" sh -c 'ls /backups/*/*.dump 2>/dev/null | head -1' 2>/dev/null || true)
-        if [ -n "${DUMP_PATH}" ]; then
-            echo "dump found: ${DUMP_PATH}"
-            break
-        fi
-    fi
-    attempts=$(( attempts + 1 ))
-    sleep 1
+echo "==> Waiting for Fiber to produce a dump (<=120s)"
+deadline=$((SECONDS + 120))
+dump=""
+while [ $SECONDS -lt $deadline ]; do
+  dump=$(docker compose -p "$PROJECT" exec -T fiber sh -c 'ls /backups/*/*.dump 2>/dev/null | head -1' || true)
+  [ -n "$dump" ] && break
+  sleep 3
 done
-
-if [ -z "${DUMP_PATH}" ]; then
-    echo "FAIL: no dump artifact appeared within 150 s" >&2
-    exit 1
+if [ -z "$dump" ]; then
+  echo "FAIL: no dump produced"; docker compose -p "$PROJECT" logs fiber; exit 1
 fi
+echo "    dump: $dump"
 
-# ---------------------------------------------------------------------------
-# 7. Copy dump out and restore into a scratch DB; assert row count = 1000
-# ---------------------------------------------------------------------------
-echo "--- restoring dump and asserting row count ---"
+echo "==> Restoring into a scratch postgres and asserting row count"
+docker run -d --name fiber-e2e-restore --network "$NET" -e POSTGRES_PASSWORD=restore postgres:16 >/dev/null
+until docker exec fiber-e2e-restore pg_isready -U postgres >/dev/null 2>&1; do sleep 1; done
+docker exec fiber-e2e-restore psql -U postgres -c 'CREATE DATABASE e2e;' >/dev/null
+docker compose -p "$PROJECT" exec -T fiber sh -c "cat $dump" > /tmp/e2e.dump
+docker cp /tmp/e2e.dump fiber-e2e-restore:/tmp/e2e.dump
+docker exec fiber-e2e-restore pg_restore -U postgres -d e2e --no-owner --no-privileges /tmp/e2e.dump
+count=$(docker exec fiber-e2e-restore psql -U postgres -d e2e -tAc 'SELECT count(*) FROM e2e_data;' | tr -d '[:space:]')
 
-# Copy the dump file out of the fiber container to the host
-TMP_DUMP="$(mktemp --suffix=.dump)"
-docker cp "${FIBER_CONTAINER}:${DUMP_PATH}" "${TMP_DUMP}"
-
-# Spin up a throwaway postgres:16 container to restore into
-SCRATCH_NAME="fiber-e2e-scratch-$$"
-docker run -d \
-    --name "${SCRATCH_NAME}" \
-    -e POSTGRES_USER=verify \
-    -e POSTGRES_PASSWORD=verify \
-    -e POSTGRES_DB=verify \
-    postgres:16
-
-# Give postgres a moment to start
-sleep 5
-
-# Copy dump into scratch container then restore
-docker cp "${TMP_DUMP}" "${SCRATCH_NAME}:/tmp/verify.dump"
-rm -f "${TMP_DUMP}"
-
-docker exec "${SCRATCH_NAME}" \
-    pg_restore \
-    -U verify \
-    -d verify \
-    --no-privileges \
-    --no-owner \
-    /tmp/verify.dump
-
-# Assert row count
-ROW_COUNT=$(docker exec "${SCRATCH_NAME}" \
-    psql -U verify -d verify -tAc "SELECT COUNT(*) FROM e2e_data;")
-
-docker rm -f "${SCRATCH_NAME}" 2>/dev/null || true
-
-ROW_COUNT=$(echo "${ROW_COUNT}" | tr -d '[:space:]')
-if [ "${ROW_COUNT}" != "1000" ]; then
-    echo "FAIL: expected 1000 rows, got '${ROW_COUNT}'" >&2
-    exit 1
-fi
-
-echo "PASS: dump restored successfully, row count = ${ROW_COUNT}"
+echo "    rows restored: $count"
+[ "$count" = "1000" ] || { echo "FAIL: expected 1000 rows, got $count"; exit 1; }
+echo "PASS: e2e dump -> restore verified 1000 rows (unprivileged, no swarm)"

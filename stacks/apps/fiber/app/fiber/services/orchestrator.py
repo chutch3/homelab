@@ -14,7 +14,7 @@ from fiber.metrics import Metrics
 from fiber.models import (DumpFormat, DumpJob, Manifest, MovementOutcome, MovementRecord)
 from fiber.plunger import plan_sweep
 from fiber.clients.secrets import SecretReader
-from fiber.clients.swarm import DockerSwarmGateway
+from fiber.clients.discovery import DiscoveryProvider
 
 _EXT = {DumpFormat.CUSTOM: "dump", DumpFormat.DIRECTORY: "dir", DumpFormat.PLAIN: "sql"}
 
@@ -22,14 +22,14 @@ _EXT = {DumpFormat.CUSTOM: "dump", DumpFormat.DIRECTORY: "dir", DumpFormat.PLAIN
 class MovementOrchestrator:
     def __init__(self, bowl_factory: Callable[[str], BowlStorage], bowl_root: str,
                  secrets: SecretReader, runner: DumpRunner,
-                 history: HistoryRepository, swarm: DockerSwarmGateway, clock: SystemClock,
+                 history: HistoryRepository, discovery: DiscoveryProvider, clock: SystemClock,
                  fiber_version: str, metrics: Metrics, events: EventBroker) -> None:
         self._bowl_factory = bowl_factory
         self._bowl_root = bowl_root
         self._secrets = secrets
         self._runner = runner
         self._history = history
-        self._swarm = swarm
+        self._discovery = discovery
         self._clock = clock
         self._version = fiber_version
         self._metrics = metrics
@@ -73,7 +73,7 @@ class MovementOrchestrator:
         size = bowl.size(final)
         sha = bowl.checksum(final)
         bristol = classify(size, baseline or None)
-        image, digest = self._swarm.image_of(job.app) if job.app else (None, None)
+        image, digest = self._discovery.image_of(job.app) if job.app else (None, None)
         finished = self._clock.now()
         manifest = Manifest(service=job.service, engine=job.engine, server_version="",
                             app_service=job.app, app_image=image, app_digest=digest,

@@ -56,10 +56,10 @@ jobs:
               run: FIBER_INTEGRATION=1 uv run pytest tests/integration/test_dump_runner.py tests/integration/test_movement_e2e.py -v
 
     e2e:
-        name: Swarm e2e
+        name: Compose e2e
         runs-on: ubuntu-latest
         steps:
             - uses: actions/checkout@v4
 
-            - name: Run Swarm e2e
+            - name: Run compose e2e
               run: bash stacks/apps/fiber/tests/e2e/run-e2e.sh

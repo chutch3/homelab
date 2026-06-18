@@ -6,12 +6,13 @@ from fiber.models import DumpJob, MisconfiguredJob
 
 def reconcile(
     services: dict[str, dict[str, str]],
+    active_provider: str = "swarm",
 ) -> tuple[list[DumpJob], list[MisconfiguredJob], list[tuple[str, str]]]:
     jobs: list[DumpJob] = []
     misconfigured: list[MisconfiguredJob] = []
     skipped: list[tuple[str, str]] = []
     for service, labels in services.items():
-        parsed = parse_job(service, labels)
+        parsed = parse_job(service, labels, active_provider)
         if isinstance(parsed, DumpJob):
             jobs.append(parsed)
         elif isinstance(parsed, MisconfiguredJob):

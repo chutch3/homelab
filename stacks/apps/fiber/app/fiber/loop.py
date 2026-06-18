@@ -9,7 +9,8 @@ from fiber.clock import SystemClock
 from fiber.container import Container
 from fiber.logger import get_logger
 from fiber.metrics import Metrics
-from fiber.clients.swarm import DockerSwarmGateway
+from fiber.clients.discovery import DiscoveryProvider
+from fiber.clients.probe import ConnectivityProbe
 from fiber.registry import reconcile
 from fiber.repositories.history import HistoryRepository
 from fiber.scheduler import due_jobs
@@ -21,7 +22,7 @@ _logger = get_logger("fiber.main")
 
 
 async def _scan_loop_inner(
-    swarm: DockerSwarmGateway,
+    discovery: DiscoveryProvider,
     history: HistoryRepository,
     pool: WorkerPool,
     orchestrator: MovementOrchestrator,
@@ -30,11 +31,13 @@ async def _scan_loop_inner(
     stop: asyncio.Event,
     interval: float,
     registry_state: RegistryState,
+    active_provider: str,
+    probe: ConnectivityProbe,
 ) -> None:
     now = clock.now()
     prev = registry_state.get()
     try:
-        jobs, misconfigured, skipped = reconcile(swarm.list_dump_services())
+        jobs, misconfigured, skipped = reconcile(discovery.list_dump_services(), active_provider)
     except Exception as exc:
         _logger.error("discovery failed: %s", exc)
         registry_state.set(Snapshot(
@@ -59,6 +62,10 @@ async def _scan_loop_inner(
     last = {j.service: history.last_success(j.service) for j in jobs}
     for job in due_jobs(jobs, clock.now(), last_success={k: v for k, v in last.items() if v},
                         running=pool.running_services()):
+        if not (await probe.check(job)).ok:
+            metrics.skipped_not_ready.labels(db=job.service).inc()
+            _logger.info("deferred %s: database not ready", job.service)
+            continue
         result = pool.submit(job.service, lambda j=job: orchestrator.perform(j))
         if result is None:
             metrics.skipped_overlap.labels(db=job.service).inc()
@@ -71,7 +78,7 @@ async def _scan_loop_inner(
 @inject
 async def _scan_loop(
     stop: asyncio.Event,
-    swarm: DockerSwarmGateway = Provide[Container.swarm],
+    discovery: DiscoveryProvider = Provide[Container.discovery],
     history: HistoryRepository = Provide[Container.history_repository],
     pool: WorkerPool = Provide[Container.pool],
     orchestrator: MovementOrchestrator = Provide[Container.orchestrator],
@@ -79,10 +86,12 @@ async def _scan_loop(
     metrics: Metrics = Provide[Container.metrics],
     interval: float = Provide[Container.config.provided.scan_interval],
     registry_state: RegistryState = Provide[Container.registry_state],
+    active_provider: str = Provide[Container.active_provider],
+    probe: ConnectivityProbe = Provide[Container.probe],
 ) -> None:
     while not stop.is_set():
         await _scan_loop_inner(
-            swarm=swarm,
+            discovery=discovery,
             history=history,
             pool=pool,
             orchestrator=orchestrator,
@@ -91,4 +100,6 @@ async def _scan_loop(
             stop=stop,
             interval=interval,
             registry_state=registry_state,
+            active_provider=active_provider,
+            probe=probe,
         )

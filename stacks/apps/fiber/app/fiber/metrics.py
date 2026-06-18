@@ -19,6 +19,8 @@ class Metrics:
                                  ["db"], registry=registry)
         self.skipped_overlap = Counter("fiber_skipped_overlap_total", "Skipped overlaps",
                                        ["db"], registry=registry)
+        self.skipped_not_ready = Counter("fiber_skipped_not_ready_total", "Skipped: database not ready",
+                                         ["db"], registry=registry)
         self.dingleberries = Counter("fiber_dingleberries_total", "Dingleberries swept",
                                      registry=registry)
 

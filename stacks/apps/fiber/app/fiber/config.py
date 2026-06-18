@@ -16,6 +16,7 @@ class Config:
     scan_interval: float
     metrics_port: int
     docker_host: str
+    provider: str
     scan_enabled: bool
 
     @staticmethod
@@ -23,6 +24,9 @@ class Config:
         db_path = os.getenv("FIBER_DB_PATH", "/state/fiber.db")
         raw_scan_enabled = os.getenv("FIBER_SCAN_ENABLED", "true").strip().lower()
         scan_enabled = raw_scan_enabled not in ("0", "false", "no")
+        provider = os.getenv("FIBER_PROVIDER", "swarm")
+        if provider not in ("swarm", "docker"):
+            raise ValueError(f"FIBER_PROVIDER must be 'swarm' or 'docker', got {provider!r}")
         return Config(
             bowl_path=os.getenv("FIBER_BOWL_PATH", "/backups"),
             db_path=db_path,
@@ -34,5 +38,6 @@ class Config:
             scan_interval=float(os.getenv("FIBER_SCAN_INTERVAL", "60")),
             metrics_port=int(os.getenv("FIBER_METRICS_PORT", "9090")),
             docker_host=os.getenv("FIBER_DOCKER_HOST", "unix:///var/run/docker.sock"),
+            provider=provider,
             scan_enabled=scan_enabled,
         )

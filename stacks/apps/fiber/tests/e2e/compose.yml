@@ -1,0 +1,50 @@
+name: fiber-e2e
+
+services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: e2e
+      POSTGRES_USER: e2e
+      POSTGRES_PASSWORD: e2e_password
+    volumes:
+      - ./seed.sql:/docker-entrypoint-initdb.d/seed.sql:ro
+    labels:
+      - "fiber.enable=true"
+      - "fiber.provider=docker"
+      - "fiber.engine=postgres"
+      - "fiber.dbname=e2e"
+      - "fiber.user=e2e"
+      - "fiber.secret=e2e_db_password"
+      - "fiber.host=postgres"
+      - "fiber.schedule=* * * * *"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U e2e -d e2e"]
+      interval: 2s
+      timeout: 3s
+      retries: 15
+    networks: [fibernet]
+
+  fiber:
+    image: fiber:e2e
+    environment:
+      - FIBER_PROVIDER=docker
+      - FIBER_BOWL_PATH=/backups
+      - FIBER_DB_PATH=/state/fiber.db
+      - FIBER_DOCKER_HOST=unix:///var/run/docker.sock
+      - FIBER_SECRETS_DIR=/run/secrets
+      - FIBER_SCAN_INTERVAL=5
+    volumes:
+      - bowl:/backups
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./e2e_db_password:/run/secrets/e2e_db_password:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks: [fibernet]
+
+networks:
+  fibernet: {}
+
+volumes:
+  bowl: {}

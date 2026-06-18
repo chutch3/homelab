@@ -38,7 +38,7 @@ tasks:
         cmds:
             - FIBER_INTEGRATION=1 uv run pytest tests/integration/test_dump_runner.py tests/integration/test_movement_e2e.py -v
     test:e2e:
-        desc: Run Swarm end-to-end test (requires Docker with Swarm capability)
+        desc: Run unprivileged compose end-to-end test (requires Docker)
         cmds:
             - bash {{.STACK_DIR}}/tests/e2e/run-e2e.sh
     demo:

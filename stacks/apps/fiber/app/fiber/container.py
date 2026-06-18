@@ -20,6 +20,7 @@ from fiber.services.orchestrator import MovementOrchestrator
 from fiber.services.readiness import Readiness
 from fiber.services.registry_state import RegistryState
 from fiber.clients.secrets import SecretReader
+from fiber.clients.container import DockerContainerGateway
 from fiber.clients.swarm import DockerSwarmGateway
 from fiber.services.worker_pool import WorkerPool
 
@@ -36,7 +37,14 @@ class Container(containers.DeclarativeContainer):
     runner = providers.Singleton(DumpRunner)
     probe = providers.Singleton(ConnectivityProbe)
     docker_client = providers.Factory(docker.DockerClient, base_url=config.provided.docker_host)
-    swarm = providers.Singleton(DockerSwarmGateway, client_factory=docker_client.provider)
+    swarm_gateway = providers.Singleton(DockerSwarmGateway, client_factory=docker_client.provider)
+    container_gateway = providers.Singleton(DockerContainerGateway, client_factory=docker_client.provider)
+    active_provider = providers.Callable(lambda c: c.provider, config)
+    discovery = providers.Selector(
+        active_provider,
+        swarm=swarm_gateway,
+        docker=container_gateway,
+    )
     pool = providers.Singleton(WorkerPool, max_concurrent=config.provided.max_concurrent)
     bowl_factory = providers.Factory(BowlStorage)
     events = providers.Singleton(EventBroker)
@@ -44,10 +52,10 @@ class Container(containers.DeclarativeContainer):
     orchestrator = providers.Singleton(
         MovementOrchestrator, bowl_factory=bowl_factory.provider, bowl_root=config.provided.bowl_path,
         secrets=secrets, runner=runner,
-        history=history_repository, swarm=swarm, clock=clock, fiber_version=fiber.__version__,
+        history=history_repository, discovery=discovery, clock=clock, fiber_version=fiber.__version__,
         metrics=metrics, events=events,
     )
-    readiness = providers.Singleton(Readiness, bowl=bowl, history=history_repository, swarm=swarm)
+    readiness = providers.Singleton(Readiness, bowl=bowl, history=history_repository, discovery=discovery)
     templates = providers.Singleton(Jinja2Templates, directory="fiber/templates")
     dashboard_service = providers.Singleton(
         DashboardService,

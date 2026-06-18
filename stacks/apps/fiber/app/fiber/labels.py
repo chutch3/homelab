@@ -15,9 +15,16 @@ def _duration_seconds(raw: str) -> float:
     return float(raw)
 
 
-def parse_job(service: str, labels: dict[str, str]) -> DumpJob | MisconfiguredJob | None:
+def parse_job(service: str, labels: dict[str, str], active_provider: str = "swarm") -> DumpJob | MisconfiguredJob | None:
     if labels.get("fiber.enable", "").lower() != "true":
         return None
+
+    effective_provider = labels.get("fiber.provider", "swarm")
+    if effective_provider != active_provider:
+        return MisconfiguredJob(
+            service=service,
+            errors=(f"provider mismatch: label={effective_provider}, active={active_provider}",),
+        )
 
     errors: list[str] = []
     for key in ("dbname", "user", "secret"):

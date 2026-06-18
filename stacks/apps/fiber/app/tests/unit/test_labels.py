@@ -77,3 +77,25 @@ def test_invalid_cron_is_misconfigured() -> None:
     result = parse_job("kenku-pg", labels)
     assert isinstance(result, MisconfiguredJob)
     assert any("cron" in e for e in result.errors)
+
+
+def test_default_provider_swarm_accepts_unlabeled() -> None:
+    labels = {"fiber.enable": "true", "fiber.dbname": "k", "fiber.user": "k", "fiber.secret": "s"}
+    assert isinstance(parse_job("kenku-pg", labels), DumpJob)  # active defaults to swarm
+
+
+def test_provider_mismatch_is_misconfigured() -> None:
+    labels = {"fiber.enable": "true", "fiber.dbname": "k", "fiber.user": "k",
+              "fiber.secret": "s", "fiber.provider": "swarm"}
+    result = parse_job("e2e-pg", labels, active_provider="docker")
+    assert isinstance(result, MisconfiguredJob)
+    assert len(result.errors) == 1
+    assert "provider mismatch" in result.errors[0]
+    assert "label=swarm" in result.errors[0]
+    assert "active=docker" in result.errors[0]
+
+
+def test_docker_provider_label_accepted_when_active() -> None:
+    labels = {"fiber.enable": "true", "fiber.dbname": "e2e", "fiber.user": "e2e",
+              "fiber.secret": "s", "fiber.provider": "docker"}
+    assert isinstance(parse_job("e2e-pg", labels, active_provider="docker"), DumpJob)
