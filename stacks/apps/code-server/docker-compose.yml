@@ -11,9 +11,6 @@ services:
       - GIT_AUTHOR_EMAIL=${GIT_AUTHOR_EMAIL}
       - GIT_COMMITTER_NAME=${GIT_AUTHOR_NAME}
       - GIT_COMMITTER_EMAIL=${GIT_AUTHOR_EMAIL}
-      # Talk to the isolated in-stack Docker daemon (dind), NOT the homelab node socket.
-      # This is what lets integration/e2e tests run a real, throwaway Postgres + Swarm locally.
-      - DOCKER_HOST=tcp://dind:2375
     ports:
       - target: 22
         published: 2200
@@ -26,7 +23,6 @@ services:
       - claude_config:/home/coder/.claude
     networks:
       - traefik-public
-      - dind-net
     deploy:
       replicas: 1
       placement:
@@ -53,40 +49,11 @@ services:
         condition: any
         delay: 5s
 
-  # Isolated in-stack Docker daemon (DinD) so integration/e2e tests run a real,
-  # throwaway Postgres + single-node Swarm WITHOUT touching the homelab daemon.
-  # NOTE: Swarm's support for `privileged` is version-dependent; verify after deploy
-  # (homeassistant uses privileged here as precedent). Reachable only on the internal
-  # dind-net overlay (insecure tcp is not published off the stack).
-  dind:
-    image: docker:dind
-    privileged: true
-    command: ["--host=tcp://0.0.0.0:2375", "--tls=false"]
-    environment:
-      - DOCKER_TLS_CERTDIR=
-    volumes:
-      - dind_storage:/var/lib/docker
-    networks:
-      - dind-net
-    deploy:
-      replicas: 1
-      placement:
-        constraints:
-          - node.labels.gpu == true
-      restart_policy:
-        condition: any
-        delay: 5s
-
 networks:
   traefik-public:
     external: true
-  dind-net:
-    driver: overlay
-    attachable: true
 
 volumes:
-  dind_storage:
-    driver: local
   code_server_config:
     driver: local
     driver_opts:
