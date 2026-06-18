@@ -16,6 +16,7 @@ class Config:
     scan_interval: float
     metrics_port: int
     docker_host: str
+    provider: str
     scan_enabled: bool
 
     @staticmethod
@@ -34,5 +35,6 @@ class Config:
             scan_interval=float(os.getenv("FIBER_SCAN_INTERVAL", "60")),
             metrics_port=int(os.getenv("FIBER_METRICS_PORT", "9090")),
             docker_host=os.getenv("FIBER_DOCKER_HOST", "unix:///var/run/docker.sock"),
+            provider=os.getenv("FIBER_PROVIDER", "swarm"),
             scan_enabled=scan_enabled,
         )

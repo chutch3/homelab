@@ -261,7 +261,7 @@ async def test_scan_loop_runs_until_stop_is_set() -> None:
     config_mock.scan_interval = 0
     registry_state_instance = RegistryState()
 
-    c.swarm.override(swarm_mock)
+    c.discovery.override(swarm_mock)
     c.history_repository.override(history_mock)
     c.pool.override(pool_mock)
     c.orchestrator.override(orchestrator_mock)

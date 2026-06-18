@@ -3,6 +3,18 @@ import pytest
 from fiber.config import Config
 
 
+def test_provider_defaults_to_swarm(monkeypatch) -> None:
+    monkeypatch.delenv("FIBER_PROVIDER", raising=False)
+    from fiber.config import Config
+    assert Config.from_env().provider == "swarm"
+
+
+def test_provider_reads_env(monkeypatch) -> None:
+    monkeypatch.setenv("FIBER_PROVIDER", "docker")
+    from fiber.config import Config
+    assert Config.from_env().provider == "docker"
+
+
 def test_from_env_uses_defaults_and_overrides(monkeypatch) -> None:
     monkeypatch.setenv("FIBER_BOWL_PATH", "/mnt/bowl")
     monkeypatch.setenv("FIBER_MAX_CONCURRENT_MOVEMENTS", "3")

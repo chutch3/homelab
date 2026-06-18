@@ -9,7 +9,7 @@ from fiber.clock import SystemClock
 from fiber.container import Container
 from fiber.logger import get_logger
 from fiber.metrics import Metrics
-from fiber.clients.swarm import DockerSwarmGateway
+from fiber.clients.discovery import DiscoveryProvider
 from fiber.registry import reconcile
 from fiber.repositories.history import HistoryRepository
 from fiber.scheduler import due_jobs
@@ -21,7 +21,7 @@ _logger = get_logger("fiber.main")
 
 
 async def _scan_loop_inner(
-    swarm: DockerSwarmGateway,
+    swarm: DiscoveryProvider,
     history: HistoryRepository,
     pool: WorkerPool,
     orchestrator: MovementOrchestrator,
@@ -71,7 +71,7 @@ async def _scan_loop_inner(
 @inject
 async def _scan_loop(
     stop: asyncio.Event,
-    swarm: DockerSwarmGateway = Provide[Container.swarm],
+    swarm: DiscoveryProvider = Provide[Container.discovery],
     history: HistoryRepository = Provide[Container.history_repository],
     pool: WorkerPool = Provide[Container.pool],
     orchestrator: MovementOrchestrator = Provide[Container.orchestrator],
