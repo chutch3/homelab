@@ -109,7 +109,13 @@ class TickOrchestrator:
         wanted = {client.name: InstanceWanted(tuple(missing), tuple(cutoff))}
         selected = self._planner.plan(allowance=allowance, wanted=wanted)
         if not selected:
+            _logger.info("nothing to hunt", extra={"event": "nothing_to_hunt", "source": client.name,
+                "missing": len(missing), "cutoff": len(cutoff)})
             return 0
+        for item in selected:
+            _logger.info("search triggered", extra={"event": "search_triggered", "source": client.name,
+                "arr_type": client.arr_type.value, "id": item.remote_id, "title": item.title,
+                "kind": item.kind.value})
         ids = [i.remote_id for i in selected]
         await client.trigger_search(ids)
         self._metrics.searches_issued.labels(source=client.name).inc(len(ids))
