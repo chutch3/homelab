@@ -14,6 +14,7 @@ from fiber.models import DumpFormat, DumpJob, Engine, MovementOutcome
 from fiber.services.orchestrator import MovementOrchestrator
 from fiber.clients.secrets import SecretReader
 from fiber.clients.swarm import DockerSwarmGateway
+from fiber.clients.events import EventBroker
 
 pytestmark = pytest.mark.skipif(os.getenv("FIBER_INTEGRATION") != "1", reason="integration gated")
 
@@ -30,6 +31,7 @@ def _make_orch(tmp_path: Path) -> MovementOrchestrator:
         clock=SystemClock(),
         fiber_version="0.1.0",
         metrics=Metrics(registry=CollectorRegistry()),
+        events=EventBroker(),
     )
 
 
