@@ -1,0 +1,67 @@
+from __future__ import annotations
+
+from polyfactory.factories.dataclass_factory import DataclassFactory
+
+from warden.models import ArrType, Indexer, ProwlarrApp, WantedItem, WantKind
+
+
+class WantedItemFactory(DataclassFactory[WantedItem]):
+    __model__ = WantedItem
+
+
+def wanted_item(instance: str, rid: int, kind: WantKind = WantKind.MISSING) -> WantedItem:
+    return WantedItemFactory.build(instance=instance, remote_id=rid, title=f"t{rid}", kind=kind)
+
+
+def missing_item(instance: str, rid: int) -> WantedItem:
+    return wanted_item(instance, rid, WantKind.MISSING)
+
+
+class IndexerFactory(DataclassFactory[Indexer]):
+    __model__ = Indexer
+    id = 1
+    name = "idx"
+    enabled = True
+    tags = (1,)
+    categories = (2000,)
+    query_limit = 20
+
+
+class ProwlarrAppFactory(DataclassFactory[ProwlarrApp]):
+    __model__ = ProwlarrApp
+    implementation = "Radarr"
+    tags = (2, 1)
+    sync_categories = (2000, 2040)
+
+
+def indexer(**overrides) -> Indexer:
+    return IndexerFactory.build(**overrides)
+
+
+def prowlarr_app(**overrides) -> ProwlarrApp:
+    return ProwlarrAppFactory.build(**overrides)
+
+
+class FakeArrClient:
+    """In-memory ArrClient double for orchestrator tests (satisfies ArrClientProtocol
+    structurally; a behaviour double, like fiber's FakeProbeProcess)."""
+
+    def __init__(self, name: str, missing: list[WantedItem], cutoff: list[WantedItem] | None = None,
+                 raises: bool = False, arr_type: ArrType = ArrType.RADARR) -> None:
+        self.name = name
+        self.arr_type = arr_type
+        self._missing = missing
+        self._cutoff = cutoff or []
+        self._raises = raises
+        self.searched: list[list[int]] = []
+
+    async def list_missing(self) -> list[WantedItem]:
+        if self._raises:
+            raise RuntimeError("boom")
+        return list(self._missing)
+
+    async def list_cutoff_unmet(self) -> list[WantedItem]:
+        return list(self._cutoff)
+
+    async def trigger_search(self, ids: list[int]) -> None:
+        self.searched.append(ids)

@@ -1,0 +1,43 @@
+from __future__ import annotations
+
+from prometheus_client import CollectorRegistry, Counter, Gauge, Histogram
+
+from warden import __version__
+
+
+class Metrics:
+    def __init__(self, registry: CollectorRegistry) -> None:
+        self.registry = registry
+        self.searches_issued = Counter(
+            "warden_searches_issued_total", "Searches issued by source", ["source"], registry=registry)
+        self.paused_ticks = Counter(
+            "warden_paused_ticks_total", "Ticks a source was quota-paused (× poll interval ≈ paused time)",
+            ["source"], registry=registry)
+        self.quota_remaining = Gauge(
+            "warden_quota_remaining", "Remaining daily search budget", ["source"], registry=registry)
+        self.daily_budget = Gauge(
+            "warden_daily_budget", "Daily search budget after reserve", ["source"], registry=registry)
+        self.binding_query_limit = Gauge(
+            "warden_binding_query_limit", "Pre-reserve binding indexer query limit driving the budget",
+            ["source"], registry=registry)
+        self.quota_prowlarr = Gauge(
+            "warden_quota_prowlarr", "1 if the budget came from Prowlarr indexer limits, 0 if the flat fallback",
+            ["source"], registry=registry)
+        self.indexers_total = Gauge(
+            "warden_indexers_total", "Prowlarr indexers synced to this source", ["source"], registry=registry)
+        self.indexers_defaulted = Gauge(
+            "warden_indexers_defaulted", "Synced indexers with no Prowlarr limit (default cap applied)",
+            ["source"], registry=registry)
+        self.blocked = Gauge(
+            "warden_blocked", "1 when a source is quota-paused", ["source"], registry=registry)
+        self.instance_up = Gauge(
+            "warden_instance_up", "1 when the *arr source responded this tick", ["source"], registry=registry)
+        self.prowlarr_up = Gauge(
+            "warden_prowlarr_up", "1 when the quota source (Prowlarr) responded this tick", registry=registry)
+        self.last_tick = Gauge(
+            "warden_last_tick_timestamp_seconds", "Unix time of the last completed tick", registry=registry)
+        self.tick_duration = Histogram(
+            "warden_tick_duration_seconds", "Tick duration", registry=registry)
+        self.build_info = Gauge(
+            "warden_build_info", "Warden build info (constant 1)", ["version"], registry=registry)
+        self.build_info.labels(version=__version__).set(1)

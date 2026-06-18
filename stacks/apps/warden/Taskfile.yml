@@ -1,0 +1,29 @@
+version: "3"
+
+vars:
+    STACK_DIR: "{{.TASKFILE_DIR}}"
+    REGISTRY_URL: '{{.WARDEN_REGISTRY_URL | default "ghcr.io"}}'
+    REGISTRY_NAMESPACE: '{{.WARDEN_REGISTRY_NAMESPACE | default "chutch3"}}'
+    IMAGE_TAG: '{{.WARDEN_IMAGE_TAG | default "latest"}}'
+    PLATFORM: '{{.PLATFORM | default "linux/amd64"}}'
+
+tasks:
+    build:
+        desc: Build the warden image
+        cmds:
+            - docker build --platform {{.PLATFORM}} --tag {{.REGISTRY_URL}}/{{.REGISTRY_NAMESPACE}}/warden:{{.IMAGE_TAG}} --file {{.STACK_DIR}}/app/Dockerfile {{.STACK_DIR}}
+    push:
+        desc: Push the warden image
+        cmds:
+            - docker push {{.REGISTRY_URL}}/{{.REGISTRY_NAMESPACE}}/warden:{{.IMAGE_TAG}}
+    publish:
+        desc: Build and push
+        cmds:
+            - task: build
+            - task: push
+    test:
+        desc: Run the suite
+        dir: "{{.STACK_DIR}}/app"
+        cmds:
+            - uv run pytest
+            - uv run lint-imports

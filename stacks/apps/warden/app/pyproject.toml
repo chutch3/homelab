@@ -1,0 +1,47 @@
+[project]
+name = "warden"
+version = "0.1.0"
+description = "Quota-aware *arr hunter and queue janitor"
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi>=0.115.0",
+    "uvicorn>=0.32.0",
+    "dependency-injector>=4.42.0",
+    "httpx>=0.27.0",
+    "sqlmodel>=0.0.38",
+    "prometheus-client>=0.21.0",
+    "tzdata>=2024.1",
+    "python-json-logger>=2.0.7,<3",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.0.0",
+    "pytest-asyncio>=0.24.0",
+    "pytest-mock>=3.12.0",
+    "import-linter>=2.11",
+    "pytest-cov>=7.1.0",
+    "polyfactory>=3.3.0",
+]
+
+[tool.uv]
+package = false
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+addopts = "--cov=warden --cov-report=term-missing --cov-fail-under=90"
+
+[tool.coverage.run]
+omit = ["*/warden/main.py", "*/warden/container.py"]
+
+[tool.importlinter]
+root_package = "warden"
+
+[[tool.importlinter.contracts]]
+name = "Circle Architecture rings"
+type = "layers"
+layers = ["warden.routes", "warden.services", "warden.repositories", "warden.clients"]

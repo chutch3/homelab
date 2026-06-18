@@ -12,7 +12,7 @@ services:
         configs:
             - source: prometheus_config_v8
               target: /etc/prometheus/prometheus.yml
-            - source: prometheus_alert_rules
+            - source: prometheus_alert_rules_v1
               target: /etc/prometheus/alert-rules.yml
             - source: minio_targets
               target: /etc/prometheus/targets/minio-targets.json
@@ -61,6 +61,8 @@ services:
               target: /etc/grafana/provisioning/dashboards-local/inter-node-bandwidth.json
             - source: dashboard_node_resources_v3
               target: /etc/grafana/provisioning/dashboards-local/node-resources.json
+            - source: dashboard_warden_v3
+              target: /etc/grafana/provisioning/dashboards-local/warden.json
         environment:
             - GF_SECURITY_ADMIN_USER=admin
             - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD}
@@ -268,7 +270,7 @@ volumes:
 configs:
     prometheus_config_v8:
         file: ./prometheus.yml
-    prometheus_alert_rules:
+    prometheus_alert_rules_v1:
         file: ./alert-rules.yml
     minio_targets:
         file: ./minio-targets.json
@@ -282,6 +284,8 @@ configs:
         file: ./dashboards/local/inter-node-bandwidth.json
     dashboard_node_resources_v3:
         file: ./dashboards/local/node-resources.json
+    dashboard_warden_v3:
+        file: ./dashboards/local/warden.json
     prometheus_datasource:
         file: ./datasources/prometheus.yml
     loki_datasource:

@@ -1,0 +1,5 @@
+# Warden self-configures from env (WARDEN_RADARR_*/WARDEN_SONARR_* + WARDEN_* tuning,
+# all defaulted in the compose), so there is nothing to validate. It is not node-pinned;
+# its state dir lives on shared app-data, so we just ensure the sqlite ledger directory.
+directories:
+  - { path: "warden/state", base: app_data }

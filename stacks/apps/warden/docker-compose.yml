@@ -1,0 +1,81 @@
+version: "3.9"
+
+services:
+    warden:
+        image: ${WARDEN_REGISTRY_URL:-ghcr.io}/${WARDEN_REGISTRY_NAMESPACE:-chutch3}/warden:${WARDEN_IMAGE_TAG:-latest}
+        container_name: warden
+        environment:
+            - TZ=${TZ}
+            - WARDEN_DB_PATH=/state/warden.db
+            # Configure whichever *arr instances you run (omit a pair to disable it):
+            - WARDEN_RADARR_URL=${WARDEN_RADARR_URL:-}
+            - WARDEN_RADARR_API_KEY=${WARDEN_RADARR_API_KEY:-}
+            - WARDEN_SONARR_URL=${WARDEN_SONARR_URL:-}
+            - WARDEN_SONARR_API_KEY=${WARDEN_SONARR_API_KEY:-}
+            # Optional tuning (code defaults shown):
+            - WARDEN_RESERVE_PCT=${WARDEN_RESERVE_PCT:-20}
+            - WARDEN_FALLBACK_SEARCHES_PER_DAY=${WARDEN_FALLBACK_SEARCHES_PER_DAY:-200}
+            - WARDEN_RESET_AT_LOCAL=${WARDEN_RESET_AT_LOCAL:-00:00}
+            - WARDEN_POLL_INTERVAL_SEC=${WARDEN_POLL_INTERVAL_SEC:-300}
+            # Optional: point at Prowlarr to derive per-source budgets from real
+            # indexer query limits (omit to use the flat fallback budget).
+            - WARDEN_PROWLARR_URL=${WARDEN_PROWLARR_URL:-}
+            - WARDEN_PROWLARR_API_KEY=${WARDEN_PROWLARR_API_KEY:-}
+            - WARDEN_DEFAULT_QUERY_LIMIT=${WARDEN_DEFAULT_QUERY_LIMIT:-100}
+            - WARDEN_TZ=${WARDEN_TZ:-}
+            - WARDEN_PROWLARR_FALLBACK_ON_ERROR=${WARDEN_PROWLARR_FALLBACK_ON_ERROR:-true}
+        volumes:
+            - warden_state:/state
+        restart: unless-stopped
+        networks:
+            - traefik-public
+        deploy:
+            # Single hunter (no second instance racing the sqlite ledger / double-grabbing).
+            # NOT node-pinned: warden only needs HTTP to the *arr apps, and its state dir
+            # lives on shared iSCSI/OCFS2 app-data available on every node, so swarm is
+            # free to place it anywhere with healthy overlay reach to the *arr services.
+            replicas: 1
+            resources:
+                limits:
+                    memory: 256M
+            labels:
+                # Traefik main route (SSO-protected): /metrics + homepage tile
+                - "traefik.enable=true"
+                - "traefik.swarm.network=traefik-public"
+                - "traefik.http.routers.warden.rule=Host(`warden.${BASE_DOMAIN}`)"
+                - "traefik.http.routers.warden.entrypoints=websecure"
+                - "traefik.http.routers.warden.tls.certresolver=dns"
+                - "traefik.http.routers.warden.middlewares=authentik@swarm"
+                - "traefik.http.routers.warden.service=warden"
+                # Public /healthz route (no SSO, higher priority) so Uptime Kuma can
+                # deep-check warden's real health instead of seeing an auth redirect.
+                - "traefik.http.routers.warden-health.rule=Host(`warden.${BASE_DOMAIN}`) && Path(`/healthz`)"
+                - "traefik.http.routers.warden-health.entrypoints=websecure"
+                - "traefik.http.routers.warden-health.tls.certresolver=dns"
+                - "traefik.http.routers.warden-health.service=warden"
+                - "traefik.http.routers.warden-health.priority=1000"
+                - "traefik.http.services.warden.loadbalancer.server.port=9090"
+                # Uptime Kuma — monitor the real health endpoint (HTTP 200 from /healthz)
+                - "uptime_kuma.path=/healthz"
+                # Prometheus (swarm-tasks SD scrapes warden:9090/metrics internally)
+                - "prometheus.scrape=true"
+                - "prometheus.port=warden:9090"
+                - "prometheus.path=/metrics"
+                # Homepage
+                - homepage.group=Downloads
+                - homepage.name=Warden
+                - homepage.icon=huntarr.png
+                - homepage.href=https://warden.${BASE_DOMAIN}/healthz
+                - homepage.description=Quota-aware media hunter
+
+networks:
+    traefik-public:
+        external: true
+
+volumes:
+    warden_state:
+        driver: local
+        driver_opts:
+            type: "none"
+            o: "bind"
+            device: "/mnt/iscsi/app-data/warden/state"
