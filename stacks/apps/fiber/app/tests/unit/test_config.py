@@ -15,6 +15,12 @@ def test_provider_reads_env(monkeypatch) -> None:
     assert Config.from_env().provider == "docker"
 
 
+def test_invalid_provider_raises(monkeypatch) -> None:
+    monkeypatch.setenv("FIBER_PROVIDER", "swarmm")
+    with pytest.raises(ValueError, match="FIBER_PROVIDER must be"):
+        Config.from_env()
+
+
 def test_from_env_uses_defaults_and_overrides(monkeypatch) -> None:
     monkeypatch.setenv("FIBER_BOWL_PATH", "/mnt/bowl")
     monkeypatch.setenv("FIBER_MAX_CONCURRENT_MOVEMENTS", "3")
