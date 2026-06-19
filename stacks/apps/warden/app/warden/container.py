@@ -18,6 +18,8 @@ from warden.services.pacer import Pacer
 from warden.services.planner import HuntPlanner
 from warden.services.quota import QuotaLedger
 from warden.services.quota_source import FallbackQuotaSource, ProwlarrQuotaSource
+from warden.services.stale import StaleDetector
+from warden.services.sweeper import QueueSweeper
 
 
 def _build_clients(config: Config, http: httpx.AsyncClient) -> list[ArrClientProtocol]:
@@ -55,12 +57,22 @@ class Container(containers.DeclarativeContainer):
     )
     pacer = providers.Singleton(Pacer, poll_interval_sec=config.provided.poll_interval_sec)
     planner = providers.Singleton(HuntPlanner)
+    detector = providers.Singleton(StaleDetector, grace_hours=config.provided.stale_grace_hours)
+    sweeper = providers.Singleton(
+        QueueSweeper,
+        detector=detector,
+        enabled=config.provided.stale_sweep_enabled,
+        max_removals_per_tick=config.provided.stale_max_removals_per_tick,
+        mass_fraction=config.provided.stale_mass_fraction,
+        min_queue_for_guard=config.provided.stale_min_queue_for_guard,
+    )
     orchestrator = providers.Singleton(
         TickOrchestrator,
         clients=clients,
         quota=quota,
         pacer=pacer,
         planner=planner,
+        sweeper=sweeper,
         ledger=ledger,
         clock=clock,
         metrics=metrics,

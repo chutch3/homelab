@@ -38,6 +38,16 @@ class Metrics:
             "warden_last_tick_timestamp_seconds", "Unix time of the last completed tick", registry=registry)
         self.tick_duration = Histogram(
             "warden_tick_duration_seconds", "Tick duration", registry=registry)
+        self.queue_size = Gauge(
+            "warden_queue_size", "Items in the *arr download queue", ["source"], registry=registry)
+        self.queue_stalled = Gauge(
+            "warden_queue_stalled", "Removable-stale items detected this tick", ["source"], registry=registry)
+        self.stale_removed = Counter(
+            "warden_stale_removed_total", "Stale queue items removed + blocklisted",
+            ["source", "reason"], registry=registry)
+        self.stale_sweep_skipped = Counter(
+            "warden_stale_sweep_skipped_total", "Ticks the sweep bailed (mass-unhealthy queue)",
+            ["source"], registry=registry)
         self.build_info = Gauge(
             "warden_build_info", "Warden build info (constant 1)", ["version"], registry=registry)
         self.build_info.labels(version=__version__).set(1)

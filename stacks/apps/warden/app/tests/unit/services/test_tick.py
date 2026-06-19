@@ -1,12 +1,12 @@
 from collections.abc import Callable
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 import pytest
 from prometheus_client import CollectorRegistry
 
 from warden.clock import SystemClock
 from warden.metrics import Metrics
-from warden.models import ArrType, SourceQuota
+from warden.models import ArrType, QueueItem, SourceQuota
 from warden.repositories.ledger import SearchLedgerRepository
 from warden.schedule import ResetSchedule
 from warden.services.orchestrator import TickOrchestrator
@@ -14,7 +14,14 @@ from warden.services.pacer import Pacer
 from warden.services.planner import HuntPlanner
 from warden.services.quota import QuotaLedger
 from warden.services.quota_source import FallbackQuotaSource
+from warden.services.stale import StaleDetector
+from warden.services.sweeper import QueueSweeper
 from tests.factories import FakeArrClient, missing_item
+
+
+def _sweeper() -> QueueSweeper:
+    return QueueSweeper(StaleDetector(grace_hours=48), enabled=True, max_removals_per_tick=5,
+                        mass_fraction=0.5, min_queue_for_guard=3)
 
 
 class FrozenClock(SystemClock):
@@ -61,6 +68,7 @@ class TestTickOrchestrator:
                 quota=QuotaLedger(reserve_pct=reserve, fallback_budget=fallback, schedule=schedule),
                 pacer=Pacer(poll_interval_sec=poll),
                 planner=HuntPlanner(),
+                sweeper=_sweeper(),
                 ledger=repo,
                 clock=FrozenClock(when),
                 metrics=metrics,
@@ -162,3 +170,26 @@ class TestTickOrchestrator:
         reg = metrics.registry
         assert reg.get_sample_value("warden_paused_ticks_total", {"source": "radarr"}) == 1
         assert reg.get_sample_value("warden_last_tick_timestamp_seconds", {}) == NOON.timestamp()
+
+    async def test_removes_stale_and_excludes_queued_from_hunt(self, make):
+        # movie 1 is stale-in-queue; movie 2 is healthy-downloading (in queue, not stale)
+        radarr = FakeArrClient(
+            "radarr",
+            [missing_item("radarr", 1), missing_item("radarr", 2), missing_item("radarr", 3)],
+            arr_type=ArrType.RADARR,
+            queue=[
+                QueueItem(id=11, remote_id=1, title="stale", status="warning",
+                          error_message="stalled with no connections", added=NOON - timedelta(hours=72)),
+                QueueItem(id=12, remote_id=2, title="dl", status="downloading",
+                          error_message="", added=NOON - timedelta(hours=1)),
+            ],
+        )
+        orch, metrics = make([radarr])
+        await orch.tick()
+        # stale movie 1 removed+blocklisted
+        assert radarr.removed == [11]
+        # movie 2 (in queue, downloading) excluded from search; movie 1 (just removed) eligible
+        searched = [i for batch in radarr.searched for i in batch]
+        assert 2 not in searched
+        assert metrics.registry.get_sample_value(
+            "warden_stale_removed_total", {"source": "radarr", "reason": "stalled"}) == 1

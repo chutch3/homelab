@@ -45,3 +45,16 @@ class TestMetrics:
             "warden_paused_ticks_total", {"source": "radarr"}) == 1
         assert subject.registry.get_sample_value(
             "warden_last_tick_timestamp_seconds", {}) == 1718700000.0
+
+
+def test_stale_metrics_exist():
+    from prometheus_client import CollectorRegistry
+    from warden.metrics import Metrics
+    m = Metrics(CollectorRegistry())
+    m.queue_size.labels(source="radarr").set(3)
+    m.queue_stalled.labels(source="radarr").set(1)
+    m.stale_removed.labels(source="radarr", reason="stalled").inc()
+    m.stale_sweep_skipped.labels(source="radarr").inc()
+    reg = m.registry
+    assert reg.get_sample_value("warden_queue_size", {"source": "radarr"}) == 3
+    assert reg.get_sample_value("warden_stale_removed_total", {"source": "radarr", "reason": "stalled"}) == 1

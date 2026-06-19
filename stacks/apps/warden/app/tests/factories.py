@@ -47,13 +47,15 @@ class FakeArrClient:
     structurally; a behaviour double, like fiber's FakeProbeProcess)."""
 
     def __init__(self, name: str, missing: list[WantedItem], cutoff: list[WantedItem] | None = None,
-                 raises: bool = False, arr_type: ArrType = ArrType.RADARR) -> None:
+                 raises: bool = False, arr_type: ArrType = ArrType.RADARR, queue=None) -> None:
         self.name = name
         self.arr_type = arr_type
         self._missing = missing
         self._cutoff = cutoff or []
         self._raises = raises
+        self._queue = queue or []
         self.searched: list[list[int]] = []
+        self.removed: list[int] = []
 
     async def list_missing(self) -> list[WantedItem]:
         if self._raises:
@@ -65,3 +67,12 @@ class FakeArrClient:
 
     async def trigger_search(self, ids: list[int]) -> None:
         self.searched.append(ids)
+
+    async def list_queue(self):
+        if self._raises:
+            raise RuntimeError("boom")
+        return list(self._queue)
+
+    async def remove_queue_item(self, queue_id: int, *, remove_from_client: bool = True,
+                                blocklist: bool = True) -> None:
+        self.removed.append(queue_id)

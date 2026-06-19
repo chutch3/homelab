@@ -83,3 +83,26 @@ class TestConfig:
         assert Config.from_env().prowlarr_fallback_on_error is True
         monkeypatch.setenv("WARDEN_PROWLARR_FALLBACK_ON_ERROR", "false")
         assert Config.from_env().prowlarr_fallback_on_error is False
+
+
+class TestStaleConfig:
+    def test_stale_defaults(self, monkeypatch):
+        for v in ("WARDEN_STALE_SWEEP_ENABLED", "WARDEN_STALE_GRACE_HOURS",
+                  "WARDEN_STALE_MAX_REMOVALS_PER_TICK", "WARDEN_STALE_MASS_FRACTION",
+                  "WARDEN_STALE_MIN_QUEUE_FOR_GUARD"):
+            monkeypatch.delenv(v, raising=False)
+        cfg = Config.from_env()
+        assert cfg.stale_sweep_enabled is True
+        assert cfg.stale_grace_hours == 48.0
+        assert cfg.stale_max_removals_per_tick == 5
+        assert cfg.stale_mass_fraction == 0.5
+        assert cfg.stale_min_queue_for_guard == 3
+
+    def test_stale_overrides(self, monkeypatch):
+        monkeypatch.setenv("WARDEN_STALE_SWEEP_ENABLED", "false")
+        monkeypatch.setenv("WARDEN_STALE_GRACE_HOURS", "12")
+        monkeypatch.setenv("WARDEN_STALE_MAX_REMOVALS_PER_TICK", "2")
+        cfg = Config.from_env()
+        assert cfg.stale_sweep_enabled is False
+        assert cfg.stale_grace_hours == 12.0
+        assert cfg.stale_max_removals_per_tick == 2

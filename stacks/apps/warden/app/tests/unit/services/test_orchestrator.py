@@ -12,6 +12,8 @@ from warden.services.pacer import Pacer
 from warden.services.planner import HuntPlanner
 from warden.services.quota import QuotaLedger
 from warden.services.quota_source import FallbackQuotaSource
+from warden.services.stale import StaleDetector
+from warden.services.sweeper import QueueSweeper
 
 
 class StubClient:
@@ -33,6 +35,17 @@ class StubClient:
     async def trigger_search(self, ids: list[int]) -> None:
         self.searched.append(ids)
 
+    async def list_queue(self):
+        return []
+
+    async def remove_queue_item(self, queue_id, *, remove_from_client=True, blocklist=True):
+        return None
+
+
+def _sweeper() -> QueueSweeper:
+    return QueueSweeper(StaleDetector(grace_hours=48), enabled=True, max_removals_per_tick=5,
+                        mass_fraction=0.5, min_queue_for_guard=3)
+
 
 def _make_orch(clients, repo: SearchLedgerRepository) -> TickOrchestrator:
     schedule = ResetSchedule("00:00")
@@ -41,6 +54,7 @@ def _make_orch(clients, repo: SearchLedgerRepository) -> TickOrchestrator:
         quota=QuotaLedger(reserve_pct=20, fallback_budget=200, schedule=schedule),
         pacer=Pacer(poll_interval_sec=300),
         planner=HuntPlanner(),
+        sweeper=_sweeper(),
         ledger=repo,
         clock=SystemClock(),
         metrics=Metrics(CollectorRegistry()),
@@ -63,7 +77,7 @@ class TestHuntLogging:
         client = StubClient([item], arr_type=ArrType.SONARR)
         orch = _make_orch([client], repo)
         with caplog.at_level(logging.INFO, logger="warden.orchestrator"):
-            issued = await orch._hunt_one(client, allowance=5, window="sonarr:2026-06-18")
+            issued = await orch._hunt_one(client, 5, "sonarr:2026-06-18", [item], [], set())
         assert issued == 1
         assert client.searched == [[123]]
         recs = _events(caplog, "search_triggered")
@@ -79,7 +93,7 @@ class TestHuntLogging:
         client = StubClient([], arr_type=ArrType.RADARR)
         orch = _make_orch([client], repo)
         with caplog.at_level(logging.INFO, logger="warden.orchestrator"):
-            issued = await orch._hunt_one(client, allowance=5, window="radarr:2026-06-18")
+            issued = await orch._hunt_one(client, 5, "radarr:2026-06-18", [], [], set())
         assert issued == 0
         assert client.searched == []
         recs = _events(caplog, "nothing_to_hunt")

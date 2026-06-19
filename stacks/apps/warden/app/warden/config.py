@@ -46,6 +46,11 @@ class Config:
     default_query_limit: int
     tz: str
     prowlarr_fallback_on_error: bool
+    stale_sweep_enabled: bool
+    stale_grace_hours: float
+    stale_max_removals_per_tick: int
+    stale_mass_fraction: float
+    stale_min_queue_for_guard: int
 
     @staticmethod
     def from_env() -> "Config":
@@ -64,4 +69,9 @@ class Config:
             default_query_limit=int(os.getenv("WARDEN_DEFAULT_QUERY_LIMIT", "100")),
             tz=os.getenv("WARDEN_TZ") or os.getenv("TZ") or "UTC",
             prowlarr_fallback_on_error=_env_bool("WARDEN_PROWLARR_FALLBACK_ON_ERROR", True),
+            stale_sweep_enabled=_env_bool("WARDEN_STALE_SWEEP_ENABLED", True),
+            stale_grace_hours=float(os.getenv("WARDEN_STALE_GRACE_HOURS", "48")),
+            stale_max_removals_per_tick=int(os.getenv("WARDEN_STALE_MAX_REMOVALS_PER_TICK", "5")),
+            stale_mass_fraction=float(os.getenv("WARDEN_STALE_MASS_FRACTION", "0.5")),
+            stale_min_queue_for_guard=int(os.getenv("WARDEN_STALE_MIN_QUEUE_FOR_GUARD", "3")),
         )

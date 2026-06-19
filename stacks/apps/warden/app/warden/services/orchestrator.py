@@ -3,12 +3,13 @@ from __future__ import annotations
 from warden.clock import SystemClock
 from warden.logger import get_logger
 from warden.metrics import Metrics
-from warden.models import ArrClientProtocol, InstanceWanted, QuotaSource, SleepDecision
+from warden.models import ArrClientProtocol, InstanceWanted, QueueItem, QuotaSource, SleepDecision, WantedItem
 from warden.repositories.ledger import SearchLedgerRepository
 from warden.schedule import ResetSchedule
 from warden.services.pacer import Pacer
 from warden.services.planner import HuntPlanner
 from warden.services.quota import QuotaLedger
+from warden.services.sweeper import QueueSweeper
 
 _logger = get_logger("warden.orchestrator")
 
@@ -20,6 +21,7 @@ class TickOrchestrator:
         quota: QuotaLedger,
         pacer: Pacer,
         planner: HuntPlanner,
+        sweeper: QueueSweeper,
         ledger: SearchLedgerRepository,
         clock: SystemClock,
         metrics: Metrics,
@@ -34,6 +36,7 @@ class TickOrchestrator:
         self._quota = quota
         self._pacer = pacer
         self._planner = planner
+        self._sweeper = sweeper
         self._ledger = ledger
         self._clock = clock
         self._metrics = metrics
@@ -64,6 +67,20 @@ class TickOrchestrator:
             all_blocked = True
             for client in self._clients:
                 src = client.name
+                try:
+                    queue = await client.list_queue()
+                    missing = await client.list_missing()
+                    cutoff = await client.list_cutoff_unmet() if self._include_cutoff else []
+                except Exception as exc:  # noqa: BLE001 - degrade per-instance
+                    m.instance_up.labels(source=src).set(0)
+                    all_blocked = False  # unreachable -> retry next poll, not a quota sleep
+                    _logger.warning("instance unreachable",
+                                    extra={"event": "instance_unreachable", "source": src, "error": str(exc)})
+                    continue
+                m.instance_up.labels(source=src).set(1)
+
+                exclusion = await self._sweep(client, queue, now)
+
                 sq = quotas.get(client.arr_type)
                 if sq is not None:
                     gross, is_prowlarr, total, defaulted = sq.gross_limit, 1, sq.indexers_total, sq.indexers_defaulted
@@ -86,7 +103,7 @@ class TickOrchestrator:
                 m.blocked.labels(source=src).set(0)
                 all_blocked = False
                 allowance = self._pacer.allowance(state.remaining, seconds_to_reset)
-                issued = await self._hunt_one(client, allowance, window)
+                issued = await self._hunt_one(client, allowance, window, missing, cutoff, exclusion)
                 log = _logger.info if issued else _logger.debug
                 log("hunt tick", extra={"event": "issued", "source": src, "issued": issued,
                     "allowance": allowance, "remaining": state.remaining, "budget": state.daily_budget,
@@ -97,15 +114,37 @@ class TickOrchestrator:
                 return SleepDecision(seconds=max(0.0, seconds_to_reset), reason="blocked")
             return SleepDecision(seconds=self._poll, reason="paced")
 
-    async def _hunt_one(self, client: ArrClientProtocol, allowance: int, window: str) -> int:
-        try:
-            missing = await client.list_missing()
-            cutoff = await client.list_cutoff_unmet() if self._include_cutoff else []
-        except Exception as exc:  # noqa: BLE001 - degrade per-instance
-            self._metrics.instance_up.labels(source=client.name).set(0)
-            _logger.warning("instance unreachable", extra={"event": "instance_unreachable", "source": client.name, "error": str(exc)})
-            return 0
-        self._metrics.instance_up.labels(source=client.name).set(1)
+    async def _sweep(self, client: ArrClientProtocol, queue: list[QueueItem], now) -> set[int]:
+        """Execute the sweep (runs even when the source is quota-blocked) and return the
+        hunt-exclusion set (queued remote ids minus those removed this tick)."""
+        m = self._metrics
+        src = client.name
+        decision = self._sweeper.plan(queue, now)
+        m.queue_size.labels(source=src).set(decision.queue_size)
+        m.queue_stalled.labels(source=src).set(decision.stalled_count)
+        removed: set[int] = set()
+        if decision.skipped:
+            m.stale_sweep_skipped.labels(source=src).inc()
+            _logger.warning("stale sweep skipped", extra={"event": "stale_sweep_skipped",
+                "source": src, "queue_size": decision.queue_size, "stalled": decision.stalled_count})
+        else:
+            for act in decision.to_remove:
+                try:
+                    await client.remove_queue_item(act.queue_id, remove_from_client=True, blocklist=True)
+                except Exception:  # noqa: BLE001 - one bad removal shouldn't abort the sweep
+                    _logger.exception("stale removal failed", extra={"event": "stale_remove_error",
+                        "source": src, "id": act.queue_id})
+                    continue
+                removed.add(act.remote_id)
+                m.stale_removed.labels(source=src, reason=act.reason).inc()
+                _logger.info("stale removed", extra={"event": "stale_removed", "source": src,
+                    "id": act.queue_id, "reason": act.reason, "age_h": round(act.age_hours, 1)})
+        return set(decision.all_queued_remote_ids) - removed
+
+    async def _hunt_one(self, client: ArrClientProtocol, allowance: int, window: str,
+                        missing: list[WantedItem], cutoff: list[WantedItem], exclusion: set[int]) -> int:
+        missing = [w for w in missing if w.remote_id not in exclusion]
+        cutoff = [w for w in cutoff if w.remote_id not in exclusion]
         wanted = {client.name: InstanceWanted(tuple(missing), tuple(cutoff))}
         selected = self._planner.plan(allowance=allowance, wanted=wanted)
         if not selected:
