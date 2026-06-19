@@ -1,5 +1,5 @@
 import json
-from datetime import timezone
+from datetime import datetime, timezone
 
 import httpx
 
@@ -128,3 +128,19 @@ class TestSonarrQueue:
                               http=httpx.AsyncClient(transport=transport(handler)), api_key="sk")
         items = await client.list_queue()
         assert items[0].remote_id == 99
+
+
+class TestWantedLastSearchTime:
+    async def test_parses_last_search_time(self):
+        def handler(request: httpx.Request) -> httpx.Response:
+            return httpx.Response(200, json={"records": [
+                {"id": 11, "title": "A", "lastSearchTime": "2026-06-18T03:00:00Z"},
+                {"id": 12, "title": "B"},                       # absent -> None
+                {"id": 13, "title": "C", "lastSearchTime": None},  # null -> None
+            ]})
+        client = RadarrClient(name="radarr", base_url="http://radarr",
+                              http=httpx.AsyncClient(transport=transport(handler)), api_key="rk")
+        items = await client.list_missing()
+        assert items[0].last_search_time == datetime(2026, 6, 18, 3, 0, tzinfo=timezone.utc)
+        assert items[1].last_search_time is None
+        assert items[2].last_search_time is None

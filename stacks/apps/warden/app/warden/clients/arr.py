@@ -14,6 +14,12 @@ def _parse_added(raw: str | None) -> datetime:
     return datetime.fromisoformat(raw.replace("Z", "+00:00"))
 
 
+def _parse_search_time(raw: str | None) -> datetime | None:
+    if not raw:
+        return None
+    return datetime.fromisoformat(raw.replace("Z", "+00:00"))
+
+
 class ArrClient(ABC):
     """Owned abstraction over a Servarr v3 instance (Radarr/Sonarr share the API shape)."""
 
@@ -49,7 +55,8 @@ class ArrClient(ABC):
         records = resp.json().get("records", [])
         return [
             WantedItem(instance=self.name, remote_id=int(r["id"]),
-                       title=r.get("title", ""), kind=kind)
+                       title=r.get("title", ""), kind=kind,
+                       last_search_time=_parse_search_time(r.get("lastSearchTime")))
             for r in records
         ]
 

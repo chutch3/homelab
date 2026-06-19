@@ -30,6 +30,7 @@ class WantedItem:
     remote_id: int          # movieId (radarr) or episodeId (sonarr)
     title: str
     kind: WantKind
+    last_search_time: datetime | None = None   # *arr lastSearchTime; None = never searched
 
 
 @dataclass(frozen=True)

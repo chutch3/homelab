@@ -9,8 +9,10 @@ class WantedItemFactory(DataclassFactory[WantedItem]):
     __model__ = WantedItem
 
 
-def wanted_item(instance: str, rid: int, kind: WantKind = WantKind.MISSING) -> WantedItem:
-    return WantedItemFactory.build(instance=instance, remote_id=rid, title=f"t{rid}", kind=kind)
+def wanted_item(instance: str, rid: int, kind: WantKind = WantKind.MISSING,
+                last_search_time=None) -> WantedItem:
+    return WantedItemFactory.build(instance=instance, remote_id=rid, title=f"t{rid}", kind=kind,
+                                   last_search_time=last_search_time)
 
 
 def missing_item(instance: str, rid: int) -> WantedItem:
