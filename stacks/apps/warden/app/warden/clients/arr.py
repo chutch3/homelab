@@ -1,10 +1,17 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
+from datetime import datetime, timezone
 
 import httpx
 
-from warden.models import ArrType, WantedItem, WantKind
+from warden.models import ArrType, QueueItem, WantedItem, WantKind
+
+
+def _parse_added(raw: str | None) -> datetime:
+    if not raw:
+        return datetime(1970, 1, 1, tzinfo=timezone.utc)
+    return datetime.fromisoformat(raw.replace("Z", "+00:00"))
 
 
 class ArrClient(ABC):
@@ -27,6 +34,10 @@ class ArrClient(ABC):
     @property
     @abstractmethod
     def _id_field(self) -> str: ...
+
+    @property
+    @abstractmethod
+    def _queue_id_field(self) -> str: ...
 
     async def _wanted(self, endpoint: str, kind: WantKind) -> list[WantedItem]:
         resp = await self._http.get(
@@ -58,6 +69,31 @@ class ArrClient(ABC):
         )
         resp.raise_for_status()
 
+    async def list_queue(self) -> list[QueueItem]:
+        resp = await self._http.get(
+            f"{self._base}/api/v3/queue", headers=self._headers, params={"pageSize": 1000})
+        resp.raise_for_status()
+        records = resp.json().get("records", [])
+        return [
+            QueueItem(
+                id=int(r["id"]),
+                remote_id=int(r.get(self._queue_id_field) or 0),
+                title=r.get("title", ""),
+                status=r.get("status", ""),
+                error_message=r.get("errorMessage") or "",
+                added=_parse_added(r.get("added")),
+            )
+            for r in records
+        ]
+
+    async def remove_queue_item(self, queue_id: int, *, remove_from_client: bool = True,
+                                blocklist: bool = True) -> None:
+        resp = await self._http.delete(
+            f"{self._base}/api/v3/queue/{queue_id}", headers=self._headers,
+            params={"removeFromClient": str(remove_from_client).lower(),
+                    "blocklist": str(blocklist).lower()})
+        resp.raise_for_status()
+
 
 class RadarrClient(ArrClient):
     @property
@@ -72,6 +108,10 @@ class RadarrClient(ArrClient):
     def _id_field(self) -> str:
         return "movieIds"
 
+    @property
+    def _queue_id_field(self) -> str:
+        return "movieId"
+
 
 class SonarrClient(ArrClient):
     @property
@@ -85,3 +125,7 @@ class SonarrClient(ArrClient):
     @property
     def _id_field(self) -> str:
         return "episodeIds"
+
+    @property
+    def _queue_id_field(self) -> str:
+        return "episodeId"

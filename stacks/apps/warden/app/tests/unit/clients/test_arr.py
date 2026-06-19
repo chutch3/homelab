@@ -1,4 +1,5 @@
 import json
+from datetime import timezone
 
 import httpx
 
@@ -80,3 +81,50 @@ class TestSonarrClient:
                               http=httpx.AsyncClient(transport=transport(handler)), api_key="sk")
         await client.trigger_search([5, 6])
         assert seen["body"] == {"name": "EpisodeSearch", "episodeIds": [5, 6]}
+
+
+class TestRadarrQueue:
+    async def test_list_queue_maps_records(self):
+        def handler(request: httpx.Request) -> httpx.Response:
+            assert request.url.path == "/api/v3/queue"
+            return httpx.Response(200, json={"records": [
+                {"id": 5, "movieId": 11, "title": "Dune", "status": "warning",
+                 "errorMessage": "The download is stalled with no connections",
+                 "added": "2026-06-15T00:00:00Z"},
+                {"id": 6, "movieId": 12, "title": "Heat", "status": "downloading",
+                 "errorMessage": None, "added": "2026-06-18T00:00:00Z"},
+            ]})
+        client = RadarrClient(name="radarr", base_url="http://radarr",
+                              http=httpx.AsyncClient(transport=transport(handler)), api_key="rk")
+        items = await client.list_queue()
+        assert [(i.id, i.remote_id, i.status, i.error_message) for i in items] == [
+            (5, 11, "warning", "The download is stalled with no connections"),
+            (6, 12, "downloading", ""),
+        ]
+        assert items[0].added.utcoffset() == timezone.utc.utcoffset(None)
+
+    async def test_remove_queue_item_issues_delete_with_params(self):
+        seen = {}
+        def handler(request: httpx.Request) -> httpx.Response:
+            seen["path"] = request.url.path
+            seen["params"] = dict(request.url.params)
+            seen["method"] = request.method
+            return httpx.Response(200, json={})
+        client = RadarrClient(name="radarr", base_url="http://radarr",
+                              http=httpx.AsyncClient(transport=transport(handler)), api_key="rk")
+        await client.remove_queue_item(5, remove_from_client=True, blocklist=True)
+        assert seen["method"] == "DELETE"
+        assert seen["path"] == "/api/v3/queue/5"
+        assert seen["params"] == {"removeFromClient": "true", "blocklist": "true"}
+
+
+class TestSonarrQueue:
+    async def test_list_queue_uses_episode_id(self):
+        def handler(request: httpx.Request) -> httpx.Response:
+            return httpx.Response(200, json={"records": [
+                {"id": 7, "episodeId": 99, "title": "S01E01", "status": "warning",
+                 "errorMessage": "stalled", "added": "2026-06-15T00:00:00Z"}]})
+        client = SonarrClient(name="sonarr", base_url="http://sonarr",
+                              http=httpx.AsyncClient(transport=transport(handler)), api_key="sk")
+        items = await client.list_queue()
+        assert items[0].remote_id == 99
