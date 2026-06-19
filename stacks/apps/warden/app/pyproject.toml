@@ -22,6 +22,7 @@ dev = [
     "import-linter>=2.11",
     "pytest-cov>=7.1.0",
     "polyfactory>=3.3.0",
+    "pytest-httpserver>=1.1.0",
 ]
 
 [tool.uv]
@@ -36,7 +37,10 @@ python_functions = ["test_*"]
 addopts = "--cov=warden --cov-report=term-missing --cov-fail-under=90"
 
 [tool.coverage.run]
-omit = ["*/warden/main.py", "*/warden/container.py"]
+parallel = true
+sigterm = true
+source = ["warden"]
+omit = []
 
 [tool.importlinter]
 root_package = "warden"
