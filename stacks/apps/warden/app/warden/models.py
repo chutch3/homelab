@@ -33,6 +33,16 @@ class WantedItem:
 
 
 @dataclass(frozen=True)
+class QueueItem:
+    id: int                 # queue record id — used in the DELETE
+    remote_id: int          # movieId (radarr) / episodeId (sonarr) — for hunt-exclusion
+    title: str
+    status: str             # top-level queue status (e.g. "downloading", "warning", "downloadClientUnavailable")
+    error_message: str      # top-level errorMessage ("" when null) — carries the stall reason
+    added: datetime         # aware UTC
+
+
+@dataclass(frozen=True)
 class InstanceWanted:
     missing: tuple[WantedItem, ...]
     cutoff_unmet: tuple[WantedItem, ...]
@@ -88,6 +98,9 @@ class ArrClientProtocol(Protocol):
     async def list_missing(self) -> list[WantedItem]: ...
     async def list_cutoff_unmet(self) -> list[WantedItem]: ...
     async def trigger_search(self, ids: list[int]) -> None: ...
+    async def list_queue(self) -> list["QueueItem"]: ...
+    async def remove_queue_item(self, queue_id: int, *, remove_from_client: bool = True,
+                                blocklist: bool = True) -> None: ...
 
 
 class ProwlarrReader(Protocol):
