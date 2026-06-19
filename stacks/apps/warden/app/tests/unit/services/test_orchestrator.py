@@ -14,32 +14,7 @@ from warden.services.quota import QuotaLedger
 from warden.services.quota_source import FallbackQuotaSource
 from warden.services.stale import StaleDetector
 from warden.services.sweeper import QueueSweeper
-
-
-class StubClient:
-    """Minimal ArrClientProtocol double for a unit test of the hunt logging."""
-
-    def __init__(self, missing, cutoff=None, arr_type: ArrType = ArrType.SONARR) -> None:
-        self.name = arr_type.value
-        self.arr_type = arr_type
-        self._missing = missing
-        self._cutoff = cutoff or []
-        self.searched: list[list[int]] = []
-
-    async def list_missing(self) -> list[WantedItem]:
-        return list(self._missing)
-
-    async def list_cutoff_unmet(self) -> list[WantedItem]:
-        return list(self._cutoff)
-
-    async def trigger_search(self, ids: list[int]) -> None:
-        self.searched.append(ids)
-
-    async def list_queue(self):
-        return []
-
-    async def remove_queue_item(self, queue_id, *, remove_from_client=True, blocklist=True):
-        return None
+from tests.factories import FakeArrClient
 
 
 def _sweeper() -> QueueSweeper:
@@ -74,7 +49,7 @@ def _events(caplog, event: str):
 class TestHuntLogging:
     async def test_logs_search_triggered_per_item(self, repo, caplog):
         item = WantedItem(instance="sonarr", remote_id=123, title="The Bear S03E01", kind=WantKind.MISSING)
-        client = StubClient([item], arr_type=ArrType.SONARR)
+        client = FakeArrClient("sonarr", [item], arr_type=ArrType.SONARR)
         orch = _make_orch([client], repo)
         with caplog.at_level(logging.INFO, logger="warden.orchestrator"):
             issued = await orch._hunt_one(client, 5, "sonarr:2026-06-18", [item], [], set())
@@ -90,7 +65,7 @@ class TestHuntLogging:
         assert r.kind == "missing"
 
     async def test_logs_nothing_to_hunt_when_empty(self, repo, caplog):
-        client = StubClient([], arr_type=ArrType.RADARR)
+        client = FakeArrClient("radarr", [], arr_type=ArrType.RADARR)
         orch = _make_orch([client], repo)
         with caplog.at_level(logging.INFO, logger="warden.orchestrator"):
             issued = await orch._hunt_one(client, 5, "radarr:2026-06-18", [], [], set())

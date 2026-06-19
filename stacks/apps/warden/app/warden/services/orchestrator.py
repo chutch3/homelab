@@ -5,7 +5,9 @@ from datetime import datetime
 from warden.clock import SystemClock
 from warden.logger import get_logger
 from warden.metrics import Metrics
-from warden.models import ArrClientProtocol, InstanceWanted, QueueItem, QuotaSource, SleepDecision, WantedItem
+from warden.models import (
+    ArrClientProtocol, InstanceWanted, QueueItem, QuotaSource, QuotaState, SleepDecision, WantedItem,
+)
 from warden.repositories.ledger import SearchLedgerRepository
 from warden.schedule import ResetSchedule
 from warden.services.pacer import Pacer
@@ -83,20 +85,8 @@ class TickOrchestrator:
 
                 exclusion = await self._sweep(client, queue, now)
 
-                sq = quotas.get(client.arr_type)
-                if sq is not None:
-                    gross, is_prowlarr, total, defaulted = sq.gross_limit, 1, sq.indexers_total, sq.indexers_defaulted
-                else:
-                    gross, is_prowlarr, total, defaulted = self._fallback_per_day, 0, 0, 0
                 window = f"{src}:{day}"
-                spent = self._ledger.spent(window)
-                state = self._quota.state(spent_today=spent, now=now, gross_limit=gross)
-                m.daily_budget.labels(source=src).set(state.daily_budget)
-                m.quota_remaining.labels(source=src).set(state.remaining)
-                m.binding_query_limit.labels(source=src).set(gross)
-                m.quota_prowlarr.labels(source=src).set(is_prowlarr)
-                m.indexers_total.labels(source=src).set(total)
-                m.indexers_defaulted.labels(source=src).set(defaulted)
+                state, is_prowlarr, spent = self._publish_quota_state(client, quotas, now, window)
                 if state.blocked:
                     m.blocked.labels(source=src).set(1)
                     m.paused_ticks.labels(source=src).inc()
@@ -115,6 +105,27 @@ class TickOrchestrator:
             if all_blocked and self._clients:
                 return SleepDecision(seconds=max(0.0, seconds_to_reset), reason="blocked")
             return SleepDecision(seconds=self._poll, reason="paced")
+
+    def _publish_quota_state(self, client: ArrClientProtocol, quotas: dict, now: datetime,
+                             window: str) -> tuple[QuotaState, int, int]:
+        """Resolve a source's budget (Prowlarr or flat fallback), publish its quota
+        metrics, and return (state, is_prowlarr, spent_today)."""
+        m = self._metrics
+        src = client.name
+        sq = quotas.get(client.arr_type)
+        if sq is not None:
+            gross, is_prowlarr, total, defaulted = sq.gross_limit, 1, sq.indexers_total, sq.indexers_defaulted
+        else:
+            gross, is_prowlarr, total, defaulted = self._fallback_per_day, 0, 0, 0
+        spent = self._ledger.spent(window)
+        state = self._quota.state(spent_today=spent, now=now, gross_limit=gross)
+        m.daily_budget.labels(source=src).set(state.daily_budget)
+        m.quota_remaining.labels(source=src).set(state.remaining)
+        m.binding_query_limit.labels(source=src).set(gross)
+        m.quota_prowlarr.labels(source=src).set(is_prowlarr)
+        m.indexers_total.labels(source=src).set(total)
+        m.indexers_defaulted.labels(source=src).set(defaulted)
+        return state, is_prowlarr, spent
 
     async def _sweep(self, client: ArrClientProtocol, queue: list[QueueItem], now: datetime) -> set[int]:
         """Execute the sweep (runs even when the source is quota-blocked) and return the
