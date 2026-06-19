@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from datetime import datetime
+
 from warden.clock import SystemClock
 from warden.logger import get_logger
 from warden.metrics import Metrics
@@ -114,7 +116,7 @@ class TickOrchestrator:
                 return SleepDecision(seconds=max(0.0, seconds_to_reset), reason="blocked")
             return SleepDecision(seconds=self._poll, reason="paced")
 
-    async def _sweep(self, client: ArrClientProtocol, queue: list[QueueItem], now) -> set[int]:
+    async def _sweep(self, client: ArrClientProtocol, queue: list[QueueItem], now: datetime) -> set[int]:
         """Execute the sweep (runs even when the source is quota-blocked) and return the
         hunt-exclusion set (queued remote ids minus those removed this tick)."""
         m = self._metrics

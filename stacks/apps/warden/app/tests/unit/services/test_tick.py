@@ -193,3 +193,44 @@ class TestTickOrchestrator:
         assert 2 not in searched
         assert metrics.registry.get_sample_value(
             "warden_stale_removed_total", {"source": "radarr", "reason": "stalled"}) == 1
+
+    async def test_mass_unhealthy_queue_bails_and_still_excludes(self, make):
+        # 3 stalled of 3 = 100% > 50% guard -> remove nothing, but all still excluded from hunt
+        stale = [QueueItem(id=10 + i, remote_id=i, title="s", status="warning",
+                           error_message="stalled with no connections", added=NOON - timedelta(hours=72))
+                 for i in range(3)]
+        radarr = FakeArrClient(
+            "radarr",
+            [missing_item("radarr", i) for i in range(3)] + [missing_item("radarr", 99)],
+            arr_type=ArrType.RADARR, queue=stale)
+        orch, metrics = make([radarr])
+        await orch.tick()
+        assert radarr.removed == []                       # bailed
+        assert metrics.registry.get_sample_value(
+            "warden_stale_sweep_skipped_total", {"source": "radarr"}) == 1
+        searched = [i for batch in radarr.searched for i in batch]
+        assert all(i not in searched for i in range(3))   # queued ids still excluded
+        assert 99 in searched                              # the non-queued item is huntable
+
+    async def test_removal_failure_is_swallowed_and_item_stays_excluded(self, make):
+        radarr = FakeArrClient(
+            "radarr", [missing_item("radarr", 1)], arr_type=ArrType.RADARR, remove_raises=True,
+            queue=[QueueItem(id=11, remote_id=1, title="s", status="warning",
+                             error_message="stalled with no connections", added=NOON - timedelta(hours=72))])
+        orch, _ = make([radarr])
+        await orch.tick()  # remove raises -> swallowed, no crash
+        searched = [i for batch in radarr.searched for i in batch]
+        assert 1 not in searched   # removal failed -> still queued -> stays excluded
+
+    async def test_sweep_runs_even_when_source_is_quota_blocked(self, make, repo):
+        radarr = FakeArrClient(
+            "radarr", [missing_item("radarr", 1)], arr_type=ArrType.RADARR,
+            queue=[QueueItem(id=11, remote_id=1, title="s", status="warning",
+                             error_message="stalled with no connections", added=NOON - timedelta(hours=72))])
+        qs = StubQuotaSource({ArrType.RADARR: 100})
+        orch, _ = make([radarr], quota_source=qs)
+        repo.add(f"radarr:{ResetSchedule('00:00').window_key(NOON)}", 80)  # exhaust budget -> blocked
+        decision = await orch.tick()
+        assert decision.reason == "blocked"
+        assert radarr.removed == [11]   # sweep still removed the stale item
+        assert radarr.searched == []    # but no hunt (blocked)
