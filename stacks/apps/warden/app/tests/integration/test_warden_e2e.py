@@ -181,3 +181,19 @@ def test_sweep_disabled_keeps_exclusion_but_no_delete(launch, radarr_server, son
         assert 11 not in body.get("movieIds", [])      # still excluded
     searched = {i for body in commands(radarr_server) for i in body.get("movieIds", [])}
     assert 13 in searched
+
+
+def test_searches_least_recently_searched_first(launch, radarr_server, sonarr_server):
+    # 1 searched recently, 2 never, 3 searched long ago -> LRS order is [2, 3, 1],
+    # so the never-searched item (2) must be hunted first, not the recent head (1).
+    prime_radarr(radarr_server, missing=[
+        {"id": 1, "title": "recent", "lastSearchTime": "2026-06-18T12:00:00Z"},
+        {"id": 2, "title": "never"},
+        {"id": 3, "title": "old", "lastSearchTime": "2026-05-01T00:00:00Z"},
+    ])
+    prime_sonarr(sonarr_server, missing=[])
+    launch(**_env(radarr_server, sonarr_server))
+    issued = poll_until(lambda: commands(radarr_server))
+    assert issued
+    assert issued[0]["movieIds"][0] == 2          # never-searched hunted first
+    assert issued[0]["movieIds"][0] != 1          # the recently-searched head is not first

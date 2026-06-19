@@ -166,9 +166,14 @@ def prime_sonarr(server: HTTPServer, *, missing=(), cutoff=(), queue=()) -> None
     _prime_arr(server, missing=missing, cutoff=cutoff, queue=queue)
 
 
+def _missing_record(m) -> dict:
+    # accept either a full dict (with optional lastSearchTime) or an (id, title) tuple
+    return m if isinstance(m, dict) else {"id": m[0], "title": m[1]}
+
+
 def _prime_arr(server: HTTPServer, *, missing=(), cutoff=(), queue=()) -> None:
     server.expect_request("/api/v3/wanted/missing").respond_with_json(
-        {"records": [{"id": i, "title": t} for i, t in missing]})
+        {"records": [_missing_record(m) for m in missing]})
     server.expect_request("/api/v3/wanted/cutoff").respond_with_json(
         {"records": [{"id": i, "title": t} for i, t in cutoff]})
     server.expect_request("/api/v3/command", method="POST").respond_with_json({"id": 1})
