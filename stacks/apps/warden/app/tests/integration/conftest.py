@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import dataclasses
 import os
+import re
 import signal
 import socket
 import subprocess
@@ -157,20 +158,35 @@ def commands(server: HTTPServer) -> list[dict]:
     return [r.get_json() for r in _records(server, "/api/v3/command", "POST")]
 
 
-def prime_radarr(server: HTTPServer, *, missing=(), cutoff=()) -> None:
-    _prime_arr(server, missing=missing, cutoff=cutoff)
+def prime_radarr(server: HTTPServer, *, missing=(), cutoff=(), queue=()) -> None:
+    _prime_arr(server, missing=missing, cutoff=cutoff, queue=queue)
 
 
-def prime_sonarr(server: HTTPServer, *, missing=(), cutoff=()) -> None:
-    _prime_arr(server, missing=missing, cutoff=cutoff)
+def prime_sonarr(server: HTTPServer, *, missing=(), cutoff=(), queue=()) -> None:
+    _prime_arr(server, missing=missing, cutoff=cutoff, queue=queue)
 
 
-def _prime_arr(server: HTTPServer, *, missing=(), cutoff=()) -> None:
+def _prime_arr(server: HTTPServer, *, missing=(), cutoff=(), queue=()) -> None:
     server.expect_request("/api/v3/wanted/missing").respond_with_json(
         {"records": [{"id": i, "title": t} for i, t in missing]})
     server.expect_request("/api/v3/wanted/cutoff").respond_with_json(
         {"records": [{"id": i, "title": t} for i, t in cutoff]})
     server.expect_request("/api/v3/command", method="POST").respond_with_json({"id": 1})
+    server.expect_request("/api/v3/queue").respond_with_json({"records": list(queue)})
+    server.expect_request(re.compile(r"^/api/v3/queue/\d+$"), method="DELETE").respond_with_json({})
+
+
+def deletes(server: HTTPServer) -> list:
+    return [req for req, _resp in server.log
+            if req.method == "DELETE" and req.path.startswith("/api/v3/queue/")]
+
+
+def stale_record(remote_id: int, queue_id: int, *, id_field: str, age_days: int = 3,
+                 status: str = "warning", err: str = "The download is stalled with no connections") -> dict:
+    from datetime import datetime, timedelta, timezone
+    added = (datetime.now(timezone.utc) - timedelta(days=age_days)).strftime("%Y-%m-%dT%H:%M:%SZ")
+    return {"id": queue_id, id_field: remote_id, "title": f"item-{remote_id}",
+            "status": status, "errorMessage": err, "added": added}
 
 
 def prime_prowlarr(server: HTTPServer, *, apps=(), indexers=()) -> None:

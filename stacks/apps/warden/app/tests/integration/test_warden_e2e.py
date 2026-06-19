@@ -136,3 +136,48 @@ def test_prowlarr_down_fallback_disabled_issues_no_search(launch, radarr_server,
     got = poll_until(lambda: sample(scrape(warden), "warden_prowlarr_up") == 0.0)
     assert got
     assert commands(radarr_server) == []
+
+
+from tests.integration.conftest import deletes, stale_record  # noqa: E402
+
+
+def test_stale_download_is_removed_and_blocklisted(launch, radarr_server, sonarr_server):
+    prime_radarr(radarr_server, missing=[(11, "Dune")],
+                 queue=[stale_record(11, 55, id_field="movieId")])
+    prime_sonarr(sonarr_server, missing=[])
+    warden = launch(**_env(radarr_server, sonarr_server))
+    removed = poll_until(lambda: deletes(radarr_server))
+    assert removed
+    req = removed[0]
+    assert req.path == "/api/v3/queue/55"
+    assert req.query_string.decode() == "removeFromClient=true&blocklist=true"
+    assert poll_until(lambda: (sample(scrape(warden), "warden_stale_removed_total",
+                                      source="radarr", reason="stalled") or 0) >= 1.0)
+
+
+def test_in_queue_item_is_not_searched(launch, radarr_server, sonarr_server):
+    healthy = {"id": 60, "movieId": 11, "title": "Dune", "status": "downloading",
+               "errorMessage": None, "added": "2026-06-18T00:00:00Z"}
+    prime_radarr(radarr_server, missing=[(11, "Dune"), (13, "Other")], queue=[healthy])
+    prime_sonarr(sonarr_server, missing=[])
+    launch(**_env(radarr_server, sonarr_server))
+    issued = poll_until(lambda: commands(radarr_server))
+    assert issued
+    for body in commands(radarr_server):
+        assert 11 not in body.get("movieIds", [])     # in queue -> excluded
+    searched = {i for body in commands(radarr_server) for i in body.get("movieIds", [])}
+    assert 13 in searched                              # not in queue -> hunted
+
+
+def test_sweep_disabled_keeps_exclusion_but_no_delete(launch, radarr_server, sonarr_server):
+    prime_radarr(radarr_server, missing=[(11, "Dune"), (13, "Other")],
+                 queue=[stale_record(11, 55, id_field="movieId")])
+    prime_sonarr(sonarr_server, missing=[])
+    launch(**_env(radarr_server, sonarr_server), WARDEN_STALE_SWEEP_ENABLED="false")
+    issued = poll_until(lambda: commands(radarr_server))
+    assert issued
+    assert deletes(radarr_server) == []                # nothing removed
+    for body in commands(radarr_server):
+        assert 11 not in body.get("movieIds", [])      # still excluded
+    searched = {i for body in commands(radarr_server) for i in body.get("movieIds", [])}
+    assert 13 in searched
