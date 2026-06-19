@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from datetime import datetime
+
 from polyfactory.factories.dataclass_factory import DataclassFactory
 
 from warden.models import ArrType, Indexer, ProwlarrApp, WantedItem, WantKind
@@ -10,7 +12,7 @@ class WantedItemFactory(DataclassFactory[WantedItem]):
 
 
 def wanted_item(instance: str, rid: int, kind: WantKind = WantKind.MISSING,
-                last_search_time=None) -> WantedItem:
+                last_search_time: datetime | None = None) -> WantedItem:
     return WantedItemFactory.build(instance=instance, remote_id=rid, title=f"t{rid}", kind=kind,
                                    last_search_time=last_search_time)
 

@@ -195,5 +195,4 @@ def test_searches_least_recently_searched_first(launch, radarr_server, sonarr_se
     launch(**_env(radarr_server, sonarr_server))
     issued = poll_until(lambda: commands(radarr_server))
     assert issued
-    assert issued[0]["movieIds"][0] == 2          # never-searched hunted first
-    assert issued[0]["movieIds"][0] != 1          # the recently-searched head is not first
+    assert issued[0]["movieIds"][0] == 2          # never-searched hunted first, not the recent head (1)

@@ -8,16 +8,13 @@ import httpx
 from warden.models import ArrType, QueueItem, WantedItem, WantKind
 
 
+def _parse_iso(raw: str | None) -> datetime | None:
+    """Parse an *arr ISO-8601 `...Z` timestamp to aware UTC; None when null/absent."""
+    return datetime.fromisoformat(raw.replace("Z", "+00:00")) if raw else None
+
+
 def _parse_added(raw: str | None) -> datetime:
-    if not raw:
-        return datetime(1970, 1, 1, tzinfo=timezone.utc)
-    return datetime.fromisoformat(raw.replace("Z", "+00:00"))
-
-
-def _parse_search_time(raw: str | None) -> datetime | None:
-    if not raw:
-        return None
-    return datetime.fromisoformat(raw.replace("Z", "+00:00"))
+    return _parse_iso(raw) or datetime(1970, 1, 1, tzinfo=timezone.utc)
 
 
 class ArrClient(ABC):
@@ -56,7 +53,7 @@ class ArrClient(ABC):
         return [
             WantedItem(instance=self.name, remote_id=int(r["id"]),
                        title=r.get("title", ""), kind=kind,
-                       last_search_time=_parse_search_time(r.get("lastSearchTime")))
+                       last_search_time=_parse_iso(r.get("lastSearchTime")))
             for r in records
         ]
 
