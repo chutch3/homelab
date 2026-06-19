@@ -1,6 +1,10 @@
 from __future__ import annotations
 
+from datetime import datetime, timezone
+
 from warden.models import InstanceWanted, WantedItem
+
+_NEVER = datetime(1, 1, 1, tzinfo=timezone.utc)  # sentinel: never-searched sorts first
 
 
 class HuntPlanner:
@@ -18,7 +22,9 @@ class HuntPlanner:
         queues: list[list[WantedItem]] = []
         for name in names:
             iw = wanted[name]
-            queues.append(list(iw.missing) + list(iw.cutoff_unmet))
+            # least-recently-searched first (never-searched before oldest); stable among equal
+            missing = sorted(iw.missing, key=lambda w: w.last_search_time or _NEVER)
+            queues.append(missing + list(iw.cutoff_unmet))
 
         selected: list[WantedItem] = []
         idx = 0

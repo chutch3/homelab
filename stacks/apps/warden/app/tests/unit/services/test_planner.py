@@ -1,3 +1,5 @@
+from datetime import datetime, timezone
+
 import pytest
 
 from warden.models import InstanceWanted, WantKind
@@ -42,3 +44,30 @@ class TestHuntPlanner:
     def test_zero_allowance_selects_nothing(self, subject: HuntPlanner):
         wanted = {"radarr": InstanceWanted(missing=(wanted_item("radarr", 1),), cutoff_unmet=())}
         assert subject.plan(allowance=0, wanted=wanted) == []
+
+    def test_orders_missing_least_recently_searched_first(self, subject: HuntPlanner):
+        t_old = datetime(2026, 6, 1, tzinfo=timezone.utc)
+        t_new = datetime(2026, 6, 18, tzinfo=timezone.utc)
+        wanted = {
+            "radarr": InstanceWanted(
+                missing=(
+                    wanted_item("radarr", 1, last_search_time=t_new),
+                    wanted_item("radarr", 2, last_search_time=None),   # never searched
+                    wanted_item("radarr", 3, last_search_time=t_old),
+                ),
+                cutoff_unmet=(),
+            )
+        }
+        selected = subject.plan(allowance=3, wanted=wanted)
+        # never-searched first, then oldest, then newest
+        assert [s.remote_id for s in selected] == [2, 3, 1]
+
+    def test_never_searched_ties_keep_input_order(self, subject: HuntPlanner):
+        wanted = {
+            "radarr": InstanceWanted(
+                missing=(wanted_item("radarr", 7), wanted_item("radarr", 8), wanted_item("radarr", 9)),
+                cutoff_unmet=(),
+            )
+        }
+        selected = subject.plan(allowance=3, wanted=wanted)
+        assert [s.remote_id for s in selected] == [7, 8, 9]
