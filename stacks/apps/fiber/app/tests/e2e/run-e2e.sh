@@ -2,6 +2,7 @@
 # Unprivileged Fiber e2e: plain docker compose (bridge net), real dump -> restore -> assert.
 set -euo pipefail
 cd "$(dirname "$0")"
+STACK_ROOT="$(cd ../../.. && pwd)"   # fiber stack root (this script lives at app/tests/e2e/)
 
 PROJECT="fiber-e2e"
 NET="${PROJECT}_fibernet"
@@ -16,7 +17,7 @@ trap cleanup EXIT
 echo "e2e_password" > e2e_db_password
 
 echo "==> Building fiber:e2e image"
-docker build -t fiber:e2e -f ../../app/Dockerfile ../../
+docker build -t fiber:e2e -f "$STACK_ROOT/app/Dockerfile" "$STACK_ROOT"
 
 echo "==> Bringing up the compose stack"
 docker compose -p "$PROJECT" up -d

@@ -40,7 +40,7 @@ tasks:
     test:e2e:
         desc: Run unprivileged compose end-to-end test (requires Docker)
         cmds:
-            - bash {{.STACK_DIR}}/tests/e2e/run-e2e.sh
+            - bash {{.STACK_DIR}}/app/tests/e2e/run-e2e.sh
     demo:
         desc: Boot the dashboard demo locally with seeded data (no cluster, scan loop disabled)
         dir: "{{.STACK_DIR}}/app"
