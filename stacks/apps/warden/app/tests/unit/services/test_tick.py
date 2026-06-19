@@ -16,7 +16,7 @@ from warden.services.quota import QuotaLedger
 from warden.services.quota_source import FallbackQuotaSource
 from warden.services.stale import StaleDetector
 from warden.services.sweeper import QueueSweeper
-from tests.factories import FakeArrClient, missing_item
+from tests.factories import FakeArrClient, missing_item, wanted_item
 
 
 def _sweeper() -> QueueSweeper:
@@ -221,6 +221,17 @@ class TestTickOrchestrator:
         await orch.tick()  # remove raises -> swallowed, no crash
         searched = [i for batch in radarr.searched for i in batch]
         assert 1 not in searched   # removal failed -> still queued -> stays excluded
+
+    async def test_sets_never_searched_metric(self, make):
+        radarr = FakeArrClient("radarr", [
+            missing_item("radarr", 1),                          # last_search_time None
+            missing_item("radarr", 2),                          # None
+            wanted_item("radarr", 3, last_search_time=NOON),    # searched
+        ], arr_type=ArrType.RADARR)
+        orch, metrics = make([radarr])
+        await orch.tick()
+        assert metrics.registry.get_sample_value(
+            "warden_never_searched", {"source": "radarr"}) == 2
 
     async def test_sweep_runs_even_when_source_is_quota_blocked(self, make, repo):
         radarr = FakeArrClient(

@@ -38,6 +38,9 @@ class Metrics:
             "warden_last_tick_timestamp_seconds", "Unix time of the last completed tick", registry=registry)
         self.tick_duration = Histogram(
             "warden_tick_duration_seconds", "Tick duration", registry=registry)
+        self.never_searched = Gauge(
+            "warden_never_searched", "Missing items never searched (lastSearchTime null) — backlog not yet reached",
+            ["source"], registry=registry)
         self.queue_size = Gauge(
             "warden_queue_size", "Items in the *arr download queue", ["source"], registry=registry)
         self.queue_stalled = Gauge(

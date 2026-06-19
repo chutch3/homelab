@@ -82,6 +82,8 @@ class TickOrchestrator:
                                     extra={"event": "instance_unreachable", "source": src, "error": str(exc)})
                     continue
                 m.instance_up.labels(source=src).set(1)
+                m.never_searched.labels(source=src).set(
+                    sum(1 for w in missing if w.last_search_time is None))
 
                 exclusion = await self._sweep(client, queue, now)
 
