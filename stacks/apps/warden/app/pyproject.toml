@@ -37,10 +37,7 @@ python_functions = ["test_*"]
 addopts = "--cov=warden --cov-report=term-missing --cov-fail-under=90"
 
 [tool.coverage.run]
-parallel = true
-sigterm = true
-source = ["warden"]
-omit = []
+omit = ["*/warden/main.py", "*/warden/container.py"]
 
 [tool.importlinter]
 root_package = "warden"

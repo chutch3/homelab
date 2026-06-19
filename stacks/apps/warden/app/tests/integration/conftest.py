@@ -18,6 +18,20 @@ from pytest_httpserver import HTTPServer
 APP_DIR = Path(__file__).resolve().parents[2]  # .../warden/app
 
 
+def pytest_collection_finish(session: pytest.Session) -> None:
+    """Disable coverage fail-under when only integration tests are collected (no unit tests).
+
+    Mirrors fiber: the gated subprocess suite is coverage-exempt; the ≥90% gate is
+    carried by the unit tier and enforced on the full run.
+    """
+    has_unit = any("tests/unit" in str(item.fspath) for item in session.items)
+    if not has_unit:
+        for _name, plugin in session.config.pluginmanager.list_name_plugin():
+            if hasattr(plugin, "options") and hasattr(plugin.options, "cov_fail_under"):
+                plugin.options.cov_fail_under = None
+                break
+
+
 @dataclasses.dataclass
 class WardenHandle:
     base_url: str
@@ -68,7 +82,6 @@ def launch(tmp_path) -> Callable[..., WardenHandle]:
             "WARDEN_DB_URL": f"sqlite:///{tmp_path}/warden-{port}.db",
             "WARDEN_POLL_INTERVAL_SEC": "0.5",
             "WARDEN_FALLBACK_SEARCHES_PER_DAY": "500",
-            "COVERAGE_PROCESS_START": str(APP_DIR / "pyproject.toml"),
             **env_overrides,
         }
         fh = open(logfile, "w")
