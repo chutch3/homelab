@@ -61,7 +61,7 @@ services:
               target: /etc/grafana/provisioning/dashboards-local/inter-node-bandwidth.json
             - source: dashboard_node_resources_v3
               target: /etc/grafana/provisioning/dashboards-local/node-resources.json
-            - source: dashboard_warden_v5
+            - source: dashboard_warden_v6
               target: /etc/grafana/provisioning/dashboards-local/warden.json
         environment:
             - GF_SECURITY_ADMIN_USER=admin
@@ -284,7 +284,7 @@ configs:
         file: ./dashboards/local/inter-node-bandwidth.json
     dashboard_node_resources_v3:
         file: ./dashboards/local/node-resources.json
-    dashboard_warden_v5:
+    dashboard_warden_v6:
         file: ./dashboards/local/warden.json
     prometheus_datasource:
         file: ./datasources/prometheus.yml
