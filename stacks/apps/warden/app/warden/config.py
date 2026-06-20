@@ -51,6 +51,9 @@ class Config:
     stale_max_removals_per_tick: int
     stale_mass_fraction: float
     stale_min_queue_for_guard: int
+    stale_no_progress_enabled: bool
+    stale_no_progress_hours: float
+    stale_min_progress_mb: int
 
     @staticmethod
     def from_env() -> "Config":
@@ -74,4 +77,7 @@ class Config:
             stale_max_removals_per_tick=int(os.getenv("WARDEN_STALE_MAX_REMOVALS_PER_TICK", "5")),
             stale_mass_fraction=float(os.getenv("WARDEN_STALE_MASS_FRACTION", "0.5")),
             stale_min_queue_for_guard=int(os.getenv("WARDEN_STALE_MIN_QUEUE_FOR_GUARD", "3")),
+            stale_no_progress_enabled=_env_bool("WARDEN_STALE_NO_PROGRESS_ENABLED", True),
+            stale_no_progress_hours=float(os.getenv("WARDEN_STALE_NO_PROGRESS_HOURS", "6")),
+            stale_min_progress_mb=int(os.getenv("WARDEN_STALE_MIN_PROGRESS_MB", "100")),
         )

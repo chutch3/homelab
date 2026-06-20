@@ -14,14 +14,27 @@ from warden.services.pacer import Pacer
 from warden.services.planner import HuntPlanner
 from warden.services.quota import QuotaLedger
 from warden.services.quota_source import FallbackQuotaSource
+from warden.services.progress import ProgressTracker
 from warden.services.stale import StaleDetector
 from warden.services.sweeper import QueueSweeper
+from warden.repositories.progress import QueueProgressRepository
+from sqlmodel import SQLModel, create_engine
 from tests.factories import FakeArrClient, missing_item, wanted_item
 
 
 def _sweeper() -> QueueSweeper:
     return QueueSweeper(StaleDetector(grace_hours=48), enabled=True, max_removals_per_tick=5,
                         mass_fraction=0.5, min_queue_for_guard=3)
+
+
+def _tracker() -> ProgressTracker:
+    return ProgressTracker(window_hours=6, min_progress_bytes=100_000_000, enabled=True)
+
+
+def _progress_repo() -> QueueProgressRepository:
+    engine = create_engine("sqlite://", connect_args={"check_same_thread": False})
+    SQLModel.metadata.create_all(engine)
+    return QueueProgressRepository(engine)
 
 
 class FrozenClock(SystemClock):
@@ -60,7 +73,7 @@ class TestTickOrchestrator:
     @pytest.fixture()
     def make(self, repo: SearchLedgerRepository) -> Callable[..., tuple[TickOrchestrator, Metrics]]:
         def _make(clients, *, quota_source=None, fallback=200, reserve=20, poll=300, when=NOON,
-                  prowlarr_fallback_on_error=True):
+                  prowlarr_fallback_on_error=True, progress_repo=None):
             schedule = ResetSchedule("00:00")
             metrics = Metrics(CollectorRegistry())
             orch = TickOrchestrator(
@@ -69,6 +82,8 @@ class TestTickOrchestrator:
                 pacer=Pacer(poll_interval_sec=poll),
                 planner=HuntPlanner(),
                 sweeper=_sweeper(),
+                tracker=_tracker(),
+                progress_repo=progress_repo or _progress_repo(),
                 ledger=repo,
                 clock=FrozenClock(when),
                 metrics=metrics,
@@ -221,6 +236,22 @@ class TestTickOrchestrator:
         await orch.tick()  # remove raises -> swallowed, no crash
         searched = [i for batch in radarr.searched for i in batch]
         assert 1 not in searched   # removal failed -> still queued -> stays excluded
+
+    async def test_no_progress_download_is_removed(self, make):
+        from warden.models import Anchor
+        # pre-seed an anchor 7h ago (> 6h window); item still has the same sizeleft -> no progress
+        repo = _progress_repo()
+        repo.replace({"DID1": Anchor(1000, NOON - timedelta(hours=7))})
+        radarr = FakeArrClient(
+            "radarr", [missing_item("radarr", 1)], arr_type=ArrType.RADARR,
+            queue=[QueueItem(id=55, remote_id=1, title="stuck", status="downloading",
+                             error_message="", added=NOON - timedelta(hours=30),
+                             download_id="DID1", size_left=1000)])
+        orch, metrics = make([radarr], progress_repo=repo)
+        await orch.tick()
+        assert radarr.removed == [55]
+        assert metrics.registry.get_sample_value(
+            "warden_stale_removed_total", {"source": "radarr", "reason": "no_progress"}) == 1
 
     async def test_sets_never_searched_metric(self, make):
         radarr = FakeArrClient("radarr", [

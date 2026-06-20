@@ -89,7 +89,8 @@ class TestStaleConfig:
     def test_stale_defaults(self, monkeypatch):
         for v in ("WARDEN_STALE_SWEEP_ENABLED", "WARDEN_STALE_GRACE_HOURS",
                   "WARDEN_STALE_MAX_REMOVALS_PER_TICK", "WARDEN_STALE_MASS_FRACTION",
-                  "WARDEN_STALE_MIN_QUEUE_FOR_GUARD"):
+                  "WARDEN_STALE_MIN_QUEUE_FOR_GUARD", "WARDEN_STALE_NO_PROGRESS_ENABLED",
+                  "WARDEN_STALE_NO_PROGRESS_HOURS", "WARDEN_STALE_MIN_PROGRESS_MB"):
             monkeypatch.delenv(v, raising=False)
         cfg = Config.from_env()
         assert cfg.stale_sweep_enabled is True
@@ -97,6 +98,9 @@ class TestStaleConfig:
         assert cfg.stale_max_removals_per_tick == 5
         assert cfg.stale_mass_fraction == 0.5
         assert cfg.stale_min_queue_for_guard == 3
+        assert cfg.stale_no_progress_enabled is True
+        assert cfg.stale_no_progress_hours == 6.0
+        assert cfg.stale_min_progress_mb == 100
 
     def test_stale_overrides(self, monkeypatch):
         monkeypatch.setenv("WARDEN_STALE_SWEEP_ENABLED", "false")

@@ -1,7 +1,7 @@
 from datetime import datetime, timedelta, timezone
 
 from warden.models import QueueItem
-from warden.services.stale import StaleDetector
+from warden.services.stale import StaleDetector, StaleVerdict
 from warden.services.sweeper import QueueSweeper
 
 NOW = datetime(2026, 6, 18, 12, 0, tzinfo=timezone.utc)
@@ -60,6 +60,16 @@ class TestQueueSweeper:
         # 1 stale of 2 = 50% but queue < min_queue_for_guard(3) -> guard off, removes it
         d = _sweeper().plan([_stale(1, 11), _ok(2, 12)], NOW)
         assert not d.skipped and len(d.to_remove) == 1
+
+    def test_merges_extra_verdicts_deduped_by_queue_id(self):
+        queue = [_stale(1, 11), _ok(2, 12)]                       # 11 stale-by-status; 12 healthy
+        extra = [StaleVerdict(_ok(2, 12), "no_progress"),        # 12 flagged by no-progress
+                 StaleVerdict(_stale(1, 11), "no_progress")]     # 11 already a status verdict -> dedup
+        d = _sweeper().plan(queue, NOW, extra=extra)
+        actions = {a.queue_id: a.reason for a in d.to_remove}
+        assert set(actions) == {11, 12}                          # both removed, 11 only once
+        assert actions[11] == "stalled"                          # status verdict kept on dedup
+        assert actions[12] == "no_progress"
 
     def test_disabled_removes_nothing_but_keeps_exclusion(self):
         d = _sweeper(enabled=False).plan([_stale(1, 11), _ok(2, 12)], NOW)

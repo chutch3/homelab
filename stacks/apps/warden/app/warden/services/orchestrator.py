@@ -9,10 +9,13 @@ from warden.models import (
     ArrClientProtocol, InstanceWanted, QueueItem, QuotaSource, QuotaState, SleepDecision, WantedItem,
 )
 from warden.repositories.ledger import SearchLedgerRepository
+from warden.repositories.progress import QueueProgressRepository
 from warden.schedule import ResetSchedule
 from warden.services.pacer import Pacer
 from warden.services.planner import HuntPlanner
+from warden.services.progress import ProgressTracker
 from warden.services.quota import QuotaLedger
+from warden.services.stale import StaleVerdict
 from warden.services.sweeper import QueueSweeper
 
 _logger = get_logger("warden.orchestrator")
@@ -26,6 +29,8 @@ class TickOrchestrator:
         pacer: Pacer,
         planner: HuntPlanner,
         sweeper: QueueSweeper,
+        tracker: ProgressTracker,
+        progress_repo: QueueProgressRepository,
         ledger: SearchLedgerRepository,
         clock: SystemClock,
         metrics: Metrics,
@@ -41,6 +46,8 @@ class TickOrchestrator:
         self._pacer = pacer
         self._planner = planner
         self._sweeper = sweeper
+        self._tracker = tracker
+        self._progress_repo = progress_repo
         self._ledger = ledger
         self._clock = clock
         self._metrics = metrics
@@ -68,6 +75,8 @@ class TickOrchestrator:
                 quotas = {}
 
             m = self._metrics
+            prior_progress = self._progress_repo.snapshot()
+            next_progress: dict = {}
             all_blocked = True
             for client in self._clients:
                 src = client.name
@@ -85,7 +94,11 @@ class TickOrchestrator:
                 m.never_searched.labels(source=src).set(
                     sum(1 for w in missing if w.last_search_time is None))
 
-                exclusion = await self._sweep(client, queue, now)
+                np_items, client_progress = self._tracker.evaluate(queue, prior_progress, now)
+                next_progress.update(client_progress)
+                m.queue_no_progress.labels(source=src).set(len(np_items))
+                extra = [StaleVerdict(item=i, reason="no_progress") for i in np_items]
+                exclusion = await self._sweep(client, queue, now, extra)
 
                 window = f"{src}:{day}"
                 state, is_prowlarr, spent = self._publish_quota_state(client, quotas, now, window)
@@ -103,6 +116,7 @@ class TickOrchestrator:
                     "allowance": allowance, "remaining": state.remaining, "budget": state.daily_budget,
                     "mode": "prowlarr" if is_prowlarr else "fallback"})
 
+            self._progress_repo.replace(next_progress)
             m.last_tick.set(now.timestamp())
             if all_blocked and self._clients:
                 return SleepDecision(seconds=max(0.0, seconds_to_reset), reason="blocked")
@@ -129,12 +143,13 @@ class TickOrchestrator:
         m.indexers_defaulted.labels(source=src).set(defaulted)
         return state, is_prowlarr, spent
 
-    async def _sweep(self, client: ArrClientProtocol, queue: list[QueueItem], now: datetime) -> set[int]:
+    async def _sweep(self, client: ArrClientProtocol, queue: list[QueueItem], now: datetime,
+                     extra: list[StaleVerdict]) -> set[int]:
         """Execute the sweep (runs even when the source is quota-blocked) and return the
         hunt-exclusion set (queued remote ids minus those removed this tick)."""
         m = self._metrics
         src = client.name
-        decision = self._sweeper.plan(queue, now)
+        decision = self._sweeper.plan(queue, now, extra)
         m.queue_size.labels(source=src).set(decision.queue_size)
         m.queue_stalled.labels(source=src).set(decision.stalled_count)
         removed: set[int] = set()

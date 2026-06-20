@@ -3,8 +3,10 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import datetime
 
+from collections.abc import Sequence
+
 from warden.models import QueueItem
-from warden.services.stale import StaleDetector
+from warden.services.stale import StaleDetector, StaleVerdict
 
 
 @dataclass(frozen=True)
@@ -35,8 +37,14 @@ class QueueSweeper:
         self._mass_fraction = mass_fraction
         self._min_queue = min_queue_for_guard
 
-    def plan(self, queue: list[QueueItem], now: datetime) -> SweepDecision:
-        verdicts = self._detector.detect(queue, now)
+    def plan(self, queue: list[QueueItem], now: datetime,
+             extra: Sequence[StaleVerdict] = ()) -> SweepDecision:
+        verdicts = list(self._detector.detect(queue, now))
+        seen = {v.item.id for v in verdicts}
+        for v in extra:                          # e.g. no-progress verdicts, deduped by queue id
+            if v.item.id not in seen:
+                verdicts.append(v)
+                seen.add(v.item.id)
         stalled = len(verdicts)
         total = len(queue)
         unavailable = sum(1 for q in queue if q.status == "downloadClientUnavailable")

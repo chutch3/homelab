@@ -45,6 +45,9 @@ class Metrics:
             "warden_queue_size", "Items in the *arr download queue", ["source"], registry=registry)
         self.queue_stalled = Gauge(
             "warden_queue_stalled", "Removable-stale items detected this tick", ["source"], registry=registry)
+        self.queue_no_progress = Gauge(
+            "warden_queue_no_progress", "Downloads making no progress this tick (stuck)",
+            ["source"], registry=registry)
         self.stale_removed = Counter(
             "warden_stale_removed_total", "Stale queue items removed + blocklisted",
             ["source", "reason"], registry=registry)

@@ -12,12 +12,14 @@ from warden.database import make_engine
 from warden.metrics import Metrics
 from warden.models import ArrClientProtocol, ArrType, QuotaSource
 from warden.repositories.ledger import SearchLedgerRepository
+from warden.repositories.progress import QueueProgressRepository
 from warden.schedule import ResetSchedule
 from warden.services.orchestrator import TickOrchestrator
 from warden.services.pacer import Pacer
 from warden.services.planner import HuntPlanner
 from warden.services.quota import QuotaLedger
 from warden.services.quota_source import FallbackQuotaSource, ProwlarrQuotaSource
+from warden.services.progress import ProgressTracker
 from warden.services.stale import StaleDetector
 from warden.services.sweeper import QueueSweeper
 
@@ -28,6 +30,14 @@ def _build_clients(config: Config, http: httpx.AsyncClient) -> list[ArrClientPro
         cls = RadarrClient if inst.type == ArrType.RADARR else SonarrClient
         clients.append(cls(name=inst.name, base_url=inst.url, http=http, api_key=inst.api_key))
     return clients
+
+
+def _build_tracker(config: Config) -> ProgressTracker:
+    return ProgressTracker(
+        window_hours=config.stale_no_progress_hours,
+        min_progress_bytes=config.stale_min_progress_mb * 1_000_000,
+        enabled=config.stale_no_progress_enabled,
+    )
 
 
 def _build_quota_source(config: Config, http: httpx.AsyncClient) -> QuotaSource:
@@ -66,6 +76,8 @@ class Container(containers.DeclarativeContainer):
         mass_fraction=config.provided.stale_mass_fraction,
         min_queue_for_guard=config.provided.stale_min_queue_for_guard,
     )
+    tracker = providers.Singleton(_build_tracker, config=config)
+    progress_repo = providers.Singleton(QueueProgressRepository, engine=engine)
     orchestrator = providers.Singleton(
         TickOrchestrator,
         clients=clients,
@@ -73,6 +85,8 @@ class Container(containers.DeclarativeContainer):
         pacer=pacer,
         planner=planner,
         sweeper=sweeper,
+        tracker=tracker,
+        progress_repo=progress_repo,
         ledger=ledger,
         clock=clock,
         metrics=metrics,
