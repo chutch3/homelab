@@ -118,9 +118,11 @@ class TickOrchestrator:
 
             self._progress_repo.replace(next_progress)
             m.last_tick.set(now.timestamp())
-            if all_blocked and self._clients:
-                return SleepDecision(seconds=max(0.0, seconds_to_reset), reason="blocked")
-            return SleepDecision(seconds=self._poll, reason="paced")
+            # Even when all sources are quota-blocked, keep the poll cadence so the queue
+            # janitor (sweep / no-progress / exclusion) — which costs no quota — keeps running.
+            # Sleeping until reset would starve it for most of the day.
+            reason = "blocked" if (all_blocked and self._clients) else "paced"
+            return SleepDecision(seconds=self._poll, reason=reason)
 
     def _publish_quota_state(self, client: ArrClientProtocol, quotas: dict, now: datetime,
                              window: str) -> tuple[QuotaState, int, int]:

@@ -85,6 +85,10 @@ def test_blocked_source_issues_no_search(launch, radarr_server, sonarr_server):
     assert blocked
     assert commands(radarr_server) == []
     assert sample(scrape(warden), "warden_paused_ticks_total", source="radarr") >= 1.0
+    # janitor decoupled from the hunt-block: warden keeps ticking while blocked (last_tick advances)
+    t1 = sample(scrape(warden), "warden_last_tick_timestamp_seconds")
+    assert poll_until(lambda: (sample(scrape(warden), "warden_last_tick_timestamp_seconds") or 0) > t1,
+                      timeout=10)
 
 
 def test_prowlarr_provenance_metrics(launch, radarr_server, sonarr_server, prowlarr_server):

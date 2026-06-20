@@ -109,15 +109,17 @@ class TestTickOrchestrator:
         assert sonarr.searched == [[9]]        # sonarr still hunts
         assert decision.reason == "paced"
 
-    async def test_all_sources_blocked_sleeps_until_reset(self, make, repo):
+    async def test_all_sources_blocked_keeps_poll_cadence_so_janitor_runs(self, make, repo):
+        # when quota-blocked, warden must still wake every poll interval to run the (free)
+        # queue janitor — NOT sleep until the daily reset (which would starve the sweep).
         radarr = FakeArrClient("radarr", [missing_item("radarr", 1)], arr_type=ArrType.RADARR)
         qs = StubQuotaSource({ArrType.RADARR: 100})
-        orch, _ = make([radarr], quota_source=qs)
+        orch, _ = make([radarr], quota_source=qs, poll=300)
         repo.add(f"radarr:{ResetSchedule('00:00').window_key(NOON)}", 80)
         decision = await orch.tick()
         assert radarr.searched == []
         assert decision.reason == "blocked"
-        assert decision.seconds > 0
+        assert decision.seconds == 300          # poll interval, not seconds_to_reset
 
     async def test_source_with_zero_indexers_is_blocked(self, make):
         radarr = FakeArrClient("radarr", [missing_item("radarr", 1)], arr_type=ArrType.RADARR)
