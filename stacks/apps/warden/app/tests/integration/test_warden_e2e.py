@@ -218,3 +218,16 @@ def test_no_progress_download_is_removed(launch, radarr_server, sonarr_server):
     assert removed[0].query_string.decode() == "removeFromClient=true&blocklist=true"
     assert poll_until(lambda: (sample(scrape(warden), "warden_stale_removed_total",
                                       source="radarr", reason="no_progress") or 0) >= 1.0, timeout=20)
+
+
+def test_progressing_download_is_not_removed(launch, radarr_server, sonarr_server):
+    from tests.integration.conftest import prime_progressing, queue_fetches
+    # sizeleft drops 1 GB/fetch (>> 100 MB min) from a huge start -> always progressing, never stale
+    prime_progressing(radarr_server, queue_id=66, remote_id=11, id_field="movieId",
+                      start_left=10_000_000_000_000, step=1_000_000_000)
+    prime_sonarr(sonarr_server, missing=[])
+    launch(**_env(radarr_server, sonarr_server),
+           WARDEN_STALE_NO_PROGRESS_HOURS="0", WARDEN_STALE_MIN_PROGRESS_MB="100")
+    # let several ticks evaluate it, then assert it was never removed
+    assert poll_until(lambda: queue_fetches(radarr_server) >= 4, timeout=20)
+    assert deletes(radarr_server) == []

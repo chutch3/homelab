@@ -3,8 +3,17 @@ from __future__ import annotations
 from datetime import datetime
 
 from polyfactory.factories.dataclass_factory import DataclassFactory
+from sqlmodel import SQLModel, create_engine
 
 from warden.models import ArrType, Indexer, ProwlarrApp, WantedItem, WantKind
+from warden.repositories.progress import QueueProgressRepository
+
+
+def make_progress_repo() -> QueueProgressRepository:
+    """A fresh in-memory queue-progress repository for orchestrator/repo tests."""
+    engine = create_engine("sqlite://", connect_args={"check_same_thread": False})
+    SQLModel.metadata.create_all(engine)
+    return QueueProgressRepository(engine)
 
 
 class WantedItemFactory(DataclassFactory[WantedItem]):

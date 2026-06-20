@@ -15,20 +15,12 @@ from warden.services.quota_source import FallbackQuotaSource
 from warden.services.progress import ProgressTracker
 from warden.services.stale import StaleDetector
 from warden.services.sweeper import QueueSweeper
-from warden.repositories.progress import QueueProgressRepository
-from sqlmodel import SQLModel, create_engine
-from tests.factories import FakeArrClient
+from tests.factories import FakeArrClient, make_progress_repo
 
 
 def _sweeper() -> QueueSweeper:
     return QueueSweeper(StaleDetector(grace_hours=48), enabled=True, max_removals_per_tick=5,
                         mass_fraction=0.5, min_queue_for_guard=3)
-
-
-def _progress_repo() -> QueueProgressRepository:
-    engine = create_engine("sqlite://", connect_args={"check_same_thread": False})
-    SQLModel.metadata.create_all(engine)
-    return QueueProgressRepository(engine)
 
 
 def _make_orch(clients, repo: SearchLedgerRepository) -> TickOrchestrator:
@@ -40,7 +32,7 @@ def _make_orch(clients, repo: SearchLedgerRepository) -> TickOrchestrator:
         planner=HuntPlanner(),
         sweeper=_sweeper(),
         tracker=ProgressTracker(window_hours=6, min_progress_bytes=100_000_000, enabled=True),
-        progress_repo=_progress_repo(),
+        progress_repo=make_progress_repo(),
         ledger=repo,
         clock=SystemClock(),
         metrics=Metrics(CollectorRegistry()),

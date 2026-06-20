@@ -6,7 +6,7 @@ from warden.clock import SystemClock
 from warden.logger import get_logger
 from warden.metrics import Metrics
 from warden.models import (
-    ArrClientProtocol, InstanceWanted, QueueItem, QuotaSource, QuotaState, SleepDecision, WantedItem,
+    Anchor, ArrClientProtocol, InstanceWanted, QueueItem, QuotaSource, QuotaState, SleepDecision, WantedItem,
 )
 from warden.repositories.ledger import SearchLedgerRepository
 from warden.repositories.progress import QueueProgressRepository
@@ -76,7 +76,7 @@ class TickOrchestrator:
 
             m = self._metrics
             prior_progress = self._progress_repo.snapshot()
-            next_progress: dict = {}
+            next_progress: dict[str, Anchor] = {}
             all_blocked = True
             for client in self._clients:
                 src = client.name

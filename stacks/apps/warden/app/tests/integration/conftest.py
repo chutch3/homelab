@@ -186,6 +186,34 @@ def deletes(server: HTTPServer) -> list:
             if req.method == "DELETE" and req.path.startswith("/api/v3/queue/")]
 
 
+def queue_fetches(server: HTTPServer) -> int:
+    return sum(1 for req, _ in server.log if req.path == "/api/v3/queue")
+
+
+def prime_progressing(server: HTTPServer, *, queue_id: int, remote_id: int, id_field: str,
+                      start_left: int, step: int) -> None:
+    """A download whose sizeleft shrinks by `step` on every /queue fetch (never bottoms out) —
+    a genuinely-progressing item that no-progress detection must NOT remove."""
+    import json as _json
+
+    from werkzeug import Response
+
+    state = {"left": start_left}
+
+    def handler(request):
+        rec = {"id": queue_id, id_field: remote_id, "title": "ok", "status": "downloading",
+               "errorMessage": None, "added": "2026-06-15T00:00:00Z",
+               "downloadId": f"DL{queue_id}", "size": start_left, "sizeleft": state["left"]}
+        state["left"] -= step
+        return Response(_json.dumps({"records": [rec]}), content_type="application/json")
+
+    server.expect_request("/api/v3/queue").respond_with_handler(handler)
+    server.expect_request("/api/v3/wanted/missing").respond_with_json({"records": []})
+    server.expect_request("/api/v3/wanted/cutoff").respond_with_json({"records": []})
+    server.expect_request("/api/v3/command", method="POST").respond_with_json({"id": 1})
+    server.expect_request(re.compile(r"^/api/v3/queue/\d+$"), method="DELETE").respond_with_json({})
+
+
 def stale_record(remote_id: int, queue_id: int, *, id_field: str, age_days: int = 3,
                  status: str = "warning", err: str = "The download is stalled with no connections") -> dict:
     from datetime import datetime, timedelta, timezone

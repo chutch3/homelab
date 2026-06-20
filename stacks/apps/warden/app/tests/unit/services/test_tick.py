@@ -17,9 +17,7 @@ from warden.services.quota_source import FallbackQuotaSource
 from warden.services.progress import ProgressTracker
 from warden.services.stale import StaleDetector
 from warden.services.sweeper import QueueSweeper
-from warden.repositories.progress import QueueProgressRepository
-from sqlmodel import SQLModel, create_engine
-from tests.factories import FakeArrClient, missing_item, wanted_item
+from tests.factories import FakeArrClient, make_progress_repo, missing_item, wanted_item
 
 
 def _sweeper() -> QueueSweeper:
@@ -29,12 +27,6 @@ def _sweeper() -> QueueSweeper:
 
 def _tracker() -> ProgressTracker:
     return ProgressTracker(window_hours=6, min_progress_bytes=100_000_000, enabled=True)
-
-
-def _progress_repo() -> QueueProgressRepository:
-    engine = create_engine("sqlite://", connect_args={"check_same_thread": False})
-    SQLModel.metadata.create_all(engine)
-    return QueueProgressRepository(engine)
 
 
 class FrozenClock(SystemClock):
@@ -83,7 +75,7 @@ class TestTickOrchestrator:
                 planner=HuntPlanner(),
                 sweeper=_sweeper(),
                 tracker=_tracker(),
-                progress_repo=progress_repo or _progress_repo(),
+                progress_repo=progress_repo or make_progress_repo(),
                 ledger=repo,
                 clock=FrozenClock(when),
                 metrics=metrics,
@@ -240,7 +232,7 @@ class TestTickOrchestrator:
     async def test_no_progress_download_is_removed(self, make):
         from warden.models import Anchor
         # pre-seed an anchor 7h ago (> 6h window); item still has the same sizeleft -> no progress
-        repo = _progress_repo()
+        repo = make_progress_repo()
         repo.replace({"DID1": Anchor(1000, NOON - timedelta(hours=7))})
         radarr = FakeArrClient(
             "radarr", [missing_item("radarr", 1)], arr_type=ArrType.RADARR,
