@@ -14,10 +14,16 @@ APPS = [
     {"name": "Radarr", "implementation": "Radarr", "tags": [1],
      "fields": [{"name": "syncCategories", "value": [2000, 2040]}]},
 ]
+# Two indexers with different per-day limits: the budget must bind to the SMALLER (20),
+# since a hunt queries every indexer (regression guard for max-vs-min).
 INDEXERS = [
     {"id": 7, "name": "YTS", "enable": True, "protocol": "torrent", "tags": [1],
      "capabilities": {"categories": [{"id": 2000, "name": "Movies"}, {"id": 2040, "name": "HD"}]},
      "fields": [{"name": "baseSettings.queryLimit", "value": 50},
+                {"name": "baseSettings.limitsUnit", "value": 0}]},
+    {"id": 8, "name": "SmallIdx", "enable": True, "protocol": "torrent", "tags": [1],
+     "capabilities": {"categories": [{"id": 2000, "name": "Movies"}]},
+     "fields": [{"name": "baseSettings.queryLimit", "value": 20},
                 {"name": "baseSettings.limitsUnit", "value": 0}]},
 ]
 
@@ -91,8 +97,9 @@ def test_prowlarr_provenance_metrics(launch, radarr_server, sonarr_server, prowl
     got = poll_until(lambda: sample(scrape(warden), "warden_quota_prowlarr", source="radarr") == 1.0)
     assert got
     text = scrape(warden)
-    assert sample(text, "warden_binding_query_limit", source="radarr") == 50.0
-    assert sample(text, "warden_indexers_total", source="radarr") == 1.0
+    # budget binds to the most-constrained indexer (20), not the most-generous (50)
+    assert sample(text, "warden_binding_query_limit", source="radarr") == 20.0
+    assert sample(text, "warden_indexers_total", source="radarr") == 2.0
 
 
 def test_fallback_provenance_metric(launch, radarr_server, sonarr_server):
