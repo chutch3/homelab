@@ -41,6 +41,8 @@ class QueueItem:
     status: str             # top-level queue status (e.g. "downloading", "warning", "downloadClientUnavailable")
     error_message: str      # top-level errorMessage ("" when null) — carries the stall reason
     added: datetime         # aware UTC
+    download_id: str = ""   # client hash; "" when absent (downloadClientUnavailable)
+    size_left: int = 0      # bytes remaining (for no-progress detection)
 
 
 @dataclass(frozen=True)

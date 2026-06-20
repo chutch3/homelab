@@ -86,6 +86,8 @@ class ArrClient(ABC):
                 status=r.get("status", ""),
                 error_message=r.get("errorMessage") or "",
                 added=_parse_added(r.get("added")),
+                download_id=r.get("downloadId") or "",
+                size_left=int(r.get("sizeleft") or 0),
             )
             for r in records
         ]

@@ -103,6 +103,20 @@ class TestRadarrQueue:
         ]
         assert items[0].added.utcoffset() == timezone.utc.utcoffset(None)
 
+    async def test_list_queue_parses_download_id_and_size_left(self):
+        def handler(request: httpx.Request) -> httpx.Response:
+            return httpx.Response(200, json={"records": [
+                {"id": 5, "movieId": 11, "title": "A", "status": "downloading",
+                 "downloadId": "ABC123", "sizeleft": 42, "added": "2026-06-15T00:00:00Z"},
+                {"id": 6, "movieId": 12, "title": "B", "status": "downloadClientUnavailable",
+                 "downloadId": None, "sizeleft": None, "added": "2026-06-15T00:00:00Z"},
+            ]})
+        client = RadarrClient(name="radarr", base_url="http://radarr",
+                              http=httpx.AsyncClient(transport=transport(handler)), api_key="rk")
+        items = await client.list_queue()
+        assert (items[0].download_id, items[0].size_left) == ("ABC123", 42)
+        assert (items[1].download_id, items[1].size_left) == ("", 0)   # null -> "" / 0
+
     async def test_remove_queue_item_issues_delete_with_params(self):
         seen = {}
         def handler(request: httpx.Request) -> httpx.Response:
