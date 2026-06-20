@@ -203,3 +203,18 @@ def test_searches_least_recently_searched_first(launch, radarr_server, sonarr_se
     issued = poll_until(lambda: commands(radarr_server))
     assert issued
     assert issued[0]["movieIds"][0] == 2          # never-searched hunted first, not the recent head (1)
+
+
+def test_no_progress_download_is_removed(launch, radarr_server, sonarr_server):
+    # constant sizeleft across ticks + window=0 -> flagged no-progress on the second tick
+    stuck = {"id": 55, "movieId": 11, "title": "stuck", "status": "downloading",
+             "errorMessage": None, "added": "2026-06-15T00:00:00Z",
+             "downloadId": "DID1", "size": 2000, "sizeleft": 1000}
+    prime_radarr(radarr_server, missing=[], queue=[stuck])
+    prime_sonarr(sonarr_server, missing=[])
+    warden = launch(**_env(radarr_server, sonarr_server), WARDEN_STALE_NO_PROGRESS_HOURS="0")
+    removed = poll_until(lambda: deletes(radarr_server), timeout=20)
+    assert removed and removed[0].path == "/api/v3/queue/55"
+    assert removed[0].query_string.decode() == "removeFromClient=true&blocklist=true"
+    assert poll_until(lambda: (sample(scrape(warden), "warden_stale_removed_total",
+                                      source="radarr", reason="no_progress") or 0) >= 1.0, timeout=20)
