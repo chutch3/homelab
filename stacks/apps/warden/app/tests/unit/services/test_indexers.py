@@ -35,9 +35,10 @@ def test_effective_cap_uses_default_when_none():
     assert effective_cap(indexer(query_limit=None), default_cap=100) == 100
 
 
-def test_source_gross_limit_is_max_effective_cap():
+def test_source_gross_limit_is_min_effective_cap():
+    # a hunt queries every indexer, so the budget is bound by the most-constrained one
     items = [indexer(id=1, query_limit=20), indexer(id=2, query_limit=None)]
-    assert source_gross_limit(items, default_cap=100) == 100
+    assert source_gross_limit(items, default_cap=100) == 20
 
 
 def test_source_gross_limit_zero_when_no_indexers():

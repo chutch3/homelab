@@ -24,9 +24,9 @@ def effective_cap(indexer: Indexer, default_cap: int) -> int:
 
 
 def source_gross_limit(indexers: list[Indexer], default_cap: int) -> int:
-    """A source's daily query budget = the largest effective cap among its
-    indexers (a hunt queries them all, so the source is only fully out of quota
-    when the most-generous indexer is tapped). Zero when no indexers serve it."""
+    """A source's daily query budget = the smallest effective cap among its
+    indexers (a hunt queries them all at once, so the source can't out-search its
+    most-constrained indexer without burning it). Zero when no indexers serve it."""
     if not indexers:
         return 0
-    return max(effective_cap(i, default_cap) for i in indexers)
+    return min(effective_cap(i, default_cap) for i in indexers)

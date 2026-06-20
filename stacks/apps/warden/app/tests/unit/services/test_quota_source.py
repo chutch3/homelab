@@ -33,11 +33,11 @@ class TestProwlarrQuotaSource:
             return ProwlarrQuotaSource(FakeProwlarr(apps, indexers), default_query_limit=default)
         return _make
 
-    async def test_maps_radarr_app_to_max_effective_cap(self, make):
+    async def test_maps_radarr_app_to_min_effective_cap(self, make):
         apps = [prowlarr_app(implementation="Radarr", tags=(1,), sync_categories=(2000,))]
         indexers = [indexer(id=1, query_limit=20), indexer(id=2, query_limit=None)]  # None -> 100 default
         q = (await make(apps, indexers).quotas())[ArrType.RADARR]
-        assert q.gross_limit == 100
+        assert q.gross_limit == 20  # bound by the most-constrained indexer
         assert q.mode == "prowlarr"
         assert q.indexers_total == 2
         assert q.indexers_defaulted == 1
