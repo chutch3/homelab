@@ -46,6 +46,13 @@ class QueueItem:
 
 
 @dataclass(frozen=True)
+class Anchor:
+    """No-progress checkpoint: a download's bytes-remaining at a point in time."""
+    size_left: int
+    at: datetime
+
+
+@dataclass(frozen=True)
 class InstanceWanted:
     missing: tuple[WantedItem, ...]
     cutoff_unmet: tuple[WantedItem, ...]

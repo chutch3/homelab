@@ -1,18 +1,11 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
 from datetime import datetime, timedelta
 
-from warden.models import QueueItem
+from warden.models import Anchor, QueueItem
 
 # Statuses that legitimately make no download progress — never no-progress-removed.
 _EXCLUDED = {"paused", "importing", "importPending", "completed"}
-
-
-@dataclass(frozen=True)
-class Anchor:
-    size_left: int
-    at: datetime
 
 
 class ProgressTracker:
