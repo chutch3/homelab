@@ -6,9 +6,10 @@ from prometheus_client import CollectorRegistry
 
 from warden.clock import SystemClock
 from warden.metrics import Metrics
-from warden.models import ArrType, QueueItem, SourceQuota
+from warden.models import ArrType, GrabEvent, QueueItem, SourceQuota
 from warden.repositories.ledger import SearchLedgerRepository
 from warden.schedule import ResetSchedule
+from warden.services.efficacy import EfficacyTracker
 from warden.services.orchestrator import TickOrchestrator
 from warden.services.pacer import Pacer
 from warden.services.planner import HuntPlanner
@@ -17,7 +18,9 @@ from warden.services.quota_source import FallbackQuotaSource
 from warden.services.progress import ProgressTracker
 from warden.services.stale import StaleDetector
 from warden.services.sweeper import QueueSweeper
-from tests.factories import FakeArrClient, make_progress_repo, missing_item, wanted_item
+from tests.factories import (
+    FakeArrClient, make_efficacy_repo, make_progress_repo, missing_item, wanted_item,
+)
 
 
 def _sweeper() -> QueueSweeper:
@@ -27,6 +30,10 @@ def _sweeper() -> QueueSweeper:
 
 def _tracker() -> ProgressTracker:
     return ProgressTracker(window_hours=6, min_progress_bytes=100_000_000, enabled=True)
+
+
+def _efficacy(enabled: bool = True) -> EfficacyTracker:
+    return EfficacyTracker(enabled=enabled, resolve_window=timedelta(minutes=30))
 
 
 class FrozenClock(SystemClock):
@@ -65,7 +72,8 @@ class TestTickOrchestrator:
     @pytest.fixture()
     def make(self, repo: SearchLedgerRepository) -> Callable[..., tuple[TickOrchestrator, Metrics]]:
         def _make(clients, *, quota_source=None, fallback=200, reserve=20, poll=300, when=NOON,
-                  prowlarr_fallback_on_error=True, progress_repo=None):
+                  prowlarr_fallback_on_error=True, progress_repo=None, efficacy_repo=None,
+                  efficacy=None):
             schedule = ResetSchedule("00:00")
             metrics = Metrics(CollectorRegistry())
             orch = TickOrchestrator(
@@ -76,6 +84,8 @@ class TestTickOrchestrator:
                 sweeper=_sweeper(),
                 tracker=_tracker(),
                 progress_repo=progress_repo or make_progress_repo(),
+                efficacy=efficacy or _efficacy(),
+                efficacy_repo=efficacy_repo or make_efficacy_repo(),
                 ledger=repo,
                 clock=FrozenClock(when),
                 metrics=metrics,
@@ -272,3 +282,69 @@ class TestTickOrchestrator:
         assert decision.reason == "blocked"
         assert radarr.removed == [11]   # sweep still removed the stale item
         assert radarr.searched == []    # but no hunt (blocked)
+
+    async def test_records_search_attempts_for_each_hunted_item(self, make):
+        eff = make_efficacy_repo()
+        radarr = FakeArrClient("radarr", [missing_item("radarr", 7)], arr_type=ArrType.RADARR)
+        orch, metrics = make([radarr], efficacy_repo=eff)
+        await orch.tick()
+        assert [a.remote_id for a in eff.pending("radarr")] == [7]
+        assert metrics.registry.get_sample_value(
+            "warden_search_pending", {"source": "radarr"}) == 1
+
+    async def test_grab_for_a_searched_item_counts_as_a_hit(self, make):
+        eff = make_efficacy_repo()
+        eff.record("radarr", [(7, "missing")], NOON - timedelta(minutes=10))
+        radarr = FakeArrClient(
+            "radarr", [], arr_type=ArrType.RADARR,
+            grabs=[GrabEvent(remote_id=7, indexer="EZTVL", at=NOON - timedelta(minutes=5),
+                             release_source="UserInvokedSearch")])
+        orch, metrics = make([radarr], efficacy_repo=eff)
+        await orch.tick()
+        assert metrics.registry.get_sample_value(
+            "warden_search_hit_total", {"source": "radarr", "indexer": "EZTVL"}) == 1
+        assert eff.pending("radarr") == []           # resolved -> dropped
+        assert radarr.grabbed_since == [NOON - timedelta(minutes=10)]   # polled since oldest pending
+
+    async def test_unresolved_attempt_past_window_counts_as_a_miss(self, make):
+        eff = make_efficacy_repo()
+        eff.record("radarr", [(7, "missing")], NOON - timedelta(minutes=45))   # older than 30m window
+        radarr = FakeArrClient("radarr", [], arr_type=ArrType.RADARR, grabs=[])
+        orch, metrics = make([radarr], efficacy_repo=eff)
+        await orch.tick()
+        assert metrics.registry.get_sample_value(
+            "warden_search_miss_total", {"source": "radarr"}) == 1
+        assert eff.pending("radarr") == []
+
+    async def test_efficacy_reconciles_even_when_blocked(self, make, repo):
+        eff = make_efficacy_repo()
+        eff.record("radarr", [(7, "missing")], NOON - timedelta(minutes=10))
+        radarr = FakeArrClient(
+            "radarr", [missing_item("radarr", 1)], arr_type=ArrType.RADARR,
+            grabs=[GrabEvent(remote_id=7, indexer="Knaben", at=NOON - timedelta(minutes=5),
+                             release_source="Search")])
+        qs = StubQuotaSource({ArrType.RADARR: 100})
+        orch, metrics = make([radarr], quota_source=qs, efficacy_repo=eff)
+        repo.add(f"radarr:{ResetSchedule('00:00').window_key(NOON)}", 80)   # blocked
+        decision = await orch.tick()
+        assert decision.reason == "blocked"
+        assert metrics.registry.get_sample_value(
+            "warden_search_hit_total", {"source": "radarr", "indexer": "Knaben"}) == 1
+
+    async def test_history_error_does_not_abort_the_tick(self, make):
+        eff = make_efficacy_repo()
+        eff.record("radarr", [(7, "missing")], NOON - timedelta(minutes=10))
+        radarr = FakeArrClient("radarr", [missing_item("radarr", 1)], arr_type=ArrType.RADARR,
+                               grab_raises=True)
+        orch, _ = make([radarr], efficacy_repo=eff)
+        await orch.tick()
+        assert radarr.searched == [[1]]              # hunt still happened
+        assert [a.remote_id for a in eff.pending("radarr")] == [1, 7]   # 7 stays pending, 1 newly recorded
+
+    async def test_efficacy_disabled_skips_history_and_recording(self, make):
+        eff = make_efficacy_repo()
+        radarr = FakeArrClient("radarr", [missing_item("radarr", 1)], arr_type=ArrType.RADARR)
+        orch, _ = make([radarr], efficacy_repo=eff, efficacy=_efficacy(enabled=False))
+        await orch.tick()
+        assert radarr.grabbed_since == []            # never polled history
+        assert eff.pending("radarr") == []           # nothing recorded

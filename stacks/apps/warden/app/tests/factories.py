@@ -6,14 +6,23 @@ from polyfactory.factories.dataclass_factory import DataclassFactory
 from sqlmodel import SQLModel, create_engine
 
 from warden.models import ArrType, Indexer, ProwlarrApp, WantedItem, WantKind
+from warden.repositories.efficacy import SearchAttemptRepository
 from warden.repositories.progress import QueueProgressRepository
 
 
-def make_progress_repo() -> QueueProgressRepository:
-    """A fresh in-memory queue-progress repository for orchestrator/repo tests."""
+def _in_memory(repo_cls):
+    """A repository backed by a fresh in-memory SQLite engine (orchestrator/repo tests)."""
     engine = create_engine("sqlite://", connect_args={"check_same_thread": False})
     SQLModel.metadata.create_all(engine)
-    return QueueProgressRepository(engine)
+    return repo_cls(engine)
+
+
+def make_progress_repo() -> QueueProgressRepository:
+    return _in_memory(QueueProgressRepository)
+
+
+def make_efficacy_repo() -> SearchAttemptRepository:
+    return _in_memory(SearchAttemptRepository)
 
 
 class WantedItemFactory(DataclassFactory[WantedItem]):
@@ -61,7 +70,7 @@ class FakeArrClient:
 
     def __init__(self, name: str, missing: list[WantedItem], cutoff: list[WantedItem] | None = None,
                  raises: bool = False, arr_type: ArrType = ArrType.RADARR, queue=None,
-                 remove_raises: bool = False) -> None:
+                 remove_raises: bool = False, grabs=None, grab_raises: bool = False) -> None:
         self.name = name
         self.arr_type = arr_type
         self._missing = missing
@@ -69,8 +78,11 @@ class FakeArrClient:
         self._raises = raises
         self._queue = queue or []
         self._remove_raises = remove_raises
+        self._grabs = grabs or []
+        self._grab_raises = grab_raises
         self.searched: list[list[int]] = []
         self.removed: list[int] = []
+        self.grabbed_since: list = []
 
     async def list_missing(self) -> list[WantedItem]:
         if self._raises:
@@ -93,3 +105,9 @@ class FakeArrClient:
         if self._remove_raises:
             raise RuntimeError("remove failed")
         self.removed.append(queue_id)
+
+    async def list_grabbed_since(self, since):
+        self.grabbed_since.append(since)
+        if self._grab_raises:
+            raise RuntimeError("history failed")
+        return list(self._grabs)

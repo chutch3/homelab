@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from datetime import timedelta
+
 import httpx
 from dependency_injector import containers, providers
 from prometheus_client import CollectorRegistry
@@ -11,9 +13,11 @@ from warden.config import Config
 from warden.database import make_engine
 from warden.metrics import Metrics
 from warden.models import ArrClientProtocol, ArrType, QuotaSource
+from warden.repositories.efficacy import SearchAttemptRepository
 from warden.repositories.ledger import SearchLedgerRepository
 from warden.repositories.progress import QueueProgressRepository
 from warden.schedule import ResetSchedule
+from warden.services.efficacy import EfficacyTracker
 from warden.services.orchestrator import TickOrchestrator
 from warden.services.pacer import Pacer
 from warden.services.planner import HuntPlanner
@@ -37,6 +41,13 @@ def _build_tracker(config: Config) -> ProgressTracker:
         window_hours=config.stale_no_progress_hours,
         min_progress_bytes=config.stale_min_progress_mb * 1_000_000,
         enabled=config.stale_no_progress_enabled,
+    )
+
+
+def _build_efficacy(config: Config) -> EfficacyTracker:
+    return EfficacyTracker(
+        enabled=config.efficacy_enabled,
+        resolve_window=timedelta(minutes=config.efficacy_resolve_minutes),
     )
 
 
@@ -78,6 +89,8 @@ class Container(containers.DeclarativeContainer):
     )
     tracker = providers.Singleton(_build_tracker, config=config)
     progress_repo = providers.Singleton(QueueProgressRepository, engine=engine)
+    efficacy = providers.Singleton(_build_efficacy, config=config)
+    efficacy_repo = providers.Singleton(SearchAttemptRepository, engine=engine)
     orchestrator = providers.Singleton(
         TickOrchestrator,
         clients=clients,
@@ -87,6 +100,8 @@ class Container(containers.DeclarativeContainer):
         sweeper=sweeper,
         tracker=tracker,
         progress_repo=progress_repo,
+        efficacy=efficacy,
+        efficacy_repo=efficacy_repo,
         ledger=ledger,
         clock=clock,
         metrics=metrics,

@@ -54,6 +54,15 @@ class Metrics:
         self.stale_sweep_skipped = Counter(
             "warden_stale_sweep_skipped_total", "Ticks the sweep bailed (mass-unhealthy queue)",
             ["source"], registry=registry)
+        self.search_hit = Counter(
+            "warden_search_hit_total", "Searches that produced a grab, by source and indexer",
+            ["source", "indexer"], registry=registry)
+        self.search_miss = Counter(
+            "warden_search_miss_total", "Searches that found nothing within the resolve window",
+            ["source"], registry=registry)
+        self.search_pending = Gauge(
+            "warden_search_pending", "Searches awaiting reconciliation against grabs",
+            ["source"], registry=registry)
         self.build_info = Gauge(
             "warden_build_info", "Warden build info (constant 1)", ["version"], registry=registry)
         self.build_info.labels(version=__version__).set(1)

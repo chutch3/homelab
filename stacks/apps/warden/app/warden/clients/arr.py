@@ -5,12 +5,17 @@ from datetime import datetime, timezone
 
 import httpx
 
-from warden.models import ArrType, QueueItem, WantedItem, WantKind
+from warden.models import ArrType, GrabEvent, QueueItem, WantedItem, WantKind
 
 
 def _parse_iso(raw: str | None) -> datetime | None:
     """Parse an *arr ISO-8601 `...Z` timestamp to aware UTC; None when null/absent."""
     return datetime.fromisoformat(raw.replace("Z", "+00:00")) if raw else None
+
+
+def _fmt_iso(when: datetime) -> str:
+    """Format an aware datetime as the `...Z` UTC string *arr query params expect."""
+    return when.astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
 def _parse_added(raw: str | None) -> datetime:
@@ -99,6 +104,22 @@ class ArrClient(ABC):
             params={"removeFromClient": str(remove_from_client).lower(),
                     "blocklist": str(blocklist).lower()})
         resp.raise_for_status()
+
+    async def list_grabbed_since(self, since: datetime) -> list[GrabEvent]:
+        resp = await self._http.get(
+            f"{self._base}/api/v3/history/since", headers=self._headers,
+            params={"date": _fmt_iso(since), "eventType": "grabbed"})
+        resp.raise_for_status()
+        events = []
+        for r in resp.json():
+            rid = r.get(self._queue_id_field)
+            at = _parse_iso(r.get("date"))
+            if rid is None or at is None:
+                continue                          # malformed row — skip defensively
+            data = r.get("data") or {}
+            events.append(GrabEvent(remote_id=int(rid), indexer=data.get("indexer", ""),
+                                    at=at, release_source=data.get("releaseSource", "")))
+        return events
 
 
 class RadarrClient(ArrClient):

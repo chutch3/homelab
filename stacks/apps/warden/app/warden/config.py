@@ -54,6 +54,8 @@ class Config:
     stale_no_progress_enabled: bool
     stale_no_progress_hours: float
     stale_min_progress_mb: int
+    efficacy_enabled: bool
+    efficacy_resolve_minutes: float
 
     @staticmethod
     def from_env() -> "Config":
@@ -80,4 +82,6 @@ class Config:
             stale_no_progress_enabled=_env_bool("WARDEN_STALE_NO_PROGRESS_ENABLED", True),
             stale_no_progress_hours=float(os.getenv("WARDEN_STALE_NO_PROGRESS_HOURS", "6")),
             stale_min_progress_mb=int(os.getenv("WARDEN_STALE_MIN_PROGRESS_MB", "100")),
+            efficacy_enabled=_env_bool("WARDEN_EFFICACY_ENABLED", True),
+            efficacy_resolve_minutes=float(os.getenv("WARDEN_EFFICACY_RESOLVE_MINUTES", "30")),
         )

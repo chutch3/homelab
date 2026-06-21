@@ -158,12 +158,14 @@ def commands(server: HTTPServer) -> list[dict]:
     return [r.get_json() for r in _records(server, "/api/v3/command", "POST")]
 
 
-def prime_radarr(server: HTTPServer, *, missing=(), cutoff=(), queue=()) -> None:
-    _prime_arr(server, missing=missing, cutoff=cutoff, queue=queue)
+def prime_radarr(server: HTTPServer, *, missing=(), cutoff=(), queue=(), grab_ids=()) -> None:
+    _prime_arr(server, missing=missing, cutoff=cutoff, queue=queue, grab_ids=grab_ids,
+               id_field="movieId")
 
 
-def prime_sonarr(server: HTTPServer, *, missing=(), cutoff=(), queue=()) -> None:
-    _prime_arr(server, missing=missing, cutoff=cutoff, queue=queue)
+def prime_sonarr(server: HTTPServer, *, missing=(), cutoff=(), queue=(), grab_ids=()) -> None:
+    _prime_arr(server, missing=missing, cutoff=cutoff, queue=queue, grab_ids=grab_ids,
+               id_field="episodeId")
 
 
 def _missing_record(m) -> dict:
@@ -171,7 +173,26 @@ def _missing_record(m) -> dict:
     return m if isinstance(m, dict) else {"id": m[0], "title": m[1]}
 
 
-def _prime_arr(server: HTTPServer, *, missing=(), cutoff=(), queue=()) -> None:
+def _history_handler(grab_ids, id_field: str):
+    """history/since handler: returns a grab for each grab_id stamped at request-time, so the
+    grab always post-dates warden's search (the hit correlation requires grab.at >= searched_at)."""
+    import json as _json
+    from datetime import datetime, timezone
+
+    from werkzeug import Response
+
+    def handler(request):
+        now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+        rows = [{id_field: rid, "date": now,
+                 "data": {"indexer": "TestIndexer", "releaseSource": "UserInvokedSearch"}}
+                for rid in grab_ids]
+        return Response(_json.dumps(rows), content_type="application/json")
+
+    return handler
+
+
+def _prime_arr(server: HTTPServer, *, missing=(), cutoff=(), queue=(), grab_ids=(),
+               id_field="movieId") -> None:
     server.expect_request("/api/v3/wanted/missing").respond_with_json(
         {"records": [_missing_record(m) for m in missing]})
     server.expect_request("/api/v3/wanted/cutoff").respond_with_json(
@@ -179,6 +200,8 @@ def _prime_arr(server: HTTPServer, *, missing=(), cutoff=(), queue=()) -> None:
     server.expect_request("/api/v3/command", method="POST").respond_with_json({"id": 1})
     server.expect_request("/api/v3/queue").respond_with_json({"records": list(queue)})
     server.expect_request(re.compile(r"^/api/v3/queue/\d+$"), method="DELETE").respond_with_json({})
+    server.expect_request("/api/v3/history/since").respond_with_handler(
+        _history_handler(grab_ids, id_field))
 
 
 def deletes(server: HTTPServer) -> list:

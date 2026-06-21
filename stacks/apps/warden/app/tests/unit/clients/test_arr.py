@@ -132,6 +132,60 @@ class TestRadarrQueue:
         assert seen["params"] == {"removeFromClient": "true", "blocklist": "true"}
 
 
+class TestRadarrHistory:
+    async def test_list_grabbed_since_maps_events_and_date_param(self):
+        seen = {}
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            seen["path"] = request.url.path
+            seen["params"] = dict(request.url.params)
+            return httpx.Response(200, json=[
+                {"movieId": 366, "date": "2026-06-20T23:00:13Z",
+                 "data": {"indexer": "BitSearch (Prowlarr)", "releaseSource": "Search"}},
+                {"movieId": 331, "date": "2026-06-21T01:00:00Z",
+                 "data": {"indexer": "The Pirate Bay (Prowlarr)", "releaseSource": "UserInvokedSearch"}},
+            ])
+
+        client = RadarrClient(name="radarr", base_url="http://radarr",
+                              http=httpx.AsyncClient(transport=transport(handler)), api_key="rk")
+        since = datetime(2026, 6, 20, 0, 0, tzinfo=timezone.utc)
+        events = await client.list_grabbed_since(since)
+        assert seen["path"] == "/api/v3/history/since"
+        assert seen["params"]["eventType"] == "grabbed"
+        assert seen["params"]["date"] == "2026-06-20T00:00:00Z"
+        assert [(e.remote_id, e.indexer, e.release_source) for e in events] == [
+            (366, "BitSearch (Prowlarr)", "Search"),
+            (331, "The Pirate Bay (Prowlarr)", "UserInvokedSearch"),
+        ]
+        assert events[0].at == datetime(2026, 6, 20, 23, 0, 13, tzinfo=timezone.utc)
+
+    async def test_list_grabbed_since_skips_rows_missing_id_or_date(self):
+        def handler(request: httpx.Request) -> httpx.Response:
+            return httpx.Response(200, json=[
+                {"movieId": 1, "date": "2026-06-21T01:00:00Z", "data": {"indexer": "X"}},
+                {"date": "2026-06-21T01:00:00Z", "data": {"indexer": "Y"}},   # no id -> skip
+                {"movieId": 2, "data": {"indexer": "Z"}},                     # no date -> skip
+            ])
+
+        client = RadarrClient(name="radarr", base_url="http://radarr",
+                              http=httpx.AsyncClient(transport=transport(handler)), api_key="rk")
+        events = await client.list_grabbed_since(datetime(2026, 6, 20, tzinfo=timezone.utc))
+        assert [e.remote_id for e in events] == [1]
+
+
+class TestSonarrHistory:
+    async def test_list_grabbed_since_uses_episode_id(self):
+        def handler(request: httpx.Request) -> httpx.Response:
+            return httpx.Response(200, json=[
+                {"episodeId": 8328, "date": "2026-06-21T01:00:00Z",
+                 "data": {"indexer": "EZTVL (Prowlarr)", "releaseSource": "UserInvokedSearch"}}])
+
+        client = SonarrClient(name="sonarr", base_url="http://sonarr",
+                              http=httpx.AsyncClient(transport=transport(handler)), api_key="sk")
+        events = await client.list_grabbed_since(datetime(2026, 6, 20, tzinfo=timezone.utc))
+        assert events[0].remote_id == 8328 and events[0].indexer == "EZTVL (Prowlarr)"
+
+
 class TestSonarrQueue:
     async def test_list_queue_uses_episode_id(self):
         def handler(request: httpx.Request) -> httpx.Response:

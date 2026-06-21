@@ -8,9 +8,11 @@ from warden.metrics import Metrics
 from warden.models import (
     Anchor, ArrClientProtocol, InstanceWanted, QueueItem, QuotaSource, QuotaState, SleepDecision, WantedItem,
 )
+from warden.repositories.efficacy import SearchAttemptRepository
 from warden.repositories.ledger import SearchLedgerRepository
 from warden.repositories.progress import QueueProgressRepository
 from warden.schedule import ResetSchedule
+from warden.services.efficacy import EfficacyTracker
 from warden.services.pacer import Pacer
 from warden.services.planner import HuntPlanner
 from warden.services.progress import ProgressTracker
@@ -31,6 +33,8 @@ class TickOrchestrator:
         sweeper: QueueSweeper,
         tracker: ProgressTracker,
         progress_repo: QueueProgressRepository,
+        efficacy: EfficacyTracker,
+        efficacy_repo: SearchAttemptRepository,
         ledger: SearchLedgerRepository,
         clock: SystemClock,
         metrics: Metrics,
@@ -48,6 +52,8 @@ class TickOrchestrator:
         self._sweeper = sweeper
         self._tracker = tracker
         self._progress_repo = progress_repo
+        self._efficacy = efficacy
+        self._efficacy_repo = efficacy_repo
         self._ledger = ledger
         self._clock = clock
         self._metrics = metrics
@@ -99,6 +105,7 @@ class TickOrchestrator:
                 m.queue_no_progress.labels(source=src).set(len(np_items))
                 extra = [StaleVerdict(item=i, reason="no_progress") for i in np_items]
                 exclusion = await self._sweep(client, queue, now, extra)
+                await self._reconcile_efficacy(client, now)
 
                 window = f"{src}:{day}"
                 state, is_prowlarr, spent = self._publish_quota_state(client, quotas, now, window)
@@ -110,7 +117,7 @@ class TickOrchestrator:
                 m.blocked.labels(source=src).set(0)
                 all_blocked = False
                 allowance = self._pacer.allowance(state.remaining, seconds_to_reset)
-                issued = await self._hunt_one(client, allowance, window, missing, cutoff, exclusion)
+                issued = await self._hunt_one(client, allowance, window, missing, cutoff, exclusion, now)
                 log = _logger.info if issued else _logger.debug
                 log("hunt tick", extra={"event": "issued", "source": src, "issued": issued,
                     "allowance": allowance, "remaining": state.remaining, "budget": state.daily_budget,
@@ -173,8 +180,38 @@ class TickOrchestrator:
                     "id": act.queue_id, "reason": act.reason, "age_h": round(act.age_hours, 1)})
         return set(decision.all_queued_remote_ids) - removed
 
+    async def _reconcile_efficacy(self, client: ArrClientProtocol, now: datetime) -> None:
+        """Correlate prior searches against *arr grabs (runs even when quota-blocked).
+        Records hit/miss metrics and drops resolved attempts from the pending ledger."""
+        if not self._efficacy.enabled:
+            return
+        m = self._metrics
+        src = client.name
+        pending = self._efficacy_repo.pending(src)
+        if pending:
+            since = min(a.searched_at for a in pending)
+            try:
+                grabs = await client.list_grabbed_since(since)
+            except Exception as exc:  # noqa: BLE001 - history unreachable; attempts stay pending
+                _logger.warning("grab history unreachable", extra={"event": "history_unreachable",
+                    "source": src, "error": str(exc)})
+                grabs = None
+            if grabs is not None:
+                rec = self._efficacy.reconcile(pending, grabs, now)
+                for indexer in rec.hits:
+                    m.search_hit.labels(source=src, indexer=indexer).inc()
+                if rec.misses:
+                    m.search_miss.labels(source=src).inc(rec.misses)
+                if rec.resolved:
+                    self._efficacy_repo.drop(src, rec.resolved)
+                if rec.hits or rec.misses:
+                    _logger.info("efficacy reconciled", extra={"event": "efficacy", "source": src,
+                        "hits": len(rec.hits), "misses": rec.misses})
+        m.search_pending.labels(source=src).set(self._efficacy_repo.count(src))
+
     async def _hunt_one(self, client: ArrClientProtocol, allowance: int, window: str,
-                        missing: list[WantedItem], cutoff: list[WantedItem], exclusion: set[int]) -> int:
+                        missing: list[WantedItem], cutoff: list[WantedItem], exclusion: set[int],
+                        now: datetime) -> int:
         missing = [w for w in missing if w.remote_id not in exclusion]
         cutoff = [w for w in cutoff if w.remote_id not in exclusion]
         wanted = {client.name: InstanceWanted(tuple(missing), tuple(cutoff))}
@@ -191,4 +228,8 @@ class TickOrchestrator:
         await client.trigger_search(ids)
         self._metrics.searches_issued.labels(source=client.name).inc(len(ids))
         self._ledger.add(window, len(ids))
+        if self._efficacy.enabled:
+            self._efficacy_repo.record(client.name, [(i.remote_id, i.kind.value) for i in selected], now)
+            self._metrics.search_pending.labels(source=client.name).set(
+                self._efficacy_repo.count(client.name))
         return len(ids)

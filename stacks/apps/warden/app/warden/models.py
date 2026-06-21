@@ -53,6 +53,23 @@ class Anchor:
 
 
 @dataclass(frozen=True)
+class GrabEvent:
+    """A grab recorded in *arr history (eventType=grabbed)."""
+    remote_id: int          # movieId (radarr) / episodeId (sonarr)
+    indexer: str            # data.indexer, e.g. "EZTVL (Prowlarr)"
+    at: datetime            # grab time (aware UTC)
+    release_source: str = ""  # data.releaseSource (UserInvokedSearch/Search/Rss/...)
+
+
+@dataclass(frozen=True)
+class SearchAttempt:
+    """A search warden fired, awaiting reconciliation against grabs."""
+    remote_id: int
+    kind: str               # WantKind value
+    searched_at: datetime   # aware UTC
+
+
+@dataclass(frozen=True)
 class InstanceWanted:
     missing: tuple[WantedItem, ...]
     cutoff_unmet: tuple[WantedItem, ...]
@@ -111,6 +128,7 @@ class ArrClientProtocol(Protocol):
     async def list_queue(self) -> list["QueueItem"]: ...
     async def remove_queue_item(self, queue_id: int, *, remove_from_client: bool = True,
                                 blocklist: bool = True) -> None: ...
+    async def list_grabbed_since(self, since: datetime) -> list["GrabEvent"]: ...
 
 
 class ProwlarrReader(Protocol):

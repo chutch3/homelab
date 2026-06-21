@@ -235,3 +235,19 @@ def test_progressing_download_is_not_removed(launch, radarr_server, sonarr_serve
     # let several ticks evaluate it, then assert it was never removed
     assert poll_until(lambda: queue_fetches(radarr_server) >= 4, timeout=20)
     assert deletes(radarr_server) == []
+
+
+def test_grab_efficacy_records_hits_and_misses(launch, radarr_server, sonarr_server):
+    # radarr's item is "grabbed" (history returns it) -> hit; sonarr's never is -> miss after
+    # the resolve window. One item per instance so the pacer (≈1/tick) searches each every tick.
+    prime_radarr(radarr_server, missing=[(101, "Hit Movie")], grab_ids=[101])
+    prime_sonarr(sonarr_server, missing=[(201, "Miss Show")], grab_ids=[])
+    warden = launch(**_env(radarr_server, sonarr_server), WARDEN_EFFICACY_RESOLVE_MINUTES="0.005")
+
+    hit = poll_until(lambda: sample(scrape(warden), "warden_search_hit_total",
+                                    source="radarr", indexer="TestIndexer"), timeout=20)
+    assert hit and hit >= 1.0, "warden never attributed a grab to its search"
+
+    miss = poll_until(lambda: sample(scrape(warden), "warden_search_miss_total", source="sonarr"),
+                      timeout=20)
+    assert miss and miss >= 1.0, "warden never recorded a miss for the never-grabbed item"
