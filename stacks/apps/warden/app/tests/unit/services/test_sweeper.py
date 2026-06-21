@@ -41,15 +41,23 @@ class TestQueueSweeper:
         assert a.reason == "stalled" and a.age_hours == 72.0
         assert d.all_queued_remote_ids == frozenset(list(range(8)) + list(range(50, 59)))
 
-    def test_mass_unhealthy_bail(self):
-        # 2 stale + 2 unavailable of 5 = 80% > 50% -> skip
-        queue = [_stale(1, 11), _stale(2, 12), _unavailable(3, 13), _unavailable(4, 14), _ok(5, 15)]
+    def test_mass_unavailable_bails(self):
+        # the guard keys on the OUTAGE signal: majority downloadClientUnavailable -> skip
+        queue = [_unavailable(1, 11), _unavailable(2, 12), _unavailable(3, 13),
+                 _stale(4, 14), _ok(5, 15)]                          # 3 unavailable of 5 = 60% > 50%
         d = _sweeper().plan(queue, NOW)
         assert d.skipped and d.to_remove == ()
         assert d.all_queued_remote_ids == frozenset({1, 2, 3, 4, 5})
 
+    def test_many_stale_but_few_unavailable_does_not_bail(self):
+        # genuinely-stuck downloads (client up) must NOT trip the guard, even at >50% of the queue
+        queue = [_stale(1, 11), _stale(2, 12), _stale(3, 13), _stale(4, 14), _ok(5, 15)]  # 80% stale, 0 unavailable
+        d = _sweeper().plan(queue, NOW)
+        assert not d.skipped
+        assert len(d.to_remove) == 4
+
     def test_live_example_under_threshold_cleans(self):
-        # 13 stalled + 7 unavailable of 59 = 34% < 50% -> not skipped, cap applies
+        # 7 unavailable of 59 = 12% < 50% -> not skipped, cap applies
         queue = ([_stale(i, 100 + i) for i in range(13)]
                  + [_unavailable(900 + i, 300 + i) for i in range(7)]
                  + [_ok(500 + i, 400 + i) for i in range(39)])

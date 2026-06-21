@@ -47,10 +47,13 @@ class QueueSweeper:
                 seen.add(v.item.id)
         stalled = len(verdicts)
         total = len(queue)
+        # Guard ONLY on the true outage signal: when the client is unreachable, *arr flips its
+        # whole share to downloadClientUnavailable at once. Genuinely-stuck downloads (stalled /
+        # no-progress, client up) are safe to remove+blocklist at any scale, so they don't bail.
         unavailable = sum(1 for q in queue if q.status == "downloadClientUnavailable")
         all_ids = frozenset(q.remote_id for q in queue)
 
-        if total >= self._min_queue and (stalled + unavailable) / total > self._mass_fraction:
+        if total >= self._min_queue and unavailable / total > self._mass_fraction:
             return SweepDecision((), True, total, stalled, all_ids)
         if not self._enabled:
             return SweepDecision((), False, total, stalled, all_ids)

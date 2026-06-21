@@ -203,15 +203,17 @@ class TestTickOrchestrator:
         assert metrics.registry.get_sample_value(
             "warden_stale_removed_total", {"source": "radarr", "reason": "stalled"}) == 1
 
-    async def test_mass_unhealthy_queue_bails_and_still_excludes(self, make):
-        # 3 stalled of 3 = 100% > 50% guard -> remove nothing, but all still excluded from hunt
-        stale = [QueueItem(id=10 + i, remote_id=i, title="s", status="warning",
-                           error_message="stalled with no connections", added=NOON - timedelta(hours=72))
-                 for i in range(3)]
+    async def test_mass_unavailable_queue_bails_and_still_excludes(self, make):
+        # >50% downloadClientUnavailable (the outage signal) -> guard bails (no removals),
+        # but the queued ids are still excluded from hunting
+        unavail = [QueueItem(id=10 + i, remote_id=i, title="u", status="downloadClientUnavailable",
+                             error_message="", added=NOON - timedelta(hours=72),
+                             download_id="", size_left=0)
+                   for i in range(3)]
         radarr = FakeArrClient(
             "radarr",
             [missing_item("radarr", i) for i in range(3)] + [missing_item("radarr", 99)],
-            arr_type=ArrType.RADARR, queue=stale)
+            arr_type=ArrType.RADARR, queue=unavail)
         orch, metrics = make([radarr])
         await orch.tick()
         assert radarr.removed == []                       # bailed
