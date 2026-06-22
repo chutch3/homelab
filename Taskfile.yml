@@ -77,13 +77,15 @@ tasks:
     # Build images locally via buildx bake (reads compose build: sections).
     build:
         desc: "Build an app's image(s) locally — task build -- warden"
+        dir: stacks/apps/{{.CLI_ARGS}}
         cmds:
-            - docker buildx bake -f stacks/apps/{{.CLI_ARGS}}/docker-compose.yml
+            - docker buildx bake --allow fs.read=* -f docker-compose.yml
 
     publish:
         desc: "Build & push an app's image(s) — task publish -- warden (requires registry login)"
+        dir: stacks/apps/{{.CLI_ARGS}}
         cmds:
-            - docker buildx bake -f stacks/apps/{{.CLI_ARGS}}/docker-compose.yml --push
+            - docker buildx bake --allow fs.read=* -f docker-compose.yml --push
 
     test-fast:
         desc: Run core tests with faster execution

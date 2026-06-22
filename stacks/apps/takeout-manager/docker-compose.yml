@@ -10,7 +10,7 @@ services:
         image: ${REGISTRY:-ghcr.io}/${REGISTRY_NAMESPACE:-chutch3}/takeout-manager:latest
         build:
             context: manager
-            dockerfile: manager/Dockerfile
+            dockerfile: Dockerfile
         x-homelab:
             watch:
                 - stacks/apps/takeout-manager/manager/**
@@ -51,7 +51,7 @@ services:
         image: ${REGISTRY:-ghcr.io}/${REGISTRY_NAMESPACE:-chutch3}/takeout-worker:latest
         build:
             context: worker
-            dockerfile: worker/Dockerfile
+            dockerfile: Dockerfile
         x-homelab:
             watch:
                 - stacks/apps/takeout-manager/worker/**
