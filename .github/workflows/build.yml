@@ -96,7 +96,13 @@ jobs:
               run: |
                   set -euo pipefail
                   repo="${REGISTRY}/${REGISTRY_NAMESPACE}/${{ matrix.image_name }}"
-                  args=(buildx bake -f "${{ matrix.compose_file }}" "${{ matrix.service }}"
+                  # bake resolves relative context/dockerfile from CWD, so run it from
+                  # the compose file's directory (compose-relative paths then resolve).
+                  cd "$(dirname "${{ matrix.compose_file }}")"
+                  compose="$(basename "${{ matrix.compose_file }}")"
+                  # --allow fs.read: some units (devbox consumers) build from a context
+                  # outside the compose dir (../../../images/devbox), which bake gates.
+                  args=(buildx bake -f "$compose" "${{ matrix.service }}" --allow "fs.read=*"
                         --set "${{ matrix.service }}.cache-from=type=gha,scope=${{ matrix.image_name }}"
                         --set "${{ matrix.service }}.cache-to=type=gha,mode=max,scope=${{ matrix.image_name }}")
                   if [ "${{ github.event_name }}" = "pull_request" ]; then
