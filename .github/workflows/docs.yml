@@ -1,6 +1,21 @@
-name: 📚 Documentation
+name: Documentation
 
 on:
+    # Validate the docs build on every PR/push that touches docs sources — the gap
+    # this closes is that docs used to build only at release time.
+    pull_request:
+        paths:
+            - "docs/**"
+            - "mkdocs.yml"
+            - "llms.txt"
+            - ".github/workflows/docs.yml"
+    push:
+        branches: [main]
+        paths:
+            - "docs/**"
+            - "mkdocs.yml"
+            - "llms.txt"
+            - ".github/workflows/docs.yml"
     workflow_call:
         inputs:
             deploy:
@@ -35,7 +50,7 @@ concurrency:
 jobs:
     # Validate documentation on PRs and pushes (non-strict mode)
     validate:
-        name: 🔍 Validate Documentation
+        name: Validate Documentation
         runs-on: ubuntu-latest
         steps:
             - name: Checkout
@@ -70,10 +85,11 @@ jobs:
 
     # Build and deploy documentation on release or manual triggers
     build-and-deploy:
-        name: 🏗️ Build & Deploy Documentation
+        name: Build & Deploy Documentation
+        # Deploy on a push to main that touched docs, or when called/dispatched with deploy=true.
         if: >-
             github.ref == 'refs/heads/main' &&
-            inputs.deploy == true
+            (github.event_name == 'push' || inputs.deploy == true)
         needs: validate
         runs-on: ubuntu-latest
         environment:

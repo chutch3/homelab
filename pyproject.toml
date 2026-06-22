@@ -34,11 +34,21 @@ dev = [
     "ansible-lint>=25.1.0",
     "docker>=7.1.0",
     "pytest-httpserver>=1.1",
+    "pytest>=8.0.0",
     "check-jsonschema>=0.37.2",
+    "ci",  # the monorepo CI tooling, installed editable from tools/ci
 ]
 
 [tool.uv]
 package = false
+
+[tool.uv.sources]
+ci = { path = "tools/ci", editable = true }
+
+[tool.pytest.ini_options]
+# Repo-level tests for the CI tooling (the `ci` project under tools/). Per-app
+# suites live under each app and run via `task test`.
+testpaths = ["tools/ci/tests"]
 
 [tool.semantic_release]
 version_toml = ["pyproject.toml:project.version"]

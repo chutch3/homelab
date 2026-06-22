@@ -2,7 +2,14 @@ version: "3.9"
 
 services:
   code-server:
-    image: ${REGISTRY_URL:-ghcr.io}/${GITHUB_USERNAME}/homelab-devbox:latest@sha256:fbc55a6043d0b18ca831290ea7723ee8755578e1082c2a1822c3efbbad7413b9
+    image: ${REGISTRY:-ghcr.io}/${REGISTRY_NAMESPACE:-chutch3}/homelab-devbox:latest
+    build:
+      context: ../../../images/devbox
+      dockerfile: Dockerfile
+    x-homelab:
+      watch:
+        - stacks/apps/code-server/**
+        - images/devbox/**
     environment:
       - TZ=${TZ:-America/New_York}
       - NVIDIA_VISIBLE_DEVICES=all
