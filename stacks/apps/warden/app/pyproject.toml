@@ -38,7 +38,7 @@ markers = [
     "integration: needs external services (real process / fakes / docker)",
     "e2e: full black-box end-to-end (docker compose)",
 ]
-addopts = "--cov=warden --cov-report=term-missing --cov-fail-under=90"
+addopts = "--strict-markers --cov=warden --cov-report=term-missing --cov-fail-under=90"
 
 [tool.coverage.run]
 omit = ["*/warden/main.py", "*/warden/container.py"]
