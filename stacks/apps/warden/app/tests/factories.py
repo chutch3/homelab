@@ -6,6 +6,7 @@ from polyfactory.factories.dataclass_factory import DataclassFactory
 from sqlmodel import SQLModel, create_engine
 
 from warden.models import ArrType, Indexer, ProwlarrApp, WantedItem, WantKind
+from warden.repositories.backoff import SearchBackoffRepository
 from warden.repositories.efficacy import SearchAttemptRepository
 from warden.repositories.progress import QueueProgressRepository
 
@@ -23,6 +24,10 @@ def make_progress_repo() -> QueueProgressRepository:
 
 def make_efficacy_repo() -> SearchAttemptRepository:
     return _in_memory(SearchAttemptRepository)
+
+
+def make_backoff_repo() -> SearchBackoffRepository:
+    return _in_memory(SearchBackoffRepository)
 
 
 class WantedItemFactory(DataclassFactory[WantedItem]):

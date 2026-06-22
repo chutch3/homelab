@@ -39,6 +39,25 @@ class TestRadarrClient:
         assert seen["path"] == "/api/v3/command"
         assert seen["body"] == {"name": "MoviesSearch", "movieIds": [11, 12]}
 
+    async def test_list_missing_paginates_until_total_reached(self):
+        seen_pages = []
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            page = int(request.url.params.get("page", "1"))
+            seen_pages.append(page)
+            if page == 1:
+                recs = [{"id": i, "title": f"m{i}"} for i in range(1, 1001)]   # full page (1000)
+            else:
+                recs = [{"id": 1001, "title": "m1001"}]                        # remainder
+            return httpx.Response(200, json={"records": recs, "totalRecords": 1001})
+
+        client = RadarrClient(name="radarr", base_url="http://radarr",
+                              http=httpx.AsyncClient(transport=transport(handler)), api_key="rk")
+        items = await client.list_missing()
+        assert seen_pages == [1, 2]                       # walked both pages
+        assert len(items) == 1001
+        assert items[-1].remote_id == 1001
+
     async def test_list_cutoff_unmet_hits_cutoff_endpoint(self):
         def handler(request: httpx.Request) -> httpx.Response:
             assert request.url.path == "/api/v3/wanted/cutoff"
@@ -184,6 +203,14 @@ class TestSonarrHistory:
                               http=httpx.AsyncClient(transport=transport(handler)), api_key="sk")
         events = await client.list_grabbed_since(datetime(2026, 6, 20, tzinfo=timezone.utc))
         assert events[0].remote_id == 8328 and events[0].indexer == "EZTVL (Prowlarr)"
+
+
+    def test_sonarr_arr_type(self):
+        from warden.models import ArrType
+        client = SonarrClient(name="sonarr", base_url="http://sonarr",
+                              http=httpx.AsyncClient(transport=transport(lambda r: httpx.Response(200, json={}))),
+                              api_key="sk")
+        assert client.arr_type == ArrType.SONARR
 
 
 class TestSonarrQueue:

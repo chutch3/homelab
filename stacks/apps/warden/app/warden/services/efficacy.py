@@ -4,14 +4,22 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 
-from warden.models import GrabEvent, SearchAttempt
+from warden.models import GrabEvent, Hit, SearchAttempt
 
 
 @dataclass(frozen=True)
 class Reconciliation:
-    hits: tuple[str, ...]       # indexer name per confirmed hit (for per-indexer metrics)
-    misses: int                 # attempts that aged out with no grab
-    resolved: frozenset[int]    # remote_ids to drop from the pending ledger
+    hits: tuple[Hit, ...]            # confirmed search→grab matches (carry indexer for metrics)
+    miss_ids: tuple[int, ...]        # remote_ids that aged out with no grab
+
+    @property
+    def misses(self) -> int:
+        return len(self.miss_ids)
+
+    @property
+    def resolved(self) -> frozenset[int]:
+        """remote_ids to drop from the pending ledger (hit or missed)."""
+        return frozenset(h.remote_id for h in self.hits) | frozenset(self.miss_ids)
 
 
 class EfficacyTracker:
@@ -28,17 +36,14 @@ class EfficacyTracker:
 
     def reconcile(self, pending: Sequence[SearchAttempt], grabs: Sequence[GrabEvent],
                   now: datetime) -> Reconciliation:
-        hits: list[str] = []
-        resolved: list[int] = []
-        misses = 0
+        hits: list[Hit] = []
+        miss_ids: list[int] = []
         for a in pending:
             grab = next((g for g in grabs
                          if g.remote_id == a.remote_id and g.at >= a.searched_at
                          and g.release_source != "Rss"), None)
             if grab is not None:
-                hits.append(grab.indexer)
-                resolved.append(a.remote_id)
+                hits.append(Hit(remote_id=a.remote_id, indexer=grab.indexer))
             elif now - a.searched_at >= self._window:
-                misses += 1
-                resolved.append(a.remote_id)
-        return Reconciliation(tuple(hits), misses, frozenset(resolved))
+                miss_ids.append(a.remote_id)
+        return Reconciliation(tuple(hits), tuple(miss_ids))

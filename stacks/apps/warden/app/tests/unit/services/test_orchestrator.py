@@ -14,10 +14,13 @@ from warden.services.planner import HuntPlanner
 from warden.services.quota import QuotaLedger
 from warden.services.quota_source import FallbackQuotaSource
 from warden.services.progress import ProgressTracker
+from warden.services.backoff import BackoffTracker
 from warden.services.efficacy import EfficacyTracker
 from warden.services.stale import StaleDetector
 from warden.services.sweeper import QueueSweeper
-from tests.factories import FakeArrClient, make_efficacy_repo, make_progress_repo
+from tests.factories import (
+    FakeArrClient, make_backoff_repo, make_efficacy_repo, make_progress_repo,
+)
 
 
 def _sweeper() -> QueueSweeper:
@@ -37,6 +40,8 @@ def _make_orch(clients, repo: SearchLedgerRepository) -> TickOrchestrator:
         progress_repo=make_progress_repo(),
         efficacy=EfficacyTracker(enabled=True, resolve_window=timedelta(minutes=30)),
         efficacy_repo=make_efficacy_repo(),
+        backoff=BackoffTracker(enabled=True, threshold=3, cooldown=timedelta(days=30)),
+        backoff_repo=make_backoff_repo(),
         ledger=repo,
         clock=SystemClock(),
         metrics=Metrics(CollectorRegistry()),

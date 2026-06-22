@@ -9,6 +9,7 @@ from warden.metrics import Metrics
 from warden.models import ArrType, GrabEvent, QueueItem, SourceQuota
 from warden.repositories.ledger import SearchLedgerRepository
 from warden.schedule import ResetSchedule
+from warden.services.backoff import BackoffTracker
 from warden.services.efficacy import EfficacyTracker
 from warden.services.orchestrator import TickOrchestrator
 from warden.services.pacer import Pacer
@@ -19,7 +20,8 @@ from warden.services.progress import ProgressTracker
 from warden.services.stale import StaleDetector
 from warden.services.sweeper import QueueSweeper
 from tests.factories import (
-    FakeArrClient, make_efficacy_repo, make_progress_repo, missing_item, wanted_item,
+    FakeArrClient, make_backoff_repo, make_efficacy_repo, make_progress_repo, missing_item,
+    wanted_item,
 )
 
 
@@ -34,6 +36,10 @@ def _tracker() -> ProgressTracker:
 
 def _efficacy(enabled: bool = True) -> EfficacyTracker:
     return EfficacyTracker(enabled=enabled, resolve_window=timedelta(minutes=30))
+
+
+def _backoff(enabled: bool = True, threshold: int = 3) -> BackoffTracker:
+    return BackoffTracker(enabled=enabled, threshold=threshold, cooldown=timedelta(days=30))
 
 
 class FrozenClock(SystemClock):
@@ -73,7 +79,7 @@ class TestTickOrchestrator:
     def make(self, repo: SearchLedgerRepository) -> Callable[..., tuple[TickOrchestrator, Metrics]]:
         def _make(clients, *, quota_source=None, fallback=200, reserve=20, poll=300, when=NOON,
                   prowlarr_fallback_on_error=True, progress_repo=None, efficacy_repo=None,
-                  efficacy=None):
+                  efficacy=None, backoff=None, backoff_repo=None):
             schedule = ResetSchedule("00:00")
             metrics = Metrics(CollectorRegistry())
             orch = TickOrchestrator(
@@ -86,6 +92,8 @@ class TestTickOrchestrator:
                 progress_repo=progress_repo or make_progress_repo(),
                 efficacy=efficacy or _efficacy(),
                 efficacy_repo=efficacy_repo or make_efficacy_repo(),
+                backoff=backoff or _backoff(),
+                backoff_repo=backoff_repo or make_backoff_repo(),
                 ledger=repo,
                 clock=FrozenClock(when),
                 metrics=metrics,
@@ -348,3 +356,46 @@ class TestTickOrchestrator:
         await orch.tick()
         assert radarr.grabbed_since == []            # never polled history
         assert eff.pending("radarr") == []           # nothing recorded
+
+    async def test_miss_backs_off_item_and_excludes_it_from_hunt(self, make):
+        eff = make_efficacy_repo()
+        boff = make_backoff_repo()
+        eff.record("radarr", [(7, "missing")], NOON - timedelta(minutes=45))   # will miss this tick
+        radarr = FakeArrClient("radarr", [missing_item("radarr", 7)], arr_type=ArrType.RADARR, grabs=[])
+        orch, metrics = make([radarr], efficacy_repo=eff, backoff_repo=boff,
+                             backoff=_backoff(threshold=1))   # one miss is enough to back off
+        await orch.tick()
+        assert boff.active("radarr", NOON.timestamp()) == {7}
+        assert metrics.registry.get_sample_value("warden_backoff_active", {"source": "radarr"}) == 1
+        assert metrics.registry.get_sample_value(
+            "warden_backoff_entered_total", {"source": "radarr"}) == 1
+        searched = [i for batch in radarr.searched for i in batch]
+        assert 7 not in searched                      # excluded from hunting same tick
+
+    async def test_hit_clears_backoff(self, make):
+        boff = make_backoff_repo()
+        boff.write("radarr", clear=frozenset(),
+                   upsert={7: (5, (NOON + timedelta(days=1)).timestamp())})   # already backed off
+        eff = make_efficacy_repo()
+        eff.record("radarr", [(7, "missing")], NOON - timedelta(minutes=10))
+        radarr = FakeArrClient(
+            "radarr", [], arr_type=ArrType.RADARR,
+            grabs=[GrabEvent(remote_id=7, indexer="X", at=NOON - timedelta(minutes=5),
+                             release_source="Search")])
+        orch, metrics = make([radarr], efficacy_repo=eff, backoff_repo=boff)
+        await orch.tick()
+        assert boff.streaks("radarr", [7]) == {}      # the grab reset it
+        assert metrics.registry.get_sample_value("warden_backoff_active", {"source": "radarr"}) == 0
+
+    async def test_backoff_disabled_does_not_exclude_or_record(self, make):
+        boff = make_backoff_repo()
+        boff.write("radarr", clear=frozenset(),
+                   upsert={7: (9, (NOON + timedelta(days=1)).timestamp())})
+        eff = make_efficacy_repo()
+        eff.record("radarr", [(8, "missing")], NOON - timedelta(minutes=45))   # a miss reaches _apply_backoff
+        radarr = FakeArrClient("radarr", [missing_item("radarr", 7)], arr_type=ArrType.RADARR, grabs=[])
+        orch, _ = make([radarr], efficacy_repo=eff, backoff_repo=boff, backoff=_backoff(enabled=False))
+        await orch.tick()
+        searched = [i for batch in radarr.searched for i in batch]
+        assert 7 in searched                          # disabled -> active() not consulted
+        assert boff.streaks("radarr", [8]) == {}      # disabled -> no streak recorded for the miss

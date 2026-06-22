@@ -251,3 +251,15 @@ def test_grab_efficacy_records_hits_and_misses(launch, radarr_server, sonarr_ser
     miss = poll_until(lambda: sample(scrape(warden), "warden_search_miss_total", source="sonarr"),
                       timeout=20)
     assert miss and miss >= 1.0, "warden never recorded a miss for the never-grabbed item"
+
+
+def test_unfindable_item_is_backed_off(launch, radarr_server, sonarr_server):
+    # a never-grabbed item that misses (threshold=1) earns a cooldown and drops out of hunting.
+    prime_radarr(radarr_server, missing=[])
+    prime_sonarr(sonarr_server, missing=[(201, "Ghost Show")], grab_ids=[])
+    warden = launch(**_env(radarr_server, sonarr_server),
+                    WARDEN_EFFICACY_RESOLVE_MINUTES="0.005", WARDEN_BACKOFF_MISS_THRESHOLD="1")
+
+    active = poll_until(lambda: sample(scrape(warden), "warden_backoff_active", source="sonarr"),
+                        timeout=20)
+    assert active and active >= 1.0, "warden never backed off the unfindable item"

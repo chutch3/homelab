@@ -8,11 +8,13 @@ from warden.metrics import Metrics
 from warden.models import (
     Anchor, ArrClientProtocol, InstanceWanted, QueueItem, QuotaSource, QuotaState, SleepDecision, WantedItem,
 )
+from warden.repositories.backoff import SearchBackoffRepository
 from warden.repositories.efficacy import SearchAttemptRepository
 from warden.repositories.ledger import SearchLedgerRepository
 from warden.repositories.progress import QueueProgressRepository
 from warden.schedule import ResetSchedule
-from warden.services.efficacy import EfficacyTracker
+from warden.services.backoff import BackoffTracker
+from warden.services.efficacy import EfficacyTracker, Reconciliation
 from warden.services.pacer import Pacer
 from warden.services.planner import HuntPlanner
 from warden.services.progress import ProgressTracker
@@ -35,6 +37,8 @@ class TickOrchestrator:
         progress_repo: QueueProgressRepository,
         efficacy: EfficacyTracker,
         efficacy_repo: SearchAttemptRepository,
+        backoff: BackoffTracker,
+        backoff_repo: SearchBackoffRepository,
         ledger: SearchLedgerRepository,
         clock: SystemClock,
         metrics: Metrics,
@@ -54,6 +58,8 @@ class TickOrchestrator:
         self._progress_repo = progress_repo
         self._efficacy = efficacy
         self._efficacy_repo = efficacy_repo
+        self._backoff = backoff
+        self._backoff_repo = backoff_repo
         self._ledger = ledger
         self._clock = clock
         self._metrics = metrics
@@ -117,6 +123,8 @@ class TickOrchestrator:
                 m.blocked.labels(source=src).set(0)
                 all_blocked = False
                 allowance = self._pacer.allowance(state.remaining, seconds_to_reset)
+                if self._backoff.enabled:
+                    exclusion = exclusion | self._backoff_repo.active(src, now.timestamp())
                 issued = await self._hunt_one(client, allowance, window, missing, cutoff, exclusion, now)
                 log = _logger.info if issued else _logger.debug
                 log("hunt tick", extra={"event": "issued", "source": src, "issued": issued,
@@ -198,16 +206,32 @@ class TickOrchestrator:
                 grabs = None
             if grabs is not None:
                 rec = self._efficacy.reconcile(pending, grabs, now)
-                for indexer in rec.hits:
-                    m.search_hit.labels(source=src, indexer=indexer).inc()
+                for hit in rec.hits:
+                    m.search_hit.labels(source=src, indexer=hit.indexer).inc()
                 if rec.misses:
                     m.search_miss.labels(source=src).inc(rec.misses)
                 if rec.resolved:
                     self._efficacy_repo.drop(src, rec.resolved)
+                self._apply_backoff(src, rec, now)
                 if rec.hits or rec.misses:
                     _logger.info("efficacy reconciled", extra={"event": "efficacy", "source": src,
                         "hits": len(rec.hits), "misses": rec.misses})
         m.search_pending.labels(source=src).set(self._efficacy_repo.count(src))
+
+    def _apply_backoff(self, src: str, rec: Reconciliation, now: datetime) -> None:
+        """Bump miss streaks / clear on hits; back off items past the threshold so the hunt
+        excludes them (gives scarce quota to items that can still be found)."""
+        if not self._backoff.enabled:
+            return
+        hit_ids = [h.remote_id for h in rec.hits]
+        streaks = self._backoff_repo.streaks(src, set(hit_ids) | set(rec.miss_ids))
+        outcome = self._backoff.decide(streaks, hit_ids, rec.miss_ids, now)
+        if outcome.clear or outcome.upsert:
+            self._backoff_repo.write(src, outcome.clear, outcome.upsert)
+        if outcome.entered:
+            self._metrics.backoff_entered.labels(source=src).inc(outcome.entered)
+        self._metrics.backoff_active.labels(source=src).set(
+            self._backoff_repo.count_active(src, now.timestamp()))
 
     async def _hunt_one(self, client: ArrClientProtocol, allowance: int, window: str,
                         missing: list[WantedItem], cutoff: list[WantedItem], exclusion: set[int],

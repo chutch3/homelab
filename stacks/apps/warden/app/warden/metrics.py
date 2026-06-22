@@ -63,6 +63,12 @@ class Metrics:
         self.search_pending = Gauge(
             "warden_search_pending", "Searches awaiting reconciliation against grabs",
             ["source"], registry=registry)
+        self.backoff_active = Gauge(
+            "warden_backoff_active", "Items in cooldown (excluded from hunting as unfindable)",
+            ["source"], registry=registry)
+        self.backoff_entered = Counter(
+            "warden_backoff_entered_total", "Items placed into backoff cooldown",
+            ["source"], registry=registry)
         self.build_info = Gauge(
             "warden_build_info", "Warden build info (constant 1)", ["version"], registry=registry)
         self.build_info.labels(version=__version__).set(1)

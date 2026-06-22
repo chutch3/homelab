@@ -47,14 +47,25 @@ class ArrClient(ABC):
     @abstractmethod
     def _queue_id_field(self) -> str: ...
 
+    _PAGE_SIZE = 1000
+
     async def _wanted(self, endpoint: str, kind: WantKind) -> list[WantedItem]:
-        resp = await self._http.get(
-            f"{self._base}/api/v3/wanted/{endpoint}",
-            headers=self._headers,
-            params={"pageSize": 1000},
-        )
-        resp.raise_for_status()
-        records = resp.json().get("records", [])
+        records: list[dict] = []
+        page = 1
+        while True:
+            resp = await self._http.get(
+                f"{self._base}/api/v3/wanted/{endpoint}",
+                headers=self._headers,
+                params={"page": page, "pageSize": self._PAGE_SIZE},
+            )
+            resp.raise_for_status()
+            body = resp.json()
+            batch = body.get("records", [])
+            records.extend(batch)
+            total = body.get("totalRecords", len(records))
+            if not batch or len(records) >= total:
+                break
+            page += 1
         return [
             WantedItem(instance=self.name, remote_id=int(r["id"]),
                        title=r.get("title", ""), kind=kind,

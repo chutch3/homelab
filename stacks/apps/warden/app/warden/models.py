@@ -70,6 +70,13 @@ class SearchAttempt:
 
 
 @dataclass(frozen=True)
+class Hit:
+    """A reconciled search→grab match."""
+    remote_id: int
+    indexer: str
+
+
+@dataclass(frozen=True)
 class InstanceWanted:
     missing: tuple[WantedItem, ...]
     cutoff_unmet: tuple[WantedItem, ...]

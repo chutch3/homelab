@@ -13,10 +13,12 @@ from warden.config import Config
 from warden.database import make_engine
 from warden.metrics import Metrics
 from warden.models import ArrClientProtocol, ArrType, QuotaSource
+from warden.repositories.backoff import SearchBackoffRepository
 from warden.repositories.efficacy import SearchAttemptRepository
 from warden.repositories.ledger import SearchLedgerRepository
 from warden.repositories.progress import QueueProgressRepository
 from warden.schedule import ResetSchedule
+from warden.services.backoff import BackoffTracker
 from warden.services.efficacy import EfficacyTracker
 from warden.services.orchestrator import TickOrchestrator
 from warden.services.pacer import Pacer
@@ -48,6 +50,14 @@ def _build_efficacy(config: Config) -> EfficacyTracker:
     return EfficacyTracker(
         enabled=config.efficacy_enabled,
         resolve_window=timedelta(minutes=config.efficacy_resolve_minutes),
+    )
+
+
+def _build_backoff(config: Config) -> BackoffTracker:
+    return BackoffTracker(
+        enabled=config.backoff_enabled,
+        threshold=config.backoff_miss_threshold,
+        cooldown=timedelta(days=config.backoff_cooldown_days),
     )
 
 
@@ -91,6 +101,8 @@ class Container(containers.DeclarativeContainer):
     progress_repo = providers.Singleton(QueueProgressRepository, engine=engine)
     efficacy = providers.Singleton(_build_efficacy, config=config)
     efficacy_repo = providers.Singleton(SearchAttemptRepository, engine=engine)
+    backoff = providers.Singleton(_build_backoff, config=config)
+    backoff_repo = providers.Singleton(SearchBackoffRepository, engine=engine)
     orchestrator = providers.Singleton(
         TickOrchestrator,
         clients=clients,
@@ -102,6 +114,8 @@ class Container(containers.DeclarativeContainer):
         progress_repo=progress_repo,
         efficacy=efficacy,
         efficacy_repo=efficacy_repo,
+        backoff=backoff,
+        backoff_repo=backoff_repo,
         ledger=ledger,
         clock=clock,
         metrics=metrics,
