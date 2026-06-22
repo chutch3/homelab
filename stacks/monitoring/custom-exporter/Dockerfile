@@ -1,7 +1,9 @@
 FROM python:3.12-alpine
 
-# Install iperf3, create non-root user, and verify iperf3 version
-RUN apk add --no-cache iperf3=3.19.1-r1 && \
+# Install iperf3, create non-root user, and verify iperf3 version.
+# iperf3 is intentionally unpinned to track the base image's current version.
+# hadolint ignore=DL3018
+RUN apk add --no-cache iperf3 && \
     adduser -D -u 10001 exporter && \
     iperf3 --version
 

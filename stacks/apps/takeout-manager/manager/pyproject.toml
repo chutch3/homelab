@@ -14,6 +14,7 @@ dev = [
     "pytest>=8.0.0",
     "pytest-mock>=3.12.0",
     "pytest-asyncio>=0.24.0",
+    "pytest-cov>=4.1.0",
     "httpx>=0.27.0",
 ]
 
@@ -22,7 +23,13 @@ package = false
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
+pythonpath = ["."]
 testpaths = ["tests"]
 python_files = ["test_*.py"]
 python_classes = ["Test*"]
 python_functions = ["test_*"]
+markers = [
+    "integration: needs external services (real process / fakes / docker)",
+    "e2e: full black-box end-to-end (docker compose)",
+]
+addopts = "--strict-markers --cov=backend --cov-report=term-missing --cov-fail-under=35"

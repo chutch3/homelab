@@ -2,7 +2,10 @@ version: "3.9"
 
 services:
   kolibri:
-    image: ${REGISTRY_URL:-ghcr.io}/${REGISTRY_NAMESPACE:-your-username}/kolibri-oidc:${IMAGE_TAG:-latest}
+    image: ${REGISTRY:-ghcr.io}/${REGISTRY_NAMESPACE:-chutch3}/kolibri-oidc:latest
+    build:
+      context: .
+      dockerfile: Dockerfile
 
     environment:
       - TZ=${TZ:-UTC}

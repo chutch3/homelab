@@ -7,7 +7,13 @@ services:
         #   - GitHub Container Registry: ghcr.io/YOUR_USERNAME/takeout-manager:latest
         #   - Docker Hub: YOUR_USERNAME/takeout-manager:latest
         #   - Private Registry: registry.YOUR_DOMAIN.com/takeout-manager:latest
-        image: ${TAKEOUT_MANAGER_REGISTRY_URL:-ghcr.io}/${TAKEOUT_MANAGER_REGISTRY_NAMESPACE:-your-username}/takeout-manager:${TAKEOUT_MANAGER_IMAGE_TAG:-latest}
+        image: ${REGISTRY:-ghcr.io}/${REGISTRY_NAMESPACE:-chutch3}/takeout-manager:latest
+        build:
+            context: manager
+            dockerfile: Dockerfile
+        x-homelab:
+            watch:
+                - stacks/apps/takeout-manager/manager/**
         container_name: takeout-manager
         restart: unless-stopped
         volumes:
@@ -42,7 +48,13 @@ services:
                 - "homepage.description=Google Photos Takeout Management"
 
     takeout-worker:
-        image: ${TAKEOUT_MANAGER_REGISTRY_URL:-ghcr.io}/${TAKEOUT_MANAGER_REGISTRY_NAMESPACE:-your-username}/takeout-worker:${TAKEOUT_MANAGER_IMAGE_TAG:-latest}
+        image: ${REGISTRY:-ghcr.io}/${REGISTRY_NAMESPACE:-chutch3}/takeout-worker:latest
+        build:
+            context: worker
+            dockerfile: Dockerfile
+        x-homelab:
+            watch:
+                - stacks/apps/takeout-manager/worker/**
         container_name: takeout-worker
         restart: unless-stopped
         volumes:

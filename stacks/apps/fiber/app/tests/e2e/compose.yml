@@ -26,7 +26,7 @@ services:
     networks: [fibernet]
 
   fiber:
-    image: fiber:e2e
+    image: ${FIBER_IMAGE:-fiber:e2e}
     environment:
       - FIBER_PROVIDER=docker
       - FIBER_BOWL_PATH=/backups

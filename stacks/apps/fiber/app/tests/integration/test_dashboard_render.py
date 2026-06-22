@@ -1,10 +1,8 @@
 from __future__ import annotations
 
-import os
 import pytest
 
-if not os.environ.get("FIBER_INTEGRATION"):
-    pytest.skip("set FIBER_INTEGRATION=1 to run", allow_module_level=True)
+pytestmark = pytest.mark.integration
 
 from datetime import datetime, timedelta, timezone
 from unittest.mock import MagicMock, create_autospec

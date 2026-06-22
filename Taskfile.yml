@@ -2,30 +2,12 @@ version: "3"
 
 vars:
     PROJECT_NAME: homelab
-    PYTHON_VERSION: "3.9"
+    PYTHON_VERSION: "3.12"
 
 dotenv: [".env"]
 
 includes:
     ansible: ansible/Taskfile.yml
-    kolibri:
-        taskfile: stacks/apps/kolibri/Taskfile.yml
-        dir: stacks/apps/kolibri
-    takeout-manager:
-        taskfile: stacks/apps/takeout-manager/Taskfile.yml
-        dir: stacks/apps/takeout-manager
-    warden:
-        taskfile: stacks/apps/warden/Taskfile.yml
-        dir: stacks/apps/warden
-    fiber:
-        taskfile: stacks/apps/fiber/Taskfile.yml
-        dir: stacks/apps/fiber
-    devbox:
-        taskfile: images/devbox/Taskfile.yml
-        dir: images/devbox
-    monitoring:
-        taskfile: stacks/monitoring/Taskfile.yml
-        dir: stacks/monitoring
     status-pipeline:
         taskfile: scripts/status-pipeline/Taskfile.yml
         dir: scripts/status-pipeline
@@ -50,17 +32,60 @@ tasks:
             - uv sync
             - uv run pre-commit install
 
+    # App test suites (Python), via the `ci` tool. Tiers are dirs under each app's tests/.
     test:
-        desc: Run unit and integration tests with coverage
+        desc: "Run app tests — all, or one: task test -- warden"
         cmds:
-            - echo "🧪 Running unit tests with coverage..."
+            - uv run ci test {{.CLI_ARGS}}
+
+    test:unit:
+        desc: "Run the unit tier — task test:unit -- warden (omit app for all)"
+        cmds:
+            - uv run ci test --tier unit {{.CLI_ARGS}}
+
+    test:integration:
+        desc: "Run the integration tier — task test:integration -- fiber"
+        cmds:
+            - uv run ci test --tier integration {{.CLI_ARGS}}
+
+    test:e2e:
+        desc: "Run the e2e tier — task test:e2e -- fiber"
+        cmds:
+            - uv run ci test --tier e2e {{.CLI_ARGS}}
+
+    test:affected:
+        desc: "Run tests only for apps changed vs origin/main"
+        cmds:
+            - uv run ci test --affected
+
+    test:shell:
+        desc: Run the shell (bats) suites with coverage
+        cmds:
+            - echo "🧪 Running shell unit tests with coverage..."
             - mkdir -p coverage
             - rm -rf /tmp/bats-run-* 2>/dev/null || true
             - kcov --bash-method=DEBUG --include-pattern=scripts,stacks --exclude-pattern=/usr,/tmp,/var coverage/unit bats --jobs 1 stacks/apps/*/tests/*.bats tests/unit/scripts/*.bats
-            - echo "🧪 Unit tests completed successfully"
             - echo "📊 Merging coverage reports..."
             - kcov --merge coverage/merged coverage/unit
-            - echo "✅ All tests completed [Coverage report](coverage/merged/index.html)"
+            - echo "✅ Shell tests completed [Coverage report](coverage/merged/index.html)"
+
+    test:ci:
+        desc: Run the CI tooling tests (homelab_ci / tools/ci)
+        cmds:
+            - uv run pytest
+
+    # Build images locally via buildx bake (reads compose build: sections).
+    build:
+        desc: "Build an app's image(s) locally — task build -- warden"
+        dir: stacks/apps/{{.CLI_ARGS}}
+        cmds:
+            - docker buildx bake --allow fs.read=* -f docker-compose.yml
+
+    publish:
+        desc: "Build & push an app's image(s) — task publish -- warden (requires registry login)"
+        dir: stacks/apps/{{.CLI_ARGS}}
+        cmds:
+            - docker buildx bake --allow fs.read=* -f docker-compose.yml --push
 
     test-fast:
         desc: Run core tests with faster execution
@@ -76,8 +101,8 @@ tasks:
             - echo "✅ Local tests completed"
 
     test-comprehensive:
-        desc: Run all tests (unit/integration + local)
-        deps: ["test", "test-local"]
+        desc: Run all tests (shell + app + CI tooling + local)
+        deps: ["test:shell", "test", "test:ci", "test-local"]
 
     test-performance:
         desc: Run performance and regression tests
@@ -88,7 +113,16 @@ tasks:
 
     lint:
         desc: Run all linting checks
-        deps: ["lint:shell", "lint:yaml", "lint:dockerfile", "lint:secrets"]
+        deps: ["lint:shell", "lint:yaml", "lint:dockerfile", "lint:secrets", "lint:imports"]
+
+    lint:imports:
+        desc: Run import-linter on apps that define import contracts (fiber, warden)
+        cmds:
+            - |
+                for d in stacks/apps/fiber/app stacks/apps/warden/app; do
+                    echo "==> lint-imports: $d"
+                    (cd "$d" && uv run lint-imports) || exit 1
+                done
 
     lint:shell:
         desc: Run shellcheck on shell scripts
@@ -196,8 +230,8 @@ tasks:
             - task: ansible:secrets:wipe
 
     check:
-        desc: Run all checks (lint, test, static analysis, docs)
-        deps: [lint, test, "static-analysis", "docs:validate"]
+        desc: Run all checks (lint, tests, static analysis, docs)
+        deps: [lint, "test:shell", "test", "test:ci", "static-analysis", "docs:validate"]
 
     release:version:
         desc: Check what the next version would be

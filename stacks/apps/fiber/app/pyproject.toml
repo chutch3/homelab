@@ -37,7 +37,11 @@ testpaths = ["tests"]
 python_files = ["test_*.py"]
 python_classes = ["Test*"]
 python_functions = ["test_*"]
-addopts = "--cov=fiber --cov-report=term-missing --cov-fail-under=90"
+markers = [
+    "integration: needs external services (real process / fakes / docker)",
+    "e2e: full black-box end-to-end (docker compose)",
+]
+addopts = "--strict-markers --cov=fiber --cov-report=term-missing --cov-fail-under=90"
 
 [tool.coverage.run]
 omit = ["*/fiber/main.py", "*/fiber/container.py"]

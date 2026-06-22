@@ -4,6 +4,8 @@ from backend.db import Database
 from backend.repositories import JobRepository, ChunkRepository
 from backend.models import JobStatus, ChunkStatus
 
+pytestmark = pytest.mark.integration
+
 
 @pytest.fixture
 def db(tmp_path):

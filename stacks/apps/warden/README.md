@@ -105,5 +105,6 @@ warden/
 ```
 
 Imports flow `routes → services → repositories → clients` (enforced by import-linter).
-Unit tests cover the logic; a gated suite (`WARDEN_INTEGRATION=1`) runs the real process
-against fake *arr HTTP servers.
+Unit tests cover the logic; the integration suite (`tests/integration`, marked
+`@pytest.mark.integration`) runs the real process against fake *arr HTTP servers —
+`task test:integration -- warden`, and in CI as part of each build.

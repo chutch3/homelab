@@ -5,6 +5,8 @@ from backend.application import create_app
 from fastapi.testclient import TestClient
 from backend.models import JobStatus, ChunkStatus
 
+pytestmark = pytest.mark.integration
+
 
 class TestJobAPI:
     @pytest.fixture
