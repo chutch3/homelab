@@ -57,6 +57,10 @@ services:
             - VNC_PW=${TOR_BROWSER_VNC_PASSWORD}
             - TZ=${TZ}
             - DISABLE_CUSTOM_STARTUP=true
+            # GPU access for KasmVNC compositing (node runs default-runtime=nvidia).
+            # Use "all" caps: GBM/KMS needs graphics+display, not just compute,utility.
+            - NVIDIA_VISIBLE_DEVICES=all
+            - NVIDIA_DRIVER_CAPABILITIES=all
         volumes:
             - tor_browser_data:/home/kasm-user
             - type: tmpfs
