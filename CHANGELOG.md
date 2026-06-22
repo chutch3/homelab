@@ -2,6 +2,184 @@
 
 <!-- version list -->
 
+## v3.19.0 (2026-06-22)
+
+### Bug Fixes
+
+- Bail the sweep only on download-client outages, not stuck-count
+  ([`10b2537`](https://github.com/chutch3/homelab/commit/10b2537d09965450aa9a07bc7dd770b8e642c57f))
+
+- Bind indexer budget to the most-constrained indexer not the most-generous
+  ([`b7f52fe`](https://github.com/chutch3/homelab/commit/b7f52fe1010c10a174201b0d482b488370114281))
+
+- Keep poll cadence when quota-blocked so the queue janitor keeps running
+  ([`8a94b85`](https://github.com/chutch3/homelab/commit/8a94b85dcabdc0955414711f1144cdea637ddd6b))
+
+- Moved the HA MCP disabled tools to .env
+  ([`d3dc81b`](https://github.com/chutch3/homelab/commit/d3dc81b074d1797f6b1204f07ffbbfb0a5a00c50))
+
+- Place ollama via llm label instead of hardcoded hostname
+  ([`fd62a88`](https://github.com/chutch3/homelab/commit/fd62a88127419e412ce59bdf1e3c8916e4a3cbbb))
+
+- Rename librechat ollama endpoint off reserved name
+  ([`72afdb7`](https://github.com/chutch3/homelab/commit/72afdb7d4b111f2d4ce54d6a7673b1e5679f2ba0))
+
+### Chores
+
+- Bump devbox version
+  ([`25f38df`](https://github.com/chutch3/homelab/commit/25f38dff00028e82540ad102ea26e9c5e65c3820))
+
+- Bumped kenku
+  ([`35a9842`](https://github.com/chutch3/homelab/commit/35a984278ce0f33292ebff0ddd8903a4c7019965))
+
+- Disable ha-mcp search mode and prune to a lean tool set
+  ([`f8cc253`](https://github.com/chutch3/homelab/commit/f8cc253c69ac07fe95302c0a28ac914fadd4db76))
+
+- Move ollama to the rtx 3090
+  ([`40313ab`](https://github.com/chutch3/homelab/commit/40313ab6327300cd2933db11a8d8b9ae5cf993e3))
+
+### Documentation
+
+- Add warden readme with tick-flow diagram
+  ([`9957546`](https://github.com/chutch3/homelab/commit/99575461c78083513fd4cdf597bb3d52b4dd6d86))
+
+- Capture local-model mcp findings for librechat
+  ([`6e22e92`](https://github.com/chutch3/homelab/commit/6e22e9243c2c3aa91d6edc8c75e01725fc338198))
+
+- Document declarative pre-flight provisioning; fix tor-browser README
+  ([`758229b`](https://github.com/chutch3/homelab/commit/758229b5136374c5d2179c7c2ec2d126a7227f81))
+
+### Features
+
+- Add declarative directories provisioning to preflight role
+  ([`ae53cba`](https://github.com/chutch3/homelab/commit/ae53cba514cffe53629893f8fd3579aeb8930220))
+
+- Add fiber container-discovery provider + unprivileged compose e2e
+  ([#74](https://github.com/chutch3/homelab/pull/74),
+  [`85d5e9b`](https://github.com/chutch3/homelab/commit/85d5e9bcb98235780d10106a70bf72ab14f6365c))
+
+- Add fiber db dump manager
+  ([`4cee1b6`](https://github.com/chutch3/homelab/commit/4cee1b69b31f768c9ff015dcb2a8cfdbe04955eb))
+
+- Add files and templates provisioning to preflight role
+  ([`86ac9c2`](https://github.com/chutch3/homelab/commit/86ac9c20de49e79a27cfb599f4f94f017aedeaee))
+
+- Add never-searched backlog panel
+  ([`59a2374`](https://github.com/chutch3/homelab/commit/59a2374667f1f4bc6fc883fc78cc2094767a2053))
+
+- Add no-progress panel and document no-progress env
+  ([`3cb2cf4`](https://github.com/chutch3/homelab/commit/3cb2cf4b2e4ffa6d48093ef7817d16f772d42a3f))
+
+- Add open-webui stack for local-model mcp tools
+  ([`cfa30a4`](https://github.com/chutch3/homelab/commit/cfa30a4b62fad1bf86483816f7c8197d562740e0))
+
+- Add pure no-progress tracker
+  ([`c2a7a71`](https://github.com/chutch3/homelab/commit/c2a7a71e5a51e2ea2431372c434fd72ffc416495))
+
+- Add queue list and remove to the arr client
+  ([`8ecc711`](https://github.com/chutch3/homelab/commit/8ecc7119ff497f4990bc07d4871f1459d305dbac))
+
+- Add queue sweeper policy with mass-unhealthy guard
+  ([`0dc33a0`](https://github.com/chutch3/homelab/commit/0dc33a0aff926041a855fa9fe763ecfb5993e878))
+
+- Add QueueItem model and stale-download detector
+  ([`6ac59b3`](https://github.com/chutch3/homelab/commit/6ac59b3493c3e0e2bbedd9479ef997faa3710d0a))
+
+- Add stale-sweep panels and document sweep env
+  ([`bb5df7a`](https://github.com/chutch3/homelab/commit/bb5df7a4a2eff3682295fb039e6b981dfcde1474))
+
+- Add warden quota-aware *arr hunter
+  ([`d6ab427`](https://github.com/chutch3/homelab/commit/d6ab427fe1cf725623390b877f9e2f0f04382294))
+
+- Back off repeatedly-unfindable items and hunt the full missing backlog
+  ([`861b8ea`](https://github.com/chutch3/homelab/commit/861b8eaea2000ebf3430d01891dce5b360c9feb6))
+
+- Expose never-searched backlog gauge
+  ([`45b7920`](https://github.com/chutch3/homelab/commit/45b7920326761b8a56f645a71cfbfad71f8f21ee))
+
+- Hunt least-recently-searched missing items first
+  ([`070cfbe`](https://github.com/chutch3/homelab/commit/070cfbe48ca7283016bc239f7cf81bb9475e25d4))
+
+- Log per-title search triggers and idle hunt ticks
+  ([`2b2119e`](https://github.com/chutch3/homelab/commit/2b2119e01014e145c569ba31619feb1a36417b21))
+
+- Parse downloadId and sizeleft into QueueItem
+  ([`5c85b31`](https://github.com/chutch3/homelab/commit/5c85b31772d1dad7c0723bd36dbd6aa54c0f6874))
+
+- Persist no-progress anchors in a queue-progress repository
+  ([`5e41872`](https://github.com/chutch3/homelab/commit/5e418720569dfafde9aa91e2c77fc1ce24168678))
+
+- Read *arr lastSearchTime into WantedItem
+  ([`7003e79`](https://github.com/chutch3/homelab/commit/7003e7989064fbd0327a53835d2880005bed32d8))
+
+- Remove no-progress downloads each tick via tracker + persisted anchors
+  ([`7273973`](https://github.com/chutch3/homelab/commit/72739739fc43781da4de0fad692bd7e77b5b5e4c))
+
+- Share devbox workspace and ssh keys with rstudio
+  ([`cd12974`](https://github.com/chutch3/homelab/commit/cd12974f123b0261756d2f7f82ee31cd9b2b837f))
+
+- Support cache mount in preflight directories; migrate librenms
+  ([`80c57eb`](https://github.com/chutch3/homelab/commit/80c57eb28ded2d23f81ae629b1116191936d1312))
+
+- Sweep stale downloads and exclude queued items each tick
+  ([`99a1b81`](https://github.com/chutch3/homelab/commit/99a1b81092e5b4ab0673b9791b8771b9a5ffe2d8))
+
+- Track grab efficacy as hit/miss rate per source and indexer
+  ([`112cd5b`](https://github.com/chutch3/homelab/commit/112cd5b551e30270719d901c6e0f0b06a92787a6))
+
+### Refactoring
+
+- Align files with secrets from_file convention, reuse mount vars, dedup, dynamic ssh key
+  ([`b17a7aa`](https://github.com/chutch3/homelab/commit/b17a7aad680684bf4e0b44bea8b87271f68c136a))
+
+- Consolidate fiber e2e suite under app/tests ([#75](https://github.com/chutch3/homelab/pull/75),
+  [`7bc1120`](https://github.com/chutch3/homelab/commit/7bc1120316ef2ba9c867c454ba2d75d87e966863))
+
+- Dedupe arr timestamp parsing and tidy lrs tests
+  ([`c7850d7`](https://github.com/chutch3/homelab/commit/c7850d7f05305f307b0abd831ba2cf0b4f6a8906))
+
+- Extract quota-state publishing and unify the arr test double
+  ([`99eda27`](https://github.com/chutch3/homelab/commit/99eda2784e00e4e580fa3fed035656a3d943e63e))
+
+- Migrate code-server provisioning to preflight directories/files/templates
+  ([`3b7a937`](https://github.com/chutch3/homelab/commit/3b7a937842ae95efe648f1605a4053f8332db6de))
+
+- Migrate tor-browser provisioning to preflight directories
+  ([`721118e`](https://github.com/chutch3/homelab/commit/721118e1f854c52d5a1c4d18c0b2c68163f0c293))
+
+### Testing
+
+- Add real-subprocess integration harness with pytest-httpserver
+  ([`6e2a45c`](https://github.com/chutch3/homelab/commit/6e2a45ca985a05eba8abacca3a8aa5e4e7df513a))
+
+- Cover hunt, quota, provenance and degradation end-to-end
+  ([`a613202`](https://github.com/chutch3/homelab/commit/a6132026b8de79b9be30232c77d560757d388dba))
+
+- Cover least-recently-searched ordering end-to-end
+  ([`52b3a00`](https://github.com/chutch3/homelab/commit/52b3a00c4836dc999f6e0cc22ad342ac442f67f4))
+
+- Cover most-constrained-indexer budget through the subprocess harness
+  ([`490ddaa`](https://github.com/chutch3/homelab/commit/490ddaac0b0bba6d4150d81fa456451a392603a2))
+
+- Cover no-progress removal end-to-end
+  ([`4810caf`](https://github.com/chutch3/homelab/commit/4810caf3152dea4f50e16e3d9c87567b85f8e5f6))
+
+- Cover stale sweep and hunt-exclusion end-to-end
+  ([`4b6fe99`](https://github.com/chutch3/homelab/commit/4b6fe9964f76992fc871be2fbfbd9e2a82aa2d51))
+
+- Cover sweep bail, removal failure and blocked-source sweep
+  ([`acd0061`](https://github.com/chutch3/homelab/commit/acd0061107edd4ba07bea6d277d9614c8983ad24))
+
+- Dedupe progress-repo helper and cover false-positive safety e2e
+  ([`d3bfd64`](https://github.com/chutch3/homelab/commit/d3bfd64a4dcbe0ad87221dbd322100f9d431b97d))
+
+- Gate integration suite and align coverage semantics with fiber
+  ([`d1b85a4`](https://github.com/chutch3/homelab/commit/d1b85a43056ff79bb1120ff573bd03ff30665378))
+
+- Relocate in-process tests into the unit tier matching fiber layout
+  ([`4b7ebe5`](https://github.com/chutch3/homelab/commit/4b7ebe571b2c27dfe1162185ce896d3ed5fe9d4b))
+
+
 ## v3.18.0 (2026-06-15)
 
 ### Bug Fixes
