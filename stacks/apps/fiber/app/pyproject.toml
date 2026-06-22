@@ -37,6 +37,10 @@ testpaths = ["tests"]
 python_files = ["test_*.py"]
 python_classes = ["Test*"]
 python_functions = ["test_*"]
+markers = [
+    "integration: needs external services (real process / fakes / docker)",
+    "e2e: full black-box end-to-end (docker compose)",
+]
 addopts = "--cov=fiber --cov-report=term-missing --cov-fail-under=90"
 
 [tool.coverage.run]

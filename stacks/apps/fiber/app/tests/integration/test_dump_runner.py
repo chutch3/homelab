@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import os
 import subprocess
 
 import pytest
@@ -9,7 +8,7 @@ from testcontainers.postgres import PostgresContainer
 from fiber.clients.dump_runner import DumpRunner
 from fiber.models import DumpFormat, DumpJob, Engine
 
-pytestmark = pytest.mark.skipif(os.getenv("FIBER_INTEGRATION") != "1", reason="integration gated")
+pytestmark = pytest.mark.integration
 
 
 def _job(host: str, port: int, fmt: DumpFormat) -> DumpJob:

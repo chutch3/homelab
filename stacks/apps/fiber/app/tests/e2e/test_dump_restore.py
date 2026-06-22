@@ -17,6 +17,8 @@ from pathlib import Path
 
 import pytest
 
+pytestmark = pytest.mark.e2e
+
 HERE = Path(__file__).parent
 STACK_ROOT = HERE.parents[2]  # app/tests/e2e -> app/tests -> app -> stacks/apps/fiber
 PROJECT = "fiber-e2e"

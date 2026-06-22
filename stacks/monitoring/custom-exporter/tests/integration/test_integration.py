@@ -16,6 +16,8 @@ from iperf3_exporter.server import create_probe_handler
 from iperf3_exporter.runner import IPerf3Runner
 from iperf3_exporter.metrics import PrometheusMetricsFormatter
 
+pytestmark = pytest.mark.integration
+
 
 class TestProbeHandlerHTTPEndpoints:
     """Integration tests for ProbeHandler HTTP endpoints"""

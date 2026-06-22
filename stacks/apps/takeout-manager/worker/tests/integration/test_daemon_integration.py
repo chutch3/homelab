@@ -16,6 +16,8 @@ from worker.manager_client import ManagerClient
 from worker.runners import CurlRunner, TarRunner
 from worker.services import DownloadService
 
+pytestmark = pytest.mark.integration
+
 
 class TestDaemonIntegration:
     @pytest.fixture

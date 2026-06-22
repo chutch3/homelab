@@ -1,4 +1,3 @@
-import os
 import subprocess
 from pathlib import Path
 import pytest
@@ -16,7 +15,7 @@ from fiber.clients.secrets import SecretReader
 from fiber.clients.swarm import DockerSwarmGateway
 from fiber.clients.events import EventBroker
 
-pytestmark = pytest.mark.skipif(os.getenv("FIBER_INTEGRATION") != "1", reason="integration gated")
+pytestmark = pytest.mark.integration
 
 
 def _make_orch(tmp_path: Path) -> MovementOrchestrator:

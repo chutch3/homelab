@@ -1,4 +1,3 @@
-import os
 import signal
 
 import pytest
@@ -7,7 +6,7 @@ from tests.integration.conftest import (
     commands, down, prime_prowlarr, prime_radarr, prime_sonarr, poll_until, sample, scrape,
 )
 
-pytestmark = pytest.mark.skipif(os.getenv("WARDEN_INTEGRATION") != "1", reason="integration gated")
+pytestmark = pytest.mark.integration
 
 # Prowlarr fixtures mirroring the live API shapes (from the retired client tests).
 APPS = [
