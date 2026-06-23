@@ -111,12 +111,14 @@ jobs:
                   if [ "${{ github.event_name }}" = "pull_request" ]; then
                       # Gate only — build, don't push.
                       args+=(--set "${{ matrix.service }}.output=type=cacheonly")
+                      docker "${args[@]}"
                   else
-                      # Comma-separated → both tags (repeating --set would override, not append).
-                      args+=(--set "${{ matrix.service }}.tags=${repo}:${GITHUB_SHA},${repo}:latest"
-                             --push)
+                      # Push the compose image tag (:latest), then add the immutable :sha
+                      # as a server-side retag. (bake --set tags= doesn't split a comma list.)
+                      args+=(--push)
+                      docker "${args[@]}"
+                      docker buildx imagetools create "${repo}:latest" --tag "${repo}:${GITHUB_SHA}"
                   fi
-                  docker "${args[@]}"
 
     # Always-run required check: green when nothing built, red if any build failed.
     # This (not the matrix) is what branch protection should require — a path-filtered
