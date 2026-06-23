@@ -43,8 +43,9 @@ jobs:
             id-token: write
 
     promote-images:
-        # Tag every built image with the release's semantic version, by promoting the
-        # already-tested :<sha> image (no rebuild). One version for the whole platform.
+        # Tag every custom image with the release's semantic version, by retagging its
+        # current :latest (no rebuild). One version for the whole platform — unchanged
+        # images get their existing digest aliased under the new version too.
         name: Promote images to ${{ needs.release.outputs.version }}
         needs: release
         if: needs.release.outputs.released == 'true'
@@ -74,13 +75,16 @@ jobs:
                   username: ${{ github.actor }}
                   password: ${{ secrets.GITHUB_TOKEN }}
 
-            - name: Promote each image :sha -> :version
-              # GITHUB_SHA is the released code (the release commit only bumps version/
-              # changelog), and build.yml already pushed its :<sha> image.
+            - name: Promote each image :latest -> :version
+              # Retag every image's current :latest (its most-recent main build, whether
+              # or not it changed this cycle) with the release version. Server-side
+              # manifest retag — no rebuild, no layer push. Using :latest (not :<sha>)
+              # means unchanged images, which were never built at the release commit,
+              # still get tagged — so the whole platform ends up on one version.
               run: |
                   set -euo pipefail
                   for image in $(uv run ci images .); do
                       repo="${REGISTRY}/${REGISTRY_NAMESPACE}/${image}"
-                      docker buildx imagetools create "${repo}:${GITHUB_SHA}" --tag "${repo}:${VERSION}"
-                      echo "Promoted \`${repo}:${VERSION}\` (from \`:${GITHUB_SHA}\`)." >> "$GITHUB_STEP_SUMMARY"
+                      docker buildx imagetools create "${repo}:latest" --tag "${repo}:${VERSION}"
+                      echo "Promoted \`${repo}:${VERSION}\` (from \`:latest\`)." >> "$GITHUB_STEP_SUMMARY"
                   done
