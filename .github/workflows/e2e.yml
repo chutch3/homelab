@@ -1,0 +1,41 @@
+name: E2E tests
+
+# Heavier, orchestration-based end-to-end tests (the `e2e` tier), kept OUT of the
+# per-build gate in build.yml. Runs nightly, on demand, on main, and on PRs that
+# touch an e2e suite — so it stays non-blocking for normal app PRs.
+
+on:
+    workflow_dispatch:
+    schedule:
+        - cron: "0 6 * * *" # nightly 06:00 UTC
+    pull_request:
+        paths:
+            - "stacks/apps/*/**/tests/e2e/**"
+            - ".github/workflows/e2e.yml"
+    push:
+        branches: [main]
+        paths:
+            - "stacks/apps/*/**/tests/e2e/**"
+            - ".github/workflows/e2e.yml"
+
+concurrency:
+    group: ${{ github.workflow }}-${{ github.ref }}
+    cancel-in-progress: true
+
+jobs:
+    e2e:
+        name: E2E suites
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@v4
+
+            - name: Set up uv
+              uses: astral-sh/setup-uv@v5
+              with:
+                  enable-cache: true
+
+            # The runner provides Docker + Compose; the e2e tier drives real
+            # containers (e.g. fiber builds an image, dumps a seeded Postgres,
+            # restores into a scratch Postgres, asserts the row count).
+            - name: Run e2e tier
+              run: uv run ci test --tier e2e
