@@ -1,6 +1,6 @@
 services:
     fiber:
-        image: ${REGISTRY:-ghcr.io}/${REGISTRY_NAMESPACE:-chutch3}/fiber:latest
+        image: ${REGISTRY:-ghcr.io}/${REGISTRY_NAMESPACE:-chutch3}/fiber:${IMAGE_TAG:-3.20.0}
         build:
             context: .
             dockerfile: app/Dockerfile

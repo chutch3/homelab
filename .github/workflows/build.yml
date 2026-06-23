@@ -96,6 +96,10 @@ jobs:
             - name: Build${{ github.event_name != 'pull_request' && ' & push' || '' }} ${{ matrix.image_name }}
               run: |
                   set -euo pipefail
+                  # The compose image: tag is ${IMAGE_TAG:-<pinned deploy version>}. Builds
+                  # must tag :latest, not the pinned deploy version, so set IMAGE_TAG=latest
+                  # — bake then resolves image: to :latest for every service.
+                  export IMAGE_TAG=latest
                   repo="${REGISTRY}/${REGISTRY_NAMESPACE}/${{ matrix.image_name }}"
                   # bake resolves relative context/dockerfile from CWD, so run it from
                   # the compose file's directory (compose-relative paths then resolve).
@@ -111,8 +115,7 @@ jobs:
                       args+=(--set "${{ matrix.service }}.output=type=cacheonly")
                       docker "${args[@]}"
                   else
-                      # Push the compose image tag (:latest), then add the immutable :sha
-                      # as a server-side retag. (bake --set tags= doesn't split a comma list.)
+                      # Push :latest, then add the immutable :sha as a server-side retag.
                       args+=(--push)
                       docker "${args[@]}"
                       docker buildx imagetools create "${repo}:latest" --tag "${repo}:${GITHUB_SHA}"

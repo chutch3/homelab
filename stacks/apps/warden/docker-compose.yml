@@ -2,7 +2,7 @@ version: "3.9"
 
 services:
     warden:
-        image: ${REGISTRY:-ghcr.io}/${REGISTRY_NAMESPACE:-chutch3}/warden:latest
+        image: ${REGISTRY:-ghcr.io}/${REGISTRY_NAMESPACE:-chutch3}/warden:${IMAGE_TAG:-3.20.0}
         build:
             context: .
             dockerfile: app/Dockerfile

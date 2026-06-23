@@ -68,8 +68,11 @@ class Unit:
 def _image_key(image: str) -> str:
     image = image.split("@", 1)[0]  # drop @sha256:... digest
     slash = image.rfind("/")
-    colon = image.rfind(":")
-    if colon > slash:  # a tag (not a registry :port, which sits before the last /)
+    # The tag separator is the FIRST colon after the last '/'. Using rfind here would
+    # grab a colon inside a templated tag like ${IMAGE_TAG:-3.20.0}; image names can't
+    # contain ':', so the first colon after the name is always the tag separator.
+    colon = image.find(":", slash + 1)
+    if colon != -1:  # a tag (registry :port sits before the last /, so it's excluded)
         image = image[:colon]
     return image
 
