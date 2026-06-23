@@ -2,6 +2,68 @@
 
 <!-- version list -->
 
+## v3.21.0 (2026-06-23)
+
+### Bug Fixes
+
+- Promote images from :latest so unchanged images get the release version
+  ([#90](https://github.com/chutch3/homelab/pull/90),
+  [`7135ad9`](https://github.com/chutch3/homelab/commit/7135ad9a31568fec4580eaf27d6e150cc151fe77))
+
+### Chores
+
+- Bump kenku to 0.33.1 and sync uv.lock version ([#89](https://github.com/chutch3/homelab/pull/89),
+  [`805b84f`](https://github.com/chutch3/homelab/commit/805b84ffbe9f7da243e8155e0c4f4cf7876ac187))
+
+- Bump kenku to 0.33.1 in downloads stack ([#89](https://github.com/chutch3/homelab/pull/89),
+  [`805b84f`](https://github.com/chutch3/homelab/commit/805b84ffbe9f7da243e8155e0c4f4cf7876ac187))
+
+- Bump takeout to python 3.12
+  ([`b8771eb`](https://github.com/chutch3/homelab/commit/b8771ebf1966b33265f4c557910ddaf0e8ca8ce4))
+
+- Sync uv.lock to released homelab version 3.20.0
+  ([#89](https://github.com/chutch3/homelab/pull/89),
+  [`805b84f`](https://github.com/chutch3/homelab/commit/805b84ffbe9f7da243e8155e0c4f4cf7876ac187))
+
+### Continuous Integration
+
+- Nightly/on-demand e2e workflow
+  ([`ade7bd4`](https://github.com/chutch3/homelab/commit/ade7bd45407d6fbaafbe2959f7a138f51b1b424b))
+
+### Features
+
+- Local ghcr prune task (ci gc + task ghcr:prune)
+  ([`e341016`](https://github.com/chutch3/homelab/commit/e3410169c14c9875c051cf296d1429d9f0e8c8b2))
+
+- Pin custom images to a deploy version via IMAGE_TAG default
+  ([#91](https://github.com/chutch3/homelab/pull/91),
+  [`35ab0ad`](https://github.com/chutch3/homelab/commit/35ab0add090950ac3d244263fd3aeb8f576fa6ca))
+
+### Refactoring
+
+- Gate coverage on combined unit+integration
+  ([`faf2e10`](https://github.com/chutch3/homelab/commit/faf2e10ce4e4db2d3040c940faff9f4e97f389d8))
+
+- Retire scripts/ in favor of lib/ and tools/ ([#87](https://github.com/chutch3/homelab/pull/87),
+  [`751ea17`](https://github.com/chutch3/homelab/commit/751ea177e957519ca2168eaec1dc401b75ec73c8))
+
+### Testing
+
+- Raise custom-exporter coverage to 90 (entrypoint, run_server, runner error path)
+  ([#84](https://github.com/chutch3/homelab/pull/84),
+  [`8ea49a4`](https://github.com/chutch3/homelab/commit/8ea49a41cd4993ed5d44023725999bec9c326742))
+
+- Raise takeout-manager coverage gate to 90 ([#86](https://github.com/chutch3/homelab/pull/86),
+  [`49fe5e8`](https://github.com/chutch3/homelab/commit/49fe5e87c0c4db97fd7f7e5ebc9bc9272a13ce36))
+
+- Raise takeout-worker coverage to 90 (runners, logger, extract error paths)
+  ([#85](https://github.com/chutch3/homelab/pull/85),
+  [`c368a59`](https://github.com/chutch3/homelab/commit/c368a5957103595ead92ef8250304e0380c8e8fd))
+
+- Vendor bats helpers instead of git submodules ([#88](https://github.com/chutch3/homelab/pull/88),
+  [`d31ef27`](https://github.com/chutch3/homelab/commit/d31ef27c8bb46615cf387cb912af271b05e3a710))
+
+
 ## v3.20.0 (2026-06-23)
 
 ### Bug Fixes
