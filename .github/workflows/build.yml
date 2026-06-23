@@ -76,13 +76,11 @@ jobs:
                   enable-cache: true
 
             - name: Test ${{ matrix.service }}
-              # Unit (coverage-gated) + integration (ungated). e2e is marked but not in
-              # the per-build gate — it's orchestration-heavy; run it via `ci test --tier e2e`.
-              # Keyed on the build context so multi-image stacks test the right subtree;
-              # no-ops for units with no pyproject (e.g. devbox).
-              run: |
-                  uv run ci test "${{ matrix.context }}" --tier unit
-                  uv run ci test "${{ matrix.context }}" --tier integration
+              # Runs unit + integration together; the project's --cov-fail-under applies
+              # to their COMBINED coverage. e2e is orchestration-heavy and runs separately
+              # (e2e.yml / `ci test --tier e2e`). Keyed on the build context so multi-image
+              # stacks test the right subtree; no-ops for units with no pyproject (devbox).
+              run: uv run ci test "${{ matrix.context }}"
 
             - name: Set up Docker Buildx
               uses: docker/setup-buildx-action@v3

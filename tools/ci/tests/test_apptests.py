@@ -46,8 +46,9 @@ def test_select_no_match_returns_empty():
 
 
 def test_tiers_to_run():
-    assert tiers_to_run("all") == ["unit", "integration", "e2e"]
+    assert tiers_to_run(None) == ["unit", "integration"]  # default gated suite
     assert tiers_to_run("unit") == ["unit"]
+    assert tiers_to_run("e2e") == ["e2e"]
     import pytest
 
     with pytest.raises(ValueError):
@@ -63,38 +64,48 @@ def test_discover_finds_pyproject_dirs_and_skips_venv(tmp_path):
     assert discover_test_projects(tmp_path) == ["stacks/apps/warden/app"]
 
 
-def _fake_runner(calls, rc_for=None):
+def _fake_runner(calls, returncode=0):
     def runner(cmd, cwd=None):
         calls.append((cmd, str(cwd)))
 
         class R:
-            returncode = (rc_for or {}).get(cmd[-1], 0)
+            pass
 
+        R.returncode = returncode
         return R()
 
     return runner
 
 
-def test_run_tests_skips_missing_tiers_and_clears_addopts_for_nonunit(tmp_path):
+def test_gated_run_combines_existing_tiers_in_one_call_keeping_addopts(tmp_path):
     proj = tmp_path / "stacks/apps/warden/app"
     (proj / "tests" / "unit").mkdir(parents=True)
     (proj / "tests" / "integration").mkdir(parents=True)
-    # no tests/e2e → that tier is skipped
+    # no tests/e2e → excluded
     calls: list = []
     rc = run_tests(tmp_path, ["stacks/apps/warden/app"], ["unit", "integration", "e2e"],
-                   runner=_fake_runner(calls))
-    invoked_tiers = [cmd[3] for cmd, _ in calls]  # "tests/<tier>"
-    assert invoked_tiers == ["tests/unit", "tests/integration"]
-    # unit keeps the project's addopts; integration clears them
-    assert "-o" not in calls[0][0]
-    assert "-o" in calls[1][0] and "addopts=" in calls[1][0]
+                   gated=True, runner=_fake_runner(calls))
+    assert len(calls) == 1  # one combined invocation
+    cmd = calls[0][0]
+    assert cmd[:3] == ["uv", "run", "pytest"]
+    assert "tests/unit" in cmd and "tests/integration" in cmd and "tests/e2e" not in cmd
+    assert "-o" not in cmd  # gated → keep the project's addopts (coverage on the combined run)
     assert rc == 0
+
+
+def test_ungated_run_clears_addopts(tmp_path):
+    proj = tmp_path / "stacks/apps/warden/app"
+    (proj / "tests" / "integration").mkdir(parents=True)
+    calls: list = []
+    run_tests(tmp_path, ["stacks/apps/warden/app"], ["integration"], gated=False,
+              runner=_fake_runner(calls))
+    cmd = calls[0][0]
+    assert "-o" in cmd and "addopts=" in cmd  # partial run → no coverage gate
 
 
 def test_run_tests_propagates_failure(tmp_path):
     proj = tmp_path / "stacks/apps/warden/app"
     (proj / "tests" / "unit").mkdir(parents=True)
-    calls: list = []
     rc = run_tests(tmp_path, ["stacks/apps/warden/app"], ["unit"],
-                   runner=_fake_runner(calls, rc_for={"tests/unit": 1}))
+                   runner=_fake_runner([], returncode=1))
     assert rc == 1
