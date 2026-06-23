@@ -16,9 +16,9 @@ import re
 
 from ci.affected import Unit, discover_units
 
-# <image>-v<version>, where <version> starts with a digit. `.+` is greedy so the
-# split lands on the last `-v<digit>`, keeping hyphenated image names intact.
-_TAG_RE = re.compile(r"^(?P<image>.+)-v(?P<version>\d[^\s]*)$")
+# <image>-vX.Y.Z (with optional pre-release/build suffix). `.+` is greedy so the
+# split lands on the last `-vX.Y.Z`, keeping hyphenated image names intact.
+_TAG_RE = re.compile(r"^(?P<image>.+)-v(?P<version>\d+\.\d+\.\d+(?:[-+.]\S+)?)$")
 
 
 def parse_release_tag(tag: str) -> tuple[str, str] | None:
@@ -44,9 +44,4 @@ def release_info(repo_root: str | os.PathLike[str], tag: str) -> dict | None:
     unit = resolve_unit(image_name, discover_units(repo_root))
     if not unit:
         return None
-    return {
-        "image_name": image_name,
-        "version": version,
-        "service": unit.service,
-        "compose_file": unit.compose_file,
-    }
+    return {"version": version, **unit.as_dict()}

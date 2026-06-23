@@ -33,6 +33,8 @@ def test_parse_valid_release_tags(tag, expected):
         "warden-1.2.0",  # missing the v
         "random-tag",
         "warden-vX.Y.Z",  # version must start with a digit
+        "warden-v1",  # not full X.Y.Z
+        "warden-v1.2",  # not full X.Y.Z
         "",
     ],
 )

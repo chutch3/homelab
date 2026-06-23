@@ -53,6 +53,17 @@ class Unit:
         """Bare image name (last path segment), e.g. ``warden`` or ``homelab-devbox``."""
         return self.image_key.rsplit("/", 1)[-1]
 
+    def as_dict(self) -> dict:
+        """JSON-serializable view shared by the build matrix and release resolution."""
+        return {
+            "service": self.service,
+            "image_name": self.image_name,
+            "context": self.context,
+            "dockerfile": self.dockerfile,
+            "compose_file": self.compose_file,
+            "stack_dir": self.stack_dir,
+        }
+
 
 def _image_key(image: str) -> str:
     image = image.split("@", 1)[0]  # drop @sha256:... digest
@@ -140,14 +151,4 @@ def compute_matrix(repo_root: str | os.PathLike[str], changed_files: list[str]) 
     """The deduped build matrix (one entry per image) for a set of changed files."""
     units = discover_units(repo_root)
     selected = units if tooling_changed(changed_files) else affected_units(changed_files, units)
-    return [
-        {
-            "service": u.service,
-            "image_name": u.image_name,
-            "context": u.context,
-            "dockerfile": u.dockerfile,
-            "compose_file": u.compose_file,
-            "stack_dir": u.stack_dir,
-        }
-        for u in dedupe_by_image(selected)
-    ]
+    return [u.as_dict() for u in dedupe_by_image(selected)]

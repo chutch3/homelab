@@ -1,13 +1,20 @@
 name: App release
 
-# Cut a per-app release by pushing a tag <image>-vX.Y.Z (e.g. warden-v1.4.0).
-# Promotes the already-built (tested) :<sha> image to :X.Y.Z without rebuilding,
-# then opens a PR pinning the compose image off :latest to the released version.
+# Tier-1, per-app release (distinct from release.yml, which is Tier-2 — the weekly
+# python-semantic-release that versions the whole repo). Cut one by pushing a tag
+# <image>-vX.Y.Z (e.g. warden-v1.4.0): this promotes the already-built (tested)
+# :<sha> image to :X.Y.Z without rebuilding, then opens a PR pinning the compose
+# image off :latest to the released version.
 
 on:
     push:
         tags:
             - "*-v*"
+
+# Serialize releases of the same tag; never cancel an in-flight promote midway.
+concurrency:
+    group: app-release-${{ github.ref }}
+    cancel-in-progress: false
 
 permissions:
     contents: write
@@ -24,8 +31,6 @@ jobs:
         runs-on: ubuntu-latest
         steps:
             - uses: actions/checkout@v4
-              with:
-                  fetch-depth: 0
 
             - name: Set up uv
               uses: astral-sh/setup-uv@v5
