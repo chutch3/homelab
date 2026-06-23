@@ -4,7 +4,8 @@ Subcommands:
   ci affected [REPO_ROOT] [FILE ...]   print the affected build matrix as JSON
                                        (files default to stdin, newline-separated)
   ci test [SELECTOR] [--tier T] [--affected]   run app pytest suites by tier
-  ci gc [--apply] [--cutoff-days N]    prune stale :sha/untagged ghcr versions (dry-run by default)
+  ci images [REPO_ROOT]                 list every buildable image name (one per line)
+  ci gc [--apply] [--cutoff-days N]     prune stale :sha/untagged ghcr versions (dry-run by default)
 """
 
 from __future__ import annotations
@@ -38,6 +39,12 @@ def _cmd_test(args: argparse.Namespace) -> int:
     return apptests.run_tests(args.repo_root, selected, apptests.tiers_to_run(args.tier))
 
 
+def _cmd_images(args: argparse.Namespace) -> int:
+    for image in affected.list_images(args.repo_root):
+        print(image)
+    return 0
+
+
 def _cmd_gc(args: argparse.Namespace) -> int:
     gc.prune(args.repo_root, cutoff_days=args.cutoff_days, apply=args.apply)
     return 0
@@ -59,6 +66,10 @@ def build_parser() -> argparse.ArgumentParser:
     test.add_argument("--base", default="origin/main")
     test.add_argument("--repo-root", default=".")
     test.set_defaults(func=_cmd_test)
+
+    images = sub.add_parser("images", help="list every buildable image name (one per line)")
+    images.add_argument("repo_root", nargs="?", default=".")
+    images.set_defaults(func=_cmd_images)
 
     gc_p = sub.add_parser("gc", help="prune stale :sha/untagged ghcr versions (dry-run by default)")
     gc_p.add_argument("repo_root", nargs="?", default=".")
