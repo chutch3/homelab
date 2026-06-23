@@ -80,17 +80,19 @@ tasks:
             - uv run pytest
 
     # Build images locally via buildx bake (reads compose build: sections).
+    # IMAGE_TAG=latest: the compose image: tag is ${IMAGE_TAG:-<pinned version>}, so
+    # builds/pushes target :latest, never the pinned deploy version.
     build:
         desc: "Build an app's image(s) locally — task build -- warden"
         dir: stacks/apps/{{.CLI_ARGS}}
         cmds:
-            - docker buildx bake --allow fs.read=* -f docker-compose.yml
+            - IMAGE_TAG=latest docker buildx bake --allow fs.read=* -f docker-compose.yml
 
     publish:
         desc: "Build & push an app's image(s) — task publish -- warden (requires registry login)"
         dir: stacks/apps/{{.CLI_ARGS}}
         cmds:
-            - docker buildx bake --allow fs.read=* -f docker-compose.yml --push
+            - IMAGE_TAG=latest docker buildx bake --allow fs.read=* -f docker-compose.yml --push
 
     test-fast:
         desc: Run core tests with faster execution

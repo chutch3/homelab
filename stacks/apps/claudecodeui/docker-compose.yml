@@ -2,7 +2,7 @@ version: "3.9"
 
 services:
   claudecodeui:
-    image: ${REGISTRY:-ghcr.io}/${REGISTRY_NAMESPACE:-chutch3}/homelab-devbox:latest
+    image: ${REGISTRY:-ghcr.io}/${REGISTRY_NAMESPACE:-chutch3}/homelab-devbox:${IMAGE_TAG:-3.20.0}
     build:
       context: ../../../images/devbox
       dockerfile: Dockerfile

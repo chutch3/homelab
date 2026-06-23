@@ -116,6 +116,19 @@ def test_image_name_is_bare_last_segment():
     assert templated.image_name == "warden"
 
 
+def test_templated_tag_with_default_is_stripped():
+    # The deploy pin is ${IMAGE_TAG:-3.20.0} — its ':-' colon must not be mistaken
+    # for the name:tag separator (which is the first colon after the last '/').
+    u = _unit(
+        "warden",
+        "${REGISTRY:-ghcr.io}/${REGISTRY_NAMESPACE:-chutch3}/warden:${IMAGE_TAG:-3.20.0}",
+        "stacks/apps/warden",
+        ["stacks/apps/warden/**"],
+    )
+    assert u.image_name == "warden"
+    assert u.image_key == "${REGISTRY:-ghcr.io}/${REGISTRY_NAMESPACE:-chutch3}/warden"
+
+
 def test_tooling_change_flags_everything():
     assert tooling_changed(["tools/ci/ci/affected.py"]) is True
     assert tooling_changed([".github/workflows/build.yml"]) is True

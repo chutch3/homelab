@@ -2,7 +2,7 @@ version: "3.9"
 
 services:
   kolibri:
-    image: ${REGISTRY:-ghcr.io}/${REGISTRY_NAMESPACE:-chutch3}/kolibri-oidc:latest
+    image: ${REGISTRY:-ghcr.io}/${REGISTRY_NAMESPACE:-chutch3}/kolibri-oidc:${IMAGE_TAG:-3.20.0}
     build:
       context: .
       dockerfile: Dockerfile
