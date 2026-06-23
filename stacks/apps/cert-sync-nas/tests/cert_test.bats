@@ -1,13 +1,13 @@
 #!/usr/bin/env bats
 
-# Tests for scripts/common/cert.sh
+# Tests for the cert-sync-nas bundle's cert.sh
 
 load test_helper
 
 setup() {
     export TEST=true
     # shellcheck disable=SC1091
-    source "${BATS_TEST_DIRNAME}/../../../scripts/common/cert.sh"
+    source "${BATS_TEST_DIRNAME}/../common/cert.sh"
 
     TEST_DIR="$(temp_make)"
     export TEST_DIR

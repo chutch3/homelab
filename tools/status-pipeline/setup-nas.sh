@@ -62,12 +62,12 @@ load_environment() {
         log_info "Loaded environment from .env"
     fi
 
-    if [ -f "$PROJECT_ROOT/scripts/common/ssh.sh" ]; then
+    if [ -f "$PROJECT_ROOT/lib/ssh.sh" ]; then
         # shellcheck source=/dev/null
-        source "$PROJECT_ROOT/scripts/common/ssh.sh"
+        source "$PROJECT_ROOT/lib/ssh.sh"
         log_info "Loaded ssh library"
     else
-        log_error "Could not find scripts/common/ssh.sh"
+        log_error "Could not find lib/ssh.sh"
         exit 1
     fi
 }

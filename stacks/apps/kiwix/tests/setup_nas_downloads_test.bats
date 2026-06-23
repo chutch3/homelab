@@ -27,8 +27,8 @@ BASE_DOMAIN=test.com
 EOF
 
     # Create mock ssh.sh
-    mkdir -p "$PROJECT_ROOT/scripts/common"
-    cat > "$PROJECT_ROOT/scripts/common/ssh.sh" <<'EOF'
+    mkdir -p "$PROJECT_ROOT/lib"
+    cat > "$PROJECT_ROOT/lib/ssh.sh" <<'EOF'
 #!/bin/bash
 ssh_test_connection() { return 0; }
 ssh_copy_key() { return 0; }
@@ -37,7 +37,7 @@ ssh_create_directory() { return 0; }
 ssh_command_exists() { return 0; }
 export -f ssh_test_connection ssh_copy_key ssh_execute ssh_create_directory ssh_command_exists
 EOF
-    chmod +x "$PROJECT_ROOT/scripts/common/ssh.sh"
+    chmod +x "$PROJECT_ROOT/lib/ssh.sh"
 }
 
 teardown() {
@@ -140,7 +140,7 @@ teardown() {
     [[ "$output" =~ "source" ]] && [[ "$output" =~ ".env" ]]
 }
 
-@test "load_environment should source scripts/common/ssh.sh" {
+@test "load_environment should source lib/ssh.sh" {
     local script="${BATS_TEST_DIRNAME}/../setup-nas-downloads.sh"
     run grep -A20 "^load_environment()" "$script"
     [[ "$output" =~ "source" ]] && [[ "$output" =~ "ssh.sh" ]]

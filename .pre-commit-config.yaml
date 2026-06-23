@@ -43,7 +43,7 @@ repos:
       hooks:
           - id: ansible-lint
             name: Ansible Lint
-            entry: scripts/dev/run-ansible-lint.sh
+            entry: tools/dev/run-ansible-lint.sh
             language: system
             files: \.
             pass_filenames: true

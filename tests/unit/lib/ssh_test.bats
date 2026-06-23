@@ -1,6 +1,6 @@
 #!/usr/bin/env bats
 
-# Tests for scripts/common/ssh.sh
+# Tests for lib/ssh.sh
 
 load test_helper
 
@@ -16,7 +16,7 @@ setup() {
 
     # Source after SSH_KEY_FILE is set to suppress the warning
     # shellcheck disable=SC1091
-    source "${BATS_TEST_DIRNAME}/../../../scripts/common/ssh.sh"
+    source "${BATS_TEST_DIRNAME}/../../../lib/ssh.sh"
 }
 
 teardown() {

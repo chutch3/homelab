@@ -20,7 +20,7 @@ tasks:
         desc: Enable Tailscale Funnel on NAS port 9000
         cmds:
             - |
-                source ../../scripts/common/ssh.sh >/dev/null 2>&1
+                source ../../lib/ssh.sh >/dev/null 2>&1
                 SSH_TIMEOUT=30 ssh_execute --login "{{.NAS_ROOT}}" "tailscale funnel reset"
                 FUNNEL_BACKEND="https://{{.STATUS_PIPELINE_MINIO_HOST}}/public-status"
                 SSH_TIMEOUT=30 ssh_execute --login "{{.NAS_ROOT}}" \
@@ -30,7 +30,7 @@ tasks:
         desc: Disable Tailscale Funnel on NAS (killswitch)
         cmds:
             - |
-                source ../../scripts/common/ssh.sh >/dev/null 2>&1
+                source ../../lib/ssh.sh >/dev/null 2>&1
                 SSH_TIMEOUT=30 ssh_execute --login "{{.NAS_ROOT}}" "tailscale funnel off"
                 echo "Funnel disabled"
 
@@ -38,7 +38,7 @@ tasks:
         desc: Show Tailscale Funnel status on NAS
         cmds:
             - |
-                source ../../scripts/common/ssh.sh >/dev/null 2>&1
+                source ../../lib/ssh.sh >/dev/null 2>&1
                 SSH_TIMEOUT=30 ssh_execute --login "{{.NAS_ROOT}}" "tailscale funnel status"
 
     cron:remove:
@@ -51,7 +51,7 @@ tasks:
         cmds:
             - |
                 echo "1. Running sync on NAS..."
-                source ../../scripts/common/ssh.sh >/dev/null 2>&1
+                source ../../lib/ssh.sh >/dev/null 2>&1
                 SSH_TIMEOUT=30 ssh_execute --login "{{.NAS_ROOT}}" "/usr/local/bin/sync-status.sh"
                 echo "2. Verifying anonymous read..."
                 FUNNEL_URL="${STATUS_PIPELINE_URL:-}"
@@ -72,7 +72,7 @@ tasks:
         desc: Tail the status pipeline log on NAS
         cmds:
             - |
-                source ../../scripts/common/ssh.sh >/dev/null 2>&1
+                source ../../lib/ssh.sh >/dev/null 2>&1
                 SSH_TIMEOUT=30 ssh_execute --login "{{.NAS_ROOT}}" "tail -50 /var/log/status-pipeline.log"
 
     prometheus:disable:

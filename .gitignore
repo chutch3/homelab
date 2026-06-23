@@ -17,6 +17,12 @@ eggs/
 .eggs/
 lib/
 lib64/
+# Re-include our source dirs that collide with the Python venv-ignore above
+# (lib/ here is the boilerplate venv ignore; ours is committed shared bash)
+!/lib/
+!/lib/**
+!/tests/unit/lib/
+!/tests/unit/lib/**
 parts/
 sdist/
 var/

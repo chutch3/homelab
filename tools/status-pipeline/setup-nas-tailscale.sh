@@ -2,7 +2,7 @@
 # One-off: Install and configure Tailscale on the NAS for Funnel.
 # Run from the homelab project root.
 #
-# Usage: ./scripts/status-pipeline/setup-nas-tailscale.sh
+# Usage: ./tools/status-pipeline/setup-nas-tailscale.sh
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -25,7 +25,7 @@ if [[ -f "$PROJECT_ROOT/.env" ]]; then
     set +a
 fi
 # shellcheck source=/dev/null
-source "$PROJECT_ROOT/scripts/common/ssh.sh"
+source "$PROJECT_ROOT/lib/ssh.sh"
 
 NAS_SERVER="${NAS_SERVER:?NAS_SERVER is required in .env}"
 NAS_USER_HOST="root@${NAS_SERVER}"

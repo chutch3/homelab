@@ -12,7 +12,7 @@ On every container start, the startup script:
 4. Installs a weekly crontab (Sundays at 3 AM) to renew and re-sync
 5. Starts `crond` to keep the container running
 
-`sync-nas-cert.sh` calls `omv_cert_install` from `scripts/common/nas/omv.sh`, which:
+`sync-nas-cert.sh` calls `omv_cert_install` from `common/nas/omv.sh`, which:
 - SCPs the cert and key to `/tmp/` on the NAS
 - SSHes in and runs `omv-rpc CertificateMgmt set` to import the cert
 - Applies dirty config modules and restarts nginx

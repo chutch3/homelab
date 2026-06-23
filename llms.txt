@@ -31,7 +31,8 @@ stacks/
   monitoring/             # Prometheus + Grafana + Loki
   dns/                    # Technitium DNS server
 docs/                     # MkDocs documentation site
-scripts/                  # Utility scripts (health check, doc generation)
+tools/                    # Invocable tooling (ci, status-pipeline, dev helpers, cluster-health)
+lib/                      # Shared bash sourced by tooling (ssh.sh)
 ```
 
 ## Common Operations

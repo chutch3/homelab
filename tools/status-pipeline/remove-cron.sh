@@ -12,7 +12,7 @@ if [[ -f "$PROJECT_ROOT/.env" ]]; then
     set +a
 fi
 # shellcheck source=/dev/null
-source "$PROJECT_ROOT/scripts/common/ssh.sh"
+source "$PROJECT_ROOT/lib/ssh.sh"
 
 NAS_SERVER="${NAS_SERVER:?NAS_SERVER is required in .env}"
 NAS_ROOT="root@${NAS_SERVER}"

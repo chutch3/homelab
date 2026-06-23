@@ -9,8 +9,8 @@ dotenv: [".env"]
 includes:
     ansible: ansible/Taskfile.yml
     status-pipeline:
-        taskfile: scripts/status-pipeline/Taskfile.yml
-        dir: scripts/status-pipeline
+        taskfile: tools/status-pipeline/Taskfile.yml
+        dir: tools/status-pipeline
 
 env:
     REGISTRY_NAMESPACE: $GITHUB_USERNAME
@@ -69,7 +69,7 @@ tasks:
             - echo "🧪 Running shell unit tests with coverage..."
             - mkdir -p coverage
             - rm -rf /tmp/bats-run-* 2>/dev/null || true
-            - kcov --bash-method=DEBUG --include-pattern=scripts,stacks --exclude-pattern=/usr,/tmp,/var coverage/unit bats --jobs 1 stacks/apps/*/tests/*.bats tests/unit/scripts/*.bats
+            - kcov --bash-method=DEBUG --include-pattern=lib,stacks --exclude-pattern=/usr,/tmp,/var coverage/unit bats --jobs 1 stacks/apps/*/tests/*.bats tests/unit/lib/*.bats
             - echo "📊 Merging coverage reports..."
             - kcov --merge coverage/merged coverage/unit
             - echo "✅ Shell tests completed [Coverage report](coverage/merged/index.html)"
@@ -96,7 +96,7 @@ tasks:
         desc: Run core tests with faster execution
         cmds:
             - echo "🧪 Running unit tests..."
-            - bats --tap stacks/apps/*/tests/*.bats tests/unit/scripts/*.bats
+            - bats --tap stacks/apps/*/tests/*.bats tests/unit/lib/*.bats
 
     test-local:
         desc: Run local-only tests (requires Docker)
@@ -132,7 +132,7 @@ tasks:
     lint:shell:
         desc: Run shellcheck on shell scripts
         cmds:
-            - find scripts -name "*.sh" -type f -exec uv run shellcheck -x --source-path=scripts {} +
+            - find tools lib -name "*.sh" -type f -exec uv run shellcheck -x --source-path=lib --source-path=tools {} +
 
     lint:yaml:
         desc: Run yamllint on YAML files
@@ -212,7 +212,7 @@ tasks:
             - sh: command -v dockumentor
               msg: "dockumentor not found. Install with: uv tool install dockumentor"
         cmds:
-            - ./scripts/dev/generate-stack-docs.sh
+            - ./tools/dev/generate-stack-docs.sh
 
     secrets:login:
         desc: Login and unlock the configured secret vault
