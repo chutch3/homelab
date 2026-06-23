@@ -31,4 +31,4 @@ markers = [
     "integration: needs external services (real process / fakes / docker)",
     "e2e: full black-box end-to-end (docker compose)",
 ]
-addopts = "--strict-markers --cov=worker --cov-report=term-missing --cov-fail-under=70"
+addopts = "--strict-markers --cov=worker --cov-report=term-missing --cov-fail-under=90"
