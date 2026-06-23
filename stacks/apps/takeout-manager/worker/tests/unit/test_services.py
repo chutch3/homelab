@@ -226,3 +226,58 @@ class TestDownloadService:
         assert (videos_dir / "movie.mov").exists()
         assert not (pictures_dir / "document.pdf").exists()
         assert not (videos_dir / "document.pdf").exists()
+
+    @pytest.mark.asyncio
+    async def test_extract_chunk_missing_all_params(self, subject):
+        success, message = await subject.extract_chunk({"id": 1, "type": "extract", "params": {}})
+        assert success is False
+        assert message == "Task parameters are missing"
+
+    @pytest.mark.asyncio
+    async def test_extract_chunk_missing_required_params(self, subject):
+        success, message = await subject.extract_chunk(
+            {"id": 1, "type": "extract", "params": {"timestamp": "20240101T120000"}}
+        )
+        assert success is False
+        assert "Missing required parameters for extraction" in message
+
+    @pytest.mark.asyncio
+    async def test_extract_chunk_archive_not_found(self, subject):
+        success, message = await subject.extract_chunk(
+            {"id": 1, "type": "extract",
+             "params": {"timestamp": "20240101T120000", "chunk_index": 1}}
+        )
+        assert success is False
+        assert message.startswith("Archive not found:")
+
+    @pytest.mark.asyncio
+    async def test_extract_chunk_returns_failure_when_tar_runner_fails(
+        self, subject, mock_tar_runner, tmp_path
+    ):
+        downloads_dir = tmp_path / "downloads"
+        downloads_dir.mkdir()
+        (downloads_dir / "takeout-20240101T120000Z-001.tgz").write_bytes(b"archive")
+        mock_tar_runner.extract.return_value = False
+
+        success, message = await subject.extract_chunk(
+            {"id": 1, "type": "extract",
+             "params": {"timestamp": "20240101T120000", "chunk_index": 1}}
+        )
+        assert success is False
+        assert message == "Failed to extract archive"
+
+    @pytest.mark.asyncio
+    async def test_extract_chunk_returns_failure_on_unexpected_exception(
+        self, subject, mock_tar_runner, tmp_path
+    ):
+        downloads_dir = tmp_path / "downloads"
+        downloads_dir.mkdir()
+        (downloads_dir / "takeout-20240101T120000Z-001.tgz").write_bytes(b"archive")
+        mock_tar_runner.extract.side_effect = RuntimeError("boom")
+
+        success, message = await subject.extract_chunk(
+            {"id": 1, "type": "extract",
+             "params": {"timestamp": "20240101T120000", "chunk_index": 1}}
+        )
+        assert success is False
+        assert "Extraction error: boom" in message
