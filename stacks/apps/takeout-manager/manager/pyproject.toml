@@ -2,7 +2,7 @@
 name = "takeout-manager"
 version = "0.1.0"
 description = "Manager service for Google Photos Takeout automation"
-requires-python = ">=3.10"
+requires-python = ">=3.12"
 dependencies = [
     "fastapi>=0.115.0",
     "uvicorn>=0.32.0",
