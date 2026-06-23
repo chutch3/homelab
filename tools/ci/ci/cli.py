@@ -5,6 +5,7 @@ Subcommands:
                                        (files default to stdin, newline-separated)
   ci test [SELECTOR] [--tier T] [--affected]   run app pytest suites by tier
   ci images [REPO_ROOT]                 list every buildable image name (one per line)
+  ci gc [--apply] [--cutoff-days N]     prune stale :sha/untagged ghcr versions (dry-run by default)
 """
 
 from __future__ import annotations
@@ -14,7 +15,7 @@ import json
 import subprocess
 import sys
 
-from ci import affected, apptests
+from ci import affected, apptests, gc
 
 
 def _cmd_affected(args: argparse.Namespace) -> int:
@@ -44,6 +45,11 @@ def _cmd_images(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_gc(args: argparse.Namespace) -> int:
+    gc.prune(args.repo_root, cutoff_days=args.cutoff_days, apply=args.apply)
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="ci")
     sub = parser.add_subparsers(dest="cmd", required=True)
@@ -64,6 +70,12 @@ def build_parser() -> argparse.ArgumentParser:
     images = sub.add_parser("images", help="list every buildable image name (one per line)")
     images.add_argument("repo_root", nargs="?", default=".")
     images.set_defaults(func=_cmd_images)
+
+    gc_p = sub.add_parser("gc", help="prune stale :sha/untagged ghcr versions (dry-run by default)")
+    gc_p.add_argument("repo_root", nargs="?", default=".")
+    gc_p.add_argument("--cutoff-days", type=int, default=14)
+    gc_p.add_argument("--apply", action="store_true", help="actually delete (default: dry-run)")
+    gc_p.set_defaults(func=_cmd_gc)
     return parser
 
 

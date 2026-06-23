@@ -26,6 +26,11 @@ tasks:
         cmds:
             - echo "${GITHUB_TOKEN}" | docker login ghcr.io -u "${GITHUB_USERNAME}" --password-stdin
 
+    ghcr:prune:
+        desc: "Prune stale :sha/untagged ghcr image versions (dry-run; add -- --apply to delete). Uses local gh auth (needs read:packages + delete:packages)."
+        cmds:
+            - uv run ci gc {{.CLI_ARGS}}
+
     install:
         desc: Install project dependencies
         cmds:
