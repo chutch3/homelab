@@ -3,8 +3,13 @@
 Discovery is structural: any dir under ``stacks/`` with a ``pyproject.toml`` is a
 testable project (each declares its own pytest dev-group, so ``uv run pytest``
 self-bootstraps). Tiers are ``tests/{unit,integration,e2e}`` subdirs, run if they
-exist. Coverage gating is a unit-tier concern, so non-unit tiers clear the
-project's ``addopts`` (otherwise ``--cov-fail-under`` trips on a partial run).
+exist.
+
+The default (gated) run executes unit + integration **together in one pytest**, so
+the project's ``--cov-fail-under`` applies to the *combined* coverage of both tiers.
+A single explicit ``--tier`` runs that tier alone and clears ``addopts`` (a partial
+run shouldn't trip the coverage gate). e2e is not in the default suite — it's run
+explicitly via ``--tier e2e`` (the e2e workflow).
 
 The selection logic is pure and unit-tested; only :func:`run_tests` shells out.
 """
@@ -15,6 +20,8 @@ import subprocess
 from pathlib import Path
 
 TIERS = ("unit", "integration", "e2e")
+# The gated default suite: unit + integration, coverage measured across both.
+DEFAULT_TIERS = ("unit", "integration")
 
 
 def discover_test_projects(repo_root: str | Path) -> list[str]:
@@ -42,32 +49,39 @@ def select_projects(projects: list[str], selector: str | None) -> list[str]:
     return selected
 
 
-def tiers_to_run(tier: str) -> list[str]:
-    if tier == "all":
-        return list(TIERS)
+def tiers_to_run(tier: str | None) -> list[str]:
+    """No tier → the default gated suite (unit+integration); else that single tier."""
+    if tier is None:
+        return list(DEFAULT_TIERS)
     if tier in TIERS:
         return [tier]
-    raise ValueError(f"unknown tier {tier!r} (want unit|integration|e2e|all)")
+    raise ValueError(f"unknown tier {tier!r} (want unit|integration|e2e)")
 
 
-def run_tests(repo_root: str | Path, projects: list[str], tiers: list[str], runner=subprocess.run) -> int:
-    """Run ``uv run pytest tests/<tier>`` for each existing (project, tier). Returns an exit code."""
+def run_tests(
+    repo_root: str | Path, projects: list[str], tiers: list[str], gated: bool = True, runner=subprocess.run
+) -> int:
+    """Run each project's existing tiers in one pytest invocation. Returns an exit code.
+
+    ``gated`` keeps the project's ``addopts`` so ``--cov-fail-under`` applies to the
+    combined coverage of all tiers run together; otherwise ``addopts`` is cleared
+    (a single explicit tier is a partial run and shouldn't be coverage-gated).
+    """
     root = Path(repo_root)
     rc = 0
     ran_any = False
     for rel in projects:
         proj = root / rel
-        for tier in tiers:
-            if not (proj / "tests" / tier).is_dir():
-                continue
-            ran_any = True
-            print(f"==> {rel} : {tier}")
-            # Coverage gate (e.g. --cov-fail-under) is a unit-tier concern; a partial
-            # run of integration/e2e would otherwise fail it on ~0% coverage.
-            extra = [] if tier == "unit" else ["-o", "addopts="]
-            result = runner(["uv", "run", "pytest", f"tests/{tier}", *extra], cwd=proj)
-            if result.returncode != 0:
-                rc = 1
+        present = [t for t in tiers if (proj / "tests" / t).is_dir()]
+        if not present:
+            continue
+        ran_any = True
+        print(f"==> {rel} : {' '.join(present)}")
+        paths = [f"tests/{t}" for t in present]
+        extra = [] if gated else ["-o", "addopts="]
+        result = runner(["uv", "run", "pytest", *paths, *extra], cwd=proj)
+        if result.returncode != 0:
+            rc = 1
     if not ran_any:
         print("No matching test tiers.")
     return rc

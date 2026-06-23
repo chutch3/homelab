@@ -36,7 +36,10 @@ def _cmd_test(args: argparse.Namespace) -> int:
         selected = sorted({p for c in contexts for p in apptests.select_projects(projects, c)})
     else:
         selected = apptests.select_projects(projects, args.selector)
-    return apptests.run_tests(args.repo_root, selected, apptests.tiers_to_run(args.tier))
+    # No --tier → the gated default suite (unit+integration, combined coverage).
+    return apptests.run_tests(
+        args.repo_root, selected, apptests.tiers_to_run(args.tier), gated=args.tier is None
+    )
 
 
 def _cmd_images(args: argparse.Namespace) -> int:
@@ -61,7 +64,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     test = sub.add_parser("test", help="run app pytest suites by tier")
     test.add_argument("selector", nargs="?", default=None, help="app name or repo-relative path")
-    test.add_argument("--tier", default="all", choices=["unit", "integration", "e2e", "all"])
+    test.add_argument("--tier", default=None, choices=["unit", "integration", "e2e"])
     test.add_argument("--affected", action="store_true", help="only projects changed vs --base")
     test.add_argument("--base", default="origin/main")
     test.add_argument("--repo-root", default=".")
