@@ -4,6 +4,7 @@ Subcommands:
   ci affected [REPO_ROOT] [FILE ...]   print the affected build matrix as JSON
                                        (files default to stdin, newline-separated)
   ci test [SELECTOR] [--tier T] [--affected]   run app pytest suites by tier
+  ci images [REPO_ROOT]                 list every buildable image name (one per line)
 """
 
 from __future__ import annotations
@@ -37,6 +38,12 @@ def _cmd_test(args: argparse.Namespace) -> int:
     return apptests.run_tests(args.repo_root, selected, apptests.tiers_to_run(args.tier))
 
 
+def _cmd_images(args: argparse.Namespace) -> int:
+    for image in affected.list_images(args.repo_root):
+        print(image)
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="ci")
     sub = parser.add_subparsers(dest="cmd", required=True)
@@ -53,6 +60,10 @@ def build_parser() -> argparse.ArgumentParser:
     test.add_argument("--base", default="origin/main")
     test.add_argument("--repo-root", default=".")
     test.set_defaults(func=_cmd_test)
+
+    images = sub.add_parser("images", help="list every buildable image name (one per line)")
+    images.add_argument("repo_root", nargs="?", default=".")
+    images.set_defaults(func=_cmd_images)
     return parser
 
 

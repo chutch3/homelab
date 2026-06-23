@@ -2,6 +2,35 @@
 
 <!-- version list -->
 
+## v3.20.0 (2026-06-23)
+
+### Bug Fixes
+
+- Retag sha via imagetools instead of comma tags in bake
+  ([`b566d1e`](https://github.com/chutch3/homelab/commit/b566d1e95a36c7103c82245bb62ccde30c2d69d1))
+
+### Chores
+
+- Remove monorepo build/release planning doc
+  ([`e6f18c8`](https://github.com/chutch3/homelab/commit/e6f18c84bd5ea18c80b5b14cfe651859fa46dd94))
+
+### Features
+
+- Build and test only changed apps with per-image CI
+  ([`ec72a4c`](https://github.com/chutch3/homelab/commit/ec72a4c43f0336f7d10ba5adf885858238f29979))
+
+- Per-app release flow via tag promote and pin PR
+  ([`affd6ec`](https://github.com/chutch3/homelab/commit/affd6ec637ffa3f6375cd879ab7a0df907c09b6b))
+
+- Promote images on semantic-release; remove per-app release flow
+  ([`79ac624`](https://github.com/chutch3/homelab/commit/79ac624f7becc3f2c6e9a3d85b70f35edf8882f3))
+
+### Refactoring
+
+- App-release promote-only (drop auto pin PR)
+  ([`cf5314d`](https://github.com/chutch3/homelab/commit/cf5314de6226c204f8107bfd58b343b1ea2e03c3))
+
+
 ## v3.19.0 (2026-06-22)
 
 ### Bug Fixes
