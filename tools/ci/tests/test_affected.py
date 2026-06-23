@@ -89,6 +89,21 @@ def test_registry_port_is_not_mistaken_for_a_tag():
     assert u.image_key == "registry:5000/ns/x"
 
 
+def test_list_images_dedupes_and_sorts(tmp_path):
+    from ci.affected import list_images
+
+    for name, img in [("warden", "warden"), ("code-server", "homelab-devbox"),
+                      ("claudecodeui", "homelab-devbox")]:
+        d = tmp_path / "stacks/apps" / name
+        d.mkdir(parents=True)
+        (d / "docker-compose.yml").write_text(
+            f"services:\n  {name}:\n    image: ghcr.io/ns/{img}:latest\n"
+            f"    build: {{ context: ., dockerfile: Dockerfile }}\n"
+        )
+    # homelab-devbox appears twice (two consumers) -> deduped to one entry.
+    assert list_images(tmp_path) == ["homelab-devbox", "warden"]
+
+
 def test_image_name_is_bare_last_segment():
     assert WARDEN.image_name == "warden"
     assert CODE.image_name == "homelab-devbox"

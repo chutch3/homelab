@@ -41,3 +41,46 @@ jobs:
             contents: read
             pages: write
             id-token: write
+
+    promote-images:
+        # Tag every built image with the release's semantic version, by promoting the
+        # already-tested :<sha> image (no rebuild). One version for the whole platform.
+        name: Promote images to ${{ needs.release.outputs.version }}
+        needs: release
+        if: needs.release.outputs.released == 'true'
+        runs-on: ubuntu-latest
+        permissions:
+            contents: read
+            packages: write
+        env:
+            REGISTRY: ghcr.io
+            REGISTRY_NAMESPACE: ${{ github.repository_owner }}
+            VERSION: ${{ needs.release.outputs.version }}
+        steps:
+            - uses: actions/checkout@v4
+
+            - name: Set up uv
+              uses: astral-sh/setup-uv@v5
+              with:
+                  enable-cache: true
+
+            - name: Set up Docker Buildx
+              uses: docker/setup-buildx-action@v3
+
+            - name: Log in to ghcr.io
+              uses: docker/login-action@v3
+              with:
+                  registry: ghcr.io
+                  username: ${{ github.actor }}
+                  password: ${{ secrets.GITHUB_TOKEN }}
+
+            - name: Promote each image :sha -> :version
+              # GITHUB_SHA is the released code (the release commit only bumps version/
+              # changelog), and build.yml already pushed its :<sha> image.
+              run: |
+                  set -euo pipefail
+                  for image in $(uv run ci images .); do
+                      repo="${REGISTRY}/${REGISTRY_NAMESPACE}/${image}"
+                      docker buildx imagetools create "${repo}:${GITHUB_SHA}" --tag "${repo}:${VERSION}"
+                      echo "Promoted \`${repo}:${VERSION}\` (from \`:${GITHUB_SHA}\`)." >> "$GITHUB_STEP_SUMMARY"
+                  done
