@@ -148,7 +148,7 @@ tasks:
         desc: "Check cluster health — node states, degraded services, DNS crash history, gossip instability"
         dir: "{{.ROOT_DIR}}"
         cmds:
-            - bash scripts/cluster-health.sh
+            - bash tools/cluster-health.sh
 
     cluster:update-labels:
         desc: Update Docker Swarm node labels from inventory

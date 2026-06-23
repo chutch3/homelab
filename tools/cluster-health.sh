@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# scripts/cluster-health.sh
+# tools/cluster-health.sh
 # Quick read-only cluster health check. Run from the manager node.
-# Usage: bash scripts/cluster-health.sh
+# Usage: bash tools/cluster-health.sh
 
 set -euo pipefail
 

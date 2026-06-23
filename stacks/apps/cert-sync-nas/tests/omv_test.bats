@@ -1,18 +1,18 @@
 #!/usr/bin/env bats
 
-# Tests for scripts/common/nas/omv.sh
+# Tests for the cert-sync-nas bundle's nas/omv.sh
 
 load test_helper
 
 setup() {
     export TEST=true
-    local scripts_dir="${BATS_TEST_DIRNAME}/../../../scripts"
+    local bundle_dir="${BATS_TEST_DIRNAME}/../common"
     # shellcheck disable=SC1091
-    source "${scripts_dir}/common/ssh.sh"
+    source "${bundle_dir}/ssh.sh"
     # shellcheck disable=SC1091
-    source "${scripts_dir}/common/cert.sh"
+    source "${bundle_dir}/cert.sh"
     # shellcheck disable=SC1091
-    source "${scripts_dir}/common/nas/omv.sh"
+    source "${bundle_dir}/nas/omv.sh"
 
     TEST_DIR="$(temp_make)"
     export TEST_DIR

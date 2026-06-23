@@ -63,7 +63,7 @@ TZ=${TZ:-America/New_York}
 
 - `acme_certs:/acme.sh`
 - `./sync-nas-cert.sh:/scripts/sync-nas-cert.sh:ro`
-- `../../../scripts/common:/scripts/common:ro`
+- `./common:/scripts/common:ro`
 
 
 ---

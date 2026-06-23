@@ -79,11 +79,11 @@ load_environment() {
     fi
 
     # Source common ssh library
-    if [ -f "$PROJECT_ROOT/scripts/common/ssh.sh" ]; then
-        source "$PROJECT_ROOT/scripts/common/ssh.sh"
+    if [ -f "$PROJECT_ROOT/lib/ssh.sh" ]; then
+        source "$PROJECT_ROOT/lib/ssh.sh"
         log_info "Loaded ssh library"
     else
-        log_error "Could not find scripts/common/ssh.sh"
+        log_error "Could not find lib/ssh.sh"
         log_error "Please ensure you're running this from the project directory"
         exit 1
     fi

@@ -41,7 +41,7 @@ Also requires `NAS_SERVER`, `NAS_USER`, `BASE_DOMAIN`, and `SSH_KEY_FILE` from t
 #    https://login.tailscale.com/admin/acls
 
 # 3. Install Tailscale on the NAS (one-off)
-./scripts/status-pipeline/setup-nas-tailscale.sh
+./tools/status-pipeline/setup-nas-tailscale.sh
 
 # 4. Deploy sync script, create MinIO bucket, register OMV cron job
 task status-pipeline:setup

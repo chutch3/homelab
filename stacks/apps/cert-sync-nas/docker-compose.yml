@@ -75,13 +75,13 @@ configs:
   cert_sync_script_v1:
     file: ./sync-nas-cert.sh
   cert_sync_omv_v1:
-    file: ../../../scripts/common/nas/omv.sh
+    file: ./common/nas/omv.sh
   cert_sync_install_cert_v3:
-    file: ../../../scripts/common/nas/install-cert-remote.sh
+    file: ./common/nas/install-cert-remote.sh
   cert_sync_cert_sh_v1:
-    file: ../../../scripts/common/cert.sh
+    file: ./common/cert.sh
   cert_sync_ssh_sh_v1:
-    file: ../../../scripts/common/ssh.sh
+    file: ./common/ssh.sh
 
 secrets:
   cert_sync_ssh_key:
