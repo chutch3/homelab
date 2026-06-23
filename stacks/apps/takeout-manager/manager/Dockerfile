@@ -12,7 +12,7 @@ COPY frontend/ ./
 RUN npm run build
 
 # Stage 2: Build Backend
-FROM python:3.10-slim
+FROM python:3.12-slim-bookworm
 
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
 
