@@ -152,3 +152,8 @@ def compute_matrix(repo_root: str | os.PathLike[str], changed_files: list[str]) 
     units = discover_units(repo_root)
     selected = units if tooling_changed(changed_files) else affected_units(changed_files, units)
     return [u.as_dict() for u in dedupe_by_image(selected)]
+
+
+def list_images(repo_root: str | os.PathLike[str]) -> list[str]:
+    """Every buildable image name (deduped, sorted) — used to promote all images on release."""
+    return sorted({u.image_name for u in discover_units(repo_root)})

@@ -4,7 +4,7 @@ Subcommands:
   ci affected [REPO_ROOT] [FILE ...]   print the affected build matrix as JSON
                                        (files default to stdin, newline-separated)
   ci test [SELECTOR] [--tier T] [--affected]   run app pytest suites by tier
-  ci release TAG [REPO_ROOT]            resolve a release tag to {image,version,compose} JSON
+  ci images [REPO_ROOT]                 list every buildable image name (one per line)
 """
 
 from __future__ import annotations
@@ -14,7 +14,7 @@ import json
 import subprocess
 import sys
 
-from ci import affected, apptests, release
+from ci import affected, apptests
 
 
 def _cmd_affected(args: argparse.Namespace) -> int:
@@ -38,12 +38,9 @@ def _cmd_test(args: argparse.Namespace) -> int:
     return apptests.run_tests(args.repo_root, selected, apptests.tiers_to_run(args.tier))
 
 
-def _cmd_release(args: argparse.Namespace) -> int:
-    info = release.release_info(args.repo_root, args.tag)
-    if info is None:
-        print(f"not a release tag for a known image: {args.tag}", file=sys.stderr)
-        return 1
-    print(json.dumps(info))
+def _cmd_images(args: argparse.Namespace) -> int:
+    for image in affected.list_images(args.repo_root):
+        print(image)
     return 0
 
 
@@ -64,10 +61,9 @@ def build_parser() -> argparse.ArgumentParser:
     test.add_argument("--repo-root", default=".")
     test.set_defaults(func=_cmd_test)
 
-    rel = sub.add_parser("release", help="resolve a release tag to image/version/compose JSON")
-    rel.add_argument("tag")
-    rel.add_argument("repo_root", nargs="?", default=".")
-    rel.set_defaults(func=_cmd_release)
+    images = sub.add_parser("images", help="list every buildable image name (one per line)")
+    images.add_argument("repo_root", nargs="?", default=".")
+    images.set_defaults(func=_cmd_images)
     return parser
 
 
