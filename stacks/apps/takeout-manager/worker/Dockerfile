@@ -13,4 +13,4 @@ RUN uv sync --no-dev --no-install-project
 
 COPY . .
 
-CMD ["python", "main.py"]
+CMD ["uv", "run", "python", "main.py"]
