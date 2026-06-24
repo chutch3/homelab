@@ -43,3 +43,5 @@ swarm_env_vars:
   HA_MCP_SECRET_PATH: "/private_test"
   OPENWEBUI_SECRET_KEY: "test-secret"
   RSTUDIO_PASSWORD: "test-password"
+  IMMICH_DB_PASSWORD: "test-password"
+  AUTHENTIK_POSTGRES_PASSWORD: "test-password"

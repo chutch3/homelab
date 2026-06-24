@@ -1,0 +1,8 @@
+# Create the swarm secret Fiber reads to dump this DB.
+secrets:
+  - name: authentik_db_password
+    from_env: AUTHENTIK_POSTGRES_PASSWORD
+
+validate:
+  env:
+    - AUTHENTIK_POSTGRES_PASSWORD

@@ -1,0 +1,8 @@
+# Create the swarm secret Fiber reads to dump this DB.
+secrets:
+  - name: immich_db_password
+    from_env: IMMICH_DB_PASSWORD
+
+validate:
+  env:
+    - IMMICH_DB_PASSWORD
