@@ -49,7 +49,7 @@ services:
             - FORGEJO__server__DOMAIN=git.${BASE_DOMAIN}
             - FORGEJO__server__SSH_DOMAIN=git.${BASE_DOMAIN}
             - FORGEJO__server__ROOT_URL=https://git.${BASE_DOMAIN}/
-            - FORGEJO__server__SSH_PORT=${FORGEJO_SSH_PORT:-2222}
+            - FORGEJO__server__SSH_PORT=${FORGEJO_SSH_PORT:-2223}
             - FORGEJO__server__SSH_LISTEN_PORT=2222
             # Authentik OIDC Configuration
             - FORGEJO__openid__ENABLE_OPENID_SIGNIN=true
@@ -60,7 +60,7 @@ services:
             - forgejo_data:/var/lib/gitea
             - forgejo_config:/etc/gitea
         ports:
-            - "${FORGEJO_SSH_PORT:-2222}:2222"
+            - "${FORGEJO_SSH_PORT:-2223}:2222"
         networks:
             - forgejo-internal
             - traefik-public
