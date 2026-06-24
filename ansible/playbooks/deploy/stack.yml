@@ -9,6 +9,9 @@
       register_dns: "auto"
       # Optional: Register uptime monitoring (auto-detects new stacks, set to false to skip)
       register_uptime: "auto"
+      # Optional: Prune services that were removed from the compose file (default true;
+      # pass -e prune=false to leave orphaned services running, same as stack_name).
+      prune: true
 
   tasks:
       - name: Ensure stack_name is defined
@@ -79,6 +82,7 @@
         community.docker.docker_stack:
             state: present
             name: "{{ stack_name }}"
+            prune: "{{ prune | bool }}"
             with_registry_auth: true
             compose:
                 - "{{ compose_file_path }}"

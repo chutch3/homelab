@@ -10,6 +10,8 @@
     skip_apps: ""
     # If true, skip infrastructure stacks (monitoring, reverse-proxy, dns)
     skip_infrastructure: false
+    # If true, prune services removed from each stack's compose (default true; -e prune=false to keep orphans)
+    prune: true
     # Path to the base directory containing app stacks
     stacks_base_path: "stacks"
     base_domain: "{{ lookup('env', 'BASE_DOMAIN') }}"
@@ -129,6 +131,7 @@
       community.docker.docker_stack:
         state: present
         name: "{{ item.split('/')[-1] }}"
+        prune: "{{ prune | bool }}"
         with_registry_auth: true
         compose:
           - "{{ item }}/docker-compose.yml"
