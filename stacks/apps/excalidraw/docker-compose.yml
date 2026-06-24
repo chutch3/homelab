@@ -132,7 +132,7 @@ services:
                 - "fiber.dbname=excalidraw"
                 - "fiber.user=excalidraw"
                 - "fiber.secret=excalidraw_db_password"
-                - "fiber.schedule=*/5 * * * *"
+                - "fiber.schedule=0 3 * * *"
 
 networks:
     excalidraw-internal:
