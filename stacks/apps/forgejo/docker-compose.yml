@@ -11,6 +11,7 @@ services:
             - forgejo_db:/var/lib/postgresql/data
         networks:
             - forgejo-internal
+            - backups
         healthcheck:
             test:
                 [
@@ -26,6 +27,14 @@ services:
             restart_policy:
                 condition: any
                 delay: 5s
+            labels:
+                - "fiber.enable=true"
+                - "fiber.provider=swarm"
+                - "fiber.engine=postgres"
+                - "fiber.dbname=${FORGEJO_DB_NAME:-forgejo}"
+                - "fiber.user=${FORGEJO_DB_USER:-forgejo}"
+                - "fiber.secret=forgejo_db_password"
+                - "fiber.schedule=0 3 * * *"
 
     forgejo:
         image: codeberg.org/forgejo/forgejo:13-rootless
@@ -82,6 +91,8 @@ networks:
     forgejo-internal:
         driver: overlay
     traefik-public:
+        external: true
+    backups:
         external: true
 
 volumes:

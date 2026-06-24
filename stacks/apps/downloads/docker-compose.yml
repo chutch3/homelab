@@ -227,11 +227,20 @@ services:
             - kenku_pg:/var/lib/postgresql/data
         networks:
             - downloads-internal
+            - backups
         restart: unless-stopped
         deploy:
             placement:
                 constraints:
                     - node.labels.downloads == true
+            labels:
+                - "fiber.enable=true"
+                - "fiber.provider=swarm"
+                - "fiber.engine=postgres"
+                - "fiber.dbname=${DOWNLOADS_KENKU_DB_NAME}"
+                - "fiber.user=${DOWNLOADS_KENKU_DB_USER}"
+                - "fiber.secret=downloads_kenku_db_password"
+                - "fiber.schedule=0 3 * * *"
 
     # Consistent logical backups: pg_dump on a schedule into an iSCSI dir that Kopia
     # captures (the live data dir is local and intentionally NOT backed up at the FS level).
@@ -335,6 +344,8 @@ networks:
     downloads-internal:
         driver: overlay
         attachable: true
+    backups:
+        external: true
 
 volumes:
     torrents:

@@ -1,0 +1,8 @@
+# Create the swarm secret Fiber reads to dump this DB.
+secrets:
+  - name: librechat_db_password
+    from_env: POSTGRES_PASSWORD
+
+validate:
+  env:
+    - POSTGRES_PASSWORD

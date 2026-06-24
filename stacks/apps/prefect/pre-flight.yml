@@ -1,0 +1,8 @@
+# Create the swarm secret Fiber reads to dump this DB.
+secrets:
+  - name: prefect_db_password
+    from_env: PREFECT_DB_PASSWORD
+
+validate:
+  env:
+    - PREFECT_DB_PASSWORD

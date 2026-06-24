@@ -1,3 +1,7 @@
+secrets:
+  - name: downloads_kenku_db_password
+    from_env: DOWNLOADS_KENKU_DB_PASSWORD
+
 validate:
   env:
     - DOWNLOADS_OPENVPN_PASSWORD

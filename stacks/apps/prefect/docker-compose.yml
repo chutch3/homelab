@@ -13,6 +13,7 @@ services:
             prefect-internal:
                 aliases:
                     - database
+            backups: {}
         healthcheck:
             test: ["CMD-SHELL", "pg_isready -d prefect -U prefect"]
             interval: 10s
@@ -24,6 +25,14 @@ services:
                     - node.labels.database == true
             restart_policy:
                 condition: any
+            labels:
+                - "fiber.enable=true"
+                - "fiber.provider=swarm"
+                - "fiber.engine=postgres"
+                - "fiber.dbname=prefect"
+                - "fiber.user=prefect"
+                - "fiber.secret=prefect_db_password"
+                - "fiber.schedule=0 3 * * *"
 
     server:
         image: prefecthq/prefect:3-python3.11
@@ -91,6 +100,8 @@ networks:
     prefect-internal:
         driver: overlay
     traefik-public:
+        external: true
+    backups:
         external: true
 
 volumes:
