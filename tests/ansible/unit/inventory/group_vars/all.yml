@@ -30,6 +30,7 @@ swarm_env_vars:
   DOWNLOADS_KENKU_DB_PASSWORD: "test-password"
   DOWNLOADS_KENKU_DB_USER: "kenku"
   DOWNLOADS_KENKU_DB_NAME: "kenku"
+  EXCALIDRAW_DB_PASSWORD: "test-password"
   PRIMARY_DNS_API_KEY: "test-key"
   LIBRENMS_DB_PASSWORD: "test-password"
   TOR_WIREGUARD_PRIVATE_KEY: "test-key"

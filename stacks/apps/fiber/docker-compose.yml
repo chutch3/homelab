@@ -1,6 +1,6 @@
 services:
     fiber:
-        image: ${REGISTRY:-ghcr.io}/${REGISTRY_NAMESPACE:-chutch3}/fiber:${IMAGE_TAG:-3.20.0}
+        image: ${REGISTRY:-ghcr.io}/${REGISTRY_NAMESPACE:-chutch3}/fiber:${IMAGE_TAG:-3.21.0}
         build:
             context: .
             dockerfile: app/Dockerfile
@@ -23,13 +23,8 @@ services:
         secrets:
             # Each DB stack creates its own <db>_db_password secret (preflight, from its .env);
             # Fiber is granted them here and reads /run/secrets/<name> at dump time (spec §8).
-            - authentik_db_password
-            - immich_db_password
-            - forgejo_db_password
+            # M3 rollout: this list grows one DB at a time as each stack is wired.
             - excalidraw_db_password
-            - prefect_db_password
-            - librechat_db_password
-            - downloads_kenku_db_password
         deploy:
             replicas: 1
             placement:
@@ -66,19 +61,8 @@ networks:
         external: true
 
 secrets:
-    authentik_db_password:
-        external: true
-    immich_db_password:
-        external: true
-    forgejo_db_password:
-        external: true
+    # M3 rollout: grows one DB at a time as each stack's pre-flight creates its secret.
     excalidraw_db_password:
-        external: true
-    prefect_db_password:
-        external: true
-    librechat_db_password:
-        external: true
-    downloads_kenku_db_password:
         external: true
 
 volumes:

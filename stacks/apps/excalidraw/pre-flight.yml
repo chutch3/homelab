@@ -1,0 +1,9 @@
+# Create the swarm secret Fiber reads to dump this DB. The value is the same
+# password excalidraw-db already uses (EXCALIDRAW_DB_PASSWORD from .env).
+secrets:
+  - name: excalidraw_db_password
+    from_env: EXCALIDRAW_DB_PASSWORD
+
+validate:
+  env:
+    - EXCALIDRAW_DB_PASSWORD

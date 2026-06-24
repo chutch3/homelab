@@ -113,6 +113,8 @@ services:
             - excalidraw_pgdata:/var/lib/postgresql/data
         networks:
             - excalidraw-internal
+            # Shared with Fiber so it can reach this DB for label-driven dumps.
+            - backups
         healthcheck:
             test: ["CMD", "pg_isready", "-U", "excalidraw"]
             interval: 10s
@@ -121,12 +123,24 @@ services:
             placement:
                 constraints:
                     - node.labels.database == true
+            labels:
+                # Fiber discovery (Traefik-style). Password is read from the
+                # excalidraw_db_password swarm secret (created in pre-flight).
+                - "fiber.enable=true"
+                - "fiber.provider=swarm"
+                - "fiber.engine=postgres"
+                - "fiber.dbname=excalidraw"
+                - "fiber.user=excalidraw"
+                - "fiber.secret=excalidraw_db_password"
+                - "fiber.schedule=*/5 * * * *"
 
 networks:
     excalidraw-internal:
         driver: overlay
         attachable: true
     traefik-public:
+        external: true
+    backups:
         external: true
 
 volumes:
