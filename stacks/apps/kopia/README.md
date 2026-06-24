@@ -73,18 +73,22 @@ After connecting to the repository, configure backup policies and create initial
 # Get the container ID
 CONTAINER_ID=$(docker ps -q -f label=com.docker.swarm.service.name=kopia_kopia)
 
-# Exclude PostgreSQL directories from backups
+# Exclude live PostgreSQL data dirs — Fiber backs these up logically instead (see "Fiber database dumps")
 docker exec -it $CONTAINER_ID kopia policy set /data/app-data \
-  --add-ignore "**/postgresql/"
+  --add-ignore "**/postgresql/" \
+  --add-ignore "**/excalidraw/postgres/" \
+  --add-ignore "**/immich-postgres/" \
+  --add-ignore "**/ollama/"
 
 # Verify exclusions
 docker exec -it $CONTAINER_ID kopia policy show /data/app-data
 ```
 
-This will exclude:
-- `/mnt/iscsi/app-data/authentik/postgresql`
-- `/mnt/iscsi/app-data/forgejo/postgresql`
-- Any other `*/postgresql/` directories
+This excludes the live `PGDATA` of every DB-backed stack whose data is on `app-data` (the dir name varies per stack):
+- `authentik/postgresql`, `forgejo/postgresql`, `prefect/postgresql`, `excalidraw/postgres`, `immich-postgres`
+- `ollama/` model blobs (large + re-downloadable)
+
+> A file-level snapshot of a **running** Postgres is inconsistent and not a valid backup. [Fiber](../fiber/) takes consistent logical `pg_dump`s of these databases into its Bowl, which Kopia backs up **daily** (see below) — so the live data dirs are excluded here and the dumps are backed up instead. **When you add a new DB-backed stack, add its live `PGDATA` dir to this ignore list.**
 
 ### 2. Set up backup policies
 
@@ -111,13 +115,31 @@ docker exec -it $CONTAINER_ID kopia snapshot create /data/app-data
 docker exec -it $CONTAINER_ID kopia snapshot create /data/media-apps
 ```
 
+### 4. Fiber database dumps (daily, offsite)
+
+[Fiber](../fiber/) writes a logical `pg_dump` archive for every label-discovered database into its Bowl at `/data/app-data/fiber/bowl/<service>/`. Give that path its own **daily** policy (the dumps are small but precious, and Fiber only keeps 7 locally), then take an initial snapshot:
+
+```bash
+CONTAINER_ID=$(docker ps -q -f label=com.docker.swarm.service.name=kopia_kopia)
+
+# Daily snapshots of the Fiber Bowl, with longer offsite retention than Fiber's local 7
+docker exec -it $CONTAINER_ID kopia policy set /data/app-data/fiber/bowl \
+  --snapshot-interval 24h --keep-daily 30 --keep-weekly 8 --keep-monthly 6
+
+# Register the source + push the current dumps offsite now
+docker exec -it $CONTAINER_ID kopia snapshot create /data/app-data/fiber/bowl
+```
+
+> The Bowl is also inside the weekly `app-data` snapshot; this dedicated daily policy just gives finer offsite granularity for the DB dumps (deduplication makes the overlap free).
+
 ## Backup Schedule
 
-Backups run automatically based on the configured snapshot interval (168h = weekly):
-- **app-data**: Weekly automated backups via Kopia's internal scheduler
-- **media-apps**: Weekly automated backups via Kopia's internal scheduler
+Backups run automatically via Kopia's internal scheduler:
+- **app-data**: weekly (`168h`)
+- **media-apps**: weekly (`168h`)
+- **fiber/bowl** (database dumps): **daily** (`24h`), retained 30 daily / 8 weekly / 6 monthly
 
-Retention policy: Keep 4 weekly + 3 monthly snapshots
+Retention: app-data/media-apps keep weekly + monthly; the Fiber Bowl keeps the longer daily history above.
 
 ## Architecture Notes
 
