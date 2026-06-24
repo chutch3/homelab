@@ -223,7 +223,7 @@ services:
             - POSTGRES_DB=${DOWNLOADS_KENKU_DB_NAME}
         volumes:
             # Live data on a node-local volume (NOT the OCFS2 cluster FS). Recovery
-            # is from the logical dumps written by kenku-pg-backup below.
+            # is from Fiber's logical dumps (label-driven pg_dump, swept offsite by Kopia).
             - kenku_pg:/var/lib/postgresql/data
         networks:
             - downloads-internal
@@ -242,35 +242,8 @@ services:
                 - "fiber.secret=downloads_kenku_db_password"
                 - "fiber.schedule=0 3 * * *"
 
-    # Consistent logical backups: pg_dump on a schedule into an iSCSI dir that Kopia
-    # captures (the live data dir is local and intentionally NOT backed up at the FS level).
-    kenku-pg-backup:
-        image: prodrigestivill/postgres-backup-local:15-alpine
-        container_name: kenku-pg-backup
-        environment:
-            - POSTGRES_HOST=kenku-pg
-            - POSTGRES_DB=${DOWNLOADS_KENKU_DB_NAME}
-            - POSTGRES_USER=${DOWNLOADS_KENKU_DB_USER}
-            - POSTGRES_PASSWORD=${DOWNLOADS_KENKU_DB_PASSWORD}
-            - SCHEDULE=@daily
-            - BACKUP_KEEP_DAYS=7
-            - BACKUP_KEEP_WEEKS=4
-            - BACKUP_KEEP_MONTHS=6
-            - TZ=${TZ}
-        volumes:
-            - kenku_db_backups:/backups
-        depends_on:
-            - kenku-pg
-        networks:
-            - downloads-internal
-        restart: unless-stopped
-        deploy:
-            placement:
-                constraints:
-                    - node.labels.downloads == true
-
     kenku:
-        image: ghcr.io/chutch3/kenku:0.33.1
+        image: ghcr.io/chutch3/kenku:0.35.0
         container_name: kenku
         # settings.json + imageCache live under /usr/share/kenku-api and are written by the
         # app at runtime, so this is a plain writable volume (kenku_config). Configure
@@ -410,11 +383,3 @@ volumes:
     # boot; configure it through the UI (defaults reference: ./kenku/settings.json).
     kenku_config:
         driver: local
-
-    # iSCSI/OCFS2 bind so Kopia's app-data policy captures the pg_dump archives offsite.
-    kenku_db_backups:
-        driver: local
-        driver_opts:
-            type: "none"
-            o: "bind"
-            device: "/mnt/iscsi/app-data/kenku/db-backups"
