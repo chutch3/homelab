@@ -2,6 +2,53 @@
 
 <!-- version list -->
 
+## v3.22.0 (2026-06-25)
+
+### Bug Fixes
+
+- Bump takeout-manager and takeout-worker to 3.21.0
+  ([`f319a57`](https://github.com/chutch3/homelab/commit/f319a57ff3b718b9bf5c4b820f385e0f06d36873))
+
+- Move forgejo SSH to port 2223 to avoid conflict with traefik ssh entrypoint
+  ([`9863762`](https://github.com/chutch3/homelab/commit/986376287e8e8add2b6734bdd822459b979f0ab2))
+
+- Run takeout-manager and worker via uv run to activate venv
+  ([`9e1dc7d`](https://github.com/chutch3/homelab/commit/9e1dc7d479c18f3642e792d0bb73eacee0935290))
+
+### Chores
+
+- Bump kenku
+  ([`98e5cd0`](https://github.com/chutch3/homelab/commit/98e5cd015bcb801c2d19e6f82cdd15cffa605f31))
+
+- Bump takeout-manager and takeout-worker default to 3.22.0
+  ([`f7ae5db`](https://github.com/chutch3/homelab/commit/f7ae5dbe27ca6a48c08f7fc82ae9f21ae81af101))
+
+- Retire kenku-pg-backup sidecar now that fiber backs up kenku
+  ([`636c169`](https://github.com/chutch3/homelab/commit/636c169dd123ebe3f3186eafb3c37f8c99fe95c3))
+
+- Set excalidraw fiber schedule to nightly
+  ([`9cf07d0`](https://github.com/chutch3/homelab/commit/9cf07d0b941be2a43bbf805e46464b2f6b7b0c18))
+
+### Documentation
+
+- Document fiber bowl daily kopia policy and pgdata exclusions
+  ([`9af889d`](https://github.com/chutch3/homelab/commit/9af889d8ac78eb362cc18879a48fd422d8325811))
+
+### Features
+
+- Prune orphaned services on stack deploy by default (configurable via -e prune)
+  ([`9395c43`](https://github.com/chutch3/homelab/commit/9395c430032cc3aea325519ec5315110646d4710))
+
+- Wire batch-1 dbs (downloads, prefect, forgejo, librechat) into fiber discovery
+  ([`40b146f`](https://github.com/chutch3/homelab/commit/40b146f0e821f8bcf205880628baea51c4df091a))
+
+- Wire excalidraw postgres into fiber discovery (m3 prove-one)
+  ([`cbeb085`](https://github.com/chutch3/homelab/commit/cbeb085a0715887a483de49e36f967baa92d55a7))
+
+- Wire immich and authentik into fiber discovery (batch-2)
+  ([`55cc669`](https://github.com/chutch3/homelab/commit/55cc66933e22825d673dceb7d50ead6f1aacba2d))
+
+
 ## v3.21.0 (2026-06-23)
 
 ### Bug Fixes
