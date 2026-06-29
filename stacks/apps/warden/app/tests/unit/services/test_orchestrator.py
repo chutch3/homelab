@@ -36,7 +36,7 @@ def _make_orch(clients, repo: SearchLedgerRepository) -> TickOrchestrator:
         pacer=Pacer(poll_interval_sec=300),
         planner=HuntPlanner(),
         sweeper=_sweeper(),
-        tracker=ProgressTracker(window_hours=6, min_progress_bytes=100_000_000, enabled=True),
+        tracker=ProgressTracker(window_hours=6, jitter_tolerance_bytes=100_000_000, enabled=True),
         progress_repo=make_progress_repo(),
         efficacy=EfficacyTracker(enabled=True, resolve_window=timedelta(minutes=30)),
         efficacy_repo=make_efficacy_repo(),

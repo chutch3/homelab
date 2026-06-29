@@ -41,7 +41,7 @@ def _build_clients(config: Config, http: httpx.AsyncClient) -> list[ArrClientPro
 def _build_tracker(config: Config) -> ProgressTracker:
     return ProgressTracker(
         window_hours=config.stale_no_progress_hours,
-        min_progress_bytes=config.stale_min_progress_mb * 1_000_000,
+        jitter_tolerance_bytes=config.stale_jitter_tolerance_mb * 1_000_000,
         enabled=config.stale_no_progress_enabled,
     )
 

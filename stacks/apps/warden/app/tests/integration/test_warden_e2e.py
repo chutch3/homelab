@@ -230,8 +230,22 @@ def test_progressing_download_is_not_removed(launch, radarr_server, sonarr_serve
                       start_left=10_000_000_000_000, step=1_000_000_000)
     prime_sonarr(sonarr_server, missing=[])
     launch(**_env(radarr_server, sonarr_server),
-           WARDEN_STALE_NO_PROGRESS_HOURS="0", WARDEN_STALE_MIN_PROGRESS_MB="100")
+           WARDEN_STALE_NO_PROGRESS_HOURS="0", WARDEN_STALE_JITTER_TOLERANCE_MB="100")
     # let several ticks evaluate it, then assert it was never removed
+    assert poll_until(lambda: queue_fetches(radarr_server) >= 4, timeout=20)
+    assert deletes(radarr_server) == []
+
+
+def test_queued_download_is_not_removed(launch, radarr_server, sonarr_server):
+    from tests.integration.conftest import queue_fetches
+    # an item merely waiting in a backlogged client (status "queued") has a flat sizeleft
+    # by design — even with a 0h window it must never be flagged no-progress / blocklisted.
+    waiting = {"id": 77, "movieId": 11, "title": "waiting", "status": "queued",
+               "errorMessage": None, "added": "2026-06-15T00:00:00Z",
+               "downloadId": "DID2", "size": 2000, "sizeleft": 1000}
+    prime_radarr(radarr_server, missing=[], queue=[waiting])
+    prime_sonarr(sonarr_server, missing=[])
+    launch(**_env(radarr_server, sonarr_server), WARDEN_STALE_NO_PROGRESS_HOURS="0")
     assert poll_until(lambda: queue_fetches(radarr_server) >= 4, timeout=20)
     assert deletes(radarr_server) == []
 

@@ -53,7 +53,7 @@ class Config:
     stale_min_queue_for_guard: int
     stale_no_progress_enabled: bool
     stale_no_progress_hours: float
-    stale_min_progress_mb: int
+    stale_jitter_tolerance_mb: int
     efficacy_enabled: bool
     efficacy_resolve_minutes: float
     backoff_enabled: bool
@@ -83,8 +83,8 @@ class Config:
             stale_mass_fraction=float(os.getenv("WARDEN_STALE_MASS_FRACTION", "0.5")),
             stale_min_queue_for_guard=int(os.getenv("WARDEN_STALE_MIN_QUEUE_FOR_GUARD", "3")),
             stale_no_progress_enabled=_env_bool("WARDEN_STALE_NO_PROGRESS_ENABLED", True),
-            stale_no_progress_hours=float(os.getenv("WARDEN_STALE_NO_PROGRESS_HOURS", "6")),
-            stale_min_progress_mb=int(os.getenv("WARDEN_STALE_MIN_PROGRESS_MB", "100")),
+            stale_no_progress_hours=float(os.getenv("WARDEN_STALE_NO_PROGRESS_HOURS", "12")),
+            stale_jitter_tolerance_mb=int(os.getenv("WARDEN_STALE_JITTER_TOLERANCE_MB", "0")),
             efficacy_enabled=_env_bool("WARDEN_EFFICACY_ENABLED", True),
             efficacy_resolve_minutes=float(os.getenv("WARDEN_EFFICACY_RESOLVE_MINUTES", "30")),
             backoff_enabled=_env_bool("WARDEN_BACKOFF_ENABLED", True),

@@ -31,7 +31,7 @@ def _sweeper() -> QueueSweeper:
 
 
 def _tracker() -> ProgressTracker:
-    return ProgressTracker(window_hours=6, min_progress_bytes=100_000_000, enabled=True)
+    return ProgressTracker(window_hours=6, jitter_tolerance_bytes=100_000_000, enabled=True)
 
 
 def _efficacy(enabled: bool = True) -> EfficacyTracker:

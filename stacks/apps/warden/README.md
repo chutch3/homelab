@@ -80,7 +80,8 @@ All via `WARDEN_*` env vars. Instances are discovered from `WARDEN_RADARR_URL` /
 | `WARDEN_RESERVE_PCT` | `20` | quota held back from the indexer limit |
 | `WARDEN_RESET_AT_LOCAL` | `00:00` | when the daily budget resets |
 | `WARDEN_STALE_GRACE_HOURS` | `48` | age before a stalled item is removable |
-| `WARDEN_STALE_NO_PROGRESS_HOURS` | `6` | window with no progress before removal |
+| `WARDEN_STALE_NO_PROGRESS_HOURS` | `12` | how long an item must stay completely frozen before removal |
+| `WARDEN_STALE_JITTER_TOLERANCE_MB` | `0` | drain below this counts as frozen (`0` = any progress resets the clock) |
 | `WARDEN_EFFICACY_RESOLVE_MINUTES` | `30` | how long to wait for a grab before scoring a miss |
 | `WARDEN_BACKOFF_MISS_THRESHOLD` | `3` | misses before an item is parked |
 | `WARDEN_BACKOFF_COOLDOWN_DAYS` | `30` | how long a parked item stays excluded |
