@@ -2,6 +2,14 @@
 
 <!-- version list -->
 
+## v3.22.1 (2026-06-29)
+
+### Bug Fixes
+
+- Stop warden flagging queued and slow downloads as stale
+  ([`a9e2b57`](https://github.com/chutch3/homelab/commit/a9e2b57babd230d9eeffb7a94e2c55e95a302af2))
+
+
 ## v3.22.0 (2026-06-25)
 
 ### Bug Fixes
