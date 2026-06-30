@@ -49,12 +49,14 @@ class ArrClient(ABC):
 
     _PAGE_SIZE = 1000
 
-    async def _wanted(self, endpoint: str, kind: WantKind) -> list[WantedItem]:
+    async def _paged_records(self, endpoint: str) -> list[dict]:
+        """Fetch every record from a paginated Servarr v3 list endpoint, walking
+        page/pageSize until totalRecords is reached, so large lists aren't truncated."""
         records: list[dict] = []
         page = 1
         while True:
             resp = await self._http.get(
-                f"{self._base}/api/v3/wanted/{endpoint}",
+                f"{self._base}/api/v3/{endpoint}",
                 headers=self._headers,
                 params={"page": page, "pageSize": self._PAGE_SIZE},
             )
@@ -66,6 +68,10 @@ class ArrClient(ABC):
             if not batch or len(records) >= total:
                 break
             page += 1
+        return records
+
+    async def _wanted(self, endpoint: str, kind: WantKind) -> list[WantedItem]:
+        records = await self._paged_records(f"wanted/{endpoint}")
         return [
             WantedItem(instance=self.name, remote_id=int(r["id"]),
                        title=r.get("title", ""), kind=kind,
@@ -90,10 +96,7 @@ class ArrClient(ABC):
         resp.raise_for_status()
 
     async def list_queue(self) -> list[QueueItem]:
-        resp = await self._http.get(
-            f"{self._base}/api/v3/queue", headers=self._headers, params={"pageSize": 1000})
-        resp.raise_for_status()
-        records = resp.json().get("records", [])
+        records = await self._paged_records("queue")
         return [
             QueueItem(
                 id=int(r["id"]),

@@ -136,6 +136,21 @@ class TestRadarrQueue:
         assert (items[0].download_id, items[0].size_left) == ("ABC123", 42)
         assert (items[1].download_id, items[1].size_left) == ("", 0)   # null -> "" / 0
 
+    async def test_list_queue_does_not_truncate_past_one_page(self):
+        # regression guard: list_queue must paginate (page-walking itself is proven once
+        # by test_list_missing_paginates_until_total_reached) and not stop at the first page.
+        def handler(request: httpx.Request) -> httpx.Response:
+            assert request.url.path == "/api/v3/queue"
+            page = int(request.url.params.get("page", "1"))
+            recs = ([{"id": i, "movieId": i, "added": "2026-06-15T00:00:00Z"} for i in range(1, 1001)]
+                    if page == 1 else [{"id": 1001, "movieId": 1001, "added": "2026-06-15T00:00:00Z"}])
+            return httpx.Response(200, json={"records": recs, "totalRecords": 1001})
+
+        client = RadarrClient(name="radarr", base_url="http://radarr",
+                              http=httpx.AsyncClient(transport=transport(handler)), api_key="rk")
+        items = await client.list_queue()
+        assert len(items) == 1001 and items[-1].id == 1001
+
     async def test_remove_queue_item_issues_delete_with_params(self):
         seen = {}
         def handler(request: httpx.Request) -> httpx.Response:
