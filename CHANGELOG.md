@@ -2,6 +2,14 @@
 
 <!-- version list -->
 
+## v3.22.2 (2026-06-30)
+
+### Bug Fixes
+
+- Paginate warden arr queue fetch to avoid truncating large queues
+  ([`8a4ddcd`](https://github.com/chutch3/homelab/commit/8a4ddcda045755a42e0e5d2e2f640d251ea9eca2))
+
+
 ## v3.22.1 (2026-06-29)
 
 ### Bug Fixes
