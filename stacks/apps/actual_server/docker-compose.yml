@@ -32,10 +32,12 @@ services:
                 - homepage.description=Budgeting Application
 
     actual_mcp:
-        image: sstefanov/actual-mcp:latest
-        # WORKAROUND: image bundles an outdated @actual-app/api; bump it at startup until upstream releases a fix
+        image: sstefanov/actual-mcp:v1.11.3
+        # WORKAROUND: v1.11.3 bundles @actual-app/api 26.3.0, which predates the schedules
+        # custom_upcoming_length column used by actual-server 26.5.x; upgrade it at startup
+        # until upstream ships a release built against ^26.5.0 (already on main)
         # https://github.com/s-stefanov/actual-mcp/issues/165
-        entrypoint: ["/bin/sh", "-c", "node -e 'var f=require(\"fs\"),p=\"/app/node_modules/@actual-app/api/dist/app/bundle.api.js\",b=f.readFileSync(p,\"utf8\"),lines=b.split(\"\\n\");lines[124663]=lines[124663].replace(\"throw \",\"return;\\/\\/ \");f.writeFileSync(p,lines.join(\"\\n\"))' && exec node build/index.js --sse"]
+        entrypoint: ["/bin/sh", "-c", "cd /app && npm install --no-save --no-audit --no-fund @actual-app/api@26.5.2 && exec node build/index.js --sse"]
         command: []
         environment:
             - ACTUAL_SERVER_URL=http://actual_server:5006
