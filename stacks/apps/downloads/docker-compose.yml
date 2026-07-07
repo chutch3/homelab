@@ -248,7 +248,7 @@ services:
                 - "fiber.schedule=0 3 * * *"
 
     kenku:
-        image: ghcr.io/chutch3/kenku:0.37.1
+        image: ghcr.io/chutch3/kenku:0.37.4
         container_name: kenku
         # settings.json + imageCache live under /usr/share/kenku-api and are written by the
         # app at runtime, so this is a plain writable volume (kenku_config). Configure
