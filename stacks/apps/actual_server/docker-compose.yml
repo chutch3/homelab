@@ -37,7 +37,7 @@ services:
         # custom_upcoming_length column used by actual-server 26.5.x; upgrade it at startup
         # until upstream ships a release built against ^26.5.0 (already on main)
         # https://github.com/s-stefanov/actual-mcp/issues/165
-        entrypoint: ["/bin/sh", "-c", "cd /app && npm install --no-save --no-audit --no-fund @actual-app/api@26.5.2 && exec node build/index.js --sse"]
+        entrypoint: ["/bin/sh", "-c", "cd /app && npm install --no-save --no-audit --no-fund @actual-app/api@26.5.2 && exec node build/index.js --sse --enable-write"]
         command: []
         environment:
             - ACTUAL_SERVER_URL=http://actual_server:5006
