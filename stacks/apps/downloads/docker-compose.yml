@@ -164,6 +164,11 @@ services:
         volumes:
             - nzbget:/config
             - usenet:/data/usenet
+            # Node-local scratch for in-progress downloads + par2/unpack (off CIFS).
+            # par2 verify/repair and unrar are random-IO heavy; running them over the
+            # SMB share is latency-bound and slow. Stage them on the node's local disk
+            # (/dev/sda3, ~700G free) and let only the finished output cross to CIFS.
+            - nzbget_incomplete:/intermediate
         networks:
             - traefik-public
             - downloads-internal
@@ -372,6 +377,14 @@ volumes:
             type: "none"
             o: "bind"
             device: "/mnt/iscsi/media-apps/nzbget"
+
+    # Node-local scratch volume for NZBGet's intermediate (incomplete + par2/unpack)
+    # files. Docker-managed under /var/lib/docker on the pinned downloads node
+    # (/dev/sda3, ~700G free) — deliberately NOT the 30G iSCSI media-apps LUN and
+    # NOT the CIFS share. Throwaway data; survives container recreation so in-flight
+    # downloads resume across redeploys.
+    nzbget_incomplete:
+        driver: local
 
     # Node-local volume, off the OCFS2 cluster FS (see the kenku-pg service comment).
     # Docker manages it under /var/lib/docker/volumes on the pinned downloads node.

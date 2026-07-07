@@ -116,6 +116,8 @@ docker exec -i kenku-pg pg_restore -U ${DOWNLOADS_KENKU_DB_USER} -d ${DOWNLOADS_
 
 - **All services are pinned to `node.labels.downloads == true`** — every container in this stack must run on the same node. The iSCSI bind mounts and VPN network routing both depend on co-location. Node labels are managed in `ansible/inventory/02-hosts.yml` under `node_labels` and synced with `task ansible:cluster:update-labels` — do not set them manually with `docker node update` as they will drift from inventory.
 
+- **Usenet clients (NZBGet, SABnzbd) do not route downloads through the VPN** — the opt-in VPN path here is the Dante SOCKS5 proxy (`vpn:1080`), and only BitTorrent clients (Deluge, qBittorrent) can tunnel their actual download traffic through it. NZBGet/SABnzbd have no SOCKS5 option for their NNTP news-server connections, so their article downloads egress directly via the node gateway regardless of any proxy setting in the UI. This is by design, not a missed configuration step — use **SSL/TLS to your Usenet provider** (typically port 563) instead, which encrypts content against your ISP. Unlike BitTorrent there is no peer swarm advertising your IP, so the VPN buys little here. To genuinely force these clients through the tunnel you'd need network-level routing (`network_mode: service:vpn`), which Swarm does not support.
+
 ## Environment variables
 
 All stack-specific variables are prefixed `DOWNLOADS_` in the root `.env`. All are required — no defaults are set in the compose file. Shared variables (`TZ`, `BASE_DOMAIN`, `PUID`, `PGID`, `SMB_*`, `NAS_SERVER`, `LOCAL_SUBNET`) are unprefixed.
