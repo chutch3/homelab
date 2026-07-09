@@ -17,3 +17,14 @@
     msg: "Pi-hole A record for {{ item.item }}.{{ base_domain }}: {{ 'Already exists' if item.status == 400 else 'Added' }}"
   loop: "{{ dns_pihole_add_a_result.results }}"
   when: dns_pihole_add_a_result is defined and not (item.skipped | default(false))
+
+# See add-service-records.yml: stored records only take effect after a
+# resolver reload; always apply.
+- name: "[PIHOLE] Reload DNS resolver to apply stored records"
+  ansible.builtin.uri:
+    url: "{{ dns_secondary_api_url }}/action/restartdns"
+    method: POST
+    headers:
+      sid: "{{ dns_pihole_session_id }}"
+    status_code: [200, 204]
+  delegate_to: localhost
