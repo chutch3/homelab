@@ -1,0 +1,173 @@
+version: "3.9"
+
+# Postal mail platform — outbound-only house mail API.
+# Delivery path: app -> postal (API/SMTP intake, DKIM, queue, logs)
+#   -> relay sidecar (authenticated hop) -> smtp2go -> recipient.
+# Direct-to-MX is impossible here: AT&T blocks outbound port 25, and
+# Postal's smtp_relays support no auth — hence the postfix sidecar.
+
+x-postal-env: &postal-env
+  MAIN_DB_HOST: db
+  MAIN_DB_USERNAME: root
+  MAIN_DB_PASSWORD: ${POSTAL_DB_PASSWORD}
+  MAIN_DB_DATABASE: postal
+  MESSAGE_DB_HOST: db
+  MESSAGE_DB_USERNAME: root
+  MESSAGE_DB_PASSWORD: ${POSTAL_DB_PASSWORD}
+  POSTAL_WEB_HOSTNAME: postal.${BASE_DOMAIN}
+  POSTAL_WEB_PROTOCOL: https
+  POSTAL_SMTP_HOSTNAME: postal.${BASE_DOMAIN}
+  POSTAL_SMTP_RELAYS: smtp://relay:587?ssl_mode=None
+  POSTAL_SIGNING_KEY_PATH: /config/signing.key
+  RAILS_SECRET_KEY: ${POSTAL_SECRET_KEY}
+  WEB_SERVER_DEFAULT_BIND_ADDRESS: "0.0.0.0"
+  # swarm drops cap_add, so no NET_BIND_SERVICE: bind an unprivileged port
+  SMTP_SERVER_DEFAULT_PORT: "2525"
+  SMTP_SERVER_DEFAULT_BIND_ADDRESS: "0.0.0.0"
+  # default behaviour queries the domain's authoritative NS directly, which
+  # dies on nodes without IPv6 egress (mini) — use the local resolver instead
+  POSTAL_USE_LOCAL_NS_FOR_DOMAIN_VERIFICATION: "true"
+  DNS_HELO_HOSTNAME: postal.${BASE_DOMAIN}
+  DNS_SPF_INCLUDE: spf.postal.${BASE_DOMAIN}
+  DNS_RETURN_PATH_DOMAIN: rp.postal.${BASE_DOMAIN}
+  DNS_DKIM_IDENTIFIER: postal
+
+services:
+  db:
+    image: mariadb:10.11
+    environment:
+      - TZ=${TZ:-UTC}
+      # root on purpose: postal creates one database per mail server
+      # (postal-server-*), which needs global create privileges
+      - MYSQL_ROOT_PASSWORD=${POSTAL_DB_PASSWORD}
+      - MYSQL_DATABASE=postal
+    volumes:
+      - db:/var/lib/mysql
+    healthcheck:
+      test: ["CMD-SHELL", "healthcheck.sh --connect --innodb_initialized"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    networks:
+      - postal-internal
+    deploy:
+      placement:
+        constraints:
+          - node.labels.database == true
+      restart_policy:
+        condition: any
+        delay: 5s
+
+  web:
+    image: ghcr.io/postalserver/postal:3.3.7
+    # generates the DKIM signing key on first boot so no manual init is needed
+    command: ["sh", "-c", "[ -f /config/signing.key ] || openssl genrsa -out /config/signing.key 2048; exec postal web-server"]
+    environment:
+      <<: *postal-env
+    volumes:
+      - config:/config
+    depends_on:
+      - db
+    networks:
+      - postal-internal
+      - traefik-public
+    deploy:
+      placement:
+        constraints:
+          - node.labels.database == true
+      labels:
+        - "traefik.enable=true"
+        - "traefik.http.routers.postal.rule=Host(`postal.${BASE_DOMAIN}`)"
+        - "traefik.http.routers.postal.entrypoints=websecure"
+        - "traefik.http.routers.postal.tls.certresolver=dns"
+        - "traefik.http.services.postal.loadbalancer.server.port=5000"
+        - "traefik.swarm.network=traefik-public"
+
+        - homepage.group=Infrastructure
+        - homepage.name=Postal
+        - homepage.icon=mdi-email-fast
+        - homepage.href=https://postal.${BASE_DOMAIN}/
+        - homepage.description=Outbound Mail Platform
+      restart_policy:
+        condition: any
+        delay: 5s
+
+  smtp:
+    image: ghcr.io/postalserver/postal:3.3.7
+    command: postal smtp-server
+    environment:
+      <<: *postal-env
+    volumes:
+      - config:/config
+    depends_on:
+      - db
+    networks:
+      - postal-internal
+    deploy:
+      placement:
+        constraints:
+          - node.labels.database == true
+      restart_policy:
+        condition: any
+        delay: 5s
+
+  worker:
+    image: ghcr.io/postalserver/postal:3.3.7
+    command: postal worker
+    environment:
+      <<: *postal-env
+    volumes:
+      - config:/config
+    depends_on:
+      - db
+      - relay
+    networks:
+      - postal-internal
+    deploy:
+      placement:
+        constraints:
+          - node.labels.database == true
+      restart_policy:
+        condition: any
+        delay: 5s
+
+  # Unauthenticated-in, authenticated-out bridge: Postal's smtp_relays
+  # can't log in to anything, so this carries the smtp2go credentials.
+  # Internal overlay network only — never exposed.
+  relay:
+    image: boky/postfix:v5.1.0
+    environment:
+      - TZ=${TZ:-UTC}
+      - RELAYHOST=[mail.smtp2go.com]:587
+      - RELAYHOST_USERNAME=${SMTP2GO_USERNAME}
+      - RELAYHOST_PASSWORD=${SMTP2GO_PASSWORD}
+      # sender checks add nothing on a private overlay; bounce senders
+      # come from rp.postal.* subdomains which domain lists would reject
+      - ALLOW_EMPTY_SENDER_DOMAINS=true
+    networks:
+      - postal-internal
+    deploy:
+      restart_policy:
+        condition: any
+        delay: 5s
+
+networks:
+  postal-internal:
+    driver: overlay
+  traefik-public:
+    external: true
+
+volumes:
+  db:
+    driver: local
+    driver_opts:
+      type: "none"
+      o: "bind"
+      device: "/mnt/iscsi/app-data/postal/db"
+  config:
+    driver: local
+    driver_opts:
+      type: "none"
+      o: "bind"
+      device: "/mnt/iscsi/app-data/postal/config"

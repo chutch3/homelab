@@ -1,0 +1,13 @@
+validate:
+  env:
+    - POSTAL_DB_PASSWORD
+    - POSTAL_SECRET_KEY
+    - SMTP2GO_USERNAME
+    - SMTP2GO_PASSWORD
+  labels:
+    - database: "true"
+
+# postal image and mariadb both run as uid 999
+directories:
+  - { path: postal/db, owner: 999, group: 999 }
+  - { path: postal/config, owner: 999, group: 999 }
