@@ -1,22 +1,24 @@
 # ansible/roles/dns/tasks/create-zone.yml
 ---
-- name: Get existing zones to check if base_domain already exists
+- name: Get existing zones
   uri:
-    url: "{{ dns_primary_api_url }}/zones/primary"
+    url: "{{ dns_primary_api_url }}/zones/list?token={{ dns_api_token }}"
     method: GET
-    headers:
-      Authorization: "Bearer {{ dns_api_token }}"
     status_code: 200
     return_content: yes
-  register: dns_existing_zones
+  register: dns_zone_list
   when: primary_dns_type == 'technitium'
 
-- name: Check if zone already exists
+- name: Determine base domain zone status
   set_fact:
-    dns_zone_exists: "{{ base_domain in dns_existing_zones.json | default([]) }}"
+    dns_zone_entry: "{{ dns_zone_list.json.response.zones | selectattr('name', 'equalto', base_domain) | list | first | default({}) }}"
   when: primary_dns_type == 'technitium' and not ansible_check_mode
 
-- name: Create primary DNS zone
+# Conditional Forwarder: local records answer authoritatively, unmatched
+# names forward upstream — keeps public-only records (DKIM/SPF/DMARC/relay
+# CNAMEs) resolvable on the LAN. A Primary zone would answer NXDOMAIN for
+# anything it does not hold.
+- name: Create base domain zone as Conditional Forwarder
   uri:
     url: "{{ dns_primary_api_url }}/zones/create"
     method: POST
@@ -24,19 +26,53 @@
     body:
       token: "{{ dns_api_token }}"
       zone: "{{ base_domain }}"
-      type: "Primary"
+      type: "Forwarder"
+      protocol: "Udp"
+      forwarder: "{{ dns_zone_forwarders | first }}"
+      dnssecValidation: "false"
     status_code: 200
-  when: primary_dns_type == 'technitium' and not ansible_check_mode and not (dns_zone_exists | default(false))
+  when: primary_dns_type == 'technitium' and not ansible_check_mode and (dns_zone_entry == {})
   register: dns_create_zone_result
 
-- name: Display zone creation status
+- name: Warn if zone exists with a non-forwarder type
+  debug:
+    msg: >-
+      WARNING: zone '{{ base_domain }}' exists as type
+      '{{ dns_zone_entry.type }}' — expected 'Forwarder'. Convert it in the
+      Technitium UI (zone options -> Convert) or delete and re-run; a Primary
+      zone hides public-only records from the LAN.
+  when: >-
+    primary_dns_type == 'technitium' and not ansible_check_mode
+    and dns_zone_entry != {} and dns_zone_entry.type | default('') != 'Forwarder'
+
+# Idempotent: Technitium replies with an error payload (HTTP 200) when the
+# FWD record already exists, which is fine.
+- name: Ensure FWD records exist for every upstream forwarder
+  uri:
+    url: "{{ dns_primary_api_url }}/zones/records/add"
+    method: POST
+    body_format: form-urlencoded
+    body:
+      token: "{{ dns_api_token }}"
+      domain: "{{ base_domain }}"
+      zone: "{{ base_domain }}"
+      type: "FWD"
+      protocol: "Udp"
+      forwarder: "{{ item }}"
+    status_code: 200
+  loop: "{{ dns_zone_forwarders }}"
+  when: >-
+    primary_dns_type == 'technitium' and not ansible_check_mode
+    and (dns_zone_entry == {} or dns_zone_entry.type | default('') == 'Forwarder')
+  register: dns_fwd_records_result
+
+- name: Display zone status
   debug:
     msg: |
       {% if primary_dns_type != 'technitium' %}
       Zone creation skipped — not applicable for {{ primary_dns_type }}.
-      {% elif not (dns_zone_exists | default(false)) %}
-      Zone '{{ base_domain }}' created successfully.
-      Response: {{ dns_create_zone_result.json | default('(check mode)') }}
+      {% elif dns_zone_entry == {} %}
+      Zone '{{ base_domain }}' created as Conditional Forwarder ({{ dns_zone_forwarders | join(', ') }}).
       {% else %}
-      Zone '{{ base_domain }}' already exists.
+      Zone '{{ base_domain }}' already exists (type: {{ dns_zone_entry.type | default('unknown') }}).
       {% endif %}
