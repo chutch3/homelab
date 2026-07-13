@@ -2,6 +2,30 @@
 
 <!-- version list -->
 
+## v3.23.0 (2026-07-13)
+
+### Bug Fixes
+
+- Bumping the api version in budget mcp
+  ([`f65168b`](https://github.com/chutch3/homelab/commit/f65168b04e0fee7cb88fafe07306b2fffa0b990e))
+
+- Upgrade actual-mcp bundled api to 26.5.2 at startup to match server schema
+  ([`36916f7`](https://github.com/chutch3/homelab/commit/36916f79e608db0c7120fbd9cb9c834cb4b6f26b))
+
+### Chores
+
+- Bump kenku
+  ([`b13a5e6`](https://github.com/chutch3/homelab/commit/b13a5e616830c4dd81047c2de51ce0bda06961ea))
+
+- Bump warden
+  ([`491d628`](https://github.com/chutch3/homelab/commit/491d62812bb6af2c5706b7f4cc6d5935f0eb2e02))
+
+### Features
+
+- Comments and moved inprogress downloads off of network storage
+  ([`def0b7b`](https://github.com/chutch3/homelab/commit/def0b7bc7247526eeb3e96a442c53542c7d79554))
+
+
 ## v3.22.2 (2026-06-30)
 
 ### Bug Fixes

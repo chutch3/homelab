@@ -1,6 +1,6 @@
 [project]
 name = "homelab"
-version = "3.22.2"
+version = "3.23.0"
 description = ""
 authors = [{name = "Cody Hutchens"}]
 license = {text = "MIT"}
