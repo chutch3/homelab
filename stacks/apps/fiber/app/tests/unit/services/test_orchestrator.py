@@ -9,11 +9,11 @@ from prometheus_client import CollectorRegistry
 
 from fiber.clients.bowl import BowlStorage
 from fiber.clients.events import EventBroker
-from fiber.clock import SystemClock
+from fiber.platform.clock import SystemClock
 from fiber.clients.dump_runner import DumpRunner, RunOutcome
 from fiber.repositories.history import HistoryRepository
-from fiber.metrics import Metrics
-from fiber.models import DumpFormat, DumpJob, Engine, MovementOutcome
+from fiber.platform.metrics import Metrics
+from fiber.domain.models import DumpFormat, DumpJob, Engine, MovementOutcome
 from fiber.services.orchestrator import MovementOrchestrator
 from fiber.clients.secrets import SecretReader
 from fiber.clients.swarm import DockerSwarmGateway

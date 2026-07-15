@@ -1,5 +1,5 @@
-from fiber.status import DBStatus
-from fiber.view import CardVM, Counts, DashboardVM
+from fiber.domain.status import DBStatus
+from fiber.domain.view import CardVM, Counts, DashboardVM
 
 
 def _card(st: DBStatus) -> CardVM:
@@ -31,7 +31,7 @@ def test_counts_and_verdict() -> None:
     assert vm.verdict_ok is False
 
 
-from fiber.view import DrawerVM
+from fiber.domain.view import DrawerVM
 
 
 class TestDrawerVM:

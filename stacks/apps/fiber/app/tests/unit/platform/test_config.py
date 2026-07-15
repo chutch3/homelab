@@ -1,17 +1,17 @@
 import pytest
 
-from fiber.config import Config
+from fiber.platform.config import Config
 
 
 def test_provider_defaults_to_swarm(monkeypatch) -> None:
     monkeypatch.delenv("FIBER_PROVIDER", raising=False)
-    from fiber.config import Config
+    from fiber.platform.config import Config
     assert Config.from_env().provider == "swarm"
 
 
 def test_provider_reads_env(monkeypatch) -> None:
     monkeypatch.setenv("FIBER_PROVIDER", "docker")
-    from fiber.config import Config
+    from fiber.platform.config import Config
     assert Config.from_env().provider == "docker"
 
 

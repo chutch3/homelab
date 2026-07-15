@@ -8,13 +8,14 @@ from prometheus_client import CollectorRegistry
 import fiber
 from fiber.clients.bowl import BowlStorage
 from fiber.clients.events import EventBroker
-from fiber.clock import SystemClock
-from fiber.config import Config
-from fiber.database import Database
+from fiber.platform.clock import SystemClock
+from fiber.platform.config import Config
+from fiber.db.database import Database
 from fiber.clients.dump_runner import DumpRunner
+from fiber.clients.engines import build_default_engines
 from fiber.clients.probe import ConnectivityProbe
 from fiber.repositories.history import HistoryRepository
-from fiber.metrics import Metrics
+from fiber.platform.metrics import Metrics
 from fiber.services.dashboard import DashboardService
 from fiber.services.orchestrator import MovementOrchestrator
 from fiber.services.readiness import Readiness
@@ -34,8 +35,9 @@ class Container(containers.DeclarativeContainer):
     database = providers.Singleton(Database, url=config.provided.db_url)
     history_repository = providers.Singleton(HistoryRepository, session_factory=database.provided.session)
     secrets = providers.Singleton(SecretReader, base_dir=config.provided.secrets_dir)
-    runner = providers.Singleton(DumpRunner)
-    probe = providers.Singleton(ConnectivityProbe)
+    engines = providers.Singleton(build_default_engines)
+    runner = providers.Singleton(DumpRunner, engines=engines)
+    probe = providers.Singleton(ConnectivityProbe, engines=engines)
     docker_client = providers.Factory(docker.DockerClient, base_url=config.provided.docker_host)
     swarm_gateway = providers.Singleton(DockerSwarmGateway, client_factory=docker_client.provider)
     container_gateway = providers.Singleton(DockerContainerGateway, client_factory=docker_client.provider)

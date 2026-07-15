@@ -4,7 +4,7 @@ from datetime import datetime, timezone
 
 from polyfactory.factories.dataclass_factory import DataclassFactory
 
-from fiber.models import DumpFormat, DumpJob, Engine, MovementOutcome, MovementRecord
+from fiber.domain.models import DumpFormat, DumpJob, Engine, MovementOutcome, MovementRecord
 
 
 class DumpJobFactory(DataclassFactory[DumpJob]):
@@ -21,6 +21,26 @@ class DumpJobFactory(DataclassFactory[DumpJob]):
     options = ()
     retain = 7
     fmt = DumpFormat.CUSTOM
+    jobs = 1
+    timeout = None
+    app = None
+    schema_version_query = None
+
+
+class MysqlDumpJobFactory(DataclassFactory[DumpJob]):
+    __model__ = DumpJob
+
+    service = "postal-db"
+    engine = Engine.MYSQL
+    host = "postal-db"
+    port = 3306
+    dbname = "postal"
+    user = "postal"
+    secret = "postal_db_password"
+    schedule = "0 3 * * *"
+    options = ()
+    retain = 7
+    fmt = DumpFormat.PLAIN
     jobs = 1
     timeout = None
     app = None

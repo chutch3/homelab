@@ -1,7 +1,7 @@
 from datetime import datetime, timezone
 
-from fiber.models import MovementOutcome
-from fiber.status import DBStatus, derive_status, next_fire
+from fiber.domain.models import MovementOutcome
+from fiber.domain.status import DBStatus, derive_status
 
 UTC = timezone.utc
 
@@ -75,9 +75,3 @@ def test_on_schedule_is_clean() -> None:
         schedule="0 3 * * *",
         now=at(4),
     ) is DBStatus.CLEAN
-
-
-def test_next_fire_returns_next_occurrence() -> None:
-    now = datetime(2026, 6, 15, 9, 0, tzinfo=timezone.utc)
-    result = next_fire("0 3 * * *", now)
-    assert result == datetime(2026, 6, 16, 3, 0, tzinfo=timezone.utc)

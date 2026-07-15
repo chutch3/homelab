@@ -7,12 +7,12 @@ import pytest
 
 from fiber.clients.bowl import BowlStorage
 from fiber.repositories.history import HistoryRepository
-from fiber.models import BowlEntry, MovementOutcome, MovementRecord
+from fiber.domain.models import BowlEntry, MovementOutcome, MovementRecord
 from fiber.services.dashboard import DashboardService
 from fiber.services.registry_state import RegistryState, Snapshot
 from fiber.services.worker_pool import WorkerPool
-from fiber.status import DBStatus
-from fiber.view import DiscoveryRow
+from fiber.domain.status import DBStatus
+from fiber.domain.view import DiscoveryRow
 from tests.factories import DumpJobFactory, MovementRecordFactory
 
 UTC = timezone.utc
@@ -26,7 +26,7 @@ class TestDashboardService:
 
     @pytest.fixture()
     def registry_state(self, job: object) -> RegistryState:
-        from fiber.models import MisconfiguredJob
+        from fiber.domain.models import MisconfiguredJob
         rs = RegistryState()
         snap = Snapshot(
             jobs=[job],  # type: ignore[list-item]
@@ -182,14 +182,14 @@ class TestDashboardService:
         assert c.service == "immich"
 
     def test_card_returns_fallback_for_unknown_service(self, subject: DashboardService) -> None:
-        from fiber.status import DBStatus
+        from fiber.domain.status import DBStatus
         c = subject.card("nonexistent")
         assert c.service == "nonexistent"
         assert c.status is DBStatus.MISCONFIGURED
         assert c.error == "not found"
 
     def test_detail_returns_drawer_vm(self, subject: DashboardService) -> None:
-        from fiber.view import DrawerVM
+        from fiber.domain.view import DrawerVM
         d = subject.detail("immich")
         assert isinstance(d, DrawerVM)
         assert d.service == "immich"
@@ -256,7 +256,7 @@ class TestDashboardServiceDetail:
         )
 
     def test_detail_returns_drawer_vm(self, clean_job, clean_movement) -> None:
-        from fiber.view import DrawerVM
+        from fiber.domain.view import DrawerVM
         history = create_autospec(HistoryRepository, instance=True)
         history.recent.return_value = [clean_movement]
         history.last_success.return_value = datetime(2026, 6, 15, 3, 0, tzinfo=UTC)
@@ -333,8 +333,8 @@ class TestDashboardServiceDetail:
         assert "fiber.secret" in vm.labels
 
     def test_detail_misconfigured_service(self) -> None:
-        from fiber.models import MisconfiguredJob
-        from fiber.view import DrawerVM
+        from fiber.domain.models import MisconfiguredJob
+        from fiber.domain.view import DrawerVM
         history = create_autospec(HistoryRepository, instance=True)
         history.recent.return_value = []
         history.last_success.return_value = None
@@ -468,7 +468,7 @@ class TestDashboardSort:
         )
 
     def test_clogged_sorts_before_constipated_before_clean(self) -> None:
-        from fiber.models import MisconfiguredJob
+        from fiber.domain.models import MisconfiguredJob
         clogged_job = DumpJobFactory.build(service="clogged-svc", schedule="0 3 * * *", path=None)
         constipated_job = DumpJobFactory.build(service="constipated-svc", schedule="0 3 * * *", path=None)
         clean_job = DumpJobFactory.build(service="clean-svc", schedule="0 3 * * *", path=None)
@@ -551,7 +551,7 @@ class TestNextRun:
         assert card.next_run == "in progress"
 
     def test_next_run_is_dash_for_misconfigured(self) -> None:
-        from fiber.models import MisconfiguredJob
+        from fiber.domain.models import MisconfiguredJob
         rs = RegistryState()
         rs.set(Snapshot(
             jobs=[],

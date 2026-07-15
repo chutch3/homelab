@@ -7,7 +7,7 @@ from unittest.mock import MagicMock
 
 from fiber.container import Container
 from fiber.main import create_app
-from fiber.metrics import Metrics
+from fiber.platform.metrics import Metrics
 from fiber.services.readiness import Readiness
 
 

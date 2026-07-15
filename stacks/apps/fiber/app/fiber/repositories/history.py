@@ -7,7 +7,7 @@ from datetime import datetime, timezone
 from sqlmodel import select
 
 from fiber.db.models import Movement
-from fiber.models import Engine, MovementOutcome, MovementRecord
+from fiber.domain.models import Engine, MovementOutcome, MovementRecord
 
 
 class HistoryRepository:

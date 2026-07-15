@@ -4,7 +4,7 @@ import threading
 from dataclasses import dataclass, field
 from datetime import datetime
 
-from fiber.models import DumpJob, MisconfiguredJob
+from fiber.domain.models import DumpJob, MisconfiguredJob
 
 
 @dataclass(frozen=True)

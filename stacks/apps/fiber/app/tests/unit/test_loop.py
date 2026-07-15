@@ -7,9 +7,9 @@ from unittest.mock import AsyncMock, MagicMock, create_autospec
 import pytest
 from prometheus_client import CollectorRegistry
 
-from fiber.clock import SystemClock
+from fiber.platform.clock import SystemClock
 from fiber.repositories.history import HistoryRepository
-from fiber.metrics import Metrics
+from fiber.platform.metrics import Metrics
 from fiber.clients.discovery import DiscoveryProvider
 from fiber.clients.probe import ConnectivityProbe, ProbeResult
 from fiber.services.registry_state import RegistryState
@@ -214,7 +214,7 @@ async def test_scan_loop_preserves_jobs_on_swarm_error() -> None:
 
     # First, seed the registry_state with a known good snapshot
     from fiber.services.registry_state import Snapshot
-    from fiber.models import DumpJob
+    from fiber.domain.models import DumpJob
     swarm, history, pool, clock, metrics, _, registry_state, probe = _base_mocks()
 
     # Pre-seed registry with one job and a scanned_at

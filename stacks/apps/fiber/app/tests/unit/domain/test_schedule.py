@@ -1,15 +1,19 @@
-from datetime import datetime, timedelta, timezone
-from fiber.models import DumpJob, DumpFormat, Engine
-from fiber.scheduler import due_jobs
+from datetime import datetime, timezone
+
+from fiber.domain.models import DumpJob
+from fiber.domain.schedule import due_jobs, next_fire
 from tests.factories import DumpJobFactory
+
+UTC = timezone.utc
 
 
 def _job(service: str, schedule: str = "0 3 * * *") -> DumpJob:
     return DumpJobFactory.build(service=service, host=service, schedule=schedule)
 
 
-UTC = timezone.utc
-
+# ---------------------------------------------------------------------------
+# due_jobs
+# ---------------------------------------------------------------------------
 
 def test_due_when_past_fire_and_never_run() -> None:
     now = datetime(2026, 6, 15, 3, 0, 30, tzinfo=UTC)  # just after 03:00
@@ -32,3 +36,12 @@ def test_catch_up_after_downtime() -> None:
 def test_running_job_is_skipped() -> None:
     now = datetime(2026, 6, 15, 3, 0, 30, tzinfo=UTC)
     assert due_jobs([_job("a")], now=now, last_success={}, running={"a"}) == []
+
+
+# ---------------------------------------------------------------------------
+# next_fire
+# ---------------------------------------------------------------------------
+
+def test_next_fire_returns_next_occurrence() -> None:
+    now = datetime(2026, 6, 15, 9, 0, tzinfo=UTC)
+    assert next_fire("0 3 * * *", now) == datetime(2026, 6, 16, 3, 0, tzinfo=UTC)

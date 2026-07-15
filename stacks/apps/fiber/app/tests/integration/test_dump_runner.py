@@ -6,7 +6,7 @@ import pytest
 from testcontainers.postgres import PostgresContainer
 
 from fiber.clients.dump_runner import DumpRunner
-from fiber.models import DumpFormat, DumpJob, Engine
+from fiber.domain.models import DumpFormat, DumpJob, Engine
 
 pytestmark = pytest.mark.integration
 

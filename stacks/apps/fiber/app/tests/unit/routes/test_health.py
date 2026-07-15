@@ -5,10 +5,10 @@ from fastapi.testclient import TestClient
 from prometheus_client import CollectorRegistry
 from unittest.mock import MagicMock
 
-from fiber.config import Config
+from fiber.platform.config import Config
 from fiber.container import Container
 from fiber.main import create_app
-from fiber.metrics import Metrics
+from fiber.platform.metrics import Metrics
 from fiber.services.readiness import Readiness
 
 
