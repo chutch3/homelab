@@ -1,0 +1,55 @@
+version: "3.9"
+
+services:
+    beholder:
+        image: ${REGISTRY:-ghcr.io}/${REGISTRY_NAMESPACE:-chutch3}/beholder:${IMAGE_TAG:-3.22.2}
+        build:
+            context: app
+            dockerfile: Dockerfile
+        environment:
+            - TZ=${TZ:-UTC}
+            # Actual Budget server (same overlay as actual_server)
+            - ACTUAL_SERVER_URL=http://actual_server:5006
+            - ACTUAL_PASSWORD=${ACTUAL_PASSWORD}
+            - ACTUAL_BUDGET_SYNC_ID=${ACTUAL_BUDGET_SYNC_ID}
+            # Postal (house mail API) — beholder's own credential
+            - BEHOLDER_POSTAL_URL=http://postal_web:5000
+            - BEHOLDER_POSTAL_API_KEY=${BEHOLDER_POSTAL_API_KEY}
+            - BEHOLDER_ALERT_FROM=budget@${BASE_DOMAIN}
+            - BEHOLDER_ALERT_TO=${BEHOLDER_ALERT_TO}
+            # Household names (resolved to ids against the budget server at
+            # startup; watched schedules are read from the server itself)
+            - BEHOLDER_CHECKING_ACCOUNT=${BEHOLDER_CHECKING_ACCOUNT}
+            - BEHOLDER_CARD_ACCOUNTS=${BEHOLDER_CARD_ACCOUNTS}
+            - BEHOLDER_SAVINGS_CATEGORY=${BEHOLDER_SAVINGS_CATEGORY}
+            # Optional tuning (code defaults shown)
+            - BEHOLDER_RUN_AT=${BEHOLDER_RUN_AT:-07:00}
+            - BEHOLDER_DRIFT_THRESHOLD_CENTS=${BEHOLDER_DRIFT_THRESHOLD_CENTS:-20000}
+        volumes:
+            - beholder_state:/state
+        restart: unless-stopped
+        networks:
+            - traefik-public
+        deploy:
+            # One watcher; the snapshot file brooks no rivals.
+            replicas: 1
+            restart_policy:
+                condition: any
+                delay: 30s
+            labels:
+                - homepage.group=Finance
+                - homepage.name=Beholder
+                - homepage.icon=mdi-eye-outline
+                - homepage.description=Budget Watchdog
+
+networks:
+    traefik-public:
+        external: true
+
+volumes:
+    beholder_state:
+        driver: local
+        driver_opts:
+            type: "none"
+            o: "bind"
+            device: "/mnt/iscsi/app-data/beholder/state"

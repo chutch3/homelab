@@ -1,0 +1,28 @@
+{
+  "name": "beholder",
+  "version": "0.1.0",
+  "description": "Budget watchdog: daily checks against Actual Budget, alerts by email via Postal",
+  "type": "module",
+  "private": true,
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "test": "vitest run",
+    "test:unit": "vitest run tests/unit",
+    "test:integration": "vitest run tests/integration",
+    "start": "node src/index.js",
+    "lint": "biome check .",
+    "lint:fix": "biome check --write ."
+  },
+  "dependencies": {
+    "@actual-app/api": "26.5.2"
+  },
+  "devDependencies": {
+    "@actual-app/sync-server": "26.5.2",
+    "@biomejs/biome": "^2.5.3",
+    "mockttp": "^4.5.0",
+    "vitest": "^3.2.0"
+  },
+  "license": "UNLICENSED"
+}
