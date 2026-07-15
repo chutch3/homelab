@@ -35,8 +35,10 @@ class MysqlEngine:
         conn = self._conn_flags(job, creds_path)
         if job.fmt is DumpFormat.DIRECTORY:
             # mydumper writes a directory; -t threads reuse job.jobs. All-flags, no positional.
-            return [self._mydumper_binary, *conn, "-B", job.dbname, "-o", out_path,
-                    "-t", str(job.jobs), *job.options]
+            # --protocol=tcp: Fiber always dumps DBs over the network, and mydumper otherwise
+            # routes a "localhost" host to the local unix socket (which isn't there).
+            return [self._mydumper_binary, *conn, "--protocol=tcp", "-B", job.dbname,
+                    "-o", out_path, "-t", str(job.jobs), *job.options]
         # PLAIN: options + --result-file MUST precede the <db> positional (trailing words
         # after <db> are parsed as a table list by mariadb-dump).
         return [self._dump_binary, *conn, *job.options, "--result-file", out_path, job.dbname]

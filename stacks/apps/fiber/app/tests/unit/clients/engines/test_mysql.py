@@ -40,6 +40,7 @@ class TestMysqlEngine:
         argv = subject.build_argv(_job(DumpFormat.DIRECTORY, jobs=4), "/bowl/x.dir", "/tmp/c.cnf")
         assert argv[0] == "mydumper"
         assert "--defaults-extra-file=/tmp/c.cnf" in argv
+        assert "--protocol=tcp" in argv  # Fiber dumps over the network, never a local socket
         assert "-B" in argv and argv[argv.index("-B") + 1] == "postal"
         assert "-o" in argv and argv[argv.index("-o") + 1] == "/bowl/x.dir"
         assert "-t" in argv and argv[argv.index("-t") + 1] == "4"
