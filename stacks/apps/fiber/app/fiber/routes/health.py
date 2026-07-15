@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends, Response
 from prometheus_client import generate_latest
 
 from fiber.container import Container
-from fiber.metrics import Metrics
+from fiber.platform.metrics import Metrics
 from fiber.services.readiness import Readiness
 
 router = APIRouter()

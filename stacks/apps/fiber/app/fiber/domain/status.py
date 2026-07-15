@@ -3,9 +3,8 @@ from __future__ import annotations
 from datetime import datetime
 from enum import Enum
 
-from croniter import croniter
-
-from fiber.models import MovementOutcome
+from fiber.domain.models import MovementOutcome
+from fiber.domain.schedule import is_overdue
 
 
 class DBStatus(str, Enum):
@@ -15,16 +14,6 @@ class DBStatus(str, Enum):
     CONSTIPATED = "constipated"
     PINCHED = "pinched"
     MISCONFIGURED = "misconfigured"
-
-
-def next_fire(schedule: str, now: datetime) -> datetime:
-    """Return the next scheduled fire time after now."""
-    return croniter(schedule, now).get_next(datetime)
-
-
-def is_overdue(last_success: datetime | None, schedule: str, now: datetime) -> bool:
-    fire = croniter(schedule, now).get_prev(datetime)
-    return last_success is None or last_success < fire
 
 
 def derive_status(

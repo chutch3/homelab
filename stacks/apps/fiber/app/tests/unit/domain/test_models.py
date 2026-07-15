@@ -1,4 +1,4 @@
-from fiber.models import DumpJob, Engine, DumpFormat
+from fiber.domain.models import DumpJob, Engine, DumpFormat
 
 
 def _job(**over: object) -> DumpJob:

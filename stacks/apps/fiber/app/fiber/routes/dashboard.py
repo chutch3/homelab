@@ -18,8 +18,8 @@ from fiber.services.dashboard import DashboardService
 from fiber.services.orchestrator import MovementOrchestrator
 from fiber.services.registry_state import RegistryState
 from fiber.services.worker_pool import WorkerPool
-from fiber.status import DBStatus
-from fiber.view import CardVM
+from fiber.domain.status import DBStatus
+from fiber.domain.view import CardVM
 
 _logger = logging.getLogger(__name__)
 

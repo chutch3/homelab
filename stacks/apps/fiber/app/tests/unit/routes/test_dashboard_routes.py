@@ -14,8 +14,8 @@ from fiber.services.dashboard import DashboardService
 from fiber.services.registry_state import RegistryState, Snapshot
 from fiber.services.worker_pool import WorkerPool
 from fiber.services.orchestrator import MovementOrchestrator
-from fiber.status import DBStatus
-from fiber.view import CardVM, Counts, DashboardVM, DiscoveryRow
+from fiber.domain.status import DBStatus
+from fiber.domain.view import CardVM, Counts, DashboardVM, DiscoveryRow
 from tests.factories import DumpJobFactory
 
 
@@ -176,7 +176,7 @@ class TestDashboardRoutes:
         mock_probe: MagicMock,
         templates: Jinja2Templates,
     ) -> FastAPI:
-        from fiber.config import Config
+        from fiber.platform.config import Config
         from fiber.container import Container
         from fiber.main import create_app
 

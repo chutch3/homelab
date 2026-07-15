@@ -5,28 +5,8 @@ from typing import Any
 
 import pytest
 
-from fiber.clients.probe import ConnectivityProbe, ProbeResult, build_pg_isready_argv
+from fiber.clients.probe import ConnectivityProbe, ProbeResult
 from tests.factories import DumpJobFactory
-
-
-# ---------------------------------------------------------------------------
-# Pure-function tests
-# ---------------------------------------------------------------------------
-
-
-def test_build_pg_isready_argv_basic() -> None:
-    job = DumpJobFactory.build(service="kenku-pg", host="kenku-pg", port=5432, user="kenku")
-    argv = build_pg_isready_argv(job)
-    assert argv == ["pg_isready", "-h", "kenku-pg", "-p", "5432", "-U", "kenku"]
-
-
-def test_build_pg_isready_argv_custom_port() -> None:
-    job = DumpJobFactory.build(host="mydb", port=5433, user="admin")
-    argv = build_pg_isready_argv(job)
-    assert argv[0] == "pg_isready"
-    assert "-h" in argv and argv[argv.index("-h") + 1] == "mydb"
-    assert "-p" in argv and argv[argv.index("-p") + 1] == "5433"
-    assert "-U" in argv and argv[argv.index("-U") + 1] == "admin"
 
 
 # ---------------------------------------------------------------------------

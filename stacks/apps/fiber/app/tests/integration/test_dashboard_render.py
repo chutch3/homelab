@@ -13,12 +13,12 @@ from prometheus_client import CollectorRegistry
 from fiber.clients.bowl import BowlStorage
 from fiber.container import Container
 from fiber.main import create_app
-from fiber.metrics import Metrics
-from fiber.models import BowlEntry, MisconfiguredJob, MovementOutcome
+from fiber.platform.metrics import Metrics
+from fiber.domain.models import BowlEntry, MisconfiguredJob, MovementOutcome
 from fiber.repositories.history import HistoryRepository
 from fiber.services.registry_state import RegistryState, Snapshot
 from fiber.services.worker_pool import WorkerPool
-from fiber.status import DBStatus
+from fiber.domain.status import DBStatus
 from tests.factories import DumpJobFactory
 
 UTC = timezone.utc

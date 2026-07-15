@@ -21,7 +21,7 @@ import uvicorn
 
 from fiber.container import Container
 from fiber.main import create_app
-from fiber.models import DumpFormat, DumpJob, Engine, MisconfiguredJob, MovementOutcome, MovementRecord
+from fiber.domain.models import DumpFormat, DumpJob, Engine, MisconfiguredJob, MovementOutcome, MovementRecord
 from fiber.services.registry_state import RegistryState, Snapshot
 
 UTC = timezone.utc

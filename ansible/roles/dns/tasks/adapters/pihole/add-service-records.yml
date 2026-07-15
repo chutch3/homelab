@@ -28,3 +28,17 @@
   ignore_errors: yes
   delegate_to: localhost
   when: stack_name is defined and stack_name == 'dns'
+
+# The record PUTs use restart=false, which stores records without applying
+# them — the running resolver keeps serving its last-loaded config until a
+# reload. Always reload: records may already be stored-but-unapplied from
+# earlier runs (those adds return 400 duplicate, so a conditional reload
+# would skip exactly when it is needed).
+- name: "[PIHOLE] Reload DNS resolver to apply stored records"
+  ansible.builtin.uri:
+    url: "{{ dns_secondary_api_url }}/action/restartdns"
+    method: POST
+    headers:
+      sid: "{{ dns_pihole_session_id }}"
+    status_code: [200, 204]
+  delegate_to: localhost

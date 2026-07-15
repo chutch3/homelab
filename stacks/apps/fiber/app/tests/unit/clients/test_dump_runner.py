@@ -1,66 +1,15 @@
 from __future__ import annotations
 
 import asyncio
+import os
 from pathlib import Path
 from typing import Any
-from unittest.mock import MagicMock
 
 import pytest
 
-from fiber.models import DumpFormat, DumpJob, Engine
-from fiber.clients.dump_runner import (
-    DumpRunner,
-    RunOutcome,
-    build_pg_dump_argv,
-    select_pg_dump_binary,
-)
-from tests.factories import DumpJobFactory
-
-
-# ---------------------------------------------------------------------------
-# Pure-function tests — stay flat (no class)
-# ---------------------------------------------------------------------------
-
-def _job(fmt: DumpFormat, jobs: int = 1, options: tuple[str, ...] = ()) -> DumpJob:
-    return DumpJobFactory.build(fmt=fmt, jobs=jobs, options=options)
-
-
-def test_custom_format_argv() -> None:
-    argv = build_pg_dump_argv(_job(DumpFormat.CUSTOM, options=("--clean",)), out_path="/bowl/x.dump")
-    assert argv == ["pg_dump", "-h", "kenku-pg", "-p", "5432", "-U", "kenku", "-d", "kenku",
-                    "-F", "c", "--clean", "-f", "/bowl/x.dump"]
-
-
-def test_directory_format_adds_jobs() -> None:
-    argv = build_pg_dump_argv(_job(DumpFormat.DIRECTORY, jobs=4), out_path="/bowl/x.dir")
-    assert "-F" in argv and argv[argv.index("-F") + 1] == "d"
-    assert "-j" in argv and argv[argv.index("-j") + 1] == "4"
-
-
-def test_build_pg_dump_argv_uses_binary_param() -> None:
-    argv = build_pg_dump_argv(_job(DumpFormat.CUSTOM), out_path="/bowl/x.dump", binary="/x/pg_dump")
-    assert argv[0] == "/x/pg_dump"
-
-
-def test_select_pg_dump_binary_picks_highest_major(tmp_path: Path) -> None:
-    for major in (13, 16, 14):
-        (tmp_path / str(major) / "bin").mkdir(parents=True)
-    result = select_pg_dump_binary(bindir=str(tmp_path))
-    assert result == f"{tmp_path}/16/bin/pg_dump"
-
-
-def test_select_pg_dump_binary_falls_back_when_no_dirs(tmp_path: Path) -> None:
-    empty = tmp_path / "empty"
-    empty.mkdir()
-    result = select_pg_dump_binary(bindir=str(empty))
-    assert result == "pg_dump"
-
-
-def test_select_pg_dump_binary_ignores_non_integer_dirs(tmp_path: Path) -> None:
-    (tmp_path / "16" / "bin").mkdir(parents=True)
-    (tmp_path / "utils").mkdir()
-    result = select_pg_dump_binary(bindir=str(tmp_path))
-    assert result == f"{tmp_path}/16/bin/pg_dump"
+from fiber.clients.dump_runner import DumpRunner, RunOutcome
+from fiber.domain.models import DumpJob
+from tests.factories import DumpJobFactory, MysqlDumpJobFactory
 
 
 # ---------------------------------------------------------------------------
@@ -105,7 +54,7 @@ def _make_job(timeout: float | None = None) -> DumpJob:
 
 
 # ---------------------------------------------------------------------------
-# Class tests for DumpRunner.run()
+# DumpRunner orchestration (engine-agnostic: process, timeout, cancel)
 # ---------------------------------------------------------------------------
 
 class TestDumpRunner:
@@ -117,7 +66,7 @@ class TestDumpRunner:
     def subject(self, fake_proc: FakeProcess) -> DumpRunner:
         async def factory(*args: Any, **kwargs: Any) -> FakeProcess:
             return fake_proc
-        return DumpRunner(pg_dump_binary="pg_dump", process_factory=factory)
+        return DumpRunner(process_factory=factory)
 
     async def test_success_returns_zero_returncode(
         self, subject: DumpRunner, fake_proc: FakeProcess
@@ -125,14 +74,13 @@ class TestDumpRunner:
         outcome = await subject.run(_make_job(), password="pw", out_path="/bowl/x.dump")
         assert outcome == RunOutcome(returncode=0, stderr_tail="", cancelled=False)
 
-    async def test_failure_captures_stderr_tail(self, fake_proc: FakeProcess) -> None:
-        fake_proc._final_returncode = 1
-        fake_proc._stderr_data = b"boom"
+    async def test_failure_captures_stderr_tail(self) -> None:
+        proc = FakeProcess(returncode=1, stderr_data=b"boom")
 
         async def factory(*args: Any, **kwargs: Any) -> FakeProcess:
-            return fake_proc
+            return proc
 
-        runner = DumpRunner(pg_dump_binary="pg_dump", process_factory=factory)
+        runner = DumpRunner(process_factory=factory)
         outcome = await runner.run(_make_job(), password="pw", out_path="/bowl/x.dump")
         assert outcome.returncode == 1
         assert outcome.cancelled is False
@@ -144,7 +92,7 @@ class TestDumpRunner:
         async def factory(*args: Any, **kwargs: Any) -> FakeProcess:
             return proc
 
-        runner = DumpRunner(pg_dump_binary="pg_dump", process_factory=factory)
+        runner = DumpRunner(process_factory=factory)
         outcome = await runner.run(_make_job(timeout=0.01), password="pw", out_path="/bowl/x.dump")
         assert outcome.cancelled is True
         assert proc.terminated is True
@@ -155,7 +103,7 @@ class TestDumpRunner:
         async def factory(*args: Any, **kwargs: Any) -> FakeProcess:
             return proc
 
-        runner = DumpRunner(pg_dump_binary="pg_dump", process_factory=factory)
+        runner = DumpRunner(process_factory=factory)
 
         async def _run() -> RunOutcome:
             return await runner.run(_make_job(), password="pw", out_path="/bowl/x.dump")
@@ -166,3 +114,106 @@ class TestDumpRunner:
         outcome = await task
         assert outcome.cancelled is True
         assert proc.terminated is True
+
+
+# ---------------------------------------------------------------------------
+# Engine dispatch + credentials-file lifecycle
+# ---------------------------------------------------------------------------
+
+class TestDumpRunnerEngineDispatch:
+    async def test_postgres_sets_pgpassword_and_writes_no_creds_file(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setenv("TMPDIR", str(tmp_path))
+        captured: dict[str, Any] = {}
+
+        async def factory(*args: Any, **kwargs: Any) -> FakeProcess:
+            captured["argv"], captured["env"] = args, kwargs["env"]
+            return FakeProcess(returncode=0)
+
+        runner = DumpRunner(process_factory=factory)
+        await runner.run(DumpJobFactory.build(timeout=None), password="pw",
+                         out_path=str(tmp_path / "x.dump"))
+
+        assert captured["env"]["PGPASSWORD"] == "pw"
+        assert not any("defaults-extra-file" in a for a in captured["argv"])
+        assert list(tmp_path.glob("*.cnf")) == []
+
+    async def test_mysql_password_only_in_creds_file_never_argv_or_env(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setenv("TMPDIR", str(tmp_path))
+        captured: dict[str, Any] = {}
+
+        async def factory(*args: Any, **kwargs: Any) -> FakeProcess:
+            creds = next(a.split("=", 1)[1] for a in args
+                         if a.startswith("--defaults-extra-file="))
+            captured["argv"], captured["env"] = args, kwargs["env"]
+            captured["creds_path"] = creds
+            captured["creds_content"] = Path(creds).read_text()
+            captured["mode"] = oct(os.stat(creds).st_mode & 0o777)
+            return FakeProcess(returncode=0)
+
+        runner = DumpRunner(process_factory=factory)
+        outcome = await runner.run(MysqlDumpJobFactory.build(timeout=None),
+                                   password="s3cr3t", out_path=str(tmp_path / "x.sql"))
+
+        assert outcome.returncode == 0
+        assert "password=s3cr3t" in captured["creds_content"]
+        assert captured["mode"] == "0o600"
+        assert "s3cr3t" not in " ".join(captured["argv"])
+        assert "s3cr3t" not in repr(captured["env"])
+        assert "PGPASSWORD" not in captured["env"]
+        # unlinked on success
+        assert not os.path.exists(captured["creds_path"])
+        assert list(tmp_path.glob("*.cnf")) == []
+
+    async def test_mysql_creds_unlinked_on_failure(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setenv("TMPDIR", str(tmp_path))
+
+        async def factory(*args: Any, **kwargs: Any) -> FakeProcess:
+            return FakeProcess(returncode=1, stderr_data=b"boom")
+
+        runner = DumpRunner(process_factory=factory)
+        outcome = await runner.run(MysqlDumpJobFactory.build(timeout=None),
+                                   password="pw", out_path=str(tmp_path / "x.sql"))
+        assert outcome.returncode == 1
+        assert list(tmp_path.glob("*.cnf")) == []
+
+    async def test_mysql_creds_unlinked_on_timeout(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setenv("TMPDIR", str(tmp_path))
+
+        async def factory(*args: Any, **kwargs: Any) -> FakeProcess:
+            return FakeProcess(returncode=0, hang=True)
+
+        runner = DumpRunner(process_factory=factory)
+        outcome = await runner.run(MysqlDumpJobFactory.build(timeout=0.01),
+                                   password="pw", out_path=str(tmp_path / "x.sql"))
+        assert outcome.cancelled is True
+        assert list(tmp_path.glob("*.cnf")) == []
+
+    async def test_mysql_creds_unlinked_on_external_cancel(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setenv("TMPDIR", str(tmp_path))
+        proc = FakeProcess(returncode=0, hang=True)
+
+        async def factory(*args: Any, **kwargs: Any) -> FakeProcess:
+            return proc
+
+        runner = DumpRunner(process_factory=factory)
+
+        async def _run() -> RunOutcome:
+            return await runner.run(MysqlDumpJobFactory.build(timeout=None),
+                                    password="pw", out_path=str(tmp_path / "x.sql"))
+
+        task = asyncio.create_task(_run())
+        await asyncio.sleep(0.01)
+        task.cancel()
+        outcome = await task
+        assert outcome.cancelled is True
+        assert list(tmp_path.glob("*.cnf")) == []

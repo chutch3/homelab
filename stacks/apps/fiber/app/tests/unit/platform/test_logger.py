@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import logging
 
-from fiber.logger import get_logger
+from fiber.platform.logger import get_logger
 
 
 def test_get_logger_returns_logger_with_correct_level() -> None:

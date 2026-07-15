@@ -5,9 +5,9 @@ from pathlib import Path
 
 import pytest
 
-from fiber.database import Database
+from fiber.db.database import Database
 from fiber.repositories.history import HistoryRepository
-from fiber.models import Engine, MovementOutcome, MovementRecord
+from fiber.domain.models import Engine, MovementOutcome, MovementRecord
 from tests.factories import MovementRecordFactory
 
 

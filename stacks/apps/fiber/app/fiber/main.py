@@ -9,9 +9,9 @@ from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 
 import fiber.routes as routes
-from fiber.config import Config
+from fiber.platform.config import Config
 from fiber.container import Container
-from fiber.logger import get_logger
+from fiber.platform.logger import get_logger
 from fiber.loop import _scan_loop
 from fiber.routes import dashboard
 

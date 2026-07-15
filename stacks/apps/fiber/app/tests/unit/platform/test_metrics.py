@@ -3,8 +3,8 @@ from __future__ import annotations
 import pytest
 from prometheus_client import CollectorRegistry
 
-from fiber.metrics import Metrics
-from fiber.models import MovementOutcome
+from fiber.platform.metrics import Metrics
+from fiber.domain.models import MovementOutcome
 
 
 class TestMetrics:
@@ -22,7 +22,7 @@ class TestMetrics:
 
 def test_skipped_not_ready_counter_exists() -> None:
     from prometheus_client import CollectorRegistry
-    from fiber.metrics import Metrics
+    from fiber.platform.metrics import Metrics
     m = Metrics(registry=CollectorRegistry())
     m.skipped_not_ready.labels(db="e2e-pg").inc()
     assert m.registry.get_sample_value("fiber_skipped_not_ready_total", {"db": "e2e-pg"}) == 1.0

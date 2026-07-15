@@ -7,7 +7,7 @@ import shutil
 from datetime import datetime, timezone
 from pathlib import Path
 
-from fiber.models import BowlEntry
+from fiber.domain.models import BowlEntry
 
 _PARTIAL = ".partial"
 

@@ -2,9 +2,15 @@ from __future__ import annotations
 
 from croniter import croniter
 
-from fiber.models import DumpFormat, DumpJob, Engine, MisconfiguredJob
+from fiber.domain.models import DumpFormat, DumpJob, Engine, MisconfiguredJob
 
 _DEFAULTS = {"schedule": "0 3 * * *", "retain": 7, "format": "custom", "jobs": 1, "port_pg": 5432, "port_mysql": 3306}
+
+_ENGINE_DEFAULT_FORMAT = {Engine.POSTGRES: DumpFormat.CUSTOM, Engine.MYSQL: DumpFormat.PLAIN}
+_ENGINE_FORMATS = {
+    Engine.POSTGRES: frozenset({DumpFormat.CUSTOM, DumpFormat.DIRECTORY, DumpFormat.PLAIN}),
+    Engine.MYSQL: frozenset({DumpFormat.PLAIN, DumpFormat.DIRECTORY}),
+}
 
 
 def _duration_seconds(raw: str) -> float:
@@ -16,6 +22,7 @@ def _duration_seconds(raw: str) -> float:
 
 
 def parse_job(service: str, labels: dict[str, str], active_provider: str = "swarm") -> DumpJob | MisconfiguredJob | None:
+    """Parse one discovered service's fiber.* labels into a DumpJob (or MisconfiguredJob)."""
     if labels.get("fiber.enable", "").lower() != "true":
         return None
 
@@ -42,6 +49,13 @@ def parse_job(service: str, labels: dict[str, str], active_provider: str = "swar
     options = tuple(labels.get("fiber.options", "").split())
     timeout_raw = labels.get("fiber.timeout")
 
+    fmt = DumpFormat(labels.get("fiber.format", _ENGINE_DEFAULT_FORMAT[engine].value))
+    if fmt not in _ENGINE_FORMATS[engine]:
+        return MisconfiguredJob(
+            service=service,
+            errors=(f"format '{fmt.value}' unsupported for {engine.value} engine",),
+        )
+
     return DumpJob(
         service=service,
         engine=engine,
@@ -53,10 +67,30 @@ def parse_job(service: str, labels: dict[str, str], active_provider: str = "swar
         schedule=labels.get("fiber.schedule", _DEFAULTS["schedule"]),
         options=options,
         retain=int(labels.get("fiber.retain", _DEFAULTS["retain"])),
-        fmt=DumpFormat(labels.get("fiber.format", _DEFAULTS["format"])),
+        fmt=fmt,
         jobs=int(labels.get("fiber.jobs", _DEFAULTS["jobs"])),
         timeout=_duration_seconds(timeout_raw) if timeout_raw else None,
         app=labels.get("fiber.app"),
         schema_version_query=labels.get("fiber.schema_version_query"),
         path=labels.get("fiber.path"),
     )
+
+
+def reconcile(
+    services: dict[str, dict[str, str]],
+    active_provider: str = "swarm",
+) -> tuple[list[DumpJob], list[MisconfiguredJob], list[tuple[str, str]]]:
+    """Parse every discovered service into jobs, misconfigured jobs, and skipped services."""
+    jobs: list[DumpJob] = []
+    misconfigured: list[MisconfiguredJob] = []
+    skipped: list[tuple[str, str]] = []
+    for service, labels in services.items():
+        parsed = parse_job(service, labels, active_provider)
+        if isinstance(parsed, DumpJob):
+            jobs.append(parsed)
+        elif isinstance(parsed, MisconfiguredJob):
+            misconfigured.append(parsed)
+        else:
+            # parse_job returned None — service has no fiber.enable label
+            skipped.append((service, "no fiber.enable label"))
+    return jobs, misconfigured, skipped

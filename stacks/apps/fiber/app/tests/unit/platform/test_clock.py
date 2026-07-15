@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from datetime import timezone
 
-from fiber.clock import SystemClock
+from fiber.platform.clock import SystemClock
 
 
 def test_system_clock_returns_utc() -> None:

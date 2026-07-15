@@ -5,14 +5,14 @@ from datetime import datetime
 from typing import Callable
 
 from fiber.clients.bowl import BowlStorage
-from fiber.bristol import classify
-from fiber.clock import SystemClock
+from fiber.domain.dumps import classify
+from fiber.platform.clock import SystemClock
 from fiber.clients.dump_runner import DumpRunner
 from fiber.clients.events import EventBroker
 from fiber.repositories.history import HistoryRepository
-from fiber.metrics import Metrics
-from fiber.models import (DumpFormat, DumpJob, Manifest, MovementOutcome, MovementRecord)
-from fiber.plunger import plan_sweep
+from fiber.platform.metrics import Metrics
+from fiber.domain.models import (DumpFormat, DumpJob, Manifest, MovementOutcome, MovementRecord)
+from fiber.domain.dumps import plan_sweep
 from fiber.clients.secrets import SecretReader
 from fiber.clients.discovery import DiscoveryProvider
 

@@ -4,9 +4,9 @@ from datetime import datetime, timezone
 
 import pytest
 
-from fiber.database import Database
+from fiber.db.database import Database
 from fiber.repositories.history import HistoryRepository
-from fiber.models import Engine, MovementOutcome, MovementRecord
+from fiber.domain.models import Engine, MovementOutcome, MovementRecord
 from tests.factories import MovementRecordFactory
 
 
@@ -70,7 +70,7 @@ class TestHistoryRepository:
         assert rows == []
 
     def test_recent_returns_full_movement_records(self, subject: HistoryRepository) -> None:
-        from fiber.models import Engine
+        from fiber.domain.models import Engine
         subject.record(_rec("kenku-pg", 1, MovementOutcome.CLOGGED, 0))
         rows = subject.recent("kenku-pg", limit=5)
         assert rows[0].service == "kenku-pg"

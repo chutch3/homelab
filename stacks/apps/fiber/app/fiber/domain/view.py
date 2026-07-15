@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-from fiber.status import DBStatus
+from fiber.domain.status import DBStatus
 
 _SEVERITY = {
     DBStatus.CLOGGED: 3,

@@ -71,6 +71,12 @@ primary_dns_api_key: "{{ lookup('env', 'PRIMARY_DNS_API_KEY') | default('') }}"
 # Derived API base URL — used by adapters and readiness checks
 dns_primary_api_url: "{{ 'http://' ~ primary_dns_host ~ ':5380/api' if primary_dns_type == 'technitium' else 'http://' ~ primary_dns_host ~ '/api' }}"
 
+# Upstreams for the base-domain Conditional Forwarder zone: local records
+# override, anything unmatched forwards here so public-only records (DKIM,
+# SPF, DMARC, relay CNAMEs) stay visible on the LAN. Reuses the same
+# upstreams as the Technitium server itself (DNS_SERVER_FORWARDERS).
+dns_zone_forwarders: "{{ (lookup('env', 'DNS_SERVER_FORWARDERS') | default('1.1.1.1,1.0.0.1', true)).split(',') }}"
+
 # Secondary DNS configuration
 # Set SECONDARY_DNS_ENABLED=true and provide SECONDARY_DNS_HOST + SECONDARY_DNS_API_KEY to sync records
 secondary_dns_enabled: "{{ lookup('env', 'SECONDARY_DNS_ENABLED') | default('false') | bool }}"

@@ -5,15 +5,15 @@ import contextlib
 
 from dependency_injector.wiring import Provide, inject
 
-from fiber.clock import SystemClock
+from fiber.platform.clock import SystemClock
 from fiber.container import Container
-from fiber.logger import get_logger
-from fiber.metrics import Metrics
+from fiber.platform.logger import get_logger
+from fiber.platform.metrics import Metrics
 from fiber.clients.discovery import DiscoveryProvider
 from fiber.clients.probe import ConnectivityProbe
-from fiber.registry import reconcile
+from fiber.domain.jobs import reconcile
 from fiber.repositories.history import HistoryRepository
-from fiber.scheduler import due_jobs
+from fiber.domain.schedule import due_jobs
 from fiber.services.orchestrator import MovementOrchestrator
 from fiber.services.registry_state import RegistryState, Snapshot
 from fiber.services.worker_pool import WorkerPool

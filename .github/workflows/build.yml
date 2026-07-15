@@ -75,6 +75,22 @@ jobs:
               with:
                   enable-cache: true
 
+            # ubuntu-latest ships psql/pg_dump (fiber's pg integration tests use them) but
+            # not the MariaDB client tools; fiber's mysql integration tests drive
+            # mariadb-dump/mydumper on the runner host. The distro's mydumper is 0.10.1,
+            # too old for MariaDB 11 — pin the upstream release (matches the Dockerfile).
+            - name: Install MariaDB client tools
+              if: matrix.service == 'fiber'
+              env:
+                  MYDUMPER_VERSION: "1.0.3-1"
+              run: |
+                  set -euo pipefail
+                  sudo apt-get update
+                  sudo apt-get install -y --no-install-recommends mariadb-client
+                  curl -fsSL -o /tmp/mydumper.deb \
+                    "https://github.com/mydumper/mydumper/releases/download/v${MYDUMPER_VERSION}/mydumper_${MYDUMPER_VERSION}.$(lsb_release -cs)_amd64.deb"
+                  sudo apt-get install -y /tmp/mydumper.deb
+
             - name: Test ${{ matrix.service }}
               # Runs unit + integration together; the project's --cov-fail-under applies
               # to their COMBINED coverage. e2e is orchestration-heavy and runs separately
