@@ -165,6 +165,8 @@ RUN rm -f /etc/ssh/ssh_host_* && \
 # Create coder user and install code-server — last root operations before user switch
 RUN userdel -r ubuntu && \
     useradd -m -u 1000 -s /bin/bash coder && \
+    # Unlock coder so sshd accepts pubkey auth under UsePAM no (password login stays off).
+    usermod -p "$(openssl passwd -6 "$(head -c 32 /dev/urandom | base64)")" coder && \
     echo "coder ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers && \
     curl -fsSL https://code-server.dev/install.sh | sh
 
