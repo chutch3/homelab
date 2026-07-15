@@ -2,6 +2,20 @@
 
 <!-- version list -->
 
+## v3.24.0 (2026-07-15)
+
+### Chores
+
+- Removed newtarr
+  ([`677afc4`](https://github.com/chutch3/homelab/commit/677afc4dfcc9ec461b2aa95f59bc250385c329b4))
+
+### Features
+
+- Add mysql engine support to fiber and reorganize package into domain/platform/db layers
+  ([#93](https://github.com/chutch3/homelab/pull/93),
+  [`f335196`](https://github.com/chutch3/homelab/commit/f335196a833ae339108b4a2486351e8da4d1a643))
+
+
 ## v3.23.1 (2026-07-15)
 
 ### Bug Fixes
