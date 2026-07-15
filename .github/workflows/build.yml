@@ -75,6 +75,15 @@ jobs:
               with:
                   enable-cache: true
 
+            # ubuntu-latest ships psql/pg_dump (fiber's pg integration tests use them) but
+            # not the MariaDB client tools; fiber's mysql integration tests drive
+            # mariadb-dump/mydumper on the runner host.
+            - name: Install MariaDB client tools
+              if: matrix.service == 'fiber'
+              run: |
+                  sudo apt-get update
+                  sudo apt-get install -y --no-install-recommends mariadb-client mydumper
+
             - name: Test ${{ matrix.service }}
               # Runs unit + integration together; the project's --cov-fail-under applies
               # to their COMBINED coverage. e2e is orchestration-heavy and runs separately
