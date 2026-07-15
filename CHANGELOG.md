@@ -2,6 +2,14 @@
 
 <!-- version list -->
 
+## v3.23.1 (2026-07-15)
+
+### Bug Fixes
+
+- Unlock coder account so devbox sshd accepts pubkey auth
+  ([`2e5002c`](https://github.com/chutch3/homelab/commit/2e5002c1abffe2e7e7e3d25faace62ae782ea0b5))
+
+
 ## v3.23.0 (2026-07-13)
 
 ### Bug Fixes
