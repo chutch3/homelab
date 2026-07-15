@@ -8,7 +8,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends curl ca-certifi
     && curl -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc https://www.postgresql.org/media/keys/ACCC4CF8.asc \
     && echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] http://apt.postgresql.org/pub/repos/apt bookworm-pgdg main" > /etc/apt/sources.list.d/pgdg.list \
     && apt-get update && apt-get install -y --no-install-recommends postgresql-client-14 postgresql-client-15 postgresql-client-16 \
-    && apt-get install -y --no-install-recommends mariadb-client mydumper \
+    && apt-get install -y --no-install-recommends mariadb-client \
+    && curl -fsSL -o /tmp/mydumper.deb "https://github.com/mydumper/mydumper/releases/download/v1.0.3-1/mydumper_1.0.3-1.bookworm_amd64.deb" \
+    && apt-get install -y --no-install-recommends /tmp/mydumper.deb \
+    && rm -f /tmp/mydumper.deb \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app

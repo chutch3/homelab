@@ -67,6 +67,13 @@ def _prepare(tmp_path: Path) -> None:
     (tmp_path / "secrets" / "pw").write_text("pw")
 
 
+def _reason(rec) -> str:
+    # On a CLOGGED movement the dump tool's stderr tail is written to the stool sample.
+    if rec.sample_path and Path(rec.sample_path).exists():
+        return Path(rec.sample_path).read_text()
+    return f"outcome={rec.outcome}"
+
+
 async def test_mysql_plain_dump_produces_sql_receipt_and_history(tmp_path: Path) -> None:
     _prepare(tmp_path)
     with MySqlContainer("mariadb:11", username="root", password="pw", dbname="test") as maria:
@@ -74,7 +81,7 @@ async def test_mysql_plain_dump_produces_sql_receipt_and_history(tmp_path: Path)
         host, port = maria.get_container_host_ip(), int(maria.get_exposed_port(3306))
         rec = await _make_orch(tmp_path).perform(_job(host, port, DumpFormat.PLAIN))
 
-        assert rec.outcome is MovementOutcome.CLEAN
+        assert rec.outcome is MovementOutcome.CLEAN, _reason(rec)
         assert rec.bytes_written > 0
         assert rec.receipt_path and Path(rec.receipt_path).exists()
         dumps = list((tmp_path / "bowl" / "t").glob("*.sql"))
@@ -90,7 +97,7 @@ async def test_mysql_directory_dump_via_mydumper(tmp_path: Path) -> None:
         host, port = maria.get_container_host_ip(), int(maria.get_exposed_port(3306))
         rec = await _make_orch(tmp_path).perform(_job(host, port, DumpFormat.DIRECTORY))
 
-        assert rec.outcome is MovementOutcome.CLEAN
+        assert rec.outcome is MovementOutcome.CLEAN, _reason(rec)
         dirs = list((tmp_path / "bowl" / "t").glob("*.dir"))
         assert len(dirs) == 1
         # mydumper writes metadata + per-table schema/data files -> a multi-file directory
