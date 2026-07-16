@@ -26,6 +26,7 @@ from warden.services.planner import HuntPlanner
 from warden.services.quota import QuotaLedger
 from warden.services.quota_source import FallbackQuotaSource, ProwlarrQuotaSource
 from warden.services.progress import ProgressTracker
+from warden.services.space import SpaceGuard
 from warden.services.stale import StaleDetector
 from warden.services.sweeper import QueueSweeper
 
@@ -88,6 +89,7 @@ class Container(containers.DeclarativeContainer):
     )
     pacer = providers.Singleton(Pacer, poll_interval_sec=config.provided.poll_interval_sec)
     planner = providers.Singleton(HuntPlanner)
+    space_guard = providers.Singleton(SpaceGuard, min_free_bytes=config.provided.min_free_bytes)
     detector = providers.Singleton(StaleDetector, grace_hours=config.provided.stale_grace_hours)
     sweeper = providers.Singleton(
         QueueSweeper,
@@ -121,6 +123,7 @@ class Container(containers.DeclarativeContainer):
         metrics=metrics,
         schedule=schedule,
         quota_source=quota_source,
+        space_guard=space_guard,
         include_cutoff_unmet=config.provided.include_cutoff_unmet,
         fallback_per_day=config.provided.fallback_searches_per_day,
         prowlarr_fallback_on_error=config.provided.prowlarr_fallback_on_error,

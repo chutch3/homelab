@@ -14,6 +14,15 @@ def _env_bool(name: str, default: bool) -> bool:
     return raw.strip().lower() in ("1", "true", "yes", "on")
 
 
+def _min_free_bytes_from_env() -> int:
+    """Space-guard floor from WARDEN_MIN_FREE_GB (GB -> bytes, decimal). Unset or empty
+    means the guard is disabled (0 bytes); there is no baked-in default."""
+    raw = os.getenv("WARDEN_MIN_FREE_GB", "").strip()
+    if not raw:
+        return 0
+    return int(float(raw) * 1_000_000_000)
+
+
 def _instances_from_env() -> Iterator[InstanceConfig]:
     """Discover configured *arr instances from env vars.
 
@@ -59,6 +68,7 @@ class Config:
     backoff_enabled: bool
     backoff_miss_threshold: int
     backoff_cooldown_days: float
+    min_free_bytes: int
 
     @staticmethod
     def from_env() -> "Config":
@@ -90,4 +100,5 @@ class Config:
             backoff_enabled=_env_bool("WARDEN_BACKOFF_ENABLED", True),
             backoff_miss_threshold=int(os.getenv("WARDEN_BACKOFF_MISS_THRESHOLD", "3")),
             backoff_cooldown_days=float(os.getenv("WARDEN_BACKOFF_COOLDOWN_DAYS", "30")),
+            min_free_bytes=_min_free_bytes_from_env(),
         )

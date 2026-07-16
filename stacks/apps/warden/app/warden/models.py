@@ -46,6 +46,13 @@ class QueueItem:
 
 
 @dataclass(frozen=True)
+class RootFolder:
+    """An *arr library root folder and the free space on its filesystem (bytes)."""
+    path: str
+    free_space: int
+
+
+@dataclass(frozen=True)
 class Anchor:
     """No-progress checkpoint: a download's bytes-remaining at a point in time."""
     size_left: int
@@ -136,6 +143,7 @@ class ArrClientProtocol(Protocol):
     async def remove_queue_item(self, queue_id: int, *, remove_from_client: bool = True,
                                 blocklist: bool = True) -> None: ...
     async def list_grabbed_since(self, since: datetime) -> list["GrabEvent"]: ...
+    async def list_root_folders(self) -> list["RootFolder"]: ...
 
 
 class ProwlarrReader(Protocol):

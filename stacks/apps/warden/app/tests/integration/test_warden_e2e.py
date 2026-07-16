@@ -266,6 +266,53 @@ def test_grab_efficacy_records_hits_and_misses(launch, radarr_server, sonarr_ser
     assert miss and miss >= 1.0, "warden never recorded a miss for the never-grabbed item"
 
 
+GB = 1_000_000_000
+
+
+def test_low_disk_pauses_hunting_but_keeps_janitor(launch, radarr_server, sonarr_server):
+    # only 5 GB free, floor is 50 GB -> hunting is space-blocked, but the loop keeps
+    # ticking (janitor is decoupled from the space gate, same as the quota gate).
+    prime_radarr(radarr_server, missing=[(11, "Dune"), (12, "Heat")], free_space=5 * GB)
+    prime_sonarr(sonarr_server, missing=[])
+    warden = launch(**_env(radarr_server, sonarr_server), WARDEN_MIN_FREE_GB="50")
+
+    blocked = poll_until(lambda: sample(scrape(warden), "warden_space_blocked", source="radarr") == 1.0)
+    assert blocked
+    assert commands(radarr_server) == []
+    assert sample(scrape(warden), "warden_space_paused_ticks_total", source="radarr") >= 1.0
+    # loop keeps ticking while space-blocked (last_tick advances)
+    t1 = sample(scrape(warden), "warden_last_tick_timestamp_seconds")
+    assert poll_until(lambda: (sample(scrape(warden), "warden_last_tick_timestamp_seconds") or 0) > t1,
+                      timeout=10)
+
+
+def test_in_flight_queue_counts_against_headroom(launch, radarr_server, sonarr_server):
+    # 100 GB free looks fine against a 50 GB floor, but 80 GB is still downloading in the
+    # queue -> projected headroom (20 GB) is under the floor, so hunting is blocked.
+    huge = {"id": 90, "movieId": 11, "title": "big", "status": "downloading",
+            "errorMessage": None, "added": "2026-06-18T00:00:00Z",
+            "downloadId": "DL90", "size": 80 * GB, "sizeleft": 80 * GB}
+    prime_radarr(radarr_server, missing=[(11, "Dune"), (13, "Other")], queue=[huge],
+                 free_space=100 * GB)
+    prime_sonarr(sonarr_server, missing=[])
+    warden = launch(**_env(radarr_server, sonarr_server), WARDEN_MIN_FREE_GB="50")
+
+    blocked = poll_until(lambda: sample(scrape(warden), "warden_space_blocked", source="radarr") == 1.0)
+    assert blocked
+    assert commands(radarr_server) == []
+
+
+def test_ample_disk_still_hunts(launch, radarr_server, sonarr_server):
+    prime_radarr(radarr_server, missing=[(11, "Dune")], free_space=500 * GB)
+    prime_sonarr(sonarr_server, missing=[])
+    warden = launch(**_env(radarr_server, sonarr_server), WARDEN_MIN_FREE_GB="50")
+    issued = poll_until(lambda: commands(radarr_server))
+    assert issued and issued[0]["name"] == "MoviesSearch"
+    text = scrape(warden)
+    assert sample(text, "warden_space_blocked", source="radarr") == 0.0
+    assert sample(text, "warden_free_bytes", source="radarr") == float(500 * GB)
+
+
 def test_unfindable_item_is_backed_off(launch, radarr_server, sonarr_server):
     # a never-grabbed item that misses (threshold=1) earns a cooldown and drops out of hunting.
     prime_radarr(radarr_server, missing=[])

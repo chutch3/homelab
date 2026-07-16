@@ -50,6 +50,20 @@ If Prowlarr is unreachable it falls back to a flat per-day budget.
   (`downloadClientUnavailable` over half the queue), so warden never deletes data
   during an outage.
 
+## Space guard
+
+Warden can pause hunting when the disk is running low, so it stops asking for new
+releases before the drive fills. Each tick it reads the smallest free space across a
+source's *arr root folders and subtracts the bytes still downloading in that source's
+queue (in-flight grabs that haven't landed yet); if that **projected headroom** falls
+below `WARDEN_MIN_FREE_GB`, hunting is skipped for the tick. The janitor still runs, so a
+full disk keeps getting cleaned while hunting is paused.
+
+The guard is **off unless `WARDEN_MIN_FREE_GB` is set** — there is no default floor. If a
+root folder's free space can't be read (endpoint error, or all folders inaccessible),
+warden hunts anyway rather than freeze. `warden_space_blocked`, `warden_free_bytes`, and
+`warden_projected_free_bytes` expose the state per source.
+
 ## Search efficacy & backoff
 
 Warden correlates each search it fires against Radarr/Sonarr grab history: a grab for
@@ -79,6 +93,7 @@ All via `WARDEN_*` env vars. Instances are discovered from `WARDEN_RADARR_URL` /
 | `WARDEN_POLL_INTERVAL_SEC` | `300` | seconds between ticks |
 | `WARDEN_RESERVE_PCT` | `20` | quota held back from the indexer limit |
 | `WARDEN_RESET_AT_LOCAL` | `00:00` | when the daily budget resets |
+| `WARDEN_MIN_FREE_GB` | _(unset)_ | pause hunting when projected free disk drops below this (GB); unset disables the space guard |
 | `WARDEN_STALE_GRACE_HOURS` | `48` | age before a stalled item is removable |
 | `WARDEN_STALE_NO_PROGRESS_HOURS` | `12` | how long an item must stay completely frozen before removal |
 | `WARDEN_STALE_JITTER_TOLERANCE_MB` | `0` | drain below this counts as frozen (`0` = any progress resets the clock) |

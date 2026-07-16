@@ -85,6 +85,24 @@ class TestConfig:
         assert Config.from_env().prowlarr_fallback_on_error is False
 
 
+class TestSpaceGuardConfig:
+    def test_disabled_by_default_when_env_absent(self, monkeypatch):
+        monkeypatch.delenv("WARDEN_MIN_FREE_GB", raising=False)
+        assert Config.from_env().min_free_bytes == 0
+
+    def test_empty_env_disables_the_guard(self, monkeypatch):
+        monkeypatch.setenv("WARDEN_MIN_FREE_GB", "")
+        assert Config.from_env().min_free_bytes == 0
+
+    def test_gb_value_converts_to_bytes(self, monkeypatch):
+        monkeypatch.setenv("WARDEN_MIN_FREE_GB", "50")
+        assert Config.from_env().min_free_bytes == 50_000_000_000
+
+    def test_fractional_gb_supported(self, monkeypatch):
+        monkeypatch.setenv("WARDEN_MIN_FREE_GB", "0.5")
+        assert Config.from_env().min_free_bytes == 500_000_000
+
+
 class TestStaleConfig:
     def test_stale_defaults(self, monkeypatch):
         for v in ("WARDEN_STALE_SWEEP_ENABLED", "WARDEN_STALE_GRACE_HOURS",

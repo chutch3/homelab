@@ -5,7 +5,7 @@ from datetime import datetime, timezone
 
 import httpx
 
-from warden.models import ArrType, GrabEvent, QueueItem, WantedItem, WantKind
+from warden.models import ArrType, GrabEvent, QueueItem, RootFolder, WantedItem, WantKind
 
 
 def _parse_iso(raw: str | None) -> datetime | None:
@@ -118,6 +118,20 @@ class ArrClient(ABC):
             params={"removeFromClient": str(remove_from_client).lower(),
                     "blocklist": str(blocklist).lower()})
         resp.raise_for_status()
+
+    async def list_root_folders(self) -> list[RootFolder]:
+        """Free space per configured library root folder. Inaccessible folders report no
+        freeSpace and are omitted, so callers only see real readings. This endpoint is a
+        flat array (not paged)."""
+        resp = await self._http.get(f"{self._base}/api/v3/rootfolder", headers=self._headers)
+        resp.raise_for_status()
+        folders: list[RootFolder] = []
+        for r in resp.json():
+            free = r.get("freeSpace")
+            if free is None:
+                continue                          # inaccessible root folder — no reading
+            folders.append(RootFolder(path=r.get("path", ""), free_space=int(free)))
+        return folders
 
     async def list_grabbed_since(self, since: datetime) -> list[GrabEvent]:
         resp = await self._http.get(

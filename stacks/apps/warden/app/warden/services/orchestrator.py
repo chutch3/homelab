@@ -19,6 +19,7 @@ from warden.services.pacer import Pacer
 from warden.services.planner import HuntPlanner
 from warden.services.progress import ProgressTracker
 from warden.services.quota import QuotaLedger
+from warden.services.space import SpaceGuard, SpaceVerdict
 from warden.services.stale import StaleVerdict
 from warden.services.sweeper import QueueSweeper
 
@@ -44,6 +45,7 @@ class TickOrchestrator:
         metrics: Metrics,
         schedule: ResetSchedule,
         quota_source: QuotaSource,
+        space_guard: SpaceGuard,
         include_cutoff_unmet: bool,
         fallback_per_day: int,
         prowlarr_fallback_on_error: bool,
@@ -65,6 +67,7 @@ class TickOrchestrator:
         self._metrics = metrics
         self._schedule = schedule
         self._quota_source = quota_source
+        self._space_guard = space_guard
         self._include_cutoff = include_cutoff_unmet
         self._fallback_per_day = fallback_per_day
         self._prowlarr_fallback_on_error = prowlarr_fallback_on_error
@@ -121,6 +124,8 @@ class TickOrchestrator:
                     _logger.info("source quota-blocked", extra={"event": "blocked", "source": src, "budget": state.daily_budget, "spent": spent, "mode": "prowlarr" if is_prowlarr else "fallback"})
                     continue
                 m.blocked.labels(source=src).set(0)
+                if await self._space_blocked(client, queue):
+                    continue
                 all_blocked = False
                 allowance = self._pacer.allowance(state.remaining, seconds_to_reset)
                 if self._backoff.enabled:
@@ -159,6 +164,43 @@ class TickOrchestrator:
         m.indexers_total.labels(source=src).set(total)
         m.indexers_defaulted.labels(source=src).set(defaulted)
         return state, is_prowlarr, spent
+
+    async def _space_blocked(self, client: ArrClientProtocol, queue: list[QueueItem]) -> bool:
+        """When the space guard is enabled, pause hunting if the disk's projected headroom
+        (min free across root folders, minus bytes still downloading) is below the floor.
+        Fails open: any unreadable space (fetch error or no accessible root folder) hunts
+        anyway, consistent with warden's other degrade-don't-block behaviours."""
+        if not self._space_guard.enabled:
+            return False
+        m = self._metrics
+        src = client.name
+        verdict = await self._space_verdict(client, queue)
+        if verdict is not None:
+            m.free_bytes.labels(source=src).set(verdict.free_bytes)
+            m.projected_free_bytes.labels(source=src).set(verdict.projected_bytes)
+        blocked = bool(verdict and verdict.blocked)
+        m.space_blocked.labels(source=src).set(1 if blocked else 0)
+        if blocked:
+            m.space_paused_ticks.labels(source=src).inc()
+            _logger.info("source space-blocked", extra={"event": "space_blocked", "source": src,
+                "path": verdict.path, "free_bytes": verdict.free_bytes,
+                "projected_bytes": verdict.projected_bytes})
+        return blocked
+
+    async def _space_verdict(self, client: ArrClientProtocol,
+                             queue: list[QueueItem]) -> SpaceVerdict | None:
+        """Fetch root-folder free space and evaluate the guard. Returns None when space is
+        unreadable (fetch error, or no accessible root folder) so the caller fails open."""
+        try:
+            root_folders = await client.list_root_folders()
+        except Exception as exc:  # noqa: BLE001 - space unreadable; hunt anyway
+            _logger.warning("root folder space unreachable; hunting anyway",
+                            extra={"event": "space_unreachable", "source": client.name, "error": str(exc)})
+            return None
+        # Pre-sweep queue snapshot: items removed this tick still count toward committed,
+        # which only makes the guard slightly more conservative (never under-blocks).
+        committed = sum(q.size_left for q in queue)
+        return self._space_guard.evaluate(root_folders, committed)
 
     async def _sweep(self, client: ArrClientProtocol, queue: list[QueueItem], now: datetime,
                      extra: list[StaleVerdict]) -> set[int]:

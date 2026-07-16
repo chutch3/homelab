@@ -75,7 +75,8 @@ class FakeArrClient:
 
     def __init__(self, name: str, missing: list[WantedItem], cutoff: list[WantedItem] | None = None,
                  raises: bool = False, arr_type: ArrType = ArrType.RADARR, queue=None,
-                 remove_raises: bool = False, grabs=None, grab_raises: bool = False) -> None:
+                 remove_raises: bool = False, grabs=None, grab_raises: bool = False,
+                 root_folders=None, root_folders_raises: bool = False) -> None:
         self.name = name
         self.arr_type = arr_type
         self._missing = missing
@@ -85,9 +86,12 @@ class FakeArrClient:
         self._remove_raises = remove_raises
         self._grabs = grabs or []
         self._grab_raises = grab_raises
+        self._root_folders = root_folders or []
+        self._root_folders_raises = root_folders_raises
         self.searched: list[list[int]] = []
         self.removed: list[int] = []
         self.grabbed_since: list = []
+        self.root_folder_calls: int = 0
 
     async def list_missing(self) -> list[WantedItem]:
         if self._raises:
@@ -116,3 +120,9 @@ class FakeArrClient:
         if self._grab_raises:
             raise RuntimeError("history failed")
         return list(self._grabs)
+
+    async def list_root_folders(self):
+        self.root_folder_calls += 1
+        if self._root_folders_raises:
+            raise RuntimeError("rootfolder failed")
+        return list(self._root_folders)

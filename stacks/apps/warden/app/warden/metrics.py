@@ -30,6 +30,19 @@ class Metrics:
             ["source"], registry=registry)
         self.blocked = Gauge(
             "warden_blocked", "1 when a source is quota-paused", ["source"], registry=registry)
+        self.space_blocked = Gauge(
+            "warden_space_blocked", "1 when a source is space-paused (low disk headroom)",
+            ["source"], registry=registry)
+        self.space_paused_ticks = Counter(
+            "warden_space_paused_ticks_total",
+            "Ticks a source was space-paused (× poll interval ≈ paused time)",
+            ["source"], registry=registry)
+        self.free_bytes = Gauge(
+            "warden_free_bytes", "Smallest free space across the source's *arr root folders",
+            ["source"], registry=registry)
+        self.projected_free_bytes = Gauge(
+            "warden_projected_free_bytes", "Free bytes minus in-flight queue size_left (hunt headroom)",
+            ["source"], registry=registry)
         self.instance_up = Gauge(
             "warden_instance_up", "1 when the *arr source responded this tick", ["source"], registry=registry)
         self.prowlarr_up = Gauge(
