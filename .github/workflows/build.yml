@@ -57,9 +57,10 @@ jobs:
                   echo "units=$units" >> "$GITHUB_OUTPUT"
                   echo "Affected: $units"
 
-    # One job per affected image. PR builds (no push); main pushes :sha + :latest.
-    build:
-        name: Build ${{ matrix.service }}
+    # One job per affected unit — run its unit+integration suite. Mirrors `build`;
+    # `build` needs this, so an image never builds/pushes when its tests fail.
+    test:
+        name: Test ${{ matrix.service }}
         needs: detect
         if: needs.detect.outputs.units != '[]'
         runs-on: ubuntu-latest
@@ -97,6 +98,34 @@ jobs:
               # (e2e.yml / `ci test --tier e2e`). Keyed on the build context so multi-image
               # stacks test the right subtree; no-ops for units with no pyproject (devbox).
               run: uv run ci test "${{ matrix.context }}"
+
+    # Always-run required check for tests (mirrors Build gate) — this, not the
+    # path-filtered matrix, is what branch protection should require.
+    test-gate:
+        name: Test gate
+        needs: [detect, test]
+        if: always()
+        runs-on: ubuntu-latest
+        steps:
+            - name: Verify tests
+              run: |
+                  if [ "${{ needs.test.result }}" = "failure" ] || [ "${{ needs.test.result }}" = "cancelled" ]; then
+                      echo "A test job failed."; exit 1
+                  fi
+                  echo "All affected tests passed (or nothing to test)."
+
+    # One job per affected image. PR builds (no push); main pushes :sha + :latest.
+    build:
+        name: Build ${{ matrix.service }}
+        needs: [detect, test]
+        if: needs.detect.outputs.units != '[]'
+        runs-on: ubuntu-latest
+        strategy:
+            fail-fast: false
+            matrix:
+                include: ${{ fromJSON(needs.detect.outputs.units) }}
+        steps:
+            - uses: actions/checkout@v4
 
             - name: Set up Docker Buildx
               uses: docker/setup-buildx-action@v3
