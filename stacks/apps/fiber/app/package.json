@@ -1,0 +1,13 @@
+{
+  "name": "fiber-frontend",
+  "private": true,
+  "type": "module",
+  "description": "Throne Room client-side JS (browser assets under fiber/static). Tested with vitest + jsdom; not part of the Python package or the runtime image.",
+  "scripts": {
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "jsdom": "^25.0.1",
+    "vitest": "^3.2.0"
+  }
+}

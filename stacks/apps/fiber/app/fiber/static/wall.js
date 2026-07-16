@@ -29,7 +29,9 @@ function startSSE() {
       const msg = JSON.parse(e.data);
       if (msg.type === 'tile' && msg.service) {
         const el = document.getElementById('tile-' + msg.service);
-        if (el) updateTile(el, msg.html);
+        // updateTile (tiles.js) morphs in place; returns true when it replaced the
+        // node, in which case the grid needs re-laying out.
+        if (el && updateTile(el, msg.html)) layoutWall();
       } else if (msg.type === 'summary') {
         const summary = document.getElementById('summary');
         if (summary) summary.innerHTML = msg.html;
@@ -45,28 +47,8 @@ function startSSE() {
   };
 }
 
-// Apply a fresh tile render. A straining tile is re-pushed every ~2s; replacing the
-// whole node restarts its CSS animations (the tile's rise-in flash and the strainbar's
-// sweep), which reads as flashing + a resetting progress bar. So when the status class
-// is unchanged, sync only the live text in place and leave the node — and its running
-// animations — intact. Fall back to a full swap only on an actual status transition.
-function updateTile(el, html) {
-  const tmp = document.createElement('template');
-  tmp.innerHTML = html.trim();
-  const fresh = tmp.content.firstElementChild;
-  if (!fresh) return;
-  if (el.className === fresh.className) {
-    const oldLabel = el.querySelector('[data-strain]');
-    const newLabel = fresh.querySelector('[data-strain]');
-    if (oldLabel && newLabel) oldLabel.textContent = newLabel.textContent;
-    const oldFoot = el.querySelectorAll('.foot span');
-    const newFoot = fresh.querySelectorAll('.foot span');
-    newFoot.forEach((n, i) => { if (oldFoot[i]) oldFoot[i].textContent = n.textContent; });
-  } else {
-    el.replaceWith(fresh);
-    layoutWall();
-  }
-}
+// updateTile lives in tiles.js (loaded as a module before this script), which exposes
+// it on window and is unit-tested in isolation.
 
 document.addEventListener('DOMContentLoaded', startSSE);
 
