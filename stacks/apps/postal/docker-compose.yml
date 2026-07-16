@@ -51,6 +51,7 @@ services:
       start_period: 30s
     networks:
       - postal-internal
+      - backups
     deploy:
       placement:
         constraints:
@@ -58,6 +59,17 @@ services:
       restart_policy:
         condition: any
         delay: 5s
+      labels:
+        # Fiber dumps the `postal` control DB (servers, domains, routing, creds).
+        # NOTE: postal also creates one DB per mail server (postal-server-*) for
+        # message data — those are NOT captured by this single-DB dump.
+        - "fiber.enable=true"
+        - "fiber.provider=swarm"
+        - "fiber.engine=mysql"
+        - "fiber.dbname=postal"
+        - "fiber.user=root"
+        - "fiber.secret=postal_db_password"
+        - "fiber.schedule=0 3 * * *"
 
   web:
     image: ghcr.io/postalserver/postal:3.3.7
@@ -156,6 +168,8 @@ networks:
   postal-internal:
     driver: overlay
   traefik-public:
+    external: true
+  backups:
     external: true
 
 volumes:

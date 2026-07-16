@@ -45,6 +45,7 @@ swarm_env_vars:
   RSTUDIO_PASSWORD: "test-password"
   IMMICH_DB_PASSWORD: "test-password"
   AUTHENTIK_POSTGRES_PASSWORD: "test-password"
+  PHOTOPRISM_DB_PASSWORD: "test-password"
   POSTAL_DB_PASSWORD: "test-password"
   POSTAL_SECRET_KEY: "test-secret"
   SMTP2GO_USERNAME: "test-user"

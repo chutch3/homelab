@@ -1,3 +1,8 @@
+# Create the swarm secret Fiber reads to dump this DB.
+secrets:
+  - name: postal_db_password
+    from_env: POSTAL_DB_PASSWORD
+
 validate:
   env:
     - POSTAL_DB_PASSWORD
