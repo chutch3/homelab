@@ -76,6 +76,13 @@ jobs:
               with:
                   enable-cache: true
 
+            # For units with a package.json, `ci test` runs their npm test suite
+            # (npm ci + npm run test) — e.g. fiber's browser JS. Harmless for the rest.
+            - name: Set up Node
+              uses: actions/setup-node@v4
+              with:
+                  node-version: "22"
+
             # ubuntu-latest ships psql/pg_dump (fiber's pg integration tests use them) but
             # not the MariaDB client tools; fiber's mysql integration tests drive
             # mariadb-dump/mydumper on the runner host. The distro's mydumper is 0.10.1,
@@ -96,7 +103,8 @@ jobs:
               # Runs unit + integration together; the project's --cov-fail-under applies
               # to their COMBINED coverage. e2e is orchestration-heavy and runs separately
               # (e2e.yml / `ci test --tier e2e`). Keyed on the build context so multi-image
-              # stacks test the right subtree; no-ops for units with no pyproject (devbox).
+              # stacks test the right subtree; runs pytest and/or npm test per unit, and
+              # no-ops for units with neither a pyproject nor a package.json (devbox).
               run: uv run ci test "${{ matrix.context }}"
 
     # Always-run required check for tests (mirrors Build gate) — this, not the
