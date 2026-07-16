@@ -81,5 +81,6 @@ nav:
   - "Architecture":
       - "Overview": "architecture/overview.md"
       - "Storage": "architecture/storage.md"
+      - "Build & Test Pipeline": "architecture/build-pipeline.md"
   - "Services": "services/index.md"
   - "Roadmap": "roadmap.md"
