@@ -158,14 +158,16 @@ def commands(server: HTTPServer) -> list[dict]:
     return [r.get_json() for r in _records(server, "/api/v3/command", "POST")]
 
 
-def prime_radarr(server: HTTPServer, *, missing=(), cutoff=(), queue=(), grab_ids=()) -> None:
+def prime_radarr(server: HTTPServer, *, missing=(), cutoff=(), queue=(), grab_ids=(),
+                 free_space=None) -> None:
     _prime_arr(server, missing=missing, cutoff=cutoff, queue=queue, grab_ids=grab_ids,
-               id_field="movieId")
+               id_field="movieId", free_space=free_space)
 
 
-def prime_sonarr(server: HTTPServer, *, missing=(), cutoff=(), queue=(), grab_ids=()) -> None:
+def prime_sonarr(server: HTTPServer, *, missing=(), cutoff=(), queue=(), grab_ids=(),
+                 free_space=None) -> None:
     _prime_arr(server, missing=missing, cutoff=cutoff, queue=queue, grab_ids=grab_ids,
-               id_field="episodeId")
+               id_field="episodeId", free_space=free_space)
 
 
 def _missing_record(m) -> dict:
@@ -192,7 +194,7 @@ def _history_handler(grab_ids, id_field: str):
 
 
 def _prime_arr(server: HTTPServer, *, missing=(), cutoff=(), queue=(), grab_ids=(),
-               id_field="movieId") -> None:
+               id_field="movieId", free_space=None) -> None:
     server.expect_request("/api/v3/wanted/missing").respond_with_json(
         {"records": [_missing_record(m) for m in missing]})
     server.expect_request("/api/v3/wanted/cutoff").respond_with_json(
@@ -202,6 +204,10 @@ def _prime_arr(server: HTTPServer, *, missing=(), cutoff=(), queue=(), grab_ids=
     server.expect_request(re.compile(r"^/api/v3/queue/\d+$"), method="DELETE").respond_with_json({})
     server.expect_request("/api/v3/history/since").respond_with_handler(
         _history_handler(grab_ids, id_field))
+    # rootfolder feeds the space guard; free_space=None => no accessible reading (guard fails open).
+    server.expect_request("/api/v3/rootfolder").respond_with_json(
+        [] if free_space is None
+        else [{"path": "/data", "accessible": True, "freeSpace": free_space}])
 
 
 def deletes(server: HTTPServer) -> list:

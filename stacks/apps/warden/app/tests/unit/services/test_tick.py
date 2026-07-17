@@ -6,7 +6,7 @@ from prometheus_client import CollectorRegistry
 
 from warden.clock import SystemClock
 from warden.metrics import Metrics
-from warden.models import ArrType, GrabEvent, QueueItem, SourceQuota
+from warden.models import ArrType, GrabEvent, QueueItem, RootFolder, SourceQuota
 from warden.repositories.ledger import SearchLedgerRepository
 from warden.schedule import ResetSchedule
 from warden.services.backoff import BackoffTracker
@@ -17,6 +17,7 @@ from warden.services.planner import HuntPlanner
 from warden.services.quota import QuotaLedger
 from warden.services.quota_source import FallbackQuotaSource
 from warden.services.progress import ProgressTracker
+from warden.services.space import SpaceGuard
 from warden.services.stale import StaleDetector
 from warden.services.sweeper import QueueSweeper
 from tests.factories import (
@@ -51,6 +52,7 @@ class FrozenClock(SystemClock):
 
 
 NOON = datetime(2026, 6, 16, 12, 0, tzinfo=timezone.utc)
+GB = 1_000_000_000
 
 
 class StubQuotaSource:
@@ -79,7 +81,7 @@ class TestTickOrchestrator:
     def make(self, repo: SearchLedgerRepository) -> Callable[..., tuple[TickOrchestrator, Metrics]]:
         def _make(clients, *, quota_source=None, fallback=200, reserve=20, poll=300, when=NOON,
                   prowlarr_fallback_on_error=True, progress_repo=None, efficacy_repo=None,
-                  efficacy=None, backoff=None, backoff_repo=None):
+                  efficacy=None, backoff=None, backoff_repo=None, space_guard=None):
             schedule = ResetSchedule("00:00")
             metrics = Metrics(CollectorRegistry())
             orch = TickOrchestrator(
@@ -99,6 +101,7 @@ class TestTickOrchestrator:
                 metrics=metrics,
                 schedule=schedule,
                 quota_source=quota_source or FallbackQuotaSource(),
+                space_guard=space_guard or SpaceGuard(0),
                 include_cutoff_unmet=True,
                 fallback_per_day=fallback,
                 poll_interval_sec=poll,
@@ -399,3 +402,83 @@ class TestTickOrchestrator:
         searched = [i for batch in radarr.searched for i in batch]
         assert 7 in searched                          # disabled -> active() not consulted
         assert boff.streaks("radarr", [8]) == {}      # disabled -> no streak recorded for the miss
+
+    async def test_space_blocked_skips_hunt_but_janitor_still_sweeps(self, make):
+        # low disk pauses hunting, but the sweep (which costs no space) still runs.
+        radarr = FakeArrClient(
+            "radarr", [missing_item("radarr", 1)], arr_type=ArrType.RADARR,
+            root_folders=[RootFolder("/data", 5 * GB)],
+            queue=[QueueItem(id=11, remote_id=2, title="s", status="warning",
+                             error_message="stalled with no connections", added=NOON - timedelta(hours=72))])
+        orch, metrics = make([radarr], space_guard=SpaceGuard(50 * GB))
+        decision = await orch.tick()
+        assert radarr.searched == []          # hunting paused
+        assert radarr.removed == [11]         # janitor still swept
+        assert decision.reason == "blocked"
+        reg = metrics.registry
+        assert reg.get_sample_value("warden_space_blocked", {"source": "radarr"}) == 1
+        assert reg.get_sample_value("warden_space_paused_ticks_total", {"source": "radarr"}) == 1
+
+    async def test_ample_space_hunts_and_publishes_headroom(self, make):
+        radarr = FakeArrClient("radarr", [missing_item("radarr", 1)], arr_type=ArrType.RADARR,
+                               root_folders=[RootFolder("/data", 500 * GB)])
+        orch, metrics = make([radarr], space_guard=SpaceGuard(50 * GB))
+        await orch.tick()
+        assert radarr.searched == [[1]]
+        reg = metrics.registry
+        assert reg.get_sample_value("warden_space_blocked", {"source": "radarr"}) == 0
+        assert reg.get_sample_value("warden_free_bytes", {"source": "radarr"}) == 500 * GB
+        assert reg.get_sample_value("warden_projected_free_bytes", {"source": "radarr"}) == 500 * GB
+
+    async def test_in_flight_queue_pushes_headroom_below_floor_and_blocks(self, make):
+        # 100 GB free clears the 50 GB floor, but 80 GB in flight -> 20 GB projected -> blocked.
+        radarr = FakeArrClient(
+            "radarr", [missing_item("radarr", 1)], arr_type=ArrType.RADARR,
+            root_folders=[RootFolder("/data", 100 * GB)],
+            queue=[QueueItem(id=90, remote_id=2, title="big", status="downloading",
+                             error_message="", added=NOON - timedelta(hours=1),
+                             download_id="DL90", size_left=80 * GB)])
+        orch, metrics = make([radarr], space_guard=SpaceGuard(50 * GB))
+        await orch.tick()
+        assert radarr.searched == []
+        reg = metrics.registry
+        assert reg.get_sample_value("warden_space_blocked", {"source": "radarr"}) == 1
+        assert reg.get_sample_value("warden_projected_free_bytes", {"source": "radarr"}) == 20 * GB
+
+    async def test_space_read_error_fails_open(self, make):
+        radarr = FakeArrClient("radarr", [missing_item("radarr", 1)], arr_type=ArrType.RADARR,
+                               root_folders_raises=True)
+        orch, metrics = make([radarr], space_guard=SpaceGuard(50 * GB))
+        await orch.tick()
+        assert radarr.searched == [[1]]       # unreadable space -> hunt anyway
+        assert metrics.registry.get_sample_value("warden_space_blocked", {"source": "radarr"}) == 0
+
+    async def test_no_root_folder_readings_fails_open(self, make):
+        radarr = FakeArrClient("radarr", [missing_item("radarr", 1)], arr_type=ArrType.RADARR,
+                               root_folders=[])
+        orch, _ = make([radarr], space_guard=SpaceGuard(50 * GB))
+        await orch.tick()
+        assert radarr.searched == [[1]]
+
+    async def test_space_block_is_per_source(self, make):
+        # radarr's disk is low, sonarr's is fine -> only radarr pauses; sonarr keeps hunting.
+        radarr = FakeArrClient("radarr", [missing_item("radarr", 1)], arr_type=ArrType.RADARR,
+                               root_folders=[RootFolder("/movies", 5 * GB)])
+        sonarr = FakeArrClient("sonarr", [missing_item("sonarr", 9)], arr_type=ArrType.SONARR,
+                               root_folders=[RootFolder("/tv", 500 * GB)])
+        orch, metrics = make([radarr, sonarr], space_guard=SpaceGuard(50 * GB))
+        await orch.tick()
+        assert radarr.searched == []
+        assert sonarr.searched == [[9]]
+        reg = metrics.registry
+        assert reg.get_sample_value("warden_space_blocked", {"source": "radarr"}) == 1
+        assert reg.get_sample_value("warden_space_blocked", {"source": "sonarr"}) == 0
+
+    async def test_guard_disabled_never_reads_root_folders(self, make):
+        # a floor of 0 disables the guard; the root folder endpoint is never consulted.
+        radarr = FakeArrClient("radarr", [missing_item("radarr", 1)], arr_type=ArrType.RADARR,
+                               root_folders=[RootFolder("/data", 1)])   # would block if read
+        orch, _ = make([radarr])   # default SpaceGuard(0)
+        await orch.tick()
+        assert radarr.searched == [[1]]
+        assert radarr.root_folder_calls == 0

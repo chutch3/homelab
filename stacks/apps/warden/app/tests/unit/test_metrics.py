@@ -47,6 +47,21 @@ class TestMetrics:
             "warden_last_tick_timestamp_seconds", {}) == 1718700000.0
 
 
+def test_space_metrics_exist():
+    from prometheus_client import CollectorRegistry
+    from warden.metrics import Metrics
+    m = Metrics(CollectorRegistry())
+    m.space_blocked.labels(source="radarr").set(1)
+    m.space_paused_ticks.labels(source="radarr").inc()
+    m.free_bytes.labels(source="radarr").set(500_000_000_000)
+    m.projected_free_bytes.labels(source="radarr").set(420_000_000_000)
+    reg = m.registry
+    assert reg.get_sample_value("warden_space_blocked", {"source": "radarr"}) == 1
+    assert reg.get_sample_value("warden_space_paused_ticks_total", {"source": "radarr"}) == 1
+    assert reg.get_sample_value("warden_free_bytes", {"source": "radarr"}) == 500_000_000_000
+    assert reg.get_sample_value("warden_projected_free_bytes", {"source": "radarr"}) == 420_000_000_000
+
+
 def test_stale_metrics_exist():
     from prometheus_client import CollectorRegistry
     from warden.metrics import Metrics

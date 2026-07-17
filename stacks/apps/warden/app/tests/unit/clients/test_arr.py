@@ -166,6 +166,36 @@ class TestRadarrQueue:
         assert seen["params"] == {"removeFromClient": "true", "blocklist": "true"}
 
 
+class TestRootFolders:
+    async def test_list_root_folders_maps_path_and_free_space(self):
+        def handler(request: httpx.Request) -> httpx.Response:
+            assert request.url.path == "/api/v3/rootfolder"
+            assert request.headers["X-Api-Key"] == "rk"
+            return httpx.Response(200, json=[
+                {"id": 1, "path": "/movies", "accessible": True, "freeSpace": 123456789},
+                {"id": 2, "path": "/movies4k", "accessible": True, "freeSpace": 42},
+            ])
+
+        client = RadarrClient(name="radarr", base_url="http://radarr",
+                              http=httpx.AsyncClient(transport=transport(handler)), api_key="rk")
+        folders = await client.list_root_folders()
+        assert [(f.path, f.free_space) for f in folders] == [("/movies", 123456789), ("/movies4k", 42)]
+
+    async def test_list_root_folders_skips_inaccessible_without_free_space(self):
+        # an inaccessible root folder reports no freeSpace -> excluded (no space reading)
+        def handler(request: httpx.Request) -> httpx.Response:
+            return httpx.Response(200, json=[
+                {"id": 1, "path": "/ok", "accessible": True, "freeSpace": 100},
+                {"id": 2, "path": "/gone", "accessible": False},
+                {"id": 3, "path": "/null", "accessible": False, "freeSpace": None},
+            ])
+
+        client = RadarrClient(name="radarr", base_url="http://radarr",
+                              http=httpx.AsyncClient(transport=transport(handler)), api_key="rk")
+        folders = await client.list_root_folders()
+        assert [(f.path, f.free_space) for f in folders] == [("/ok", 100)]
+
+
 class TestRadarrHistory:
     async def test_list_grabbed_since_maps_events_and_date_param(self):
         seen = {}

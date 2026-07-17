@@ -14,6 +14,7 @@ from warden.services.planner import HuntPlanner
 from warden.services.quota import QuotaLedger
 from warden.services.quota_source import FallbackQuotaSource
 from warden.services.progress import ProgressTracker
+from warden.services.space import SpaceGuard
 from warden.services.backoff import BackoffTracker
 from warden.services.efficacy import EfficacyTracker
 from warden.services.stale import StaleDetector
@@ -47,6 +48,7 @@ def _make_orch(clients, repo: SearchLedgerRepository) -> TickOrchestrator:
         metrics=Metrics(CollectorRegistry()),
         schedule=schedule,
         quota_source=FallbackQuotaSource(),
+        space_guard=SpaceGuard(0),
         include_cutoff_unmet=True,
         fallback_per_day=200,
         prowlarr_fallback_on_error=True,

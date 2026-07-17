@@ -20,6 +20,9 @@ services:
             - WARDEN_FALLBACK_SEARCHES_PER_DAY=${WARDEN_FALLBACK_SEARCHES_PER_DAY:-200}
             - WARDEN_RESET_AT_LOCAL=${WARDEN_RESET_AT_LOCAL:-00:00}
             - WARDEN_POLL_INTERVAL_SEC=${WARDEN_POLL_INTERVAL_SEC:-300}
+            # Space guard: pause hunting when projected free disk (min root-folder free
+            # minus in-flight queue) drops below this many GB. Unset = guard disabled.
+            - WARDEN_MIN_FREE_GB=${WARDEN_MIN_FREE_GB:-}
             # Optional: point at Prowlarr to derive per-source budgets from real
             # indexer query limits (omit to use the flat fallback budget).
             - WARDEN_PROWLARR_URL=${WARDEN_PROWLARR_URL:-}
