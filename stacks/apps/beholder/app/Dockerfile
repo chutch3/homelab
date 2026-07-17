@@ -14,4 +14,7 @@ RUN mkdir -p /state && chown node:node /state
 
 USER node
 
+# Prometheus metrics (scraped by the monitoring stack)
+EXPOSE 9090
+
 CMD ["node", "src/index.js"]
