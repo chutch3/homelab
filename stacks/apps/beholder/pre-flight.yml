@@ -1,0 +1,13 @@
+validate:
+  env:
+    - ACTUAL_PASSWORD
+    - ACTUAL_BUDGET_SYNC_ID
+    - BEHOLDER_POSTAL_API_KEY
+    - BEHOLDER_ALERT_TO
+    - BEHOLDER_CHECKING_ACCOUNT
+    - BEHOLDER_CARD_ACCOUNTS
+    - BEHOLDER_SAVINGS_CATEGORY
+
+# beholder runs as the node user (uid 1000)
+directories:
+  - { path: beholder/state, owner: 1000, group: 1000 }
