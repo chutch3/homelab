@@ -25,7 +25,6 @@ def _cmd_affected(args: argparse.Namespace) -> int:
 
 
 def _cmd_test(args: argparse.Namespace) -> int:
-    projects = apptests.discover_test_projects(args.repo_root)
     if args.affected:
         # Test only the projects under the contexts a change vs the base touched.
         diff = subprocess.run(
@@ -33,13 +32,21 @@ def _cmd_test(args: argparse.Namespace) -> int:
             capture_output=True, text=True, check=True,
         ).stdout.split()
         contexts = {entry["context"] for entry in affected.compute_matrix(args.repo_root, diff)}
-        selected = sorted({p for c in contexts for p in apptests.select_projects(projects, c)})
+        pick = lambda ps: sorted({p for c in contexts for p in apptests.select_projects(ps, c)})  # noqa: E731
     else:
-        selected = apptests.select_projects(projects, args.selector)
+        pick = lambda ps: apptests.select_projects(ps, args.selector)  # noqa: E731
+
     # No --tier → the gated default suite (unit+integration, combined coverage).
-    return apptests.run_tests(
-        args.repo_root, selected, apptests.tiers_to_run(args.tier), gated=args.tier is None
+    py_rc, py_ran = apptests.run_tests(
+        args.repo_root, pick(apptests.discover_test_projects(args.repo_root)),
+        apptests.tiers_to_run(args.tier), gated=args.tier is None,
     )
+    js_rc, js_ran = apptests.run_js_tests(
+        args.repo_root, pick(apptests.discover_js_projects(args.repo_root)), args.tier,
+    )
+    if not (py_ran or js_ran):
+        print("No matching test suites.")
+    return py_rc or js_rc
 
 
 def _cmd_images(args: argparse.Namespace) -> int:
