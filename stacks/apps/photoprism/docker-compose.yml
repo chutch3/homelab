@@ -111,8 +111,17 @@ services:
                 constraints:
                     # Centralized database node for all databases
                     - node.labels.database == true
+            labels:
+                - "fiber.enable=true"
+                - "fiber.provider=swarm"
+                - "fiber.engine=mysql"
+                - "fiber.dbname=photoprism"
+                - "fiber.user=photoprism"
+                - "fiber.secret=photoprism_db_password"
+                - "fiber.schedule=0 3 * * *"
         networks:
             - traefik-public
+            - backups
 
     ## Ollama Large-Language Model Runner (optional)
     ## Run "ollama pull [name]:[version]" to download a vision model
@@ -165,6 +174,8 @@ services:
 
 networks:
     traefik-public:
+        external: true
+    backups:
         external: true
 
 volumes:

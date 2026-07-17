@@ -25,6 +25,7 @@ services:
       start_period: 30s
     networks:
       - librenms-internal
+      - backups
     deploy:
       placement:
         constraints:
@@ -32,6 +33,14 @@ services:
       restart_policy:
         condition: any
         delay: 5s
+      labels:
+        - "fiber.enable=true"
+        - "fiber.provider=swarm"
+        - "fiber.engine=mysql"
+        - "fiber.dbname=librenms"
+        - "fiber.user=librenms"
+        - "fiber.secret=librenms_db_password"
+        - "fiber.schedule=0 3 * * *"
 
   redis:
     image: redis:7.2-alpine
@@ -219,6 +228,8 @@ networks:
   librenms-internal:
     driver: overlay
   traefik-public:
+    external: true
+  backups:
     external: true
 
 volumes:

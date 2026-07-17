@@ -1,6 +1,6 @@
 services:
     fiber:
-        image: ${REGISTRY:-ghcr.io}/${REGISTRY_NAMESPACE:-chutch3}/fiber:${IMAGE_TAG:-3.21.0}
+        image: ${REGISTRY:-ghcr.io}/${REGISTRY_NAMESPACE:-chutch3}/fiber:${IMAGE_TAG:-3.24.0}
         build:
             context: .
             dockerfile: app/Dockerfile
@@ -31,6 +31,9 @@ services:
             - librechat_db_password
             - immich_db_password
             - authentik_db_password
+            - librenms_db_password
+            - photoprism_db_password
+            - postal_db_password
         deploy:
             replicas: 1
             placement:
@@ -81,6 +84,12 @@ secrets:
     immich_db_password:
         external: true
     authentik_db_password:
+        external: true
+    librenms_db_password:
+        external: true
+    photoprism_db_password:
+        external: true
+    postal_db_password:
         external: true
 
 volumes:

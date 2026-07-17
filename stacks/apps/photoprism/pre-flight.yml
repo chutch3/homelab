@@ -1,0 +1,8 @@
+# Create the swarm secret Fiber reads to dump this DB.
+secrets:
+  - name: photoprism_db_password
+    from_env: PHOTOPRISM_DB_PASSWORD
+
+validate:
+  env:
+    - PHOTOPRISM_DB_PASSWORD
