@@ -2,6 +2,47 @@
 
 <!-- version list -->
 
+## v3.25.0 (2026-07-17)
+
+### Bug Fixes
+
+- Stop fiber straining tile from flashing and resetting progress on live updates
+  ([#97](https://github.com/chutch3/homelab/pull/97),
+  [`cfcb893`](https://github.com/chutch3/homelab/commit/cfcb8936a4b96bdb4a62a45fcbb1c815e620f3d0))
+
+### Continuous Integration
+
+- Run javascript test suites in ci test (npm) and set up node in the test job
+  ([#100](https://github.com/chutch3/homelab/pull/100),
+  [`fefbdaf`](https://github.com/chutch3/homelab/commit/fefbdaf6dc6649a8b0050e14f63a9412ed6241a4))
+
+- Split the per-app test step into its own Test job and gate
+  ([#98](https://github.com/chutch3/homelab/pull/98),
+  [`10b4b1b`](https://github.com/chutch3/homelab/commit/10b4b1bf5269a2b708b633600e84203b9b468f85))
+
+### Documentation
+
+- Document beholder env vars in .env.example ([#101](https://github.com/chutch3/homelab/pull/101),
+  [`d52d770`](https://github.com/chutch3/homelab/commit/d52d770d25484e54e0d2edd3cd8b94745cae8af6))
+
+- Document the build and test pipeline ([#99](https://github.com/chutch3/homelab/pull/99),
+  [`24bd7b4`](https://github.com/chutch3/homelab/commit/24bd7b46416f081fdb6494ff0c88a989bf4fdb9c))
+
+### Features
+
+- Add beholder budget watchdog with daily floor, raid, drift, schedule, and uncategorized checks
+  ([#96](https://github.com/chutch3/homelab/pull/96),
+  [`a493833`](https://github.com/chutch3/homelab/commit/a49383312be75861cbe07983464d683928ef599e))
+
+- Add disk-space guard to warden that pauses hunting on low free space
+  ([#94](https://github.com/chutch3/homelab/pull/94),
+  [`bc513e5`](https://github.com/chutch3/homelab/commit/bc513e5cb263b18676d5886b8cbb5ef88f7c192f))
+
+- Wire librenms, photoprism, and postal mariadb databases into fiber and pin fiber image to 3.24.0
+  ([#95](https://github.com/chutch3/homelab/pull/95),
+  [`1c90d6c`](https://github.com/chutch3/homelab/commit/1c90d6c5d4148053a3ec50379fbfee33b4a610d7))
+
+
 ## v3.24.0 (2026-07-15)
 
 ### Chores
