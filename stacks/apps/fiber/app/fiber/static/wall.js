@@ -29,10 +29,9 @@ function startSSE() {
       const msg = JSON.parse(e.data);
       if (msg.type === 'tile' && msg.service) {
         const el = document.getElementById('tile-' + msg.service);
-        if (el) {
-          el.outerHTML = msg.html;
-          layoutWall();
-        }
+        // updateTile (tiles.js) morphs in place; returns true when it replaced the
+        // node, in which case the grid needs re-laying out.
+        if (el && updateTile(el, msg.html)) layoutWall();
       } else if (msg.type === 'summary') {
         const summary = document.getElementById('summary');
         if (summary) summary.innerHTML = msg.html;
@@ -47,6 +46,9 @@ function startSSE() {
     setTimeout(startSSE, 3000);
   };
 }
+
+// updateTile lives in tiles.js (loaded as a module before this script), which exposes
+// it on window and is unit-tested in isolation.
 
 document.addEventListener('DOMContentLoaded', startSSE);
 
