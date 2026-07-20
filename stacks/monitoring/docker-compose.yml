@@ -10,9 +10,9 @@ services:
             - prometheus_data:/prometheus
             - /var/run/docker.sock:/var/run/docker.sock:ro
         configs:
-            - source: prometheus_config_v8
+            - source: prometheus_config_v9
               target: /etc/prometheus/prometheus.yml
-            - source: prometheus_alert_rules_v1
+            - source: prometheus_alert_rules_v2
               target: /etc/prometheus/alert-rules.yml
             - source: minio_targets
               target: /etc/prometheus/targets/minio-targets.json
@@ -37,6 +37,58 @@ services:
                 - homepage.icon=prometheus.png
                 - homepage.href=https://prometheus.${BASE_DOMAIN}/
                 - homepage.description=Metrics Collection
+
+    alertmanager:
+        image: prom/alertmanager:v0.27.0
+        # Swarm configs are static; render the template from env at start, then exec.
+        # sed uses '|' as delimiter — Postal SMTP creds must not contain '|' or '&'.
+        command:
+            - sh
+            - -c
+            - >
+                sed -e "s|BASE_DOMAIN_PLACEHOLDER|$${BASE_DOMAIN}|g"
+                -e "s|SMTP_USERNAME_PLACEHOLDER|$${ALERTMANAGER_SMTP_USERNAME}|g"
+                -e "s|SMTP_PASSWORD_PLACEHOLDER|$${ALERTMANAGER_SMTP_PASSWORD}|g"
+                -e "s|ALERT_TO_PLACEHOLDER|$${ALERTMANAGER_ALERT_TO}|g"
+                /etc/alertmanager/alertmanager.tmpl.yml > /tmp/alertmanager.yml
+                && exec /bin/alertmanager
+                --config.file=/tmp/alertmanager.yml
+                --storage.path=/alertmanager
+                --web.external-url=https://alertmanager.$${BASE_DOMAIN}
+        environment:
+            - BASE_DOMAIN=${BASE_DOMAIN}
+            - ALERTMANAGER_SMTP_USERNAME=${ALERTMANAGER_SMTP_USERNAME}
+            - ALERTMANAGER_SMTP_PASSWORD=${ALERTMANAGER_SMTP_PASSWORD}
+            - ALERTMANAGER_ALERT_TO=${ALERTMANAGER_ALERT_TO}
+        networks:
+            - traefik-public
+        volumes:
+            - alertmanager_data:/alertmanager
+        configs:
+            - source: alertmanager_config_v1
+              target: /etc/alertmanager/alertmanager.tmpl.yml
+        deploy:
+            # dnsrr for the same broken-VIP reason as prometheus/loki below;
+            # prometheus reaches this by service name over dnsrr.
+            endpoint_mode: dnsrr
+            placement:
+                constraints:
+                    - node.role == manager
+            labels:
+                - "traefik.enable=true"
+                - "traefik.http.routers.alertmanager.rule=Host(`alertmanager.${BASE_DOMAIN}`)"
+                - "traefik.http.routers.alertmanager.entrypoints=websecure"
+                - "traefik.http.routers.alertmanager.tls.certresolver=dns"
+                - "traefik.http.services.alertmanager.loadbalancer.server.port=9093"
+                - "traefik.swarm.network=traefik-public"
+                - homepage.group=Monitoring
+                - homepage.name=Alertmanager
+                - homepage.icon=mdi-bell-alert
+                - homepage.href=https://alertmanager.${BASE_DOMAIN}/
+                - homepage.description=Alert Routing
+            restart_policy:
+                condition: any
+                delay: 5s
 
     grafana:
         image: grafana/grafana:11.1.4
@@ -63,6 +115,8 @@ services:
               target: /etc/grafana/provisioning/dashboards-local/node-resources.json
             - source: dashboard_warden_v7
               target: /etc/grafana/provisioning/dashboards-local/warden.json
+            - source: dashboard_beholder_v1
+              target: /etc/grafana/provisioning/dashboards-local/beholder.json
         environment:
             - GF_SECURITY_ADMIN_USER=admin
             - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD}
@@ -269,6 +323,7 @@ networks:
 
 volumes:
     prometheus_data:
+    alertmanager_data:
     grafana_data:
     loki_data:
     promtail_positions:
@@ -280,10 +335,12 @@ volumes:
             device: "//${NAS_SERVER}/grafana_dashboards"
 
 configs:
-    prometheus_config_v8:
+    prometheus_config_v9:
         file: ./prometheus.yml
-    prometheus_alert_rules_v1:
+    prometheus_alert_rules_v2:
         file: ./alert-rules.yml
+    alertmanager_config_v1:
+        file: ./alertmanager.yml
     minio_targets:
         file: ./minio-targets.json
     grafana_dashboards_provisioning:
@@ -298,6 +355,8 @@ configs:
         file: ./dashboards/local/node-resources.json
     dashboard_warden_v7:
         file: ./dashboards/local/warden.json
+    dashboard_beholder_v1:
+        file: ./dashboards/local/beholder.json
     prometheus_datasource:
         file: ./datasources/prometheus.yml
     loki_datasource:
