@@ -2,6 +2,22 @@
 
 <!-- version list -->
 
+## v3.26.1 (2026-07-20)
+
+### Bug Fixes
+
+- Cicd config issue
+  ([`2f35ccd`](https://github.com/chutch3/homelab/commit/2f35ccdda0fab7dc1801133d8936dd913ec78d50))
+
+### Chores
+
+- Bump beholder
+  ([`8e94087`](https://github.com/chutch3/homelab/commit/8e9408756717db9e55c39ba58f7e6e45134b3651))
+
+- Bump homelab-devbox to 3.23.1
+  ([`7fa9076`](https://github.com/chutch3/homelab/commit/7fa90761257adae327d030343c7ff5a0248b1e18))
+
+
 ## v3.26.0 (2026-07-20)
 
 ### Bug Fixes
