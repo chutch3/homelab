@@ -1,0 +1,33 @@
+# Alertmanager routing config — TEMPLATE.
+# Placeholders (…_PLACEHOLDER) are substituted at container start from env vars
+# (see the alertmanager service `command` in docker-compose.yml), because Swarm
+# configs are static and Alertmanager does not expand env vars in YAML itself.
+#
+# Delivery path mirrors the house mail platform:
+#   alertmanager -> postal_smtp:2525 (SMTP AUTH) -> relay -> smtp2go -> inbox
+# SMTP creds come from a Postal SMTP-type credential (mint one in the Postal UI).
+global:
+  resolve_timeout: 5m
+  smtp_smarthost: 'postal_smtp:2525'
+  smtp_from: 'alerts@BASE_DOMAIN_PLACEHOLDER'
+  smtp_auth_username: 'SMTP_USERNAME_PLACEHOLDER'
+  smtp_auth_password: 'SMTP_PASSWORD_PLACEHOLDER'
+  # Postal SMTP on the internal overlay; skip STARTTLS (no cert for the internal
+  # hostname). Flip to true if Postal is configured to require TLS on intake.
+  smtp_require_tls: false
+
+route:
+  receiver: house-email
+  # Collapse a storm of the same alert into one mail; keep components separate.
+  group_by: ['alertname', 'component']
+  group_wait: 30s
+  group_interval: 5m
+  # Re-send a still-firing alert at most this often (beholder is daily, so a
+  # tight repeat would just be noise).
+  repeat_interval: 6h
+
+receivers:
+  - name: house-email
+    email_configs:
+      - to: 'ALERT_TO_PLACEHOLDER'
+        send_resolved: true

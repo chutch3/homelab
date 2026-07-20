@@ -115,7 +115,11 @@ services:
     depends_on:
       - db
     networks:
+      # traefik-public lets cross-stack senders that only speak SMTP (e.g.
+      # monitoring's Alertmanager) reach postal_smtp:2525. No published port /
+      # traefik router — reachable on the overlay only, and AUTH-gated.
       - postal-internal
+      - traefik-public
     deploy:
       placement:
         constraints:

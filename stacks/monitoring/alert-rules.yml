@@ -67,3 +67,28 @@ groups:
         annotations:
           summary: "Fiber: {{ $labels.db }} dump failed (clogged)"
           description: "A dump for {{ $labels.db }} failed in the last hour — pull the stool sample in the drawer."
+
+  # Beholder: the budget watchdog is quiet by default, so absence of email is
+  # not proof of life — alert if it stops running or its own run breaks.
+  - name: beholder
+    interval: 30s
+    rules:
+      - alert: BeholderStale
+        expr: time() - beholder_last_run_timestamp_seconds > 90000
+        for: 10m
+        labels:
+          severity: warning
+          component: beholder
+        annotations:
+          summary: "Beholder has not run in over 25h"
+          description: "Last completed run was {{ $value | humanizeDuration }} ago (daily run expected every ~24h). The watchdog may be down — nothing is watching the budget. Check logs: docker service logs $(docker service ls -qf name=beholder)"
+
+      - alert: BeholderRunFailed
+        expr: beholder_last_run_success == 0
+        for: 5m
+        labels:
+          severity: critical
+          component: beholder
+        annotations:
+          summary: "Beholder's last run failed — the watchdog itself needs attention"
+          description: "The most recent run did not complete, so the budget checks did not run. Beholder also emails a 'run failed' alert; investigate the Actual sync and beholder logs."

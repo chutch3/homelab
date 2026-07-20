@@ -24,7 +24,7 @@ function resolveByName(kind, list, name) {
   return hit;
 }
 
-export function createLedger({ serverUrl, password, syncId, dataDir, names }) {
+export function createLedger({ serverUrl, password, syncId, dataDir, names, bestEffort = (fn) => fn() }) {
   let checkingId;
   let cardIds; // [{id, name}]
   let savingsCategoryId;
@@ -41,13 +41,17 @@ export function createLedger({ serverUrl, password, syncId, dataDir, names }) {
       const categories = await api.getCategories();
       savingsCategoryId = resolveByName("category", categories, names.savingsCategory).id;
 
-      // Pull fresh bank data before checking; stale checks beat no checks,
-      // so a sync failure only warns.
-      try {
-        await api.runBankSync();
-      } catch (e) {
-        console.warn(`[beholder] bank sync failed (continuing with last-synced data): ${e.message}`);
-      }
+      // Pull fresh bank data before checking; stale checks beat no checks. A
+      // sync failure only warns — including the out-of-band rejections the
+      // Actual API throws for a bank link in trouble, which bestEffort keeps
+      // from crashing the run.
+      await bestEffort(async () => {
+        try {
+          await api.runBankSync();
+        } catch (e) {
+          console.warn(`[beholder] bank sync failed (continuing with last-synced data): ${e.message}`);
+        }
+      });
     },
 
     async close() {
