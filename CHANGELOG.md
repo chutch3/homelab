@@ -2,6 +2,22 @@
 
 <!-- version list -->
 
+## v3.27.0 (2026-07-20)
+
+### Bug Fixes
+
+- Keep beholder alive when the bank sync throws out of band
+  ([`c6dbae0`](https://github.com/chutch3/homelab/commit/c6dbae07c1fc24f7efdbebc02a4c9e43ec46f9de))
+
+### Features
+
+- Add beholder monitoring dashboard and alert rules
+  ([`0b47faf`](https://github.com/chutch3/homelab/commit/0b47faf5e9ac74f6dad444a1082ab7a98cc813cd))
+
+- Route prometheus alerts to email via alertmanager over postal
+  ([`5f426fe`](https://github.com/chutch3/homelab/commit/5f426fee157e7fef1c00347d1f1a30084165a051))
+
+
 ## v3.26.1 (2026-07-20)
 
 ### Bug Fixes
