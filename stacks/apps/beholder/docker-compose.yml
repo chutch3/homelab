@@ -13,7 +13,10 @@ services:
             - ACTUAL_PASSWORD=${ACTUAL_PASSWORD}
             - ACTUAL_BUDGET_SYNC_ID=${ACTUAL_BUDGET_SYNC_ID}
             # Postal (house mail API) — beholder's own credential
-            - BEHOLDER_POSTAL_URL=http://postal_web:5000
+            # Postal enforces host authorization on POSTAL_WEB_HOSTNAME, so the
+            # HTTP API must be reached via the traefik hostname, not the internal
+            # service name (postal_web:5000 → blank 403). See README.
+            - BEHOLDER_POSTAL_URL=https://postal.${BASE_DOMAIN}
             - BEHOLDER_POSTAL_API_KEY=${BEHOLDER_POSTAL_API_KEY}
             - BEHOLDER_ALERT_FROM=budget@${BASE_DOMAIN}
             - BEHOLDER_ALERT_TO=${BEHOLDER_ALERT_TO}
