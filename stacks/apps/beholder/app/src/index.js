@@ -4,15 +4,19 @@ import { loadConfig } from "./config.js";
 import { createLedger } from "./ledger.js";
 import { sendMail } from "./mailer.js";
 import { createMetrics, startMetricsServer } from "./metrics.js";
+import { createReporter } from "./reporter.js";
 import { runOnce } from "./run.js";
 import { loadState, saveState } from "./state.js";
+import { createSupervisor } from "./supervisor.js";
 
 const config = loadConfig();
 const metrics = createMetrics();
+const reportFailure = createReporter({ metrics, sendMail, config });
+const supervisor = createSupervisor({ proc: process, onFatal: reportFailure, log: console.warn });
 
 async function execute() {
   const startedAt = Date.now();
-  const ledger = createLedger({ ...config.actual, names: config.names });
+  const ledger = createLedger({ ...config.actual, names: config.names, bestEffort: supervisor.bestEffort });
   const state = await loadState(config.statePath);
   const { findings } = await runOnce({ ledger, config, state });
   await saveState(config.statePath, state);
@@ -25,24 +29,6 @@ async function execute() {
     `[beholder] run complete: ${findings.length} finding(s)` +
       (findings.length ? ` -> alerted [${findings.map((f) => f.check).join(", ")}]` : " (quiet)"),
   );
-}
-
-// A watchdog must not fail silently: a broken run is itself a finding.
-async function reportFailure(error) {
-  metrics.recordFailure({ now: Date.now() / 1000 });
-  console.error("[beholder] run failed:", error.message);
-  try {
-    await sendMail({
-      postalUrl: config.postalUrl,
-      postalApiKey: config.postalApiKey,
-      from: config.alertFrom,
-      to: config.alertTo,
-      subject: "beholder: run failed - the watchdog itself needs attention",
-      body: `beholder could not complete its checks:\n\n${error.message}\n\nUntil this is fixed, nothing is being watched.`,
-    });
-  } catch (mailError) {
-    console.error("[beholder] failure email also failed:", mailError.message);
-  }
 }
 
 function msUntilNextRun(runAt, now = new Date()) {
