@@ -21,4 +21,6 @@ cache:
 container:
   # Mount the host docker socket into each job container so steps that drive docker
   # (setup-buildx, build-push-action, plain `docker build`) reach the host daemon.
-  docker_host: automount
+  # NOTE: the `automount` keyword requires a newer runner; act_runner v0.6.1 only
+  # parses an explicit docker host URI. The socket is bind-mounted in docker-compose.yml.
+  docker_host: unix:///var/run/docker.sock

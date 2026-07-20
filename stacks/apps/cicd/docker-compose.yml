@@ -11,7 +11,7 @@ services:
       # after which it's frozen in /data/.runner and edits silently do nothing.
       - CONFIG_FILE=/config.yaml
     configs:
-      - source: cicd_runner_config_v1
+      - source: cicd_runner_config_v2
         target: /config.yaml
     volumes:
       - runner-data:/data
@@ -27,7 +27,7 @@ services:
         - "homepage.description=Forgejo Actions Runner (compatible with GHA)"
 
 configs:
-  cicd_runner_config_v1:
+  cicd_runner_config_v2:
     file: ./config.yaml
 
 volumes:
