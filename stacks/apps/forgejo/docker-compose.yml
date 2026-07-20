@@ -59,8 +59,6 @@ services:
         volumes:
             - forgejo_data:/var/lib/gitea
             - forgejo_config:/etc/gitea
-        ports:
-            - "${FORGEJO_SSH_PORT:-2223}:2222"
         networks:
             - forgejo-internal
             - traefik-public
@@ -76,6 +74,10 @@ services:
                 - "traefik.http.routers.forgejo.tls.certresolver=dns"
                 - "traefik.http.services.forgejo.loadbalancer.server.port=3000"
                 - "traefik.swarm.network=traefik-public"
+                - "traefik.tcp.routers.forgejo-ssh.rule=HostSNI(`*`)"
+                - "traefik.tcp.routers.forgejo-ssh.entrypoints=ssh"
+                - "traefik.tcp.routers.forgejo-ssh.service=forgejo-ssh"
+                - "traefik.tcp.services.forgejo-ssh.loadbalancer.server.port=2222"
 
                 # Homepage Labels
                 - "homepage.group=Development"
