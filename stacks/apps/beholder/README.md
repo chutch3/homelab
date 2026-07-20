@@ -1,7 +1,7 @@
 # beholder
 
 Budget watchdog. Once a day it reads the household budget from the Actual
-server and runs four checks; if anything is wrong it sends one email through
+server and runs five checks; if anything is wrong it sends one email through
 Postal (`budget@${BASE_DOMAIN}`) to everyone in `BEHOLDER_ALERT_TO`.
 **Quiet by default — no email means all checks passed.**
 
@@ -46,6 +46,21 @@ docker exec -e BEHOLDER_RUN_ONCE=1 $(docker ps -qf name=beholder) node src/index
 
 Exit 0 and a `run complete` log line = the full pipeline works. It prints
 `(quiet)` when there is nothing to report.
+
+## Postal integration
+
+Alert mail goes through Postal's HTTP API at `https://postal.${BASE_DOMAIN}`
+(`BEHOLDER_POSTAL_URL` in `docker-compose.yml`). It must be the traefik
+hostname, **not** the internal `postal_web:5000` service address: Postal
+enforces Rails host authorization on `POSTAL_WEB_HOSTNAME`, so a request
+carrying any other `Host` header is rejected with a blank `403` and no mail
+leaves — silently, since the body is empty. A `postal send failed: HTTP 403 {}`
+line in a run is that host mismatch, not a bad key. (The internal address can't
+be salvaged with a `Host` override either: `fetch`/undici ignores a manual
+`Host` header.)
+
+`BEHOLDER_POSTAL_API_KEY` is a Postal API credential; the mail server must be
+Live and the sending domain (`${BASE_DOMAIN}`) verified.
 
 ## Development
 
