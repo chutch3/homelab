@@ -2,7 +2,7 @@ version: "3.9"
 
 services:
     beholder:
-        image: ${REGISTRY:-ghcr.io}/${REGISTRY_NAMESPACE:-chutch3}/beholder:${IMAGE_TAG:-3.22.2}
+        image: ${REGISTRY:-ghcr.io}/${REGISTRY_NAMESPACE:-chutch3}/beholder:${IMAGE_TAG:-3.26.0}
         build:
             context: app
             dockerfile: Dockerfile
