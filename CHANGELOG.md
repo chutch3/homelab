@@ -2,6 +2,20 @@
 
 <!-- version list -->
 
+## v3.26.0 (2026-07-20)
+
+### Bug Fixes
+
+- Route forgejo ssh through traefik to resolve port 2222 conflict
+  ([`3347929`](https://github.com/chutch3/homelab/commit/3347929b2f089b04197a68875ad49f7725402402))
+
+### Features
+
+- Expose beholder run metrics for prometheus scraping
+  ([#102](https://github.com/chutch3/homelab/pull/102),
+  [`d59a11d`](https://github.com/chutch3/homelab/commit/d59a11da22aa44effefbb1c03bac9ec929d28e0d))
+
+
 ## v3.25.0 (2026-07-17)
 
 ### Bug Fixes
