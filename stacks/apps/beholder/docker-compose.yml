@@ -37,6 +37,11 @@ services:
                 condition: any
                 delay: 30s
             labels:
+                # Prometheus (swarm-tasks SD scrapes beholder:9090/metrics internally)
+                - "prometheus.scrape=true"
+                - "prometheus.port=beholder:9090"
+                - "prometheus.path=/metrics"
+                # Homepage
                 - homepage.group=Finance
                 - homepage.name=Beholder
                 - homepage.icon=mdi-eye-outline
