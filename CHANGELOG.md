@@ -2,6 +2,14 @@
 
 <!-- version list -->
 
+## v3.27.1 (2026-07-21)
+
+### Bug Fixes
+
+- Reach postal via the traefik hostname so beholder mail passes host auth
+  ([`3907555`](https://github.com/chutch3/homelab/commit/3907555681f7a98b3e01592e66c0c38b317ec81c))
+
+
 ## v3.27.0 (2026-07-20)
 
 ### Bug Fixes
