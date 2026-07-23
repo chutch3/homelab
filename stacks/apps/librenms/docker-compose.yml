@@ -81,7 +81,9 @@ services:
       - REDIS_HOST=redis
       - REDIS_PORT=6379
       - REDIS_DB=0
-      - BASE_URL=https://librenms.${BASE_DOMAIN}
+      - LIBRENMS_BASE_URL=https://librenms.${BASE_DOMAIN}
+      # Trust Traefik's X-Forwarded-Proto so Laravel emits https asset URLs.
+      - APP_TRUSTED_PROXIES=*
       - LIBRENMS_SNMP_COMMUNITY=${LIBRENMS_SNMP_COMMUNITY:-public}
       - LIBRENMS_ADMIN_USER=${LIBRENMS_ADMIN_USER:-admin}
       - LIBRENMS_ADMIN_PASS=${LIBRENMS_ADMIN_PASS}
@@ -130,7 +132,7 @@ services:
       - REDIS_HOST=redis
       - REDIS_PORT=6379
       - REDIS_DB=0
-      - BASE_URL=https://librenms.${BASE_DOMAIN}
+      - LIBRENMS_BASE_URL=https://librenms.${BASE_DOMAIN}
       - LIBRENMS_SNMP_COMMUNITY=${LIBRENMS_SNMP_COMMUNITY:-public}
       - SIDECAR_DISPATCHER=1
       - DISPATCHER_NODE_ID=dispatcher1
@@ -164,7 +166,7 @@ services:
       - REDIS_HOST=redis
       - REDIS_PORT=6379
       - REDIS_DB=0
-      - BASE_URL=https://librenms.${BASE_DOMAIN}
+      - LIBRENMS_BASE_URL=https://librenms.${BASE_DOMAIN}
       - SIDECAR_SYSLOGNG=1
     volumes:
       - librenms-data:/data
@@ -203,7 +205,7 @@ services:
       - REDIS_HOST=redis
       - REDIS_PORT=6379
       - REDIS_DB=0
-      - BASE_URL=https://librenms.${BASE_DOMAIN}
+      - LIBRENMS_BASE_URL=https://librenms.${BASE_DOMAIN}
       - SIDECAR_SNMPTRAPD=1
     volumes:
       - librenms-data:/data
