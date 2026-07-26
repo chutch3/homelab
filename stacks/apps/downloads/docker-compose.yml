@@ -391,8 +391,9 @@ volumes:
     kenku_pg:
         driver: local
 
-    # Writable persistence for the kenku app dir (settings.json + imageCache). Node-local;
-    # the service is pinned to the downloads node. The app creates settings.json on first
-    # boot; configure it through the UI (defaults reference: ./kenku/settings.json).
     kenku_config:
         driver: local
+        driver_opts:
+            type: "none"
+            o: "bind"
+            device: "/mnt/iscsi/app-data/kenku/config"

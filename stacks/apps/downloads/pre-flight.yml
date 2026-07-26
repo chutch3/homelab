@@ -2,6 +2,10 @@ secrets:
   - name: downloads_kenku_db_password
     from_env: DOWNLOADS_KENKU_DB_PASSWORD
 
+# kenku runs as uid/gid 1000 and writes settings.json into this dir on first boot.
+directories:
+  - { path: "kenku/config", base: app_data, owner: 1000, group: 1000 }
+
 validate:
   env:
     - DOWNLOADS_OPENVPN_PASSWORD
