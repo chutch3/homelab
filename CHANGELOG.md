@@ -2,6 +2,22 @@
 
 <!-- version list -->
 
+## v3.27.2 (2026-07-27)
+
+### Bug Fixes
+
+- Persist kenku config on shared app-data
+  ([`a0bd1df`](https://github.com/chutch3/homelab/commit/a0bd1df482e67b62592d8a7dfde7eb5a4a62b981))
+
+- Serve librenms assets over https behind traefik
+  ([`695338d`](https://github.com/chutch3/homelab/commit/695338d272e50278b09d2c6ec01c05302ea68696))
+
+### Chores
+
+- Bumped beholder
+  ([`4dc7158`](https://github.com/chutch3/homelab/commit/4dc71585743619f8ce800186b3d296a1509774e6))
+
+
 ## v3.27.1 (2026-07-21)
 
 ### Bug Fixes
