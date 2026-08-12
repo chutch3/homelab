@@ -57,3 +57,7 @@ swarm_env_vars:
   BEHOLDER_CHECKING_ACCOUNT: "Test Checking"
   BEHOLDER_CARD_ACCOUNTS: "Test Card"
   BEHOLDER_SAVINGS_CATEGORY: "Test Savings"
+  ROMM_DB_PASSWORD: "test-password"
+  ROMM_DB_ROOT_PASSWORD: "test-password"
+  ROMM_AUTH_SECRET_KEY: "test-secret"
+  GAMARR_PROWLARR_API_KEY: "test-key"

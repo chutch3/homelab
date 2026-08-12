@@ -1,0 +1,115 @@
+version: "3.9"
+
+services:
+    romm:
+        image: rommapp/romm:5.0.0
+        environment:
+            - DB_HOST=romm-db
+            - DB_NAME=romm
+            - DB_USER=romm
+            - DB_PASSWD=${ROMM_DB_PASSWORD}
+            - ROMM_AUTH_SECRET_KEY=${ROMM_AUTH_SECRET_KEY}
+            - HASHEOUS_API_ENABLED=true
+            - SCREENSCRAPER_USER=${ROMM_SCREENSCRAPER_USER}
+            - SCREENSCRAPER_PASSWORD=${ROMM_SCREENSCRAPER_PASSWORD}
+            - STEAMGRIDDB_API_KEY=${ROMM_STEAMGRIDDB_API_KEY}
+            - RETROACHIEVEMENTS_API_KEY=${ROMM_RETROACHIEVEMENTS_API_KEY}
+        volumes:
+            - romm_library:/romm/library:ro
+            - romm_resources:/romm/resources
+            - romm_assets:/romm/assets
+            - romm_config:/romm/config
+            - romm_redis:/redis-data
+        networks:
+            - traefik-public
+        depends_on:
+            - romm-db
+        restart: unless-stopped
+        deploy:
+            # Co-locate with its DB on the database node (app-data binds + local DB).
+            placement:
+                constraints:
+                    - node.labels.database == true
+            labels:
+                - "traefik.enable=true"
+                - "traefik.http.routers.romm.rule=Host(`romm.${BASE_DOMAIN}`)"
+                - "traefik.http.routers.romm.entrypoints=websecure"
+                - "traefik.http.routers.romm.tls.certresolver=dns"
+                - "traefik.http.services.romm.loadbalancer.server.port=8080"
+                - "traefik.swarm.network=traefik-public"
+                - homepage.group=Downloads
+                - homepage.name=RomM
+                - homepage.icon=romm.png
+                - homepage.href=https://romm.${BASE_DOMAIN}/
+                - homepage.description=ROM Library
+
+    romm-db:
+        image: mariadb:11
+        environment:
+            - MARIADB_DATABASE=romm
+            - MARIADB_USER=romm
+            - MARIADB_PASSWORD=${ROMM_DB_PASSWORD}
+            - MARIADB_ROOT_PASSWORD=${ROMM_DB_ROOT_PASSWORD}
+        volumes:
+            - romm_db:/var/lib/mysql
+        networks:
+            - traefik-public
+            - backups
+        restart: unless-stopped
+        healthcheck:
+            test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+            start_period: 30s
+            interval: 10s
+            timeout: 5s
+            retries: 5
+        deploy:
+            placement:
+                constraints:
+                    - node.labels.database == true
+            labels:
+                # romm_db is a node-local volume — Fiber's dump is its only offsite copy.
+                - "fiber.enable=true"
+                - "fiber.provider=swarm"
+                - "fiber.engine=mysql"
+                - "fiber.dbname=romm"
+                - "fiber.user=romm"
+                - "fiber.secret=romm_db_password"
+                - "fiber.schedule=0 3 * * *"
+
+networks:
+    traefik-public:
+        external: true
+    backups:
+        external: true
+
+volumes:
+    romm_library:
+        driver: local
+        driver_opts:
+            type: "cifs"
+            o: "username=${SMB_USERNAME},password=${SMB_PASSWORD},domain=${SMB_DOMAIN},vers=3.0,ro,uid=1000,gid=1000,file_mode=0550,dir_mode=0550,soft,actimeo=30"
+            device: "//${NAS_SERVER}/games"
+
+    romm_resources:
+        driver: local
+        driver_opts:
+            type: "none"
+            o: "bind"
+            device: "/mnt/iscsi/app-data/romm/resources"
+    romm_assets:
+        driver: local
+        driver_opts:
+            type: "none"
+            o: "bind"
+            device: "/mnt/iscsi/app-data/romm/assets"
+    romm_config:
+        driver: local
+        driver_opts:
+            type: "none"
+            o: "bind"
+            device: "/mnt/iscsi/app-data/romm/config"
+
+    romm_redis:
+        driver: local
+    romm_db:
+        driver: local

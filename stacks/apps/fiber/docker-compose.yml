@@ -34,6 +34,7 @@ services:
             - librenms_db_password
             - photoprism_db_password
             - postal_db_password
+            - romm_db_password
         deploy:
             replicas: 1
             placement:
@@ -90,6 +91,8 @@ secrets:
     photoprism_db_password:
         external: true
     postal_db_password:
+        external: true
+    romm_db_password:
         external: true
 
 volumes:
