@@ -14,6 +14,7 @@
     cli_context: "{{ swarm_docker_context }}"
   register: swarm_current_stacks
   delegate_to: localhost
+  become: false
   run_once: true
 
 - name: Display stacks to be removed
@@ -29,6 +30,7 @@
     cli_context: "{{ swarm_docker_context }}"
   loop: "{{ swarm_current_stacks.results }}"
   delegate_to: localhost
+  become: false
   run_once: true
   when: swarm_current_stacks.results | length > 0
 
@@ -37,6 +39,7 @@
     cli_context: "{{ swarm_docker_context }}"
   register: swarm_remaining_stacks
   delegate_to: localhost
+  become: false
   run_once: true
   until: swarm_remaining_stacks.results | length == 0
   retries: 20

@@ -5,12 +5,16 @@
 # - swarm_docker_context: context name, for CLI-based modules (docker_stack, docker_stack_info)
 # - swarm_docker_host: endpoint URL, for SDK-based modules (docker_network, docker_network_info)
 # - swarm_use_ssh_client: true when endpoint is SSH, for SDK-based modules
+#
+# become: false — Docker contexts and SSH keys live in the operator's home dir,
+# so these must run as the invoking user even under a `become: yes` play.
 
 - name: Get active Docker context name
   ansible.builtin.command:
     cmd: docker context show
   register: _swarm_docker_context
   delegate_to: localhost
+  become: false
   run_once: true
   changed_when: false
 
@@ -19,6 +23,7 @@
     cmd: docker context inspect --format {% raw %}'{{.Endpoints.docker.Host}}'{% endraw %}
   register: _swarm_docker_host
   delegate_to: localhost
+  become: false
   run_once: true
   changed_when: false
 
