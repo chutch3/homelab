@@ -1,0 +1,9 @@
+validate:
+  env:
+    - GAMARR_PROWLARR_API_KEY
+
+directories:
+  - { path: gamarr, base: app_data, owner: 1000, group: 1000 }
+
+templates:
+  - { src: sources.json, dest: gamarr/sources.json, owner: 1000, group: 1000, mode: "0644" }

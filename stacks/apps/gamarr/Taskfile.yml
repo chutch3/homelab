@@ -1,0 +1,13 @@
+version: "3"
+
+# Included by the root Taskfile under the `gamarr:` namespace.
+# {{.TASKFILE_DIR}} anchors script paths to this app dir regardless of where
+# `task` is invoked from.
+tasks:
+    sync-roms:
+        desc: "Copy the ROM library to a labeled SD card — task gamarr:sync-roms -- -n (see --help)"
+        preconditions:
+            - sh: test -x "{{.TASKFILE_DIR}}/scripts/sync-roms-to-sdcard.sh"
+              msg: "scripts/sync-roms-to-sdcard.sh is missing or not executable"
+        cmds:
+            - "{{.TASKFILE_DIR}}/scripts/sync-roms-to-sdcard.sh {{.CLI_ARGS}}"

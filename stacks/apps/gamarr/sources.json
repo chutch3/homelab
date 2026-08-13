@@ -1,0 +1,42 @@
+{
+  "version": 1,
+  "myrient": {
+    "base_url": "https://archive.org/download/",
+    "platform_paths": {
+      "nes": "ef_nintendo_entertainment_-system_-no-intro_2024-04-23/",
+      "snes": "ef_nintendo_snes_no-intro_2024-04-20/",
+      "n64": "ef_nintendo_64_no-intro_2024-02-10/",
+      "gb": "ef_Nintendo_Gameboy_No-Intro_2024-04-23/",
+      "gbc": "ef_GBC_No-Intro/",
+      "gba": "ef_gba_no-intro_2024-02-21/",
+      "genesis": "ef_mega_genesis_no-intro_2024-04-21/",
+      "nds": "ni-n-ds-dec_202401/",
+      "dc": "sega-dreamcast-redump/",
+      "psp": "playstation-portable-redump-part2/",
+      "ps2": "ps2usaredump1/"
+    }
+  },
+  "vimm": {
+    "base_url": "https://vimm.net/vault/",
+    "platform_systems": {
+      "nes": "NES",
+      "snes": "SNES",
+      "n64": "N64",
+      "ngc": "GameCube",
+      "wii": "Wii",
+      "gb": "GB",
+      "gbc": "GBC",
+      "gba": "GBA",
+      "nds": "DS",
+      "genesis": "Genesis",
+      "saturn": "Saturn",
+      "dc": "Dreamcast",
+      "psx": "PS1",
+      "ps2": "PS2",
+      "ps3": "PS3",
+      "psp": "PSP",
+      "xbox": "Xbox",
+      "xbox360": "Xbox360"
+    }
+  }
+}
