@@ -28,38 +28,38 @@ This stack is designed to coexist peacefully with PhotoPrism, allowing you to:
 | Feature | PhotoPrism | Immich |
 |---------|-----------|--------|
 | Domain | `photo.${BASE_DOMAIN}` | `photos.${BASE_DOMAIN}` |
-| Upload Storage | `photoprism_storage` | `immich_upload` |
-| Shared Library | `all_data` (read/write) | `all_data` (read-only) |
+| Upload Storage | `photoprism_storage` | `immich` |
+| Shared Library | `home_media` (read/write) | `home_media` (read-only) |
 | Database | MariaDB (`photoprism_database`) | PostgreSQL (`immich_pgdata`) |
 | Mobile Apps | Web only | iOS & Android native apps |
 | ML Features | TensorFlow GPU | PyTorch CPU/GPU |
 
 ## Storage Architecture
 
-### Immich Upload Library
+### Immich Data Directory
 ```yaml
-immich_upload:
-  device: "//${NAS_SERVER}/immich_upload"
+immich:
+  device: "//${NAS_SERVER}/immich"
 ```
-- **New uploads via Immich** are stored here
+- **Uploads, library, and thumbs** are stored here (Immich's `UPLOAD_LOCATION`)
 - Immich manages folder structure automatically
-- Independent from PhotoPrism
+- Lives on the SSD mirror (uuid 1e9bce35); renamed from the former `immich_upload` share
 
 ### Shared Photo Library (Read-Only)
 ```yaml
-all_data:
-  device: "//${NAS_SERVER}/all_data"
+home_media:
+  device: "//${NAS_SERVER}/home_media"
   options: "ro"  # Read-only mount
 ```
-- **Your existing PhotoPrism library**
+- **Family photos/videos + Google Photos extracts** — `home_media/{pictures,videos,google_photos}`
 - Mounted at `/mnt/media/photos` in Immich
 - Read-only to prevent accidental modifications
 - Configure as External Library in Immich UI
 
 ## Prerequisites
 
-1. **Storage:** NAS share `/immich_upload` created
-2. **Existing Library:** Optional `/all_data` share (for PhotoPrism photos)
+1. **Storage:** NAS share `/immich` created
+2. **Existing Library:** Optional `/home_media` share (family photos/videos + Google Photos)
 3. **Environment Variables:** Database credentials in `.env`
 4. **Resources:** 4GB+ RAM recommended for ML features
 

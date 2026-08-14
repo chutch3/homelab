@@ -47,7 +47,7 @@ services:
             - WEBUI_PORT=8080
         volumes:
             - qbittorrent:/config
-            - torrents:/data/torrents
+            - downloads:/data/downloads
         networks:
             - traefik-public
             - downloads-internal
@@ -79,7 +79,7 @@ services:
         container_name: deluge
         volumes:
             - deluge:/config
-            - torrents:/data/torrents
+            - downloads:/data/downloads
         environment:
             - PUID=${PUID}
             - PGID=${PGID}
@@ -126,7 +126,7 @@ services:
             - BASE_DOMAIN=${BASE_DOMAIN}
         volumes:
             - sabnzbd:/config
-            - usenet:/data/usenet
+            - downloads:/data/downloads
         networks:
             - traefik-public
             - downloads-internal
@@ -163,7 +163,7 @@ services:
             - TZ=${TZ}
         volumes:
             - nzbget:/config
-            - usenet:/data/usenet
+            - downloads:/data/downloads
             # Node-local scratch for in-progress downloads + par2/unpack (off CIFS).
             # par2 verify/repair and unrar are random-IO heavy; running them over the
             # SMB share is latency-bound and slow. Stage them on the node's local disk
@@ -281,9 +281,11 @@ services:
             # writes empty stubs. Pinned here so a settings reset can't blank it.
             - FLARESOLVERR_URL=http://flaresolverr:8191
         volumes:
-            # Mounts the series/ subfolder of the torrents share, exposing the manga and
-            # comics libraries at /series/manga and /series/comics.
-            - series:/series
+            # Manga and comics are now top-level libraries under the unified downloads share
+            # (downloads/manga, downloads/comics). Mounted at the same container paths kenku
+            # already uses (/series/manga, /series/comics) so DOWNLOAD_LOCATION is unchanged.
+            - kenku_manga:/series/manga
+            - kenku_comics:/series/comics
             - kenku_config:/usr/share/kenku-api
         depends_on:
             - kenku-pg
@@ -326,29 +328,31 @@ networks:
         external: true
 
 volumes:
-    torrents:
+    # Unified media share (//NAS/downloads -> all_data/media): movies, tv, comics, manga,
+    # incomplete, roms. Replaces the former split torrents/usenet shares; every download
+    # client stages here so torrent and usenet completions land in the same structure.
+    downloads:
         driver: local
         driver_opts:
             type: "cifs"
             o: "username=${SMB_USERNAME},password=${SMB_PASSWORD},domain=${SMB_DOMAIN},vers=3.0,file_mode=0770,dir_mode=0770,uid=1000,gid=1000,soft,actimeo=30,nobrl"
-            device: "//${NAS_SERVER}/torrents"
+            device: "//${NAS_SERVER}/downloads"
 
-    # Dedicated mount of the series/ subfolder of the torrents share, used only by kenku.
-    # Exposes /series/manga and /series/comics as separate libraries, so Komga (which reads
-    # the same share) and kenku agree on where chapters live.
-    series:
+    # Dedicated subpath mounts of the manga/ and comics/ libraries, used only by kenku.
+    # Komga (which reads the same libraries) and kenku agree on where chapters live.
+    kenku_manga:
         driver: local
         driver_opts:
             type: "cifs"
             o: "username=${SMB_USERNAME},password=${SMB_PASSWORD},domain=${SMB_DOMAIN},vers=3.0,file_mode=0770,dir_mode=0770,uid=1000,gid=1000,soft,actimeo=30,nobrl"
-            device: "//${NAS_SERVER}/torrents/series"
+            device: "//${NAS_SERVER}/downloads/manga"
 
-    usenet:
+    kenku_comics:
         driver: local
         driver_opts:
             type: "cifs"
             o: "username=${SMB_USERNAME},password=${SMB_PASSWORD},domain=${SMB_DOMAIN},vers=3.0,file_mode=0770,dir_mode=0770,uid=1000,gid=1000,soft,actimeo=30,nobrl"
-            device: "//${NAS_SERVER}/usenet"
+            device: "//${NAS_SERVER}/downloads/comics"
 
     qbittorrent:
         driver: local

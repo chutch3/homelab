@@ -47,7 +47,7 @@ services:
             PHOTOPRISM_INIT: "tensorflow-gpu"
         working_dir: "/photoprism"
         volumes:
-            - all_data:/photoprism/originals
+            - home_media:/photoprism/originals
             - photoprism_storage:/photoprism/storage
         deploy:
             placement:
@@ -179,12 +179,14 @@ networks:
         external: true
 
 volumes:
-    all_data:
+    # Originals index source (read-only): family photos/videos now live on the SSD
+    # mirror under //NAS/home_media (was the whole //NAS/all_data share).
+    home_media:
         driver: local
         driver_opts:
             type: "cifs"
             o: "username=${SMB_USERNAME},password=${SMB_PASSWORD},domain=${SMB_DOMAIN},vers=3.0,nobrl,uid=0,gid=100,file_mode=0777,dir_mode=0777,ro,soft,actimeo=30"
-            device: "//${NAS_SERVER}/all_data"
+            device: "//${NAS_SERVER}/home_media"
     photoprism_database:
         driver: local
         # CRITICAL: Database volumes MUST be on local storage for performance

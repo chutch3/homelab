@@ -13,7 +13,7 @@ Before deploying, ensure the following are in place on the target Swarm node:
 - iSCSI target mounted at `/mnt/iscsi/media-apps/` with subdirectories created for each service:
   - `qbittorrent/`, `deluge/`, `sabnzbd/`, `nzbget/`
   - Note: the live Kenku Postgres volume is **node-local** (Docker-managed) and is *not* an iSCSI directory — do not create one for it. Logical backups are handled by [Fiber](../fiber/).
-- NAS SMB shares (`torrents`, `usenet`) are accessible from the node
+- NAS SMB share (`downloads`) is accessible from the node
 - `traefik-public` external overlay network exists
 - Root `.env` is populated with all `DOWNLOADS_*` variables (see [Environment variables](#environment-variables))
 
@@ -69,8 +69,8 @@ Dante is not a native Gluetun feature. It is installed and started at runtime vi
 
 | Volume | Type | Backend |
 |---|---|---|
-| `torrents` | CIFS (SMB) | NAS share — mounted at `/data/torrents` in clients, `/Manga` in Kenku |
-| `usenet` | CIFS (SMB) | NAS share — mounted at `/data/usenet` in clients |
+| `downloads` | CIFS (SMB) | Unified NAS share (`//NAS/downloads` → `all_data/media`) — mounted at `/data/downloads` in all clients; holds `movies/tv/comics/manga/incomplete/roms`. Replaces the former split `torrents`/`usenet` shares. |
+| `kenku_manga`, `kenku_comics` | CIFS (SMB) | Subpath mounts of `downloads/manga` and `downloads/comics`, exposed to Kenku at `/series/manga` and `/series/comics` |
 | `qbittorrent`, `deluge`, `sabnzbd`, `nzbget` | local bind mount | `/mnt/iscsi/media-apps/<service>/` — directories on the iSCSI-mounted filesystem |
 | `kenku_pg` | **node-local** Docker volume | Live Postgres data — kept **off** the OCFS2 cluster FS (Docker-managed on the pinned node). Not backed up at the file level; Fiber dumps it logically (see below). |
 
@@ -89,7 +89,7 @@ Two containers make up Kenku:
 - `kenku-pg` — Postgres database, internal only (live data on a node-local volume — see [Storage](#storage)); backed up by Fiber via `fiber.*` labels
 - `kenku` — single image serving the web UI **and** the REST API on port `6531` (same origin); routes all outbound traffic through `HTTP_PROXY=http://vpn:8888`
 
-Static configuration (download path, naming scheme, concurrency limits, FlareSolverr URL) lives in `kenku/settings.json` and is injected as a Docker config at `/usr/share/kenku-api/settings.json`. Downloaded manga lands at `/Manga/manga` inside the container, which maps to the `torrents` NAS share.
+Static configuration (download path, naming scheme, concurrency limits, FlareSolverr URL) lives in `kenku/settings.json` and is injected as a Docker config at `/usr/share/kenku-api/settings.json`. Downloaded manga lands at `/series/manga` inside the container (`DOWNLOAD_LOCATION`), which maps to the `downloads/manga` NAS subpath.
 
 > The image is pinned by digest to [`ghcr.io/chutch3/kenku`](https://github.com/chutch3/kenku) (a self-maintained fork). Bump the digest in `docker-compose.yml` to update.
 

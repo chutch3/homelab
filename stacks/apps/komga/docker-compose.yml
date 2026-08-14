@@ -42,7 +42,7 @@ services:
             - SPRING_SECURITY_OAUTH2_CLIENT_PROVIDER_AUTHENTIK_USER_NAME_ATTRIBUTE=preferred_username
         volumes:
             - komga_config:/config
-            - all_data:/data
+            - downloads:/data/downloads
         ports:
             - "25600:25600"
         user: "1000:1000"
@@ -75,9 +75,11 @@ volumes:
             o: "bind"
             device: "/mnt/iscsi/media-apps/komga"
 
-    all_data:
+    # Unified media share (//NAS/downloads -> all_data/media). Komga reads the comics/
+    # and manga/ libraries here; kenku writes them. Scoped to media (was the whole all_data).
+    downloads:
         driver: local
         driver_opts:
             type: "cifs"
             o: "username=${SMB_USERNAME},password=${SMB_PASSWORD},domain=${SMB_DOMAIN},uid=1000,gid=1000,vers=3.0,file_mode=0600,dir_mode=0770,soft,actimeo=30"
-            device: "//${NAS_SERVER}/all_data"
+            device: "//${NAS_SERVER}/downloads"

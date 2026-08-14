@@ -205,13 +205,15 @@ services:
             - ${HOST_SSL_CERT}:/certs/cert.crt:ro
             - ${HOST_SSL_KEY}:/certs/cert.key:ro
 
-            # 3. Your Actual Data (The "Window")
-            # Set these in your OMV .env files:
-            # - DISK1_ALL_DATA_PATH (large media files: home_videos, home_photos, media, sambashare, budget)
-            # - DISK2_GOOGLE_PHOTOS_PATH (static Google Photos export)
-            # Note: app-data and media-apps are backed up by Swarm Kopia instance
-            # - ${DISK1_ALL_DATA_PATH}:/data/all_data:ro
-            # - ${DISK2_GOOGLE_PHOTOS_PATH}:/data/google_photos_takeout:ro
+            # 3. Your Actual Data (The "Window") — read-only source mounts.
+            # After the storage consolidation these live on the SSD mirror (uuid 1e9bce35):
+            #   HOME_MEDIA_PATH            -> home_media/ (family pictures + videos + google_photos/)
+            #   GOOGLE_PHOTOS_TAKEOUT_PATH -> google_photos_takeout/ (compressed .tgz archives)
+            #   IMMICH_PATH                -> immich/ (Immich upload/library data)
+            # Note: app-data and media-apps are backed up by the Swarm Kopia instance.
+            # - ${HOME_MEDIA_PATH}:/data/home_media:ro
+            # - ${GOOGLE_PHOTOS_TAKEOUT_PATH}:/data/google_photos_takeout:ro
+            # - ${IMMICH_PATH}:/data/immich:ro
         command:
             - server
             - start
@@ -220,4 +222,20 @@ services:
             - --address=0.0.0.0:51515
             - --server-username=${KOPIA_SERVER_USERNAME}
             - --server-password=${KOPIA_SERVER_PASSWORD}
+```
+
+**Policies for this instance** (set via `kopia policy set` after connecting to the repo):
+
+```bash
+# Family media — but EXCLUDE the Google Photos extracts: they're already preserved in the
+# compressed google_photos_takeout archives (also backed up below), so backing up the
+# extracted copies too would just double the storage for no added protection.
+kopia policy set /data/home_media --add-ignore "/google_photos/"
+kopia snapshot create /data/home_media
+
+# Compressed Google Takeout archives (the authoritative copy of the Google Photos export)
+kopia snapshot create /data/google_photos_takeout
+
+# Immich's data dir (upload/library; thumbs regenerate, but backing up the whole dir is fine)
+kopia snapshot create /data/immich
 ```

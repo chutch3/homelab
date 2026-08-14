@@ -71,12 +71,14 @@ networks:
         external: true
 
 volumes:
+    # Actual Budget's SQLite data. Moved off CIFS onto iSCSI/OCFS2 — SQLite over SMB
+    # risks corruption; this matches every other DB-backed app in the repo. See GH #105.
     budget:
         driver: local
         driver_opts:
-            type: "cifs"
-            o: "username=${SMB_USERNAME},password=${SMB_PASSWORD},vers=3.0,nobrl,uid=0,gid=100,file_mode=0777,dir_mode=0777,soft,actimeo=30"
-            device: "//${NAS_SERVER}/budget"
+            type: "none"
+            o: "bind"
+            device: "/mnt/iscsi/app-data/actual_server/data"
 
     mcp_data:
         driver: local

@@ -16,7 +16,7 @@ services:
             - QB_USER=${GAMARR_QB_USER}
             - QB_PASS=${GAMARR_QB_PASS}
             - QB_CATEGORY=games
-            - QB_SAVE_PATH=/data/torrents/games
+            - QB_SAVE_PATH=/data/downloads/roms
             - SABNZBD_URL=http://sabnzbd:8080
             - SABNZBD_API_KEY=${GAMARR_SABNZBD_API_KEY}
             - SABNZBD_CATEGORY=games
@@ -27,8 +27,7 @@ services:
             - ROMM_URL=https://romm.${BASE_DOMAIN}
         volumes:
             - gamarr_config:/data/gamarr
-            - torrents:/data/torrents
-            - usenet:/data/usenet
+            - downloads:/data/downloads
             - games:/data/games
         restart: unless-stopped
         networks:
@@ -63,19 +62,14 @@ volumes:
             o: "bind"
             device: "/mnt/iscsi/app-data/gamarr"
 
-    torrents:
+    # Unified media share (//NAS/downloads -> all_data/media). Gamarr stages completed
+    # game/ROM downloads under downloads/roms, then imports into the games library below.
+    downloads:
         driver: local
         driver_opts:
             type: "cifs"
             o: "username=${SMB_USERNAME},password=${SMB_PASSWORD},domain=${SMB_DOMAIN},vers=3.0,file_mode=0770,dir_mode=0770,uid=1000,gid=1000,soft,actimeo=30"
-            device: "//${NAS_SERVER}/torrents"
-
-    usenet:
-        driver: local
-        driver_opts:
-            type: "cifs"
-            o: "username=${SMB_USERNAME},password=${SMB_PASSWORD},domain=${SMB_DOMAIN},vers=3.0,file_mode=0770,dir_mode=0770,uid=1000,gid=1000,soft,actimeo=30"
-            device: "//${NAS_SERVER}/usenet"
+            device: "//${NAS_SERVER}/downloads"
 
     games:
         driver: local

@@ -11,8 +11,7 @@ services:
             - TZ=${TZ}
         volumes:
             - sonarr_config:/config
-            - torrents:/data/torrents
-            - usenet:/data/usenet
+            - downloads:/data/downloads
         restart: unless-stopped
         networks:
             - traefik-public
@@ -43,16 +42,11 @@ volumes:
             o: "bind"
             device: "/mnt/iscsi/media-apps/sonarr"
 
-    torrents:
+    # Unified media share (//NAS/downloads -> all_data/media): movies, tv, comics,
+    # manga, incomplete, roms. Replaces the former split torrents/usenet shares.
+    downloads:
         driver: local
         driver_opts:
             type: "cifs"
             o: "username=${SMB_USERNAME},password=${SMB_PASSWORD},domain=${SMB_DOMAIN},vers=3.0,file_mode=0770,dir_mode=0770,uid=1000,gid=1000,soft,actimeo=30"
-            device: "//${NAS_SERVER}/torrents"
-
-    usenet:
-        driver: local
-        driver_opts:
-            type: "cifs"
-            o: "username=${SMB_USERNAME},password=${SMB_PASSWORD},domain=${SMB_DOMAIN},vers=3.0,file_mode=0770,dir_mode=0770,uid=1000,gid=1000,soft,actimeo=30"
-            device: "//${NAS_SERVER}/usenet"
+            device: "//${NAS_SERVER}/downloads"

@@ -27,7 +27,7 @@ graph TB
         end
 
         subgraph "Network File Storage"
-            CIFS[CIFS/SMB Shares<br/>//nas/torrents<br/>//nas/usenet]
+            CIFS[CIFS/SMB Shares<br/>//nas/downloads<br/>//nas/home_media]
         end
 
         subgraph "Docker Swarm Nodes"
@@ -141,12 +141,12 @@ node-4: /dev/sdb → /mnt/iscsi/media-apps/
 **Mounted via Docker volumes:**
 ```yaml
 volumes:
-  torrents:
+  downloads:
     driver: local
     driver_opts:
       type: "cifs"
       o: "username=${SMB_USERNAME},password=${SMB_PASSWORD},vers=3.0,..."
-      device: "//${NAS_SERVER}/torrents"
+      device: "//${NAS_SERVER}/downloads"
 ```
 
 ## Docker Volume Configuration Patterns
@@ -193,21 +193,21 @@ volumes:
 
 Used for large files that don't require database-level integrity.
 
-**Example: Torrents, Usenet, Media Libraries**
+**Example: Unified media library (movies/tv/comics/manga/roms)**
 
 ```yaml
 volumes:
-  torrents:
+  downloads:
     driver: local
     driver_opts:
       type: "cifs"
       o: "username=${SMB_USERNAME},password=${SMB_PASSWORD},domain=${SMB_DOMAIN},vers=3.0,file_mode=0770,dir_mode=0770,uid=1000,gid=1000,soft,actimeo=30"
-      device: "//${NAS_SERVER}/torrents"
+      device: "//${NAS_SERVER}/downloads"
 ```
 
 **How it works:**
 1. Docker mounts CIFS share from NAS
-2. Container sees `/data/torrents` → backed by CIFS network share
+2. Container sees `/data/downloads` → backed by CIFS network share
 3. Used for read/write of large media files
 4. **NOT used for SQLite databases**
 
@@ -228,9 +228,8 @@ services:
       - PGID=1000
       - TZ=${TZ}
     volumes:
-      - radarr_config:/config        # OCFS2 for SQLite database
-      - torrents:/data/torrents      # CIFS for media files
-      - usenet:/data/usenet          # CIFS for media files
+      - radarr_config:/config            # OCFS2 for SQLite database
+      - downloads:/data/downloads        # CIFS for media files (movies/tv/…)
 
 volumes:
   # OCFS2 bind mount for configuration/database
@@ -241,20 +240,14 @@ volumes:
       o: "bind"
       device: "/mnt/iscsi/media-apps/radarr"
 
-  # CIFS mounts for media files
-  torrents:
+  # CIFS mount for media files — one unified share (//NAS/downloads -> all_data/media)
+  # holding movies/tv/comics/manga/incomplete/roms. Replaced the split torrents/usenet.
+  downloads:
     driver: local
     driver_opts:
       type: "cifs"
       o: "username=${SMB_USERNAME},password=${SMB_PASSWORD},vers=3.0,..."
-      device: "//${NAS_SERVER}/torrents"
-
-  usenet:
-    driver: local
-    driver_opts:
-      type: "cifs"
-      o: "username=${SMB_USERNAME},password=${SMB_PASSWORD},vers=3.0,..."
-      device: "//${NAS_SERVER}/usenet"
+      device: "//${NAS_SERVER}/downloads"
 ```
 
 **Why hybrid?**
@@ -285,11 +278,9 @@ When deploying a service with CIFS volumes, Docker Swarm enters a **"Preparing" 
 00:01 - Task created, image pulled
 00:02 - State: "Preparing" (mounting volumes)
 00:03 - OCFS2 bind mount: ✅ Complete (fast)
-00:04 - CIFS torrents mount: ⏳ Connecting...
-00:08 - CIFS torrents mount: ⏳ Authenticating...
-00:10 - CIFS torrents mount: ✅ Complete
-00:11 - CIFS usenet mount: ⏳ Connecting...
-00:15 - CIFS usenet mount: ✅ Complete
+00:04 - CIFS downloads mount: ⏳ Connecting...
+00:08 - CIFS downloads mount: ⏳ Authenticating...
+00:10 - CIFS downloads mount: ✅ Complete
 00:16 - State: "Running" 🎉
 ```
 
