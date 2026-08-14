@@ -57,6 +57,9 @@ services:
                 - stacks/apps/takeout-manager/worker/**
         container_name: takeout-worker
         restart: unless-stopped
+        # Must match the CIFS mounts' uid=1000,gid=1000 (below) — the container
+        # otherwise runs as root, which the CIFS client denies write access to.
+        user: "${PUID:-1000}:${PGID:-1000}"
         volumes:
             - takeout-downloads:/downloads
             - takeout-pictures:/pictures

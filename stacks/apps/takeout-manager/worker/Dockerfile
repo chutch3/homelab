@@ -16,4 +16,9 @@ RUN uv sync --no-dev --no-install-project
 
 COPY . .
 
+# Runs as PUID:PGID (docker-compose `user:`) to match the CIFS mounts' uid/gid —
+# give that uid a writable HOME so uv's cache dir doesn't fall back to /.cache.
+RUN mkdir -p /home/worker && chown -R 1000:1000 /app /home/worker
+ENV HOME=/home/worker
+
 CMD ["uv", "run", "python", "main.py"]
