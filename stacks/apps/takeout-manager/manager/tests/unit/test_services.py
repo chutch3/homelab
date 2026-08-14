@@ -220,6 +220,20 @@ class TestTaskService:
 
         mock_job_repo.update_status.assert_called_once_with(1, JobStatus.FAILED)
 
+    def test_update_task_status_stays_in_progress_when_other_chunks_still_active(
+        self, subject, mock_job_repo, mock_chunk_repo
+    ):
+        mock_chunk_repo.get_job_id_for_chunk.return_value = 1
+        mock_chunk_repo.get_all_statuses_for_job.return_value = [
+            ChunkStatus.FAILED.value,
+            ChunkStatus.DOWNLOADING.value,
+            ChunkStatus.PENDING_DOWNLOAD.value,
+        ]
+
+        subject.update_task_status(10, ChunkStatus.FAILED, "curl error")
+
+        mock_job_repo.update_status.assert_called_once_with(1, JobStatus.IN_PROGRESS)
+
     def test_update_task_status_in_progress(self, subject, mock_job_repo, mock_chunk_repo):
         mock_chunk_repo.get_job_id_for_chunk.return_value = 1
         mock_chunk_repo.get_all_statuses_for_job.return_value = [

@@ -175,6 +175,50 @@ class TestJobAPI:
         job_status_final = cursor.fetchone()["status"]
         assert job_status_final == JobStatus.COMPLETED.value
 
+    def test_job_status_stays_in_progress_when_some_chunks_fail_while_others_are_still_active(
+        self, client_fixture, db_connection_fixture
+    ):
+        job_data = {
+            "job_id": "test-job-partial-failure",
+            "user_id": "test-user-partial",
+            "timestamp": "20240105T000000",
+            "auth_user": "0",
+            "cookie": "test-cookie-partial",
+            "total_chunks": 3,
+        }
+        client_fixture.post("/api/jobs", json=job_data)
+
+        conn = db_connection_fixture
+        cursor = conn.cursor()
+        cursor.execute("SELECT id FROM jobs WHERE job_id = ?", ("test-job-partial-failure",))
+        job_id = cursor.fetchone()["id"]
+
+        # Chunk 1 fails while chunks 2 and 3 are still pending (active work remains).
+        task1 = client_fixture.get("/api/tasks/next").json()
+        client_fixture.post(
+            f"/api/tasks/{task1['id']}/status",
+            json={"status": ChunkStatus.FAILED.value, "message": "curl error"},
+        )
+
+        cursor.execute("SELECT status FROM jobs WHERE id = ?", (job_id,))
+        assert cursor.fetchone()["status"] == JobStatus.IN_PROGRESS.value
+
+        # Once every chunk has reached a terminal state and at least one failed,
+        # the job is genuinely done and failed.
+        task2 = client_fixture.get("/api/tasks/next").json()
+        client_fixture.post(
+            f"/api/tasks/{task2['id']}/status",
+            json={"status": ChunkStatus.FAILED.value, "message": "curl error"},
+        )
+        task3 = client_fixture.get("/api/tasks/next").json()
+        client_fixture.post(
+            f"/api/tasks/{task3['id']}/status",
+            json={"status": ChunkStatus.FAILED.value, "message": "curl error"},
+        )
+
+        cursor.execute("SELECT status FROM jobs WHERE id = ?", (job_id,))
+        assert cursor.fetchone()["status"] == JobStatus.FAILED.value
+
     def test_update_job_cookie(self, client_fixture, db_connection_fixture):
         job_data = {
             "job_id": "test-job-cookie-update",

@@ -176,7 +176,9 @@ class TaskService:
     def _calculate_job_status(self, chunk_statuses: List[str]) -> JobStatus:
         if all(s == ChunkStatus.EXTRACTED.value for s in chunk_statuses):
             return JobStatus.COMPLETED
-        elif any(s == ChunkStatus.FAILED.value for s in chunk_statuses):
+        terminal_statuses = {ChunkStatus.EXTRACTED.value, ChunkStatus.FAILED.value}
+        if all(s in terminal_statuses for s in chunk_statuses) and any(
+            s == ChunkStatus.FAILED.value for s in chunk_statuses
+        ):
             return JobStatus.FAILED
-        else:
-            return JobStatus.IN_PROGRESS
+        return JobStatus.IN_PROGRESS
