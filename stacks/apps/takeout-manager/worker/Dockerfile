@@ -18,7 +18,10 @@ COPY . .
 
 # Runs as PUID:PGID (docker-compose `user:`) to match the CIFS mounts' uid/gid —
 # give that uid a writable HOME so uv's cache dir doesn't fall back to /.cache.
-RUN mkdir -p /home/worker && chown -R 1000:1000 /app /home/worker
+# /staging is pre-created with the same ownership: Docker copies an image
+# directory's contents (incl. ownership) into a fresh named volume on its first
+# mount, so this is what makes the empty takeout-staging volume writable by 1000.
+RUN mkdir -p /home/worker /staging && chown -R 1000:1000 /app /home/worker /staging
 ENV HOME=/home/worker
 
 CMD ["uv", "run", "python", "main.py"]
