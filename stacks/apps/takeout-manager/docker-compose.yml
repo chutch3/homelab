@@ -61,6 +61,7 @@ services:
         # otherwise runs as root, which the CIFS client denies write access to.
         user: "${PUID:-1000}:${PGID:-1000}"
         volumes:
+            - takeout-staging:/staging
             - takeout-downloads:/downloads
             - takeout-pictures:/pictures
             - takeout-videos:/videos
@@ -86,6 +87,18 @@ volumes:
             type: "none"
             o: "bind"
             device: "/mnt/iscsi/app-data/takeout-manager"
+
+    # Node-local scratch for in-progress downloads. Docker-managed under
+    # /var/lib/docker on whatever node the worker task lands on (mode: global,
+    # so every node gets its own) — deliberately off the CIFS mount. A download
+    # is written and integrity-checked here, then moved onto the CIFS share in
+    # a single local-read/CIFS-write pass, avoiding the multi-minute streamed
+    # write directly to CIFS that was truncating on NAS load (Kopia backups,
+    # etc). A confirmed-corrupt download is deleted so a retry starts fresh
+    # rather than resuming (curl -C -) onto bad bytes; a plain transient
+    # failure leaves the partial file in place so resume can still help.
+    takeout-staging:
+        driver: local
 
     # Worker Volumes (SMB/CIFS - File)
     takeout-downloads:

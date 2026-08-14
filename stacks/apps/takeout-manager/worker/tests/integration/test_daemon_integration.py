@@ -26,6 +26,7 @@ class TestDaemonIntegration:
         container = WorkerContainer()
         container.config.manager_url.from_value("http://fake-manager")
         container.config.log.level.from_value("ERROR")
+        container.config.paths.staging.from_value(str(tmp_path / "staging"))
         container.config.paths.downloads.from_value(str(tmp_path / "downloads"))
         container.config.paths.pictures.from_value(str(tmp_path / "pictures"))
         container.config.paths.videos.from_value(str(tmp_path / "videos"))
@@ -39,6 +40,7 @@ class TestDaemonIntegration:
         """Daemon dispatches a download task through the real service and reports success."""
         downloads_dir = tmp_path / "downloads"
         downloads_dir.mkdir()
+        (tmp_path / "staging").mkdir()
 
         download_task = {
             "id": 1,
@@ -81,6 +83,7 @@ class TestDaemonIntegration:
     async def test_download_reports_progress_to_manager_during_download(self, worker_container, tmp_path):
         """Daemon reports progress updates to the manager while a download is in flight."""
         (tmp_path / "downloads").mkdir()
+        (tmp_path / "staging").mkdir()
 
         download_task = {
             "id": 5,
@@ -177,6 +180,7 @@ class TestDaemonIntegration:
         """Daemon reports failed status when the downloaded archive fails integrity verification,
         rather than passing a corrupt file on to extraction."""
         (tmp_path / "downloads").mkdir()
+        (tmp_path / "staging").mkdir()
 
         download_task = {
             "id": 4,

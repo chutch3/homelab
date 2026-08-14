@@ -29,6 +29,7 @@ class TestDownloadService:
             curl_runner=mock_curl_runner,
             tar_runner=mock_tar_runner,
             progress_tracker=mock_progress_tracker,
+            staging_path=str(tmp_path / "staging"),
             download_path=str(tmp_path / "downloads"),
             pictures_path=str(tmp_path / "pictures"),
             videos_path=str(tmp_path / "videos"),
@@ -37,6 +38,12 @@ class TestDownloadService:
     @pytest.fixture
     def downloads_dir(self, tmp_path):
         d = tmp_path / "downloads"
+        d.mkdir()
+        return d
+
+    @pytest.fixture
+    def staging_dir(self, tmp_path):
+        d = tmp_path / "staging"
         d.mkdir()
         return d
 
@@ -58,7 +65,7 @@ class TestDownloadService:
         assert message == "Missing required download parameters"
 
     @pytest.mark.asyncio
-    async def test_download_chunk_calls_curl_runner(self, subject, mock_curl_runner, downloads_dir):
+    async def test_download_chunk_calls_curl_runner(self, subject, mock_curl_runner, staging_dir):
         async def create_file(url, output_path, headers):
             Path(output_path).write_bytes(b"fake content")
             return True
@@ -84,7 +91,7 @@ class TestDownloadService:
         assert success is True
 
     @pytest.mark.asyncio
-    async def test_download_chunk_constructs_correct_url(self, subject, mock_curl_runner, downloads_dir):
+    async def test_download_chunk_downloads_to_staging_path(self, subject, mock_curl_runner, staging_dir):
         async def create_file(url, output_path, headers):
             Path(output_path).write_bytes(b"fake content")
             return True
@@ -109,17 +116,19 @@ class TestDownloadService:
             f"https://takeout-download.usercontent.google.com/download/{expected_chunk_name}"
             f"?j=test-job-id&i=0&user=test-user-id&authuser=0"
         )
-        expected_output_path = str(downloads_dir / expected_chunk_name)
+        expected_staging_path = str(staging_dir / expected_chunk_name)
 
         await subject.download_chunk(mock_task)
 
         call_args = mock_curl_runner.download.call_args
         assert call_args[0][0] == expected_url
-        assert call_args[0][1] == expected_output_path
+        assert call_args[0][1] == expected_staging_path
         assert "cookie" in call_args[0][2]
 
     @pytest.mark.asyncio
-    async def test_download_chunk_returns_success_on_file_creation(self, subject, mock_curl_runner, downloads_dir):
+    async def test_download_chunk_moves_verified_file_to_final_download_path(
+        self, subject, mock_curl_runner, downloads_dir, staging_dir
+    ):
         async def create_downloaded_file(url, output_path, headers):
             Path(output_path).write_bytes(b"downloaded content")
             return True
@@ -143,9 +152,13 @@ class TestDownloadService:
 
         assert success is True
         assert message == "Download successful"
+        final_path = downloads_dir / "takeout-20240101T120000Z-1-001.tgz"
+        assert final_path.exists()
+        assert final_path.read_bytes() == b"downloaded content"
+        assert not (staging_dir / "takeout-20240101T120000Z-1-001.tgz").exists()
 
     @pytest.mark.asyncio
-    async def test_download_chunk_returns_failure_on_empty_file(self, subject, mock_curl_runner, downloads_dir):
+    async def test_download_chunk_returns_failure_on_empty_file(self, subject, mock_curl_runner, staging_dir):
         async def create_empty_file(url, output_path, headers):
             Path(output_path).write_bytes(b"")
             return True
@@ -172,7 +185,7 @@ class TestDownloadService:
 
     @pytest.mark.asyncio
     async def test_download_chunk_returns_failure_on_corrupted_archive(
-        self, subject, mock_curl_runner, mock_tar_runner, downloads_dir
+        self, subject, mock_curl_runner, mock_tar_runner, staging_dir
     ):
         async def create_file(url, output_path, headers):
             Path(output_path).write_bytes(b"truncated content")
@@ -199,12 +212,42 @@ class TestDownloadService:
         assert success is False
         assert message == "Downloaded file failed integrity check (corrupted)"
         mock_tar_runner.verify.assert_called_once_with(
-            str(downloads_dir / "takeout-20240101T120000Z-1-001.tgz")
+            str(staging_dir / "takeout-20240101T120000Z-1-001.tgz")
         )
 
     @pytest.mark.asyncio
+    async def test_download_chunk_deletes_staging_file_on_corruption(
+        self, subject, mock_curl_runner, mock_tar_runner, downloads_dir, staging_dir
+    ):
+        """A confirmed-corrupt file must not survive to poison a later resume attempt."""
+        async def create_file(url, output_path, headers):
+            Path(output_path).write_bytes(b"truncated content")
+            return True
+
+        mock_curl_runner.download.side_effect = create_file
+        mock_tar_runner.verify.return_value = False
+
+        mock_task = {
+            "id": 1,
+            "type": "download",
+            "params": {
+                "chunk_index": 1,
+                "job_id": "test",
+                "user_id": "user",
+                "timestamp": "20240101T120000",
+                "auth_user": "0",
+                "cookie": "c",
+            },
+        }
+
+        await subject.download_chunk(mock_task)
+
+        assert not (staging_dir / "takeout-20240101T120000Z-1-001.tgz").exists()
+        assert not (downloads_dir / "takeout-20240101T120000Z-1-001.tgz").exists()
+
+    @pytest.mark.asyncio
     async def test_download_chunk_verifies_archive_before_reporting_success(
-        self, subject, mock_curl_runner, mock_tar_runner, downloads_dir
+        self, subject, mock_curl_runner, mock_tar_runner, staging_dir
     ):
         async def create_file(url, output_path, headers):
             Path(output_path).write_bytes(b"intact content")
@@ -234,7 +277,7 @@ class TestDownloadService:
 
     @pytest.mark.asyncio
     async def test_download_chunk_probes_total_size_before_downloading(
-        self, subject, mock_curl_runner, downloads_dir
+        self, subject, mock_curl_runner, staging_dir
     ):
         async def create_file(url, output_path, headers):
             Path(output_path).write_bytes(b"content")
@@ -261,7 +304,7 @@ class TestDownloadService:
 
     @pytest.mark.asyncio
     async def test_download_chunk_without_on_progress_does_not_start_tracker(
-        self, subject, mock_curl_runner, mock_progress_tracker, downloads_dir
+        self, subject, mock_curl_runner, mock_progress_tracker, staging_dir
     ):
         async def create_file(url, output_path, headers):
             Path(output_path).write_bytes(b"content")
@@ -284,7 +327,7 @@ class TestDownloadService:
 
     @pytest.mark.asyncio
     async def test_download_chunk_with_on_progress_tracks_and_stops_after_download(
-        self, subject, mock_curl_runner, mock_progress_tracker, downloads_dir
+        self, subject, mock_curl_runner, mock_progress_tracker, staging_dir
     ):
         async def create_file(url, output_path, headers):
             Path(output_path).write_bytes(b"content")
@@ -316,7 +359,7 @@ class TestDownloadService:
         assert success is True
         mock_progress_tracker.track.assert_called_once()
         call_args = mock_progress_tracker.track.call_args[0]
-        assert call_args[0] == str(downloads_dir / "takeout-20240101T120000Z-1-001.tgz")
+        assert call_args[0] == str(staging_dir / "takeout-20240101T120000Z-1-001.tgz")
         assert call_args[1] == 5000
         assert call_args[2] is on_progress
         assert isinstance(call_args[3], asyncio.Event)

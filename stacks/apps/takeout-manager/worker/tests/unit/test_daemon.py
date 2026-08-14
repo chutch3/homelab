@@ -14,6 +14,7 @@ class TestRunDaemon:
         container = WorkerContainer()
         container.config.manager_url.from_value("http://test-manager:8000")
         container.config.log.level.from_value("ERROR")
+        container.config.paths.staging.from_value("/tmp/staging")
         container.config.paths.downloads.from_value("/tmp/downloads")
         container.config.paths.pictures.from_value("/tmp/pictures")
         container.config.paths.videos.from_value("/tmp/videos")

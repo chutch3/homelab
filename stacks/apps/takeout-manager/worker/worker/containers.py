@@ -46,6 +46,7 @@ class WorkerContainer(containers.DeclarativeContainer):
         curl_runner=curl_runner,
         tar_runner=tar_runner,
         progress_tracker=progress_tracker,
+        staging_path=config.paths.staging,
         download_path=config.paths.downloads,
         pictures_path=config.paths.pictures,
         videos_path=config.paths.videos,

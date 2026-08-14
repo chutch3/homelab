@@ -20,6 +20,7 @@ class DownloadService:
         curl_runner: CurlRunner,
         tar_runner: TarRunner,
         progress_tracker: DownloadProgressTracker,
+        staging_path: str,
         download_path: str,
         pictures_path: str,
         videos_path: str,
@@ -27,6 +28,7 @@ class DownloadService:
         self.curl_runner = curl_runner
         self.tar_runner = tar_runner
         self.progress_tracker = progress_tracker
+        self.staging_path = staging_path
         self.download_path = download_path
         self.pictures_path = pictures_path
         self.videos_path = videos_path
@@ -49,6 +51,7 @@ class DownloadService:
         chunk_num_str = f"{chunk_index:03d}"
 
         output_file = f"takeout-{timestamp}Z-1-{chunk_num_str}.tgz"
+        staging_file_path = os.path.join(self.staging_path, output_file)
         output_path = os.path.join(self.download_path, output_file)
         url = (
             f"https://takeout-download.usercontent.google.com/download/{output_file}"
@@ -84,19 +87,22 @@ class DownloadService:
         stop_event = asyncio.Event()
         if on_progress is not None:
             tracker_task = asyncio.create_task(
-                self.progress_tracker.track(output_path, total_bytes, on_progress, stop_event)
+                self.progress_tracker.track(staging_file_path, total_bytes, on_progress, stop_event)
             )
 
         try:
-            success = await self.curl_runner.download(url, output_path, headers)
+            success = await self.curl_runner.download(url, staging_file_path, headers)
         finally:
             if tracker_task is not None:
                 stop_event.set()
                 await tracker_task
 
-        if success and os.path.exists(output_path) and os.path.getsize(output_path) > 0:
-            if not await self.tar_runner.verify(output_path):
+        if success and os.path.exists(staging_file_path) and os.path.getsize(staging_file_path) > 0:
+            if not await self.tar_runner.verify(staging_file_path):
+                os.remove(staging_file_path)
                 return False, "Downloaded file failed integrity check (corrupted)"
+            os.makedirs(self.download_path, exist_ok=True)
+            shutil.move(staging_file_path, output_path)
             return True, "Download successful"
         elif success:
             return False, "File not found or empty after download"
