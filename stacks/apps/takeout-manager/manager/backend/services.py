@@ -1,7 +1,7 @@
 import logging
 from typing import Dict, Any, List, Optional
 
-from backend.models import JobStatus, ChunkStatus, TakeoutJob
+from backend.models import JobStatus, ChunkStatus, MetadataStatus, TakeoutJob
 from backend.repositories import JobRepository, ChunkRepository
 from backend.domain.models import ChunkRecord
 
@@ -60,6 +60,8 @@ class JobService:
                     "failed_chunks": failed,
                     "completed_chunks": completed,
                     "progress": progress,
+                    "metadata_status": job.metadata_status,
+                    "metadata_message": job.metadata_message,
                     **byte_progress,
                 }
             )
@@ -111,6 +113,13 @@ class JobService:
             "message": f"Retrying {retried_count} failed chunks",
             "retried_count": retried_count,
         }
+
+    def reprocess_metadata(self, job_id: int) -> None:
+        job = self._job_repo.get_by_id(job_id)
+        if not job:
+            raise ValueError(f"Job {job_id} not found")
+        self._job_repo.mark_metadata_pending(job_id)
+        self.logger.info("Re-driving metadata phase", extra={"job_id": job_id})
 
 
 class ChunkService:
@@ -189,6 +198,18 @@ class TaskService:
                     "timestamp": extract_task.timestamp,
                 },
             }
+        metadata_task = self._job_repo.claim_next_pending_metadata_job()
+        if metadata_task:
+            self.logger.debug("Assigned metadata task", extra={"task_id": metadata_task.id})
+            return {
+                "id": metadata_task.id,
+                "type": "metadata",
+                "params": {
+                    "job_id": metadata_task.job_id,
+                    "timestamp": metadata_task.timestamp,
+                    "total_chunks": metadata_task.total_chunks,
+                },
+            }
         return {"task": "none"}
 
     def update_task_status(self, task_id: int, status: ChunkStatus, message: str = "") -> None:
@@ -200,6 +221,8 @@ class TaskService:
         chunk_statuses = self._chunk_repo.get_all_statuses_for_job(job_id)
         new_job_status = self._calculate_job_status(chunk_statuses)
         self._job_repo.update_status(job_id, new_job_status)
+        if new_job_status == JobStatus.COMPLETED:
+            self._job_repo.mark_metadata_pending(job_id)
         self.logger.info(
             "Updated task status",
             extra={
@@ -208,6 +231,13 @@ class TaskService:
                 "job_id": job_id,
                 "job_status": new_job_status.value,
             },
+        )
+
+    def update_metadata_task_status(self, job_id: int, status: MetadataStatus, message: str = "") -> None:
+        self._job_repo.update_metadata_status(job_id, status, message)
+        self.logger.info(
+            "Updated metadata task status",
+            extra={"job_id": job_id, "status": status.value},
         )
 
     def _calculate_job_status(self, chunk_statuses: List[str]) -> JobStatus:

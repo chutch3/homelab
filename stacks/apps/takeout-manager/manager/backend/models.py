@@ -16,6 +16,12 @@ class ChunkStatus(str, Enum):
     EXTRACTED = "extracted"
     FAILED = "failed"
 
+class MetadataStatus(str, Enum):
+    PENDING = "pending"
+    PROCESSING = "processing"
+    COMPLETED = "completed"
+    FAILED = "failed"
+
 
 class TakeoutJob(BaseModel):
     job_id: str
@@ -36,3 +42,7 @@ class ChunkProgress(BaseModel):
     downloaded_bytes: int
     total_bytes: Optional[int] = None
     speed_bytes_per_sec: float
+
+class MetadataTaskStatus(BaseModel):
+    status: MetadataStatus
+    message: str = ""

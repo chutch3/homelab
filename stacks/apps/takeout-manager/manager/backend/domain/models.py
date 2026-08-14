@@ -14,6 +14,8 @@ class JobRecord:
     cookie: str
     user_id: str
     auth_user: str
+    metadata_status: Optional[str]
+    metadata_message: Optional[str]
 
 
 @dataclass(frozen=True)
@@ -45,3 +47,11 @@ class ExtractTaskInfo:
     job_id: str
     chunk_index: int
     timestamp: str
+
+
+@dataclass(frozen=True)
+class MetadataTaskInfo:
+    id: int
+    job_id: str
+    timestamp: str
+    total_chunks: int

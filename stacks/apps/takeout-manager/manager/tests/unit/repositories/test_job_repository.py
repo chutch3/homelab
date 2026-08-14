@@ -4,8 +4,8 @@ import pytest
 
 from backend.db.database import Database
 from backend.repositories import JobRepository
-from backend.domain.models import JobRecord
-from backend.models import JobStatus
+from backend.domain.models import JobRecord, MetadataTaskInfo
+from backend.models import JobStatus, MetadataStatus
 
 
 class TestJobRepository:
@@ -109,6 +109,91 @@ class TestJobRepository:
         result = subject.get_by_id(row_id)
         assert result is not None
         assert result.status == JobStatus.IN_PROGRESS.value
+
+    def test_new_job_has_no_metadata_status(self, subject: JobRepository) -> None:
+        row_id = subject.create(
+            job_id="test-job", user_id="u1", timestamp="20240101T000000",
+            auth_user="0", cookie="c", total_chunks=1,
+        )
+
+        result = subject.get_by_id(row_id)
+
+        assert result is not None
+        assert result.metadata_status is None
+        assert result.metadata_message is None
+
+    def test_mark_metadata_pending(self, subject: JobRepository) -> None:
+        row_id = subject.create(
+            job_id="test-job", user_id="u1", timestamp="20240101T000000",
+            auth_user="0", cookie="c", total_chunks=1,
+        )
+
+        subject.mark_metadata_pending(row_id)
+
+        result = subject.get_by_id(row_id)
+        assert result is not None
+        assert result.metadata_status == MetadataStatus.PENDING.value
+
+    def test_mark_metadata_pending_overwrites_terminal_status(self, subject: JobRepository) -> None:
+        """The manual re-drive path: reset even a completed/failed metadata run
+        back to pending, without touching anything else about the job."""
+        row_id = subject.create(
+            job_id="test-job", user_id="u1", timestamp="20240101T000000",
+            auth_user="0", cookie="c", total_chunks=1,
+        )
+        subject.mark_metadata_pending(row_id)
+        subject.update_metadata_status(row_id, MetadataStatus.COMPLETED, "done")
+
+        subject.mark_metadata_pending(row_id)
+
+        result = subject.get_by_id(row_id)
+        assert result is not None
+        assert result.metadata_status == MetadataStatus.PENDING.value
+
+    def test_claim_next_pending_metadata_job(self, subject: JobRepository) -> None:
+        row_id = subject.create(
+            job_id="test-job", user_id="u1", timestamp="20240101T000000",
+            auth_user="0", cookie="c", total_chunks=3,
+        )
+        subject.mark_metadata_pending(row_id)
+
+        result = subject.claim_next_pending_metadata_job()
+
+        assert result is not None
+        assert isinstance(result, MetadataTaskInfo)
+        assert result.id == row_id
+        assert result.job_id == "test-job"
+        assert result.timestamp == "20240101T000000"
+        assert result.total_chunks == 3
+        claimed = subject.get_by_id(row_id)
+        assert claimed.metadata_status == MetadataStatus.PROCESSING.value
+
+    def test_claim_next_pending_metadata_job_returns_none_when_empty(self, subject: JobRepository) -> None:
+        assert subject.claim_next_pending_metadata_job() is None
+
+    def test_claim_next_pending_metadata_job_ignores_jobs_never_marked_pending(
+        self, subject: JobRepository
+    ) -> None:
+        subject.create(
+            job_id="test-job", user_id="u1", timestamp="20240101T000000",
+            auth_user="0", cookie="c", total_chunks=1,
+        )
+
+        assert subject.claim_next_pending_metadata_job() is None
+
+    def test_update_metadata_status(self, subject: JobRepository) -> None:
+        row_id = subject.create(
+            job_id="test-job", user_id="u1", timestamp="20240101T000000",
+            auth_user="0", cookie="c", total_chunks=1,
+        )
+        subject.mark_metadata_pending(row_id)
+
+        subject.update_metadata_status(row_id, MetadataStatus.FAILED, "gpth crashed")
+
+        result = subject.get_by_id(row_id)
+        assert result is not None
+        assert result.metadata_status == MetadataStatus.FAILED.value
+        assert result.metadata_message == "gpth crashed"
 
     def test_update_status_if_failed_skips_non_failed(self, subject: JobRepository) -> None:
         row_id = subject.create(

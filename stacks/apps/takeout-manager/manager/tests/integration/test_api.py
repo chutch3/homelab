@@ -178,6 +178,112 @@ class TestJobAPI:
         job_status_final = cursor.fetchone()["status"]
         assert job_status_final == JobStatus.COMPLETED.value
 
+    def test_metadata_task_is_assigned_once_job_completes_and_reports_back(
+        self, client_fixture, db_connection_fixture
+    ):
+        job_data = {
+            "job_id": "test-job-metadata",
+            "user_id": "test-user-metadata",
+            "timestamp": "20240109T000000",
+            "auth_user": "0",
+            "cookie": "test-cookie-metadata",
+            "total_chunks": 1,
+        }
+        client_fixture.post("/api/jobs", json=job_data)
+
+        conn = db_connection_fixture
+        cursor = conn.cursor()
+        cursor.execute("SELECT id FROM jobs WHERE job_id = ?", ("test-job-metadata",))
+        job_id = cursor.fetchone()["id"]
+
+        task = client_fixture.get("/api/tasks/next").json()
+        assert task["type"] == "download"  # no metadata task before chunks are done
+        client_fixture.post(
+            f"/api/tasks/{task['id']}/status",
+            json={"status": ChunkStatus.DOWNLOADED.value, "message": "done"},
+        )
+        task = client_fixture.get("/api/tasks/next").json()
+        client_fixture.post(
+            f"/api/tasks/{task['id']}/status",
+            json={"status": ChunkStatus.EXTRACTED.value, "message": "done"},
+        )
+
+        metadata_task = client_fixture.get("/api/tasks/next").json()
+        assert metadata_task["type"] == "metadata"
+        assert metadata_task["id"] == job_id
+        assert metadata_task["params"]["job_id"] == "test-job-metadata"
+        assert metadata_task["params"]["timestamp"] == "20240109T000000"
+        assert metadata_task["params"]["total_chunks"] == 1
+
+        cursor.execute("SELECT metadata_status FROM jobs WHERE id = ?", (job_id,))
+        assert cursor.fetchone()["metadata_status"] == "processing"
+
+        # Claimed — not offered again while in flight.
+        assert client_fixture.get("/api/tasks/next").json() == {"task": "none"}
+
+        response = client_fixture.post(
+            f"/api/jobs/{job_id}/metadata-status",
+            json={"status": "completed", "message": "Embedded EXIF for 42 files"},
+        )
+        assert response.status_code == 200
+
+        cursor.execute("SELECT metadata_status, metadata_message FROM jobs WHERE id = ?", (job_id,))
+        row = cursor.fetchone()
+        assert row["metadata_status"] == "completed"
+        assert row["metadata_message"] == "Embedded EXIF for 42 files"
+
+    def test_reprocess_metadata_redrives_just_the_metadata_phase(
+        self, client_fixture, db_connection_fixture
+    ):
+        """Manual re-drive: resets only the metadata phase, regardless of its
+        current state, without touching already-completed download/extract work."""
+        job_data = {
+            "job_id": "test-job-redrive",
+            "user_id": "test-user-redrive",
+            "timestamp": "20240110T000000",
+            "auth_user": "0",
+            "cookie": "test-cookie-redrive",
+            "total_chunks": 1,
+        }
+        client_fixture.post("/api/jobs", json=job_data)
+
+        conn = db_connection_fixture
+        cursor = conn.cursor()
+        cursor.execute("SELECT id FROM jobs WHERE job_id = ?", ("test-job-redrive",))
+        job_id = cursor.fetchone()["id"]
+
+        task = client_fixture.get("/api/tasks/next").json()
+        client_fixture.post(
+            f"/api/tasks/{task['id']}/status",
+            json={"status": ChunkStatus.DOWNLOADED.value, "message": "done"},
+        )
+        task = client_fixture.get("/api/tasks/next").json()
+        client_fixture.post(
+            f"/api/tasks/{task['id']}/status",
+            json={"status": ChunkStatus.EXTRACTED.value, "message": "done"},
+        )
+        metadata_task = client_fixture.get("/api/tasks/next").json()
+        client_fixture.post(
+            f"/api/jobs/{job_id}/metadata-status",
+            json={"status": "completed", "message": "first pass"},
+        )
+
+        response = client_fixture.post(f"/api/jobs/{job_id}/reprocess-metadata")
+        assert response.status_code == 200
+
+        cursor.execute("SELECT metadata_status, metadata_message FROM jobs WHERE id = ?", (job_id,))
+        row = cursor.fetchone()
+        assert row["metadata_status"] == "pending"
+        assert row["metadata_message"] is None
+
+        # Chunk state is untouched — re-drive skips the already-completed steps.
+        cursor.execute("SELECT status FROM chunks WHERE job_id = ?", (job_id,))
+        assert cursor.fetchone()["status"] == ChunkStatus.EXTRACTED.value
+
+        redriven_task = client_fixture.get("/api/tasks/next").json()
+        assert redriven_task["type"] == "metadata"
+        assert redriven_task["id"] == job_id
+
     def test_job_status_stays_in_progress_when_some_chunks_fail_while_others_are_still_active(
         self, client_fixture, db_connection_fixture
     ):

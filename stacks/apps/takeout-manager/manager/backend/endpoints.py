@@ -2,7 +2,7 @@ from dependency_injector.wiring import Provide, inject
 from fastapi import APIRouter, Depends, HTTPException
 
 from backend.containers import ManagerContainer
-from backend.models import TakeoutJob, TaskStatus, CookieUpdate, ChunkProgress
+from backend.models import TakeoutJob, TaskStatus, CookieUpdate, ChunkProgress, MetadataTaskStatus
 from backend.services import JobService, ChunkService, TaskService
 
 
@@ -64,6 +64,19 @@ def retry_failed_chunks(
         raise HTTPException(status_code=404, detail=str(e))
 
 
+@router.post("/api/jobs/{job_id}/reprocess-metadata")
+@inject
+def reprocess_metadata(
+    job_id: int,
+    job_service: JobService = Depends(Provide[ManagerContainer.job_service]),
+):
+    try:
+        job_service.reprocess_metadata(job_id)
+        return {"message": "Job queued for metadata re-processing"}
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+
 @router.post("/api/chunks/{chunk_id}/retry")
 @inject
 def retry_single_chunk(
@@ -107,6 +120,19 @@ def update_task_status(
 ):
     task_service.update_task_status(
         task_id, status_update.status, status_update.message
+    )
+    return {"message": "Status received"}
+
+
+@router.post("/api/jobs/{job_id}/metadata-status")
+@inject
+def update_metadata_task_status(
+    job_id: int,
+    status_update: MetadataTaskStatus,
+    task_service: TaskService = Depends(Provide[ManagerContainer.task_service]),
+):
+    task_service.update_metadata_task_status(
+        job_id, status_update.status, status_update.message
     )
     return {"message": "Status received"}
 

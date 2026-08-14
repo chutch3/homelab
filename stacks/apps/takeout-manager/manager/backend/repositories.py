@@ -6,8 +6,14 @@ from typing import Dict, List, Optional
 from sqlmodel import select
 
 from backend.db.models import Chunk as ChunkRow, Job as JobRow
-from backend.domain.models import ChunkRecord, DownloadTaskInfo, ExtractTaskInfo, JobRecord
-from backend.models import ChunkStatus, JobStatus
+from backend.domain.models import (
+    ChunkRecord,
+    DownloadTaskInfo,
+    ExtractTaskInfo,
+    JobRecord,
+    MetadataTaskInfo,
+)
+from backend.models import ChunkStatus, JobStatus, MetadataStatus
 
 
 def _to_job_record(row: JobRow) -> JobRecord:
@@ -20,6 +26,8 @@ def _to_job_record(row: JobRow) -> JobRecord:
         cookie=row.cookie,
         user_id=row.user_id,
         auth_user=row.auth_user,
+        metadata_status=row.metadata_status,
+        metadata_message=row.metadata_message,
     )
 
 
@@ -95,6 +103,44 @@ class JobRepository:
             row = session.get(JobRow, job_id)
             if row and row.status == JobStatus.FAILED.value:
                 row.status = new_status.value
+                session.add(row)
+                session.commit()
+
+    def mark_metadata_pending(self, job_id: int) -> None:
+        with self._session_factory() as session:
+            row = session.get(JobRow, job_id)
+            if row:
+                row.metadata_status = MetadataStatus.PENDING.value
+                row.metadata_message = None
+                session.add(row)
+                session.commit()
+
+    def claim_next_pending_metadata_job(self) -> Optional[MetadataTaskInfo]:
+        with self._session_factory() as session:
+            row = session.exec(
+                select(JobRow)
+                .where(JobRow.metadata_status == MetadataStatus.PENDING.value)
+                .order_by(JobRow.id)
+                .limit(1)
+            ).first()
+            if not row:
+                return None
+            row.metadata_status = MetadataStatus.PROCESSING.value
+            session.add(row)
+            session.commit()
+            return MetadataTaskInfo(
+                id=row.id,
+                job_id=row.job_id,
+                timestamp=row.timestamp,
+                total_chunks=row.total_chunks,
+            )
+
+    def update_metadata_status(self, job_id: int, status: MetadataStatus, message: str = "") -> None:
+        with self._session_factory() as session:
+            row = session.get(JobRow, job_id)
+            if row:
+                row.metadata_status = status.value
+                row.metadata_message = message
                 session.add(row)
                 session.commit()
 

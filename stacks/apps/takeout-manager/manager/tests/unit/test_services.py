@@ -2,15 +2,22 @@ import pytest
 from unittest.mock import Mock
 
 from backend.services import JobService, ChunkService, TaskService
-from backend.models import JobStatus, ChunkStatus, TakeoutJob
+from backend.models import JobStatus, ChunkStatus, MetadataStatus, TakeoutJob
 from backend.repositories import JobRepository, ChunkRepository
-from backend.domain.models import ChunkRecord, DownloadTaskInfo, ExtractTaskInfo, JobRecord
+from backend.domain.models import (
+    ChunkRecord,
+    DownloadTaskInfo,
+    ExtractTaskInfo,
+    JobRecord,
+    MetadataTaskInfo,
+)
 
 
 def _job_record(**overrides):
     defaults = dict(
         id=1, job_id="job-1", timestamp="20240101T120000", total_chunks=1,
         status=JobStatus.PENDING.value, cookie="cookie", user_id="user-1", auth_user="0",
+        metadata_status=None, metadata_message=None,
     )
     defaults.update(overrides)
     return JobRecord(**defaults)
@@ -77,6 +84,20 @@ class TestJobService:
         assert result[0]["failed_chunks"] == 1
         assert result[0]["progress"] == 40
 
+    def test_list_jobs_includes_metadata_status(self, subject, mock_job_repo, mock_chunk_repo):
+        mock_job_repo.list_all.return_value = [
+            _job_record(id=1, job_id="job-1", user_id="user-1", timestamp="20240101T120000",
+                        total_chunks=1, status=JobStatus.COMPLETED.value,
+                        metadata_status=MetadataStatus.PROCESSING.value, metadata_message=None)
+        ]
+        mock_chunk_repo.get_status_counts_for_job.return_value = {}
+        mock_chunk_repo.get_progress_for_job.return_value = []
+
+        result = subject.list_jobs()
+
+        assert result[0]["metadata_status"] == MetadataStatus.PROCESSING.value
+        assert result[0]["metadata_message"] is None
+
     def test_list_jobs_includes_byte_progress_aggregate(self, subject, mock_job_repo, mock_chunk_repo):
         mock_job_repo.list_all.return_value = [
             _job_record(id=1, job_id="job-1", user_id="user-1", timestamp="20240101T120000",
@@ -131,6 +152,19 @@ class TestJobService:
 
         assert result["retried_count"] == 0
         mock_chunk_repo.reset_to_pending_download.assert_not_called()
+
+    def test_reprocess_metadata(self, subject, mock_job_repo):
+        mock_job_repo.get_by_id.return_value = _job_record(id=1)
+
+        subject.reprocess_metadata(1)
+
+        mock_job_repo.mark_metadata_pending.assert_called_once_with(1)
+
+    def test_reprocess_metadata_nonexistent_job(self, subject, mock_job_repo):
+        mock_job_repo.get_by_id.return_value = None
+
+        with pytest.raises(ValueError, match="Job 1 not found"):
+            subject.reprocess_metadata(1)
 
 
 class TestCalculateJobProgress:
@@ -292,9 +326,25 @@ class TestTaskService:
         assert result["type"] == "extract"
         assert result["id"] == 2
 
-    def test_get_next_task_none_available(self, subject, mock_chunk_repo):
+    def test_get_next_task_metadata(self, subject, mock_chunk_repo, mock_job_repo):
         mock_chunk_repo.get_next_pending_download.return_value = None
         mock_chunk_repo.get_next_downloaded.return_value = None
+        mock_job_repo.claim_next_pending_metadata_job.return_value = MetadataTaskInfo(
+            id=1, job_id="test-job", timestamp="20240101T120000", total_chunks=3,
+        )
+
+        result = subject.get_next_task()
+
+        assert result["type"] == "metadata"
+        assert result["id"] == 1
+        assert result["params"]["job_id"] == "test-job"
+        assert result["params"]["timestamp"] == "20240101T120000"
+        assert result["params"]["total_chunks"] == 3
+
+    def test_get_next_task_none_available(self, subject, mock_chunk_repo, mock_job_repo):
+        mock_chunk_repo.get_next_pending_download.return_value = None
+        mock_chunk_repo.get_next_downloaded.return_value = None
+        mock_job_repo.claim_next_pending_metadata_job.return_value = None
 
         result = subject.get_next_task()
 
@@ -311,6 +361,7 @@ class TestTaskService:
 
         mock_chunk_repo.update_status.assert_called_once_with(10, ChunkStatus.EXTRACTED, "Done")
         mock_job_repo.update_status.assert_called_once_with(1, JobStatus.COMPLETED)
+        mock_job_repo.mark_metadata_pending.assert_called_once_with(1)
 
     def test_update_task_status_failed(self, subject, mock_job_repo, mock_chunk_repo):
         mock_chunk_repo.get_job_id_for_chunk.return_value = 1
@@ -322,6 +373,7 @@ class TestTaskService:
         subject.update_task_status(10, ChunkStatus.FAILED, "curl error")
 
         mock_job_repo.update_status.assert_called_once_with(1, JobStatus.FAILED)
+        mock_job_repo.mark_metadata_pending.assert_not_called()
 
     def test_update_task_status_stays_in_progress_when_other_chunks_still_active(
         self, subject, mock_job_repo, mock_chunk_repo
@@ -336,6 +388,7 @@ class TestTaskService:
         subject.update_task_status(10, ChunkStatus.FAILED, "curl error")
 
         mock_job_repo.update_status.assert_called_once_with(1, JobStatus.IN_PROGRESS)
+        mock_job_repo.mark_metadata_pending.assert_not_called()
 
     def test_update_task_status_in_progress(self, subject, mock_job_repo, mock_chunk_repo):
         mock_chunk_repo.get_job_id_for_chunk.return_value = 1
@@ -347,6 +400,7 @@ class TestTaskService:
         subject.update_task_status(10, ChunkStatus.DOWNLOADED, "done")
 
         mock_job_repo.update_status.assert_called_once_with(1, JobStatus.IN_PROGRESS)
+        mock_job_repo.mark_metadata_pending.assert_not_called()
 
     def test_update_task_status_no_parent_job(self, subject, mock_job_repo, mock_chunk_repo):
         mock_chunk_repo.get_job_id_for_chunk.return_value = None
@@ -355,3 +409,10 @@ class TestTaskService:
 
         mock_chunk_repo.update_status.assert_called_once_with(10, ChunkStatus.DOWNLOADED, "done")
         mock_job_repo.update_status.assert_not_called()
+
+    def test_update_metadata_task_status(self, subject, mock_job_repo):
+        subject.update_metadata_task_status(1, MetadataStatus.COMPLETED, "Embedded EXIF for 42 files")
+
+        mock_job_repo.update_metadata_status.assert_called_once_with(
+            1, MetadataStatus.COMPLETED, "Embedded EXIF for 42 files"
+        )

@@ -16,6 +16,8 @@ class Job(SQLModel, table=True):
     cookie: str
     user_id: str
     auth_user: str
+    metadata_status: Optional[str] = None
+    metadata_message: Optional[str] = None
 
 
 class Chunk(SQLModel, table=True):
