@@ -215,3 +215,27 @@ class ChunkRepository:
         )
         conn.commit()
         conn.close()
+
+    def update_progress(
+        self, chunk_id: int, downloaded_bytes: int, total_bytes: Optional[int], speed_bytes_per_sec: float
+    ) -> None:
+        conn = self._db.get_connection()
+        cursor = conn.cursor()
+        cursor.execute(
+            "UPDATE chunks SET downloaded_bytes = ?, total_bytes = ?, speed_bytes_per_sec = ? WHERE id = ?",
+            (downloaded_bytes, total_bytes, speed_bytes_per_sec, chunk_id),
+        )
+        conn.commit()
+        conn.close()
+
+    def get_progress_for_job(self, job_id: int) -> List[Dict[str, Any]]:
+        conn = self._db.get_connection()
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT id, status, downloaded_bytes, total_bytes, speed_bytes_per_sec "
+            "FROM chunks WHERE job_id = ?",
+            (job_id,),
+        )
+        rows = [dict(row) for row in cursor.fetchall()]
+        conn.close()
+        return rows

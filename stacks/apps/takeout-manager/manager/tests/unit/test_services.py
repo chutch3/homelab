@@ -54,6 +54,7 @@ class TestJobService:
             ChunkStatus.DOWNLOADED.value: 1,
             ChunkStatus.FAILED.value: 1,
         }
+        mock_chunk_repo.get_progress_for_job.return_value = []
 
         result = subject.list_jobs()
 
@@ -62,6 +63,36 @@ class TestJobService:
         assert result[0]["extracted_chunks"] == 2
         assert result[0]["failed_chunks"] == 1
         assert result[0]["progress"] == 40
+
+    def test_list_jobs_includes_byte_progress_aggregate(self, subject, mock_job_repo, mock_chunk_repo):
+        mock_job_repo.list_all.return_value = [
+            {
+                "id": 1,
+                "job_id": "job-1",
+                "user_id": "user-1",
+                "timestamp": "20240101T120000",
+                "total_chunks": 2,
+                "status": JobStatus.IN_PROGRESS.value,
+            }
+        ]
+        mock_chunk_repo.get_status_counts_for_job.return_value = {}
+        mock_chunk_repo.get_progress_for_job.return_value = [
+            {
+                "id": 1, "status": ChunkStatus.DOWNLOADING.value,
+                "downloaded_bytes": 1000, "total_bytes": 5000, "speed_bytes_per_sec": 200.0,
+            },
+            {
+                "id": 2, "status": ChunkStatus.PENDING_DOWNLOAD.value,
+                "downloaded_bytes": 0, "total_bytes": None, "speed_bytes_per_sec": None,
+            },
+        ]
+
+        result = subject.list_jobs()
+
+        assert result[0]["total_downloaded_bytes"] == 1000
+        assert result[0]["total_expected_bytes"] == 5000
+        assert result[0]["combined_speed_bytes_per_sec"] == 200.0
+        assert result[0]["estimated_seconds_remaining"] == pytest.approx(20.0)
 
     def test_update_cookie_success(self, subject, mock_job_repo):
         mock_job_repo.get_by_id.return_value = {"id": 1, "job_id": "test-job"}
@@ -97,6 +128,74 @@ class TestJobService:
 
         assert result["retried_count"] == 0
         mock_chunk_repo.reset_to_pending_download.assert_not_called()
+
+
+class TestCalculateJobProgress:
+    @pytest.fixture
+    def subject(self):
+        return JobService(Mock(spec=JobRepository), Mock(spec=ChunkRepository))
+
+    def test_returns_zero_defaults_when_no_chunks_have_reported(self, subject):
+        chunks = [
+            {
+                "status": ChunkStatus.PENDING_DOWNLOAD.value,
+                "downloaded_bytes": 0, "total_bytes": None, "speed_bytes_per_sec": None,
+            },
+        ]
+
+        result = subject._calculate_job_progress(chunks)
+
+        assert result == {
+            "total_downloaded_bytes": 0,
+            "total_expected_bytes": 0,
+            "combined_speed_bytes_per_sec": 0.0,
+            "estimated_seconds_remaining": None,
+        }
+
+    def test_sums_downloaded_and_expected_bytes_across_active_chunks(self, subject):
+        chunks = [
+            {
+                "status": ChunkStatus.DOWNLOADING.value,
+                "downloaded_bytes": 1000, "total_bytes": 5000, "speed_bytes_per_sec": 200.0,
+            },
+            {
+                "status": ChunkStatus.DOWNLOADING.value,
+                "downloaded_bytes": 2000, "total_bytes": 4000, "speed_bytes_per_sec": 100.0,
+            },
+        ]
+
+        result = subject._calculate_job_progress(chunks)
+
+        assert result["total_downloaded_bytes"] == 3000
+        assert result["total_expected_bytes"] == 9000
+        assert result["combined_speed_bytes_per_sec"] == 300.0
+        assert result["estimated_seconds_remaining"] == pytest.approx((9000 - 3000) / 300.0)
+
+    def test_excludes_speed_of_chunks_no_longer_downloading(self, subject):
+        chunks = [
+            {
+                "status": ChunkStatus.DOWNLOADED.value,
+                "downloaded_bytes": 5000, "total_bytes": 5000, "speed_bytes_per_sec": 200.0,
+            },
+        ]
+
+        result = subject._calculate_job_progress(chunks)
+
+        assert result["total_downloaded_bytes"] == 5000
+        assert result["combined_speed_bytes_per_sec"] == 0.0
+        assert result["estimated_seconds_remaining"] is None
+
+    def test_estimated_seconds_remaining_is_none_when_speed_is_zero(self, subject):
+        chunks = [
+            {
+                "status": ChunkStatus.DOWNLOADING.value,
+                "downloaded_bytes": 1000, "total_bytes": 5000, "speed_bytes_per_sec": 0.0,
+            },
+        ]
+
+        result = subject._calculate_job_progress(chunks)
+
+        assert result["estimated_seconds_remaining"] is None
 
 
 class TestChunkService:
@@ -143,6 +242,11 @@ class TestChunkService:
 
         with pytest.raises(ValueError, match="Chunk 10 not found"):
             subject.retry_chunk(10)
+
+    def test_update_progress(self, subject, mock_chunk_repo):
+        subject.update_progress(10, downloaded_bytes=1000, total_bytes=5000, speed_bytes_per_sec=200.0)
+
+        mock_chunk_repo.update_progress.assert_called_once_with(10, 1000, 5000, 200.0)
 
 
 class TestTaskService:

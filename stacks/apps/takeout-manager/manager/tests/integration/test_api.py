@@ -219,6 +219,68 @@ class TestJobAPI:
         cursor.execute("SELECT status FROM jobs WHERE id = ?", (job_id,))
         assert cursor.fetchone()["status"] == JobStatus.FAILED.value
 
+    def test_job_progress_aggregates_across_chunks(self, client_fixture, db_connection_fixture):
+        job_data = {
+            "job_id": "test-job-progress",
+            "user_id": "test-user-progress",
+            "timestamp": "20240106T000000",
+            "auth_user": "0",
+            "cookie": "test-cookie-progress",
+            "total_chunks": 2,
+        }
+        client_fixture.post("/api/jobs", json=job_data)
+
+        # Chunk 1 is claimed (now "downloading") and reports progress.
+        task1 = client_fixture.get("/api/tasks/next").json()
+        progress_response = client_fixture.post(
+            f"/api/tasks/{task1['id']}/progress",
+            json={"downloaded_bytes": 1000, "total_bytes": 5000, "speed_bytes_per_sec": 200.0},
+        )
+        assert progress_response.status_code == 200
+
+        # Chunk 2 is claimed but hasn't reported progress yet (total_bytes unknown).
+        client_fixture.get("/api/tasks/next")
+
+        jobs = client_fixture.get("/api/jobs").json()
+        job = next(j for j in jobs if j["job_id"] == "test-job-progress")
+
+        assert job["total_downloaded_bytes"] == 1000
+        assert job["total_expected_bytes"] == 5000
+        assert job["combined_speed_bytes_per_sec"] == 200.0
+        assert job["estimated_seconds_remaining"] == pytest.approx((5000 - 1000) / 200.0)
+
+    def test_job_progress_excludes_speed_of_chunks_no_longer_downloading(
+        self, client_fixture, db_connection_fixture
+    ):
+        job_data = {
+            "job_id": "test-job-progress-done",
+            "user_id": "test-user-progress-done",
+            "timestamp": "20240107T000000",
+            "auth_user": "0",
+            "cookie": "test-cookie-progress-done",
+            "total_chunks": 1,
+        }
+        client_fixture.post("/api/jobs", json=job_data)
+
+        task1 = client_fixture.get("/api/tasks/next").json()
+        client_fixture.post(
+            f"/api/tasks/{task1['id']}/progress",
+            json={"downloaded_bytes": 5000, "total_bytes": 5000, "speed_bytes_per_sec": 200.0},
+        )
+        client_fixture.post(
+            f"/api/tasks/{task1['id']}/status",
+            json={"status": ChunkStatus.DOWNLOADED.value, "message": "done"},
+        )
+
+        jobs = client_fixture.get("/api/jobs").json()
+        job = next(j for j in jobs if j["job_id"] == "test-job-progress-done")
+
+        # Bytes already downloaded still count, but a finished chunk isn't "active"
+        # throughput anymore, so its stale speed shouldn't inflate the combined rate.
+        assert job["total_downloaded_bytes"] == 5000
+        assert job["combined_speed_bytes_per_sec"] == 0.0
+        assert job["estimated_seconds_remaining"] is None
+
     def test_update_job_cookie(self, client_fixture, db_connection_fixture):
         job_data = {
             "job_id": "test-job-cookie-update",

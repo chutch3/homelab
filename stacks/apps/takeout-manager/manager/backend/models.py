@@ -1,5 +1,6 @@
 from pydantic import BaseModel
 from enum import Enum
+from typing import Optional
 
 class JobStatus(str, Enum):
     PENDING = "pending"
@@ -30,3 +31,8 @@ class TaskStatus(BaseModel):
 
 class CookieUpdate(BaseModel):
     cookie: str
+
+class ChunkProgress(BaseModel):
+    downloaded_bytes: int
+    total_bytes: Optional[int] = None
+    speed_bytes_per_sec: float

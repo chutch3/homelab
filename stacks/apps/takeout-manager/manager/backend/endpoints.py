@@ -2,7 +2,7 @@ from dependency_injector.wiring import Provide, inject
 from fastapi import APIRouter, Depends, HTTPException
 
 from backend.containers import ManagerContainer
-from backend.models import TakeoutJob, TaskStatus, CookieUpdate
+from backend.models import TakeoutJob, TaskStatus, CookieUpdate, ChunkProgress
 from backend.services import JobService, ChunkService, TaskService
 
 
@@ -96,3 +96,16 @@ def update_task_status(
         task_id, status_update.status, status_update.message
     )
     return {"message": "Status received"}
+
+
+@router.post("/api/tasks/{task_id}/progress")
+@inject
+def update_task_progress(
+    task_id: int,
+    progress: ChunkProgress,
+    chunk_service: ChunkService = Depends(Provide[ManagerContainer.chunk_service]),
+):
+    chunk_service.update_progress(
+        task_id, progress.downloaded_bytes, progress.total_bytes, progress.speed_bytes_per_sec
+    )
+    return {"message": "Progress received"}

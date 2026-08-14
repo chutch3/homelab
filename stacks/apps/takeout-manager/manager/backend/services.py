@@ -1,5 +1,5 @@
 import logging
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Optional
 
 from backend.models import JobStatus, ChunkStatus, TakeoutJob
 from backend.repositories import JobRepository, ChunkRepository
@@ -45,6 +45,7 @@ class JobService:
             failed = chunk_stats.get(ChunkStatus.FAILED.value, 0)
             completed = extracted
             progress = int((completed / total_chunks * 100)) if total_chunks > 0 else 0
+            byte_progress = self._calculate_job_progress(self._chunk_repo.get_progress_for_job(job_id))
             result.append(
                 {
                     "id": job_id,
@@ -58,9 +59,30 @@ class JobService:
                     "failed_chunks": failed,
                     "completed_chunks": completed,
                     "progress": progress,
+                    **byte_progress,
                 }
             )
         return result
+
+    def _calculate_job_progress(self, chunks: List[Dict[str, Any]]) -> Dict[str, Any]:
+        total_downloaded_bytes = sum(c["downloaded_bytes"] or 0 for c in chunks)
+        total_expected_bytes = sum(c["total_bytes"] or 0 for c in chunks)
+        combined_speed_bytes_per_sec = sum(
+            c["speed_bytes_per_sec"] or 0.0
+            for c in chunks
+            if c["status"] == ChunkStatus.DOWNLOADING.value
+        )
+        estimated_seconds_remaining = (
+            (total_expected_bytes - total_downloaded_bytes) / combined_speed_bytes_per_sec
+            if combined_speed_bytes_per_sec > 0
+            else None
+        )
+        return {
+            "total_downloaded_bytes": total_downloaded_bytes,
+            "total_expected_bytes": total_expected_bytes,
+            "combined_speed_bytes_per_sec": combined_speed_bytes_per_sec,
+            "estimated_seconds_remaining": estimated_seconds_remaining,
+        }
 
     def update_cookie(self, job_id: int, cookie: str) -> None:
         job = self._job_repo.get_by_id(job_id)
@@ -110,6 +132,11 @@ class ChunkService:
         job_id = chunk["job_id"]
         self._job_repo.update_status_if_failed(job_id, JobStatus.IN_PROGRESS)
         self.logger.info("Retrying chunk", extra={"chunk_id": chunk_id, "job_id": job_id})
+
+    def update_progress(
+        self, chunk_id: int, downloaded_bytes: int, total_bytes: Optional[int], speed_bytes_per_sec: float
+    ) -> None:
+        self._chunk_repo.update_progress(chunk_id, downloaded_bytes, total_bytes, speed_bytes_per_sec)
 
 
 class TaskService:

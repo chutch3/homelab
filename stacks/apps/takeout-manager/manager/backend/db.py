@@ -32,5 +32,15 @@ class Database:
                 status TEXT DEFAULT '{ChunkStatus.PENDING_DOWNLOAD.value}', message TEXT, FOREIGN KEY (job_id) REFERENCES jobs (id)
             );
         """)
+
+        existing_columns = {row["name"] for row in cursor.execute("PRAGMA table_info(chunks)").fetchall()}
+        for column, ddl in [
+            ("downloaded_bytes", "INTEGER DEFAULT 0"),
+            ("total_bytes", "INTEGER"),
+            ("speed_bytes_per_sec", "REAL"),
+        ]:
+            if column not in existing_columns:
+                cursor.execute(f"ALTER TABLE chunks ADD COLUMN {column} {ddl}")
+
         conn.commit()
         conn.close()

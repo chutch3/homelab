@@ -252,3 +252,37 @@ class TestChunkRepository:
         reset = subject.get_by_id(chunk["id"])
         assert reset["status"] == ChunkStatus.PENDING_DOWNLOAD.value
         assert reset["message"] is None
+
+    def test_update_progress(self, subject, job_id):
+        subject.create_chunks_for_job(job_id=job_id, total_chunks=1)
+        chunk = subject.get_next_pending_download()
+
+        subject.update_progress(chunk["id"], downloaded_bytes=1000, total_bytes=5000, speed_bytes_per_sec=200.0)
+
+        updated = subject.get_by_id(chunk["id"])
+        assert updated["downloaded_bytes"] == 1000
+        assert updated["total_bytes"] == 5000
+        assert updated["speed_bytes_per_sec"] == 200.0
+
+    def test_get_progress_for_job_returns_status_and_progress_fields(self, subject, job_id):
+        subject.create_chunks_for_job(job_id=job_id, total_chunks=2)
+        chunk1 = subject.get_next_pending_download()
+        subject.update_progress(chunk1["id"], downloaded_bytes=1000, total_bytes=5000, speed_bytes_per_sec=200.0)
+
+        progress = subject.get_progress_for_job(job_id)
+
+        assert len(progress) == 2
+        row1 = next(r for r in progress if r["id"] == chunk1["id"])
+        assert row1["status"] == ChunkStatus.DOWNLOADING.value
+        assert row1["downloaded_bytes"] == 1000
+        assert row1["total_bytes"] == 5000
+        assert row1["speed_bytes_per_sec"] == 200.0
+
+    def test_get_progress_for_job_defaults_for_chunk_never_reported(self, subject, job_id):
+        subject.create_chunks_for_job(job_id=job_id, total_chunks=1)
+
+        progress = subject.get_progress_for_job(job_id)
+
+        assert progress[0]["downloaded_bytes"] == 0
+        assert progress[0]["total_bytes"] is None
+        assert progress[0]["speed_bytes_per_sec"] is None
