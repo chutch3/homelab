@@ -95,7 +95,7 @@ class TestDownloadService:
             },
         }
 
-        expected_chunk_name = "takeout-20240101T120000Z-001.tgz"
+        expected_chunk_name = "takeout-20240101T120000Z-1-001.tgz"
         expected_url = (
             f"https://takeout-download.usercontent.google.com/download/{expected_chunk_name}"
             f"?j=test-job-id&i=0&user=test-user-id&authuser=0"
@@ -190,7 +190,7 @@ class TestDownloadService:
         videos_dir = tmp_path / "videos"
         downloads_dir.mkdir()
 
-        tgz_path = downloads_dir / "takeout-20240101T120000Z-001.tgz"
+        tgz_path = downloads_dir / "takeout-20240101T120000Z-1-001.tgz"
         tgz_path.write_bytes(b"fake archive content")
 
         async def simulate_extraction(archive_path, dest_dir):
@@ -256,7 +256,7 @@ class TestDownloadService:
     ):
         downloads_dir = tmp_path / "downloads"
         downloads_dir.mkdir()
-        (downloads_dir / "takeout-20240101T120000Z-001.tgz").write_bytes(b"archive")
+        (downloads_dir / "takeout-20240101T120000Z-1-001.tgz").write_bytes(b"archive")
         mock_tar_runner.extract.return_value = False
 
         success, message = await subject.extract_chunk(
@@ -272,7 +272,7 @@ class TestDownloadService:
     ):
         downloads_dir = tmp_path / "downloads"
         downloads_dir.mkdir()
-        (downloads_dir / "takeout-20240101T120000Z-001.tgz").write_bytes(b"archive")
+        (downloads_dir / "takeout-20240101T120000Z-1-001.tgz").write_bytes(b"archive")
         mock_tar_runner.extract.side_effect = RuntimeError("boom")
 
         success, message = await subject.extract_chunk(

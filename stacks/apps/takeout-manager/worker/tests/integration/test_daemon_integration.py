@@ -81,7 +81,7 @@ class TestDaemonIntegration:
         mock_manager_client.report_task_status.assert_called_once_with(
             1, "downloaded", "Download successful"
         )
-        assert (downloads_dir / "takeout-20240101T120000Z-001.tgz").exists()
+        assert (downloads_dir / "takeout-20240101T120000Z-1-001.tgz").exists()
 
     @pytest.mark.asyncio
     async def test_full_extract_cycle(self, worker_container, tmp_path):
@@ -90,7 +90,7 @@ class TestDaemonIntegration:
         pictures_dir = tmp_path / "pictures"
         videos_dir = tmp_path / "videos"
         downloads_dir.mkdir()
-        (downloads_dir / "takeout-20240101T120000Z-001.tgz").write_bytes(b"fake archive")
+        (downloads_dir / "takeout-20240101T120000Z-1-001.tgz").write_bytes(b"fake archive")
 
         extract_task = {
             "id": 2,

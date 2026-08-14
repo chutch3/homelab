@@ -40,7 +40,7 @@ class DownloadService:
 
         chunk_num_str = f"{chunk_index:03d}"
 
-        output_file = f"takeout-{timestamp}Z-{chunk_num_str}.tgz"
+        output_file = f"takeout-{timestamp}Z-1-{chunk_num_str}.tgz"
         output_path = os.path.join(self.download_path, output_file)
         url = (
             f"https://takeout-download.usercontent.google.com/download/{output_file}"
@@ -49,14 +49,24 @@ class DownloadService:
 
         headers = {
             "accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
-            "accept-language": "en-US,en;q=0.9",
+            "accept-language": "en-US,en;q=0.6",
             "priority": "u=0, i",
             "referer": "https://takeout.google.com/",
+            "sec-ch-ua": '"Not=A?Brand";v="99", "Brave";v="151", "Chromium";v="151"',
+            "sec-ch-ua-arch": '"x86"',
+            "sec-ch-ua-bitness": '"64"',
+            "sec-ch-ua-full-version-list": '"Not=A?Brand";v="99.0.0.0", "Brave";v="151.0.0.0", "Chromium";v="151.0.0.0"',
+            "sec-ch-ua-mobile": "?0",
+            "sec-ch-ua-model": '""',
+            "sec-ch-ua-platform": '"Linux"',
+            "sec-ch-ua-platform-version": '""',
+            "sec-ch-ua-wow64": "?0",
             "sec-fetch-dest": "document",
             "sec-fetch-mode": "navigate",
             "sec-fetch-site": "same-site",
+            "sec-gpc": "1",
             "upgrade-insecure-requests": "1",
-            "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+            "user-agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36",
             "cookie": cookie,
         }
 
@@ -81,7 +91,7 @@ class DownloadService:
             return False, "Missing required parameters for extraction (timestamp, chunk_index)"
 
         chunk_num_str = f"{chunk_index:03d}"
-        output_file = f"takeout-{timestamp}Z-{chunk_num_str}.tgz"
+        output_file = f"takeout-{timestamp}Z-1-{chunk_num_str}.tgz"
         tgz_path = os.path.join(self.download_path, output_file)
 
         if not os.path.exists(tgz_path):
