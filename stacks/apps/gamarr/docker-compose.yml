@@ -16,7 +16,7 @@ services:
             - QB_USER=${GAMARR_QB_USER}
             - QB_PASS=${GAMARR_QB_PASS}
             - QB_CATEGORY=games
-            - QB_SAVE_PATH=/data/downloads/roms
+            - QB_SAVE_PATH=/data/downloads/complete
             - SABNZBD_URL=http://sabnzbd:8080
             - SABNZBD_API_KEY=${GAMARR_SABNZBD_API_KEY}
             - SABNZBD_CATEGORY=games
