@@ -47,6 +47,31 @@ class TestCurlRunner:
         assert run.call_count == 2  # max_retries
         sleep.assert_awaited_once()  # one back-off between the two attempts
 
+    @pytest.mark.asyncio
+    async def test_probe_total_size_returns_total_from_content_range_header(self, subject):
+        headers = "HTTP/2 206\r\ncontent-range: bytes 0-0/53053312630\r\n\r\n"
+        with patch("subprocess.run", return_value=MagicMock(stdout=headers)) as run:
+            total = await subject.probe_total_size("https://x/y", {"cookie": "c"})
+        assert total == 53053312630
+        cmd = run.call_args[0][0]
+        assert cmd[0] == "curl"
+        assert "-r" in cmd and "0-0" in cmd
+        assert "-D" in cmd  # dump headers so we can read Content-Range
+
+    @pytest.mark.asyncio
+    async def test_probe_total_size_returns_none_when_header_missing(self, subject):
+        headers = "HTTP/2 200\r\ncontent-type: text/html\r\n\r\n"
+        with patch("subprocess.run", return_value=MagicMock(stdout=headers)):
+            total = await subject.probe_total_size("https://x/y", {})
+        assert total is None
+
+    @pytest.mark.asyncio
+    async def test_probe_total_size_returns_none_on_curl_error(self, subject):
+        err = subprocess.CalledProcessError(22, ["curl"], stderr="error")
+        with patch("subprocess.run", side_effect=err):
+            total = await subject.probe_total_size("https://x/y", {})
+        assert total is None
+
 
 class TestTarRunner:
     @pytest.fixture

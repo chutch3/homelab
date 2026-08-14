@@ -1,6 +1,7 @@
 import asyncio
 import logging
 import os
+import re
 import subprocess
 
 
@@ -48,6 +49,35 @@ class CurlRunner:
                     return False
 
         return False
+
+    async def probe_total_size(self, url: str, headers: dict[str, str]) -> int | None:
+        """Reads the full chunk size off Content-Range via a cheap 1-byte range request,
+        without downloading the body."""
+        header_args: list[str] = []
+        for key, value in headers.items():
+            header_args.extend(["-H", f"{key}: {value}"])
+
+        command = [
+            "curl",
+            url,
+            "-r", "0-0",
+            "-D", "-",
+            "-o", "/dev/null",
+            "--silent",
+            "--show-error",
+            *header_args,
+        ]
+
+        try:
+            result = await asyncio.to_thread(
+                subprocess.run, command, check=True, capture_output=True, text=True
+            )
+        except subprocess.CalledProcessError as e:
+            self.logger.error("Failed to probe total size for %s: %s", url, e.stderr)
+            return None
+
+        match = re.search(r"content-range:\s*bytes\s+\d+-\d+/(\d+)", result.stdout, re.IGNORECASE)
+        return int(match.group(1)) if match else None
 
 
 class TarRunner:

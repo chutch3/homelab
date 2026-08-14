@@ -5,6 +5,7 @@ from dependency_injector import containers, providers
 
 from worker.logger import StructuredFormatter
 from worker.manager_client import ManagerClient, init_async_client
+from worker.progress import DownloadProgressTracker
 from worker.runners import CurlRunner, TarRunner
 from worker.services import DownloadService
 
@@ -38,10 +39,13 @@ class WorkerContainer(containers.DeclarativeContainer):
 
     tar_runner = providers.Singleton(TarRunner)
 
+    progress_tracker = providers.Singleton(DownloadProgressTracker)
+
     download_service = providers.Factory(
         DownloadService,
         curl_runner=curl_runner,
         tar_runner=tar_runner,
+        progress_tracker=progress_tracker,
         download_path=config.paths.downloads,
         pictures_path=config.paths.pictures,
         videos_path=config.paths.videos,

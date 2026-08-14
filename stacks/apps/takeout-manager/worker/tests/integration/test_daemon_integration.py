@@ -14,6 +14,7 @@ from unittest.mock import AsyncMock
 from worker.containers import WorkerContainer
 from worker.daemon import run_daemon
 from worker.manager_client import ManagerClient
+from worker.progress import DownloadProgressTracker
 from worker.runners import CurlRunner, TarRunner
 
 pytestmark = pytest.mark.integration
@@ -75,6 +76,55 @@ class TestDaemonIntegration:
             1, "downloaded", "Download successful"
         )
         assert (downloads_dir / "takeout-20240101T120000Z-1-001.tgz").exists()
+
+    @pytest.mark.asyncio
+    async def test_download_reports_progress_to_manager_during_download(self, worker_container, tmp_path):
+        """Daemon reports progress updates to the manager while a download is in flight."""
+        (tmp_path / "downloads").mkdir()
+
+        download_task = {
+            "id": 5,
+            "type": "download",
+            "params": {
+                "job_id": "test-job",
+                "user_id": "user-1",
+                "timestamp": "20240101T120000",
+                "auth_user": "0",
+                "chunk_index": 1,
+                "cookie": "session=abc123",
+            },
+        }
+
+        mock_manager_client = AsyncMock(spec=ManagerClient)
+        mock_manager_client.get_next_task.side_effect = [download_task, None]
+
+        mock_curl_runner = AsyncMock(spec=CurlRunner)
+        mock_curl_runner.probe_total_size.return_value = 5000
+
+        async def simulate_download(url, output_path, headers):
+            Path(output_path).write_bytes(b"fake archive")
+            return True
+
+        mock_curl_runner.download.side_effect = simulate_download
+
+        mock_progress_tracker = AsyncMock(spec=DownloadProgressTracker)
+
+        async def fake_track(path, total_bytes, on_progress, stop_event):
+            await on_progress(1000, total_bytes, 250.0)
+            await stop_event.wait()
+
+        mock_progress_tracker.track.side_effect = fake_track
+
+        with worker_container.manager_client.override(mock_manager_client), \
+             worker_container.curl_runner.override(mock_curl_runner), \
+             worker_container.tar_runner.override(AsyncMock(spec=TarRunner)), \
+             worker_container.progress_tracker.override(mock_progress_tracker):
+            try:
+                await asyncio.wait_for(run_daemon(), timeout=1.0)
+            except asyncio.TimeoutError:
+                pass
+
+        mock_manager_client.report_task_progress.assert_called_once_with(5, 1000, 5000, 250.0)
 
     @pytest.mark.asyncio
     async def test_full_extract_cycle(self, worker_container, tmp_path):

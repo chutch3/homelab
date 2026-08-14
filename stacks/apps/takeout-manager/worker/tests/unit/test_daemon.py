@@ -49,7 +49,10 @@ class TestRunDaemon:
             except asyncio.TimeoutError:
                 pass
 
-        mock_download_service.download_chunk.assert_called_once_with(mock_task)
+        mock_download_service.download_chunk.assert_called_once()
+        call_args = mock_download_service.download_chunk.call_args
+        assert call_args.args[0] == mock_task
+        assert callable(call_args.kwargs["on_progress"])
         mock_manager_client.report_task_status.assert_called_once_with(
             1, "downloaded", "Download successful"
         )

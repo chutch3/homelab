@@ -101,6 +101,35 @@ class TestManagerClient:
         mock_client.post.assert_called_once()
 
     @pytest.mark.asyncio
+    async def test_report_task_progress_sends_correct_payload(self, subject, mock_client):
+        mock_response = Mock(spec=httpx.Response)
+        mock_client.post.return_value = mock_response
+
+        await subject.report_task_progress(
+            task_id=123,
+            downloaded_bytes=1000,
+            total_bytes=5000,
+            speed_bytes_per_sec=250.5,
+        )
+
+        mock_client.post.assert_called_once_with(
+            "/api/tasks/123/progress",
+            json={
+                "downloaded_bytes": 1000,
+                "total_bytes": 5000,
+                "speed_bytes_per_sec": 250.5,
+            },
+        )
+
+    @pytest.mark.asyncio
+    async def test_report_task_progress_handles_connection_error(self, subject, mock_client):
+        mock_client.post.side_effect = httpx.ConnectError("Connection refused")
+
+        await subject.report_task_progress(123, 1000, 5000, 250.5)
+
+        mock_client.post.assert_called_once()
+
+    @pytest.mark.asyncio
     async def test_report_task_status_with_empty_message(self, subject, mock_client):
         mock_response = Mock(spec=httpx.Response)
         mock_client.post.return_value = mock_response

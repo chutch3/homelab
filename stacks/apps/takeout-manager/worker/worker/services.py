@@ -1,13 +1,17 @@
+import asyncio
 import logging
 import os
 import shutil
 import tempfile
-from typing import Any
+from typing import Any, Awaitable, Callable, Optional
 
 from worker.runners import CurlRunner, TarRunner
+from worker.progress import DownloadProgressTracker
 
 PICTURE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".gif", ".bmp", ".heic", ".webp"}
 VIDEO_EXTENSIONS = {".mp4", ".mov", ".avi", ".mkv", ".wmv", ".flv", ".webm"}
+
+ProgressCallback = Callable[[int, Optional[int], float], Awaitable[None]]
 
 
 class DownloadService:
@@ -15,18 +19,22 @@ class DownloadService:
         self,
         curl_runner: CurlRunner,
         tar_runner: TarRunner,
+        progress_tracker: DownloadProgressTracker,
         download_path: str,
         pictures_path: str,
         videos_path: str,
     ) -> None:
         self.curl_runner = curl_runner
         self.tar_runner = tar_runner
+        self.progress_tracker = progress_tracker
         self.download_path = download_path
         self.pictures_path = pictures_path
         self.videos_path = videos_path
         self.logger = logging.getLogger(self.__class__.__name__)
 
-    async def download_chunk(self, task: dict[str, Any]) -> tuple[bool, str]:
+    async def download_chunk(
+        self, task: dict[str, Any], on_progress: Optional[ProgressCallback] = None
+    ) -> tuple[bool, str]:
         params = task.get("params", {})
         chunk_index = params.get("chunk_index")
         timestamp = params.get("timestamp")
@@ -70,7 +78,21 @@ class DownloadService:
             "cookie": cookie,
         }
 
-        success = await self.curl_runner.download(url, output_path, headers)
+        total_bytes = await self.curl_runner.probe_total_size(url, headers)
+
+        tracker_task = None
+        stop_event = asyncio.Event()
+        if on_progress is not None:
+            tracker_task = asyncio.create_task(
+                self.progress_tracker.track(output_path, total_bytes, on_progress, stop_event)
+            )
+
+        try:
+            success = await self.curl_runner.download(url, output_path, headers)
+        finally:
+            if tracker_task is not None:
+                stop_event.set()
+                await tracker_task
 
         if success and os.path.exists(output_path) and os.path.getsize(output_path) > 0:
             if not await self.tar_runner.verify(output_path):

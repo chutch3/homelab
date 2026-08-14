@@ -32,3 +32,22 @@ class ManagerClient:
             )
         except httpx.RequestError as e:
             self.logger.error("Could not report status for task %s: %s", task_id, e)
+
+    async def report_task_progress(
+        self,
+        task_id: int,
+        downloaded_bytes: int,
+        total_bytes: Optional[int],
+        speed_bytes_per_sec: float,
+    ) -> None:
+        try:
+            await self._client.post(
+                f"/api/tasks/{task_id}/progress",
+                json={
+                    "downloaded_bytes": downloaded_bytes,
+                    "total_bytes": total_bytes,
+                    "speed_bytes_per_sec": speed_bytes_per_sec,
+                },
+            )
+        except httpx.RequestError as e:
+            self.logger.error("Could not report progress for task %s: %s", task_id, e)

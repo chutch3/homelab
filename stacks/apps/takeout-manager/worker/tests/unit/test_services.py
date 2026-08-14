@@ -1,25 +1,34 @@
+import asyncio
 import pytest
 from unittest.mock import AsyncMock
 from pathlib import Path
 
 from worker.services import DownloadService
 from worker.runners import CurlRunner, TarRunner
+from worker.progress import DownloadProgressTracker
 
 
 class TestDownloadService:
     @pytest.fixture
     def mock_curl_runner(self):
-        return AsyncMock(spec=CurlRunner)
+        runner = AsyncMock(spec=CurlRunner)
+        runner.probe_total_size.return_value = None
+        return runner
 
     @pytest.fixture
     def mock_tar_runner(self):
         return AsyncMock(spec=TarRunner)
 
     @pytest.fixture
-    def subject(self, mock_curl_runner, mock_tar_runner, tmp_path):
+    def mock_progress_tracker(self):
+        return AsyncMock(spec=DownloadProgressTracker)
+
+    @pytest.fixture
+    def subject(self, mock_curl_runner, mock_tar_runner, mock_progress_tracker, tmp_path):
         return DownloadService(
             curl_runner=mock_curl_runner,
             tar_runner=mock_tar_runner,
+            progress_tracker=mock_progress_tracker,
             download_path=str(tmp_path / "downloads"),
             pictures_path=str(tmp_path / "pictures"),
             videos_path=str(tmp_path / "videos"),
@@ -222,6 +231,95 @@ class TestDownloadService:
         assert success is True
         assert message == "Download successful"
         mock_tar_runner.verify.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_download_chunk_probes_total_size_before_downloading(
+        self, subject, mock_curl_runner, downloads_dir
+    ):
+        async def create_file(url, output_path, headers):
+            Path(output_path).write_bytes(b"content")
+            return True
+
+        mock_curl_runner.download.side_effect = create_file
+        mock_curl_runner.probe_total_size.return_value = 5000
+
+        mock_task = {
+            "id": 1,
+            "type": "download",
+            "params": {
+                "chunk_index": 1, "job_id": "test", "user_id": "user",
+                "timestamp": "20240101T120000", "auth_user": "0", "cookie": "c",
+            },
+        }
+
+        await subject.download_chunk(mock_task)
+
+        mock_curl_runner.probe_total_size.assert_called_once()
+        probe_call_args = mock_curl_runner.probe_total_size.call_args
+        download_call_args = mock_curl_runner.download.call_args
+        assert probe_call_args[0][0] == download_call_args[0][0]  # same url
+
+    @pytest.mark.asyncio
+    async def test_download_chunk_without_on_progress_does_not_start_tracker(
+        self, subject, mock_curl_runner, mock_progress_tracker, downloads_dir
+    ):
+        async def create_file(url, output_path, headers):
+            Path(output_path).write_bytes(b"content")
+            return True
+
+        mock_curl_runner.download.side_effect = create_file
+
+        mock_task = {
+            "id": 1,
+            "type": "download",
+            "params": {
+                "chunk_index": 1, "job_id": "test", "user_id": "user",
+                "timestamp": "20240101T120000", "auth_user": "0", "cookie": "c",
+            },
+        }
+
+        await subject.download_chunk(mock_task)
+
+        mock_progress_tracker.track.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_download_chunk_with_on_progress_tracks_and_stops_after_download(
+        self, subject, mock_curl_runner, mock_progress_tracker, downloads_dir
+    ):
+        async def create_file(url, output_path, headers):
+            Path(output_path).write_bytes(b"content")
+            return True
+
+        mock_curl_runner.download.side_effect = create_file
+        mock_curl_runner.probe_total_size.return_value = 5000
+
+        track_call_seen = asyncio.Event()
+
+        async def fake_track(path, total_bytes, on_progress, stop_event):
+            track_call_seen.set()
+            await stop_event.wait()  # only returns once download_chunk signals completion
+
+        mock_progress_tracker.track.side_effect = fake_track
+
+        on_progress = AsyncMock()
+        mock_task = {
+            "id": 1,
+            "type": "download",
+            "params": {
+                "chunk_index": 1, "job_id": "test", "user_id": "user",
+                "timestamp": "20240101T120000", "auth_user": "0", "cookie": "c",
+            },
+        }
+
+        success, _ = await subject.download_chunk(mock_task, on_progress=on_progress)
+
+        assert success is True
+        mock_progress_tracker.track.assert_called_once()
+        call_args = mock_progress_tracker.track.call_args[0]
+        assert call_args[0] == str(downloads_dir / "takeout-20240101T120000Z-1-001.tgz")
+        assert call_args[1] == 5000
+        assert call_args[2] is on_progress
+        assert isinstance(call_args[3], asyncio.Event)
 
     @pytest.mark.asyncio
     async def test_download_chunk_returns_failure_on_download_failure(self, subject, mock_curl_runner):

@@ -27,7 +27,16 @@ async def run_daemon(
             )
 
             if task_type == "download":
-                success, message = await download_service.download_chunk(task)
+                async def report_progress(
+                    downloaded_bytes: int, total_bytes, speed_bytes_per_sec: float
+                ) -> None:
+                    await manager_client.report_task_progress(
+                        task_id, downloaded_bytes, total_bytes, speed_bytes_per_sec
+                    )
+
+                success, message = await download_service.download_chunk(
+                    task, on_progress=report_progress
+                )
                 status = "downloaded" if success else "failed"
                 logger.info(
                     f"Download {'succeeded' if success else 'failed'}: {message}",
