@@ -77,6 +77,19 @@ def retry_single_chunk(
         raise HTTPException(status_code=404, detail=str(e))
 
 
+@router.post("/api/chunks/{chunk_id}/reextract")
+@inject
+def reextract_single_chunk(
+    chunk_id: int,
+    chunk_service: ChunkService = Depends(Provide[ManagerContainer.chunk_service]),
+):
+    try:
+        chunk_service.reextract_chunk(chunk_id)
+        return {"message": "Chunk queued for re-extraction"}
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+
 @router.get("/api/tasks/next")
 @inject
 def get_next_task(

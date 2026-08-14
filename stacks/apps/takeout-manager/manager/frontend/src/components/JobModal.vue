@@ -170,15 +170,18 @@ export default {
 
     const chunkTitle = (chunk) => {
       const base = `Chunk ${chunk.chunk_index}: ${chunk.status}${chunk.message ? ' - ' + chunk.message : ''}`
-      return chunk.status === 'extracted' ? base : `${base} (click to retry)`
+      const action = chunk.status === 'extracted' ? 're-extract' : 'retry'
+      return `${base} (click to ${action})`
     }
 
     const retryChunk = async (chunk) => {
-      if (chunk.status === 'extracted') {
-        return // already done — retrying would just force a wasteful re-download
-      }
+      // Already downloaded — re-run extraction from the retained archive instead
+      // of wastefully re-fetching it from Google.
+      const endpoint = chunk.status === 'extracted'
+        ? `/api/chunks/${chunk.id}/reextract`
+        : `/api/chunks/${chunk.id}/retry`
       try {
-        await axios.post(`/api/chunks/${chunk.id}/retry`)
+        await axios.post(endpoint)
         await fetchChunks()
       } catch (err) {
         console.error('Failed to retry chunk:', err)
@@ -456,10 +459,6 @@ h3 {
   font-size: 0.875rem;
   cursor: pointer;
   transition: transform 0.2s;
-}
-
-.chunk.completed {
-  cursor: default;
 }
 
 .chunk:hover {

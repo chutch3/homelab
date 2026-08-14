@@ -216,6 +216,16 @@ class ChunkRepository:
         conn.commit()
         conn.close()
 
+    def reset_to_downloaded(self, chunk_id: int) -> None:
+        conn = self._db.get_connection()
+        cursor = conn.cursor()
+        cursor.execute(
+            "UPDATE chunks SET status = ?, message = NULL WHERE id = ?",
+            (ChunkStatus.DOWNLOADED.value, chunk_id),
+        )
+        conn.commit()
+        conn.close()
+
     def update_progress(
         self, chunk_id: int, downloaded_bytes: int, total_bytes: Optional[int], speed_bytes_per_sec: float
     ) -> None:

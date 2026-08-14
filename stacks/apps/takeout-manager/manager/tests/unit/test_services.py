@@ -248,6 +248,20 @@ class TestChunkService:
 
         mock_chunk_repo.update_progress.assert_called_once_with(10, 1000, 5000, 200.0)
 
+    def test_reextract_chunk(self, subject, mock_job_repo, mock_chunk_repo):
+        mock_chunk_repo.get_by_id.return_value = {"id": 10, "job_id": 1}
+
+        subject.reextract_chunk(10)
+
+        mock_chunk_repo.reset_to_downloaded.assert_called_once_with(10)
+        mock_job_repo.update_status_if_failed.assert_called_once_with(1, JobStatus.IN_PROGRESS)
+
+    def test_reextract_nonexistent_chunk(self, subject, mock_chunk_repo):
+        mock_chunk_repo.get_by_id.return_value = None
+
+        with pytest.raises(ValueError, match="Chunk 10 not found"):
+            subject.reextract_chunk(10)
+
 
 class TestTaskService:
     @pytest.fixture

@@ -54,7 +54,7 @@ describe('JobModal chunk retry', () => {
     expect(axios.get).toHaveBeenCalledWith('/api/jobs/1/chunks')
   })
 
-  it('does not retry a chunk that has already been extracted', async () => {
+  it('re-extracts (not re-downloads) a chunk that has already been extracted', async () => {
     const wrapper = mount(JobModal, { props: { job } })
     await flushPromises()
 
@@ -62,7 +62,8 @@ describe('JobModal chunk retry', () => {
     await chunkEls[1].trigger('click') // chunk 6, status: extracted
     await flushPromises()
 
-    expect(axios.post).not.toHaveBeenCalled()
+    expect(axios.post).toHaveBeenCalledWith('/api/chunks/6/reextract')
+    expect(axios.post).not.toHaveBeenCalledWith('/api/chunks/6/retry')
   })
 
   it('does not call retry-all when an individual chunk is clicked', async () => {

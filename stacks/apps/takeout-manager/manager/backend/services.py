@@ -138,6 +138,15 @@ class ChunkService:
     ) -> None:
         self._chunk_repo.update_progress(chunk_id, downloaded_bytes, total_bytes, speed_bytes_per_sec)
 
+    def reextract_chunk(self, chunk_id: int) -> None:
+        chunk = self._chunk_repo.get_by_id(chunk_id)
+        if not chunk:
+            raise ValueError(f"Chunk {chunk_id} not found")
+        self._chunk_repo.reset_to_downloaded(chunk_id)
+        job_id = chunk["job_id"]
+        self._job_repo.update_status_if_failed(job_id, JobStatus.IN_PROGRESS)
+        self.logger.info("Re-extracting chunk", extra={"chunk_id": chunk_id, "job_id": job_id})
+
 
 class TaskService:
     def __init__(self, job_repo: JobRepository, chunk_repo: ChunkRepository) -> None:

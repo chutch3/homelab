@@ -281,6 +281,50 @@ class TestJobAPI:
         assert job["combined_speed_bytes_per_sec"] == 0.0
         assert job["estimated_seconds_remaining"] is None
 
+    def test_reextract_chunk_reruns_extraction_without_redownloading(
+        self, client_fixture, db_connection_fixture
+    ):
+        """A chunk whose archive is already downloaded (or even fully extracted) can be
+        re-queued for extraction alone — the worker should never be asked to fetch it
+        from Google again, since the .tgz archive is retained on disk."""
+        job_data = {
+            "job_id": "test-job-reextract",
+            "user_id": "test-user-reextract",
+            "timestamp": "20240108T000000",
+            "auth_user": "0",
+            "cookie": "test-cookie-reextract",
+            "total_chunks": 1,
+        }
+        client_fixture.post("/api/jobs", json=job_data)
+
+        task = client_fixture.get("/api/tasks/next").json()
+        chunk_id = task["id"]
+
+        # Simulate the chunk having already been fully extracted in a prior run.
+        client_fixture.post(
+            f"/api/tasks/{chunk_id}/status",
+            json={"status": ChunkStatus.EXTRACTED.value, "message": "Extracted 5 pictures and 1 videos"},
+        )
+
+        response = client_fixture.post(f"/api/chunks/{chunk_id}/reextract")
+        assert response.status_code == 200
+        assert response.json()["message"] == "Chunk queued for re-extraction"
+
+        conn = db_connection_fixture
+        cursor = conn.cursor()
+        cursor.execute("SELECT status, message FROM chunks WHERE id = ?", (chunk_id,))
+        chunk = cursor.fetchone()
+        assert chunk["status"] == ChunkStatus.DOWNLOADED.value
+        assert chunk["message"] is None
+
+        next_task = client_fixture.get("/api/tasks/next").json()
+        assert next_task["id"] == chunk_id
+        assert next_task["type"] == "extract"
+
+    def test_reextract_nonexistent_chunk_returns_404(self, client_fixture, db_connection_fixture):
+        response = client_fixture.post("/api/chunks/9999/reextract")
+        assert response.status_code == 404
+
     def test_update_job_cookie(self, client_fixture, db_connection_fixture):
         job_data = {
             "job_id": "test-job-cookie-update",

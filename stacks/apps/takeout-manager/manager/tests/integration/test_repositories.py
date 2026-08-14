@@ -278,6 +278,17 @@ class TestChunkRepository:
         assert row1["total_bytes"] == 5000
         assert row1["speed_bytes_per_sec"] == 200.0
 
+    def test_reset_to_downloaded(self, subject, job_id):
+        subject.create_chunks_for_job(job_id=job_id, total_chunks=1)
+        chunk = subject.get_next_pending_download()
+        subject.update_status(chunk["id"], ChunkStatus.EXTRACTED, "Extracted 5 pictures and 1 videos")
+
+        subject.reset_to_downloaded(chunk["id"])
+
+        reset = subject.get_by_id(chunk["id"])
+        assert reset["status"] == ChunkStatus.DOWNLOADED.value
+        assert reset["message"] is None
+
     def test_get_progress_for_job_defaults_for_chunk_never_reported(self, subject, job_id):
         subject.create_chunks_for_job(job_id=job_id, total_chunks=1)
 
