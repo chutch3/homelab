@@ -1,37 +1,10 @@
 import subprocess
 from pathlib import Path
-import pytest
-from prometheus_client import CollectorRegistry
+
 from testcontainers.postgres import PostgresContainer
-from fiber.clients.bowl import BowlStorage
-from fiber.platform.clock import SystemClock
-from fiber.clients.dump_runner import DumpRunner
-from fiber.db.database import Database
-from fiber.repositories.history import HistoryRepository
-from fiber.platform.metrics import Metrics
+
 from fiber.domain.models import DumpFormat, DumpJob, Engine, MovementOutcome
-from fiber.services.orchestrator import MovementOrchestrator
-from fiber.clients.secrets import SecretReader
-from fiber.clients.swarm import DockerSwarmGateway
-from fiber.clients.events import EventBroker
-
-pytestmark = pytest.mark.integration
-
-
-def _make_orch(tmp_path: Path) -> MovementOrchestrator:
-    db = Database(url=f"sqlite:///{tmp_path}/fiber.db")
-    return MovementOrchestrator(
-        bowl_factory=lambda root: BowlStorage(root=root),
-        bowl_root=str(tmp_path / "bowl"),
-        secrets=SecretReader(base_dir=str(tmp_path / "secrets")),
-        runner=DumpRunner(),
-        history=HistoryRepository(session_factory=db.session),
-        discovery=DockerSwarmGateway(client_factory=lambda: None),
-        clock=SystemClock(),
-        fiber_version="0.1.0",
-        metrics=Metrics(registry=CollectorRegistry()),
-        events=EventBroker(),
-    )
+from tests.integration.conftest import make_orchestrator
 
 
 async def test_labelled_db_produces_dump_receipt_and_history(tmp_path: Path) -> None:
@@ -45,7 +18,7 @@ async def test_labelled_db_produces_dump_receipt_and_history(tmp_path: Path) -> 
         job = DumpJob(service="t", engine=Engine.POSTGRES, host=host, port=port, dbname="test",
                       user="test", secret="pw", schedule="0 3 * * *", options=(), retain=7,
                       fmt=DumpFormat.CUSTOM, jobs=1, timeout=300, app=None, schema_version_query=None)
-        orch = _make_orch(tmp_path)
+        orch = make_orchestrator(tmp_path)
 
         rec = await orch.perform(job)
         assert rec.outcome is MovementOutcome.CLEAN
@@ -67,7 +40,7 @@ async def test_fiber_path_writes_dump_to_alt_directory(tmp_path: Path) -> None:
                       user="test", secret="pw", schedule="0 3 * * *", options=(), retain=7,
                       fmt=DumpFormat.CUSTOM, jobs=1, timeout=300, app=None, schema_version_query=None,
                       path=str(alt_bowl))
-        orch = _make_orch(tmp_path)
+        orch = make_orchestrator(tmp_path)
 
         rec = await orch.perform(job)
         assert rec.outcome is MovementOutcome.CLEAN

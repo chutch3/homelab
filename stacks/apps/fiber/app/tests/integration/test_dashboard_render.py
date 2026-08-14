@@ -1,12 +1,21 @@
+"""Integration test for the dashboard render pipeline.
+
+Drives the real route -> DashboardService.build -> production Jinja templates
+through a TestClient, asserting the generated HTML (service names, tile ids,
+verdict, status classes, a11y attributes, footer discovery states, running
+progress). Only the outer-ring infra is mocked -- history (DB), bowl (FS),
+worker pool, clock, config -- so the assertions exercise real view-model and
+template logic. The routing-layer contract (status codes, POST actions, HTMX
+partials) is covered separately by tests/unit/routes/test_dashboard_routes.py
+against stub templates.
+"""
+
 from __future__ import annotations
-
-import pytest
-
-pytestmark = pytest.mark.integration
 
 from datetime import datetime, timedelta, timezone
 from unittest.mock import MagicMock, create_autospec
 
+import pytest
 from fastapi.testclient import TestClient
 from prometheus_client import CollectorRegistry
 
@@ -18,7 +27,6 @@ from fiber.domain.models import BowlEntry, MisconfiguredJob, MovementOutcome
 from fiber.repositories.history import HistoryRepository
 from fiber.services.registry_state import RegistryState, Snapshot
 from fiber.services.worker_pool import WorkerPool
-from fiber.domain.status import DBStatus
 from tests.factories import DumpJobFactory
 
 UTC = timezone.utc

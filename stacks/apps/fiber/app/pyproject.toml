@@ -37,10 +37,8 @@ testpaths = ["tests"]
 python_files = ["test_*.py"]
 python_classes = ["Test*"]
 python_functions = ["test_*"]
-markers = [
-    "integration: needs external services (real process / fakes / docker)",
-    "e2e: full black-box end-to-end (docker compose)",
-]
+# Tiers are directory-based (tests/{unit,integration,e2e}), selected by the ci
+# runner — see tools/ci. No marker-based selection, so no custom markers.
 addopts = "--strict-markers --cov=fiber --cov-report=term-missing --cov-fail-under=90"
 
 [tool.coverage.run]

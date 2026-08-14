@@ -8,8 +8,6 @@ from testcontainers.postgres import PostgresContainer
 from fiber.clients.dump_runner import DumpRunner
 from fiber.domain.models import DumpFormat, DumpJob, Engine
 
-pytestmark = pytest.mark.integration
-
 
 def _job(host: str, port: int, fmt: DumpFormat) -> DumpJob:
     return DumpJob(service="t", engine=Engine.POSTGRES, host=host, port=port, dbname="test",
