@@ -15,7 +15,7 @@ from worker.containers import WorkerContainer
 from worker.daemon import run_daemon
 from worker.manager_client import ManagerClient
 from worker.progress import DownloadProgressTracker
-from worker.runners import CurlRunner, TarRunner
+from worker.runners import CurlRunner, TarRunner, GpthRunner
 
 pytestmark = pytest.mark.integration
 
@@ -172,8 +172,66 @@ class TestDaemonIntegration:
         mock_manager_client.report_task_status.assert_called_once_with(
             2, "extracted", "Extracted 1 pictures and 1 videos"
         )
-        assert (pictures_dir / "photo.jpg").exists()
-        assert (videos_dir / "clip.mp4").exists()
+
+    @pytest.mark.asyncio
+    async def test_full_metadata_cycle(self, worker_container, tmp_path):
+        """Daemon dispatches a metadata task through the real service: re-extracts
+        each chunk's retained archive, runs GPTH, splits the dated output into
+        pictures/videos, and removes the superseded flat copies from the original
+        per-chunk extraction."""
+        downloads_dir = tmp_path / "downloads"
+        pictures_dir = tmp_path / "pictures"
+        videos_dir = tmp_path / "videos"
+        downloads_dir.mkdir()
+        pictures_dir.mkdir()
+        videos_dir.mkdir()
+        (downloads_dir / "takeout-20240101T120000Z-1-001.tgz").write_bytes(b"archive")
+
+        # Superseded by the metadata pass — should be deleted, not duplicated.
+        (pictures_dir / "photo.jpg").write_bytes(b"old flat copy, no real exif")
+
+        metadata_task = {
+            "id": 9,
+            "type": "metadata",
+            "params": {
+                "job_id": "test-job",
+                "timestamp": "20240101T120000",
+                "total_chunks": 1,
+            },
+        }
+
+        mock_manager_client = AsyncMock(spec=ManagerClient)
+        mock_manager_client.get_next_task.side_effect = [metadata_task, None]
+
+        mock_tar_runner = AsyncMock(spec=TarRunner)
+        mock_tar_runner.extract.return_value = True
+
+        mock_gpth_runner = AsyncMock(spec=GpthRunner)
+
+        async def simulate_gpth(input_dir, output_dir):
+            dated_dir = Path(output_dir) / "2024" / "01"
+            dated_dir.mkdir(parents=True, exist_ok=True)
+            (dated_dir / "photo.jpg").write_bytes(b"exif-embedded")
+            (dated_dir / "clip.mp4").write_bytes(b"exif-embedded video")
+            return True
+
+        mock_gpth_runner.process.side_effect = simulate_gpth
+
+        with worker_container.manager_client.override(mock_manager_client), \
+             worker_container.tar_runner.override(mock_tar_runner), \
+             worker_container.gpth_runner.override(mock_gpth_runner):
+            try:
+                await asyncio.wait_for(run_daemon(), timeout=1.0)
+            except asyncio.TimeoutError:
+                pass
+
+        mock_manager_client.report_metadata_task_status.assert_called_once_with(
+            9, "completed", "Processed metadata for 1 pictures and 1 videos"
+        )
+        assert (pictures_dir / "2024" / "01" / "photo.jpg").exists()
+        assert (videos_dir / "2024" / "01" / "clip.mp4").exists()
+        assert not (pictures_dir / "photo.jpg").exists()  # superseded flat copy removed
+        assert not (videos_dir / "clip.mp4").exists()  # never existed flat, only dated
 
     @pytest.mark.asyncio
     async def test_download_reports_failed_when_archive_is_corrupted(self, worker_container, tmp_path):

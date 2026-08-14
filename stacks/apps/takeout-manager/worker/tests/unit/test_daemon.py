@@ -5,7 +5,7 @@ import asyncio
 from worker.daemon import run_daemon
 from worker.containers import WorkerContainer
 from worker.manager_client import ManagerClient
-from worker.services import DownloadService
+from worker.services import DownloadService, MetadataService
 
 
 class TestRunDaemon:
@@ -106,6 +106,34 @@ class TestRunDaemon:
         mock_manager_client.report_task_status.assert_called_once_with(
             3, "failed", "Download failed"
         )
+
+    @pytest.mark.asyncio
+    async def test_daemon_processes_metadata_task(self, container):
+        mock_manager_client = AsyncMock(spec=ManagerClient)
+        mock_task = {
+            "id": 9,
+            "type": "metadata",
+            "params": {"job_id": "test-job", "timestamp": "20240101T120000", "total_chunks": 1},
+        }
+        mock_manager_client.get_next_task.side_effect = [mock_task, None]
+
+        mock_metadata_service = Mock(spec=MetadataService)
+        mock_metadata_service.process_job_metadata.return_value = (
+            True, "Processed metadata for 1 pictures and 1 videos"
+        )
+
+        with container.manager_client.override(mock_manager_client), \
+             container.metadata_service.override(mock_metadata_service):
+            try:
+                await asyncio.wait_for(run_daemon(), timeout=1.0)
+            except asyncio.TimeoutError:
+                pass
+
+        mock_metadata_service.process_job_metadata.assert_called_once_with(mock_task)
+        mock_manager_client.report_metadata_task_status.assert_called_once_with(
+            9, "completed", "Processed metadata for 1 pictures and 1 videos"
+        )
+        mock_manager_client.report_task_status.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_daemon_handles_unknown_task_type(self, container):

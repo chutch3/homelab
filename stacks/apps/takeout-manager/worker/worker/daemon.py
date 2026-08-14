@@ -5,12 +5,13 @@ from dependency_injector.wiring import Provide, inject
 
 from worker.containers import WorkerContainer
 from worker.manager_client import ManagerClient
-from worker.services import DownloadService
+from worker.services import DownloadService, MetadataService
 
 
 @inject
 async def run_daemon(
     download_service: DownloadService = Provide[WorkerContainer.download_service],
+    metadata_service: MetadataService = Provide[WorkerContainer.metadata_service],
     manager_client: ManagerClient = Provide[WorkerContainer.manager_client],
 ) -> None:
     logger = logging.getLogger(__name__)
@@ -57,6 +58,15 @@ async def run_daemon(
                         "chunk_index": task.get("params", {}).get("chunk_index"),
                     },
                 )
+            elif task_type == "metadata":
+                success, message = await metadata_service.process_job_metadata(task)
+                status = "completed" if success else "failed"
+                logger.info(
+                    f"Metadata processing {'succeeded' if success else 'failed'}: {message}",
+                    extra={"task_id": task_id, "status": status},
+                )
+                await manager_client.report_metadata_task_status(task_id, status, message)
+                continue
             else:
                 success = False
                 message = f"Unknown task type: {task_type}"

@@ -11,7 +11,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from worker.runners import CurlRunner, TarRunner
+from worker.runners import CurlRunner, TarRunner, GpthRunner
 
 
 class TestCurlRunner:
@@ -119,3 +119,31 @@ class TestTarRunner:
         with patch("subprocess.run", side_effect=err):
             result = await subject.verify("/tmp/a.tgz")
         assert result is False
+
+
+class TestGpthRunner:
+    @pytest.fixture
+    def subject(self):
+        return GpthRunner()
+
+    @pytest.mark.asyncio
+    async def test_process_returns_true_on_success(self, subject):
+        with patch("subprocess.run", return_value=MagicMock()) as run:
+            result = await subject.process("/tmp/raw", "/tmp/out")
+        assert result is True
+        cmd = run.call_args[0][0]
+        assert cmd[0] == "gpth"
+        assert "--input" in cmd and "/tmp/raw" in cmd
+        assert "--output" in cmd and "/tmp/out" in cmd
+        # No ALL_PHOTOS wrapper folder — pictures_path/videos_path are already
+        # dedicated destinations, so output should be flat year/month dirs.
+        all_photos_flag_index = cmd.index("--all-photos-dir")
+        assert cmd[all_photos_flag_index + 1] == ""
+
+    @pytest.mark.asyncio
+    async def test_process_returns_false_and_logs_stderr_on_failure(self, subject, caplog):
+        err = subprocess.CalledProcessError(1, ["gpth"], stderr="gpth: no media files found")
+        with patch("subprocess.run", side_effect=err):
+            result = await subject.process("/tmp/raw", "/tmp/out")
+        assert result is False
+        assert "no media files found" in caplog.text

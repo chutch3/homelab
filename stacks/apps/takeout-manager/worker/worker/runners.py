@@ -124,3 +124,37 @@ class TarRunner:
         except subprocess.CalledProcessError as e:
             self.logger.error("Archive failed integrity check %s: %s", tgz_path, e.stderr)
             return False
+
+
+class GpthRunner:
+    """Wraps Google Photos Takeout Helper (Neo) — pairs each photo/video with its
+    JSON sidecar and embeds the real capture date/GPS/etc as EXIF/XMP, organizing
+    output into <output_dir>/ALL_PHOTOS/<year>/<month>/...
+
+    Flag choices are a best-effort reading of GPTH Neo's docs, not yet validated
+    against the real binary — expect to adjust these once it's actually running.
+    """
+
+    def __init__(self) -> None:
+        self.logger = logging.getLogger(self.__class__.__name__)
+
+    async def process(self, input_dir: str, output_dir: str) -> bool:
+        command = [
+            "gpth",
+            "--input", input_dir,
+            "--output", output_dir,
+            "--write-exif",
+            "--divide-to-dates", "2",
+            "--all-photos-dir", "",
+            "--no-interactive",
+        ]
+
+        try:
+            await asyncio.to_thread(
+                subprocess.run, command, check=True, capture_output=True, text=True
+            )
+            self.logger.info("Successfully processed metadata: %s -> %s", input_dir, output_dir)
+            return True
+        except subprocess.CalledProcessError as e:
+            self.logger.error("GPTH processing failed: %s", e.stderr)
+            return False

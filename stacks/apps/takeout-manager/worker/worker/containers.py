@@ -6,8 +6,8 @@ from dependency_injector import containers, providers
 from worker.logger import StructuredFormatter
 from worker.manager_client import ManagerClient, init_async_client
 from worker.progress import DownloadProgressTracker
-from worker.runners import CurlRunner, TarRunner
-from worker.services import DownloadService
+from worker.runners import CurlRunner, GpthRunner, TarRunner
+from worker.services import DownloadService, MetadataService
 
 
 def configure_logging(level: str = "INFO"):
@@ -39,6 +39,8 @@ class WorkerContainer(containers.DeclarativeContainer):
 
     tar_runner = providers.Singleton(TarRunner)
 
+    gpth_runner = providers.Singleton(GpthRunner)
+
     progress_tracker = providers.Singleton(DownloadProgressTracker)
 
     download_service = providers.Factory(
@@ -47,6 +49,15 @@ class WorkerContainer(containers.DeclarativeContainer):
         tar_runner=tar_runner,
         progress_tracker=progress_tracker,
         staging_path=config.paths.staging,
+        download_path=config.paths.downloads,
+        pictures_path=config.paths.pictures,
+        videos_path=config.paths.videos,
+    )
+
+    metadata_service = providers.Factory(
+        MetadataService,
+        tar_runner=tar_runner,
+        gpth_runner=gpth_runner,
         download_path=config.paths.downloads,
         pictures_path=config.paths.pictures,
         videos_path=config.paths.videos,

@@ -5,7 +5,7 @@ import shutil
 import tempfile
 from typing import Any, Awaitable, Callable, Optional
 
-from worker.runners import CurlRunner, TarRunner
+from worker.runners import CurlRunner, GpthRunner, TarRunner
 from worker.progress import DownloadProgressTracker
 
 PICTURE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".gif", ".bmp", ".heic", ".webp"}
@@ -164,3 +164,90 @@ class DownloadService:
                     shutil.rmtree(temp_extract_dir)
             except Exception as cleanup_error:
                 self.logger.warning("Failed to cleanup temp directory %s: %s", temp_extract_dir, cleanup_error)
+
+
+class MetadataService:
+    def __init__(
+        self,
+        tar_runner: TarRunner,
+        gpth_runner: GpthRunner,
+        download_path: str,
+        pictures_path: str,
+        videos_path: str,
+    ) -> None:
+        self.tar_runner = tar_runner
+        self.gpth_runner = gpth_runner
+        self.download_path = download_path
+        self.pictures_path = pictures_path
+        self.videos_path = videos_path
+        self.logger = logging.getLogger(self.__class__.__name__)
+
+    async def process_job_metadata(self, task: dict[str, Any]) -> tuple[bool, str]:
+        params = task.get("params", {})
+        job_id = params.get("job_id")
+        timestamp = params.get("timestamp")
+        total_chunks = params.get("total_chunks")
+
+        if any(v is None for v in [job_id, timestamp, total_chunks]):
+            return False, "Missing required metadata parameters"
+
+        raw_dir = tempfile.mkdtemp(prefix="metadata_raw_")
+        gpth_output_dir = tempfile.mkdtemp(prefix="metadata_gpth_")
+
+        try:
+            for chunk_index in range(1, total_chunks + 1):
+                chunk_num_str = f"{chunk_index:03d}"
+                archive_file = f"takeout-{timestamp}Z-1-{chunk_num_str}.tgz"
+                archive_path = os.path.join(self.download_path, archive_file)
+
+                if not os.path.exists(archive_path):
+                    return False, f"Archive not found: {archive_path}"
+
+                success = await self.tar_runner.extract(archive_path, raw_dir)
+                if not success:
+                    return False, f"Failed to re-extract chunk {chunk_index}"
+
+            if not await self.gpth_runner.process(raw_dir, gpth_output_dir):
+                return False, "GPTH processing failed"
+
+            pictures_moved = 0
+            videos_moved = 0
+
+            for root, _, files in os.walk(gpth_output_dir):
+                rel_dir = os.path.relpath(root, gpth_output_dir)
+                for file in files:
+                    _, ext = os.path.splitext(file)
+                    ext_lower = ext.lower()
+
+                    if ext_lower in PICTURE_EXTENSIONS:
+                        dest_root = self.pictures_path
+                        pictures_moved += 1
+                    elif ext_lower in VIDEO_EXTENSIONS:
+                        dest_root = self.videos_path
+                        videos_moved += 1
+                    else:
+                        continue
+
+                    dest_dir = os.path.join(dest_root, rel_dir) if rel_dir != "." else dest_root
+                    os.makedirs(dest_dir, exist_ok=True)
+                    dest_path = os.path.join(dest_dir, file)
+
+                    flat_copy_path = os.path.join(dest_root, file)
+                    if flat_copy_path != dest_path and os.path.exists(flat_copy_path):
+                        os.remove(flat_copy_path)
+
+                    shutil.move(os.path.join(root, file), dest_path)
+
+            return True, f"Processed metadata for {pictures_moved} pictures and {videos_moved} videos"
+
+        except Exception as e:
+            self.logger.error("Metadata processing failed with exception: %s", e)
+            return False, f"Metadata processing error: {str(e)}"
+
+        finally:
+            for temp_dir in (raw_dir, gpth_output_dir):
+                try:
+                    if os.path.exists(temp_dir):
+                        shutil.rmtree(temp_dir)
+                except Exception as cleanup_error:
+                    self.logger.warning("Failed to cleanup temp directory %s: %s", temp_dir, cleanup_error)

@@ -101,6 +101,30 @@ class TestManagerClient:
         mock_client.post.assert_called_once()
 
     @pytest.mark.asyncio
+    async def test_report_metadata_task_status_sends_correct_payload(self, subject, mock_client):
+        mock_response = Mock(spec=httpx.Response)
+        mock_client.post.return_value = mock_response
+
+        await subject.report_metadata_task_status(
+            job_id=7,
+            status="completed",
+            message="Embedded EXIF for 42 files",
+        )
+
+        mock_client.post.assert_called_once_with(
+            "/api/jobs/7/metadata-status",
+            json={"status": "completed", "message": "Embedded EXIF for 42 files"},
+        )
+
+    @pytest.mark.asyncio
+    async def test_report_metadata_task_status_handles_connection_error(self, subject, mock_client):
+        mock_client.post.side_effect = httpx.ConnectError("Connection refused")
+
+        await subject.report_metadata_task_status(7, "failed", "gpth crashed")
+
+        mock_client.post.assert_called_once()
+
+    @pytest.mark.asyncio
     async def test_report_task_progress_sends_correct_payload(self, subject, mock_client):
         mock_response = Mock(spec=httpx.Response)
         mock_client.post.return_value = mock_response

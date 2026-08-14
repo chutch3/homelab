@@ -51,3 +51,12 @@ class ManagerClient:
             )
         except httpx.RequestError as e:
             self.logger.error("Could not report progress for task %s: %s", task_id, e)
+
+    async def report_metadata_task_status(self, job_id: int, status: str, message: str = "") -> None:
+        try:
+            await self._client.post(
+                f"/api/jobs/{job_id}/metadata-status",
+                json={"status": status, "message": message},
+            )
+        except httpx.RequestError as e:
+            self.logger.error("Could not report metadata status for job %s: %s", job_id, e)
