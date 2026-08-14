@@ -70,7 +70,8 @@
               v-for="chunk in chunks"
               :key="chunk.id"
               :class="['chunk', getChunkStatusClass(chunk.status)]"
-              :title="`Chunk ${chunk.chunk_index}: ${chunk.status}${chunk.message ? ' - ' + chunk.message : ''}`"
+              :title="chunkTitle(chunk)"
+              @click="retryChunk(chunk)"
             >
               {{ chunk.chunk_index }}
             </div>
@@ -167,6 +168,23 @@ export default {
       }
     }
 
+    const chunkTitle = (chunk) => {
+      const base = `Chunk ${chunk.chunk_index}: ${chunk.status}${chunk.message ? ' - ' + chunk.message : ''}`
+      return chunk.status === 'extracted' ? base : `${base} (click to retry)`
+    }
+
+    const retryChunk = async (chunk) => {
+      if (chunk.status === 'extracted') {
+        return // already done — retrying would just force a wasteful re-download
+      }
+      try {
+        await axios.post(`/api/chunks/${chunk.id}/retry`)
+        await fetchChunks()
+      } catch (err) {
+        console.error('Failed to retry chunk:', err)
+      }
+    }
+
     const retryFailedChunks = async () => {
       retryingChunks.value = true
       retrySuccess.value = null
@@ -234,6 +252,8 @@ export default {
       retryError,
       pendingChunks,
       getChunkStatusClass,
+      chunkTitle,
+      retryChunk,
       retryFailedChunks,
       updateCookie
     }
@@ -434,8 +454,12 @@ h3 {
   border-radius: 4px;
   font-weight: 600;
   font-size: 0.875rem;
-  cursor: help;
+  cursor: pointer;
   transition: transform 0.2s;
+}
+
+.chunk.completed {
+  cursor: default;
 }
 
 .chunk:hover {
