@@ -73,6 +73,8 @@ class DownloadService:
         success = await self.curl_runner.download(url, output_path, headers)
 
         if success and os.path.exists(output_path) and os.path.getsize(output_path) > 0:
+            if not await self.tar_runner.verify(output_path):
+                return False, "Downloaded file failed integrity check (corrupted)"
             return True, "Download successful"
         elif success:
             return False, "File not found or empty after download"

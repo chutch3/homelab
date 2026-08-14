@@ -79,3 +79,18 @@ class TestTarRunner:
         with patch("subprocess.run", side_effect=err):
             result = await subject.extract("/tmp/a.tgz", str(tmp_path / "dest"))
         assert result is False
+
+    @pytest.mark.asyncio
+    async def test_verify_returns_true_for_intact_archive(self, subject):
+        with patch("subprocess.run", return_value=MagicMock()) as run:
+            result = await subject.verify("/tmp/a.tgz")
+        assert result is True
+        cmd = run.call_args[0][0]
+        assert cmd == ["tar", "-tzf", "/tmp/a.tgz"]
+
+    @pytest.mark.asyncio
+    async def test_verify_returns_false_for_corrupted_archive(self, subject):
+        err = subprocess.CalledProcessError(2, ["tar"], stderr="Unexpected EOF in archive")
+        with patch("subprocess.run", side_effect=err):
+            result = await subject.verify("/tmp/a.tgz")
+        assert result is False

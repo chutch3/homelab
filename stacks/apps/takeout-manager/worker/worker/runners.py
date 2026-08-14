@@ -82,3 +82,15 @@ class TarRunner:
             else:
                 self.logger.error("Extraction failed: %s", stderr)
             return False
+
+    async def verify(self, tgz_path: str) -> bool:
+        command = ["tar", "-tzf", tgz_path]
+
+        try:
+            await asyncio.to_thread(
+                subprocess.run, command, check=True, capture_output=True, text=True
+            )
+            return True
+        except subprocess.CalledProcessError as e:
+            self.logger.error("Archive failed integrity check %s: %s", tgz_path, e.stderr)
+            return False

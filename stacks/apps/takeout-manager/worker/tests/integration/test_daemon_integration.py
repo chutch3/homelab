@@ -1,20 +1,20 @@
 """Integration tests for the daemon dispatch-to-service pipeline.
 
-These tests wire a real DownloadService (with injected paths) to the daemon
-via the container, mocking only the external boundaries: the manager HTTP client
-and the subprocess runners (curl/tar). This validates that the daemon correctly
-dispatches tasks and that the service correctly constructs paths and file operations.
+These tests wire the daemon to a real DownloadService built by the container's own
+Factory (worker.containers.WorkerContainer.download_service), mocking only the
+external boundaries: the manager HTTP client and the subprocess runners (curl/tar),
+overridden at their leaf providers. This validates both that the daemon correctly
+dispatches tasks and that the container correctly wires the service.
 """
 import asyncio
 import pytest
 from pathlib import Path
-from unittest.mock import AsyncMock, Mock
+from unittest.mock import AsyncMock
 
 from worker.containers import WorkerContainer
 from worker.daemon import run_daemon
 from worker.manager_client import ManagerClient
 from worker.runners import CurlRunner, TarRunner
-from worker.services import DownloadService
 
 pytestmark = pytest.mark.integration
 
@@ -63,16 +63,9 @@ class TestDaemonIntegration:
 
         mock_curl_runner.download.side_effect = simulate_download
 
-        service = DownloadService(
-            curl_runner=mock_curl_runner,
-            tar_runner=AsyncMock(spec=TarRunner),
-            download_path=str(downloads_dir),
-            pictures_path=str(tmp_path / "pictures"),
-            videos_path=str(tmp_path / "videos"),
-        )
-
         with worker_container.manager_client.override(mock_manager_client), \
-             worker_container.download_service.override(service):
+             worker_container.curl_runner.override(mock_curl_runner), \
+             worker_container.tar_runner.override(AsyncMock(spec=TarRunner)):
             try:
                 await asyncio.wait_for(run_daemon(), timeout=1.0)
             except asyncio.TimeoutError:
@@ -115,16 +108,9 @@ class TestDaemonIntegration:
 
         mock_tar_runner.extract.side_effect = simulate_extract
 
-        service = DownloadService(
-            curl_runner=AsyncMock(spec=CurlRunner),
-            tar_runner=mock_tar_runner,
-            download_path=str(downloads_dir),
-            pictures_path=str(pictures_dir),
-            videos_path=str(videos_dir),
-        )
-
         with worker_container.manager_client.override(mock_manager_client), \
-             worker_container.download_service.override(service):
+             worker_container.curl_runner.override(AsyncMock(spec=CurlRunner)), \
+             worker_container.tar_runner.override(mock_tar_runner):
             try:
                 await asyncio.wait_for(run_daemon(), timeout=1.0)
             except asyncio.TimeoutError:
@@ -135,6 +121,51 @@ class TestDaemonIntegration:
         )
         assert (pictures_dir / "photo.jpg").exists()
         assert (videos_dir / "clip.mp4").exists()
+
+    @pytest.mark.asyncio
+    async def test_download_reports_failed_when_archive_is_corrupted(self, worker_container, tmp_path):
+        """Daemon reports failed status when the downloaded archive fails integrity verification,
+        rather than passing a corrupt file on to extraction."""
+        (tmp_path / "downloads").mkdir()
+
+        download_task = {
+            "id": 4,
+            "type": "download",
+            "params": {
+                "job_id": "test-job",
+                "user_id": "user-1",
+                "timestamp": "20240101T120000",
+                "auth_user": "0",
+                "chunk_index": 1,
+                "cookie": "session=abc123",
+            },
+        }
+
+        mock_manager_client = AsyncMock(spec=ManagerClient)
+        mock_manager_client.get_next_task.side_effect = [download_task, None]
+
+        mock_curl_runner = AsyncMock(spec=CurlRunner)
+
+        async def simulate_download(url, output_path, headers):
+            Path(output_path).write_bytes(b"truncated archive")
+            return True
+
+        mock_curl_runner.download.side_effect = simulate_download
+
+        mock_tar_runner = AsyncMock(spec=TarRunner)
+        mock_tar_runner.verify.return_value = False
+
+        with worker_container.manager_client.override(mock_manager_client), \
+             worker_container.curl_runner.override(mock_curl_runner), \
+             worker_container.tar_runner.override(mock_tar_runner):
+            try:
+                await asyncio.wait_for(run_daemon(), timeout=1.0)
+            except asyncio.TimeoutError:
+                pass
+
+        mock_manager_client.report_task_status.assert_called_once_with(
+            4, "failed", "Downloaded file failed integrity check (corrupted)"
+        )
 
     @pytest.mark.asyncio
     async def test_download_failure_reports_failed_status(self, worker_container, tmp_path):
@@ -158,16 +189,9 @@ class TestDaemonIntegration:
         mock_curl_runner = AsyncMock(spec=CurlRunner)
         mock_curl_runner.download.return_value = False
 
-        service = DownloadService(
-            curl_runner=mock_curl_runner,
-            tar_runner=AsyncMock(spec=TarRunner),
-            download_path=str(tmp_path / "downloads"),
-            pictures_path=str(tmp_path / "pictures"),
-            videos_path=str(tmp_path / "videos"),
-        )
-
         with worker_container.manager_client.override(mock_manager_client), \
-             worker_container.download_service.override(service):
+             worker_container.curl_runner.override(mock_curl_runner), \
+             worker_container.tar_runner.override(AsyncMock(spec=TarRunner)):
             try:
                 await asyncio.wait_for(run_daemon(), timeout=1.0)
             except asyncio.TimeoutError:

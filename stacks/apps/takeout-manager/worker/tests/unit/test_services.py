@@ -162,6 +162,68 @@ class TestDownloadService:
         assert message == "File not found or empty after download"
 
     @pytest.mark.asyncio
+    async def test_download_chunk_returns_failure_on_corrupted_archive(
+        self, subject, mock_curl_runner, mock_tar_runner, downloads_dir
+    ):
+        async def create_file(url, output_path, headers):
+            Path(output_path).write_bytes(b"truncated content")
+            return True
+
+        mock_curl_runner.download.side_effect = create_file
+        mock_tar_runner.verify.return_value = False
+
+        mock_task = {
+            "id": 1,
+            "type": "download",
+            "params": {
+                "chunk_index": 1,
+                "job_id": "test",
+                "user_id": "user",
+                "timestamp": "20240101T120000",
+                "auth_user": "0",
+                "cookie": "c",
+            },
+        }
+
+        success, message = await subject.download_chunk(mock_task)
+
+        assert success is False
+        assert message == "Downloaded file failed integrity check (corrupted)"
+        mock_tar_runner.verify.assert_called_once_with(
+            str(downloads_dir / "takeout-20240101T120000Z-1-001.tgz")
+        )
+
+    @pytest.mark.asyncio
+    async def test_download_chunk_verifies_archive_before_reporting_success(
+        self, subject, mock_curl_runner, mock_tar_runner, downloads_dir
+    ):
+        async def create_file(url, output_path, headers):
+            Path(output_path).write_bytes(b"intact content")
+            return True
+
+        mock_curl_runner.download.side_effect = create_file
+        mock_tar_runner.verify.return_value = True
+
+        mock_task = {
+            "id": 1,
+            "type": "download",
+            "params": {
+                "chunk_index": 1,
+                "job_id": "test",
+                "user_id": "user",
+                "timestamp": "20240101T120000",
+                "auth_user": "0",
+                "cookie": "c",
+            },
+        }
+
+        success, message = await subject.download_chunk(mock_task)
+
+        assert success is True
+        assert message == "Download successful"
+        mock_tar_runner.verify.assert_called_once()
+
+    @pytest.mark.asyncio
     async def test_download_chunk_returns_failure_on_download_failure(self, subject, mock_curl_runner):
         mock_curl_runner.download.return_value = False
 
