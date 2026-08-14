@@ -1,6 +1,6 @@
 from dependency_injector import containers, providers
 
-from backend.db import Database
+from backend.db.database import Database
 from backend.repositories import JobRepository, ChunkRepository
 from backend.services import JobService, ChunkService, TaskService
 
@@ -12,17 +12,17 @@ class ManagerContainer(containers.DeclarativeContainer):
 
     database = providers.Singleton(
         Database,
-        db_path=config.db.path,
+        url=config.db.url,
     )
 
-    job_repository = providers.Factory(
+    job_repository = providers.Singleton(
         JobRepository,
-        db=database,
+        session_factory=database.provided.session,
     )
 
-    chunk_repository = providers.Factory(
+    chunk_repository = providers.Singleton(
         ChunkRepository,
-        db=database,
+        session_factory=database.provided.session,
     )
 
     job_service = providers.Factory(

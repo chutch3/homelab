@@ -1,6 +1,8 @@
+import sqlite3
+
 import pytest
 from backend.containers import ManagerContainer
-from backend.db import Database
+from backend.db.database import Database
 from backend.application import create_app
 from fastapi.testclient import TestClient
 from backend.models import JobStatus, ChunkStatus
@@ -16,8 +18,12 @@ class TestJobAPI:
     @pytest.fixture
     def db_connection_fixture(self, container_fixture, tmp_path):
         db_file = tmp_path / "test.db"
-        with container_fixture.database.override(Database(db_path=str(db_file))):
-            conn = container_fixture.database().get_connection()
+        db = Database(url=f"sqlite:///{db_file}")
+        with container_fixture.database.override(db):
+            # A separate raw connection for test assertions, decoupled from
+            # whatever ORM the app uses internally to talk to the same file.
+            conn = sqlite3.connect(str(db_file))
+            conn.row_factory = sqlite3.Row
             yield conn
             conn.close()
 
@@ -53,7 +59,7 @@ class TestJobAPI:
         assert task["params"]["chunk_index"] == 1
         assert task["params"]["cookie"] == "test-cookie-789"
 
-    def test_update_task_status_completes_chunk(self, client_fixture, container_fixture):
+    def test_update_task_status_completes_chunk(self, client_fixture, db_connection_fixture):
         job_data = {
             "job_id": "test-job-update",
             "user_id": "test-user-update",
@@ -73,12 +79,9 @@ class TestJobAPI:
         assert response.status_code == 200
         assert response.json()["message"] == "Status received"
 
-        db = container_fixture.database()
-        conn = db.get_connection()
-        cursor = conn.cursor()
+        cursor = db_connection_fixture.cursor()
         cursor.execute("SELECT status, message FROM chunks WHERE id = ?", (task_id,))
         updated_chunk = cursor.fetchone()
-        conn.close()
 
         assert updated_chunk is not None
         assert updated_chunk["status"] == ChunkStatus.DOWNLOADED.value

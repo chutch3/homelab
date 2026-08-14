@@ -22,14 +22,14 @@ def create_app(container: Optional[ManagerContainer] = None) -> FastAPI:
     logger = logging.getLogger(__name__)
 
     default_db_path = os.path.join(os.path.dirname(__file__), "..", "db", "takeout.db")
-    container.config.db.path.from_env("APP_DB_FILE", default_db_path)
+    db_path = os.environ.get("APP_DB_FILE", default_db_path)
+    container.config.db.url.from_value(f"sqlite:///{db_path}")
 
-    db = container.database()
-    db.ensure_path_exists()
-    db.create_tables()
+    # Constructing the Database (a Singleton) triggers table creation.
+    container.database()
 
     logger.info("Initializing Takeout Manager", extra={
-        "db_path": container.config.db.path()
+        "db_url": container.config.db.url()
     })
 
     app = FastAPI(title="Takeout Manager API")

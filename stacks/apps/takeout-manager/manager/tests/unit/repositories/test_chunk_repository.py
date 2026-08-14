@@ -1,0 +1,221 @@
+from __future__ import annotations
+
+import pytest
+
+from backend.db.database import Database
+from backend.repositories import JobRepository, ChunkRepository
+from backend.domain.models import ChunkRecord, DownloadTaskInfo, ExtractTaskInfo
+from backend.models import ChunkStatus
+
+
+class TestChunkRepository:
+    @pytest.fixture()
+    def db(self) -> Database:
+        return Database("sqlite:///:memory:")
+
+    @pytest.fixture()
+    def job_repo(self, db: Database) -> JobRepository:
+        return JobRepository(session_factory=db.session)
+
+    @pytest.fixture()
+    def subject(self, db: Database) -> ChunkRepository:
+        return ChunkRepository(session_factory=db.session)
+
+    @pytest.fixture()
+    def job_id(self, job_repo: JobRepository) -> int:
+        return job_repo.create(
+            job_id="test-job", user_id="u1", timestamp="20240101T000000",
+            auth_user="0", cookie="c", total_chunks=3,
+        )
+
+    def test_create_chunks_for_job(self, subject: ChunkRepository, job_id: int) -> None:
+        subject.create_chunks_for_job(job_id=job_id, total_chunks=3)
+
+        chunks = subject.list_for_job(job_id)
+        assert len(chunks) == 3
+        indices = sorted(c.chunk_index for c in chunks)
+        assert indices == [1, 2, 3]
+
+    def test_get_by_id_returns_chunk(self, subject: ChunkRepository, job_id: int) -> None:
+        subject.create_chunks_for_job(job_id=job_id, total_chunks=2)
+        chunks = subject.list_for_job(job_id)
+        chunk_id = chunks[0].id
+
+        result = subject.get_by_id(chunk_id)
+
+        assert result is not None
+        assert isinstance(result, ChunkRecord)
+        assert result.id == chunk_id
+        assert result.job_id == job_id
+        assert result.status == ChunkStatus.PENDING_DOWNLOAD.value
+
+    def test_get_by_id_returns_none_for_missing(self, subject: ChunkRepository) -> None:
+        assert subject.get_by_id(9999) is None
+
+    def test_get_next_pending_download_claims_chunk(self, subject: ChunkRepository, job_id: int) -> None:
+        subject.create_chunks_for_job(job_id=job_id, total_chunks=2)
+
+        result = subject.get_next_pending_download()
+
+        assert result is not None
+        assert isinstance(result, DownloadTaskInfo)
+        assert result.job_id == "test-job"
+        assert result.user_id == "u1"
+        assert result.timestamp == "20240101T000000"
+        assert result.auth_user == "0"
+        assert result.cookie == "c"
+        claimed = subject.get_by_id(result.id)
+        assert claimed is not None
+        assert claimed.status == ChunkStatus.DOWNLOADING.value
+
+    def test_get_next_pending_download_returns_none_when_empty(self, subject: ChunkRepository) -> None:
+        assert subject.get_next_pending_download() is None
+
+    def test_get_next_pending_download_skips_claimed_chunks(self, subject: ChunkRepository, job_id: int) -> None:
+        subject.create_chunks_for_job(job_id=job_id, total_chunks=2)
+
+        first = subject.get_next_pending_download()
+        second = subject.get_next_pending_download()
+
+        assert first is not None
+        assert second is not None
+        assert first.id != second.id
+
+    def test_get_next_downloaded_claims_chunk(self, subject: ChunkRepository, job_id: int) -> None:
+        subject.create_chunks_for_job(job_id=job_id, total_chunks=1)
+        chunk = subject.get_next_pending_download()
+        subject.update_status(chunk.id, ChunkStatus.DOWNLOADED, "Download successful")
+
+        result = subject.get_next_downloaded()
+
+        assert result is not None
+        assert isinstance(result, ExtractTaskInfo)
+        assert result.id == chunk.id
+        assert result.job_id == "test-job"
+        assert result.timestamp == "20240101T000000"
+        claimed = subject.get_by_id(result.id)
+        assert claimed.status == ChunkStatus.PENDING_EXTRACTION.value
+
+    def test_get_next_downloaded_returns_none_when_none_downloaded(self, subject: ChunkRepository, job_id: int) -> None:
+        subject.create_chunks_for_job(job_id=job_id, total_chunks=1)
+        assert subject.get_next_downloaded() is None
+
+    def test_update_status(self, subject: ChunkRepository, job_id: int) -> None:
+        subject.create_chunks_for_job(job_id=job_id, total_chunks=1)
+        chunk = subject.get_next_pending_download()
+
+        subject.update_status(chunk.id, ChunkStatus.DOWNLOADED, "Download complete")
+
+        updated = subject.get_by_id(chunk.id)
+        assert updated.status == ChunkStatus.DOWNLOADED.value
+        assert updated.message == "Download complete"
+
+    def test_get_job_id_for_chunk(self, subject: ChunkRepository, job_id: int) -> None:
+        subject.create_chunks_for_job(job_id=job_id, total_chunks=1)
+        chunk = subject.get_next_pending_download()
+
+        result = subject.get_job_id_for_chunk(chunk.id)
+
+        assert result == job_id
+
+    def test_get_job_id_for_chunk_returns_none_when_missing(self, subject: ChunkRepository) -> None:
+        assert subject.get_job_id_for_chunk(9999) is None
+
+    def test_get_all_statuses_for_job(self, subject: ChunkRepository, job_id: int) -> None:
+        subject.create_chunks_for_job(job_id=job_id, total_chunks=2)
+        chunk1 = subject.get_next_pending_download()
+        chunk2 = subject.get_next_pending_download()
+        subject.update_status(chunk1.id, ChunkStatus.DOWNLOADED, "done")
+        subject.update_status(chunk2.id, ChunkStatus.FAILED, "error")
+
+        statuses = subject.get_all_statuses_for_job(job_id)
+
+        assert sorted(statuses) == sorted([ChunkStatus.DOWNLOADED.value, ChunkStatus.FAILED.value])
+
+    def test_get_failed_for_job(self, subject: ChunkRepository, job_id: int) -> None:
+        subject.create_chunks_for_job(job_id=job_id, total_chunks=3)
+        chunk1 = subject.get_next_pending_download()
+        chunk2 = subject.get_next_pending_download()
+        subject.update_status(chunk1.id, ChunkStatus.FAILED, "error")
+        subject.update_status(chunk2.id, ChunkStatus.DOWNLOADED, "done")
+
+        failed = subject.get_failed_for_job(job_id)
+
+        assert len(failed) == 1
+        assert failed[0].id == chunk1.id
+
+    def test_get_status_counts_for_job(self, subject: ChunkRepository, job_id: int) -> None:
+        subject.create_chunks_for_job(job_id=job_id, total_chunks=3)
+        chunk1 = subject.get_next_pending_download()
+        chunk2 = subject.get_next_pending_download()
+        subject.update_status(chunk1.id, ChunkStatus.DOWNLOADED, "done")
+        subject.update_status(chunk2.id, ChunkStatus.EXTRACTED, "done")
+
+        counts = subject.get_status_counts_for_job(job_id)
+
+        assert counts.get(ChunkStatus.DOWNLOADED.value, 0) == 1
+        assert counts.get(ChunkStatus.EXTRACTED.value, 0) == 1
+
+    def test_list_for_job_returns_chunks(self, subject: ChunkRepository, job_id: int) -> None:
+        subject.create_chunks_for_job(job_id=job_id, total_chunks=2)
+
+        result = subject.list_for_job(job_id)
+
+        assert len(result) == 2
+        assert all(isinstance(r, ChunkRecord) for r in result)
+
+    def test_reset_to_pending_download(self, subject: ChunkRepository, job_id: int) -> None:
+        subject.create_chunks_for_job(job_id=job_id, total_chunks=1)
+        chunk = subject.get_next_pending_download()
+        subject.update_status(chunk.id, ChunkStatus.DOWNLOADED, "done")
+
+        subject.reset_to_pending_download(chunk.id)
+
+        reset = subject.get_by_id(chunk.id)
+        assert reset.status == ChunkStatus.PENDING_DOWNLOAD.value
+        assert reset.message is None
+
+    def test_reset_to_downloaded(self, subject: ChunkRepository, job_id: int) -> None:
+        subject.create_chunks_for_job(job_id=job_id, total_chunks=1)
+        chunk = subject.get_next_pending_download()
+        subject.update_status(chunk.id, ChunkStatus.EXTRACTED, "Extracted 5 pictures and 1 videos")
+
+        subject.reset_to_downloaded(chunk.id)
+
+        reset = subject.get_by_id(chunk.id)
+        assert reset.status == ChunkStatus.DOWNLOADED.value
+        assert reset.message is None
+
+    def test_update_progress(self, subject: ChunkRepository, job_id: int) -> None:
+        subject.create_chunks_for_job(job_id=job_id, total_chunks=1)
+        chunk = subject.get_next_pending_download()
+
+        subject.update_progress(chunk.id, downloaded_bytes=1000, total_bytes=5000, speed_bytes_per_sec=200.0)
+
+        updated = subject.get_by_id(chunk.id)
+        assert updated.downloaded_bytes == 1000
+        assert updated.total_bytes == 5000
+        assert updated.speed_bytes_per_sec == 200.0
+
+    def test_get_progress_for_job_returns_status_and_progress_fields(self, subject: ChunkRepository, job_id: int) -> None:
+        subject.create_chunks_for_job(job_id=job_id, total_chunks=2)
+        chunk1 = subject.get_next_pending_download()
+        subject.update_progress(chunk1.id, downloaded_bytes=1000, total_bytes=5000, speed_bytes_per_sec=200.0)
+
+        progress = subject.get_progress_for_job(job_id)
+
+        assert len(progress) == 2
+        row1 = next(r for r in progress if r.id == chunk1.id)
+        assert row1.status == ChunkStatus.DOWNLOADING.value
+        assert row1.downloaded_bytes == 1000
+        assert row1.total_bytes == 5000
+        assert row1.speed_bytes_per_sec == 200.0
+
+    def test_get_progress_for_job_defaults_for_chunk_never_reported(self, subject: ChunkRepository, job_id: int) -> None:
+        subject.create_chunks_for_job(job_id=job_id, total_chunks=1)
+
+        progress = subject.get_progress_for_job(job_id)
+
+        assert progress[0].downloaded_bytes == 0
+        assert progress[0].total_bytes is None
+        assert progress[0].speed_bytes_per_sec is None

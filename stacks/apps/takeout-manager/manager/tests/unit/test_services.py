@@ -4,6 +4,25 @@ from unittest.mock import Mock
 from backend.services import JobService, ChunkService, TaskService
 from backend.models import JobStatus, ChunkStatus, TakeoutJob
 from backend.repositories import JobRepository, ChunkRepository
+from backend.domain.models import ChunkRecord, DownloadTaskInfo, ExtractTaskInfo, JobRecord
+
+
+def _job_record(**overrides):
+    defaults = dict(
+        id=1, job_id="job-1", timestamp="20240101T120000", total_chunks=1,
+        status=JobStatus.PENDING.value, cookie="cookie", user_id="user-1", auth_user="0",
+    )
+    defaults.update(overrides)
+    return JobRecord(**defaults)
+
+
+def _chunk_record(**overrides):
+    defaults = dict(
+        id=1, job_id=1, chunk_index=1, status=ChunkStatus.PENDING_DOWNLOAD.value,
+        message=None, downloaded_bytes=0, total_bytes=None, speed_bytes_per_sec=None,
+    )
+    defaults.update(overrides)
+    return ChunkRecord(**defaults)
 
 
 class TestJobService:
@@ -40,14 +59,8 @@ class TestJobService:
 
     def test_list_jobs(self, subject, mock_job_repo, mock_chunk_repo):
         mock_job_repo.list_all.return_value = [
-            {
-                "id": 1,
-                "job_id": "job-1",
-                "user_id": "user-1",
-                "timestamp": "20240101T120000",
-                "total_chunks": 5,
-                "status": JobStatus.IN_PROGRESS.value,
-            }
+            _job_record(id=1, job_id="job-1", user_id="user-1", timestamp="20240101T120000",
+                        total_chunks=5, status=JobStatus.IN_PROGRESS.value)
         ]
         mock_chunk_repo.get_status_counts_for_job.return_value = {
             ChunkStatus.EXTRACTED.value: 2,
@@ -66,25 +79,15 @@ class TestJobService:
 
     def test_list_jobs_includes_byte_progress_aggregate(self, subject, mock_job_repo, mock_chunk_repo):
         mock_job_repo.list_all.return_value = [
-            {
-                "id": 1,
-                "job_id": "job-1",
-                "user_id": "user-1",
-                "timestamp": "20240101T120000",
-                "total_chunks": 2,
-                "status": JobStatus.IN_PROGRESS.value,
-            }
+            _job_record(id=1, job_id="job-1", user_id="user-1", timestamp="20240101T120000",
+                        total_chunks=2, status=JobStatus.IN_PROGRESS.value)
         ]
         mock_chunk_repo.get_status_counts_for_job.return_value = {}
         mock_chunk_repo.get_progress_for_job.return_value = [
-            {
-                "id": 1, "status": ChunkStatus.DOWNLOADING.value,
-                "downloaded_bytes": 1000, "total_bytes": 5000, "speed_bytes_per_sec": 200.0,
-            },
-            {
-                "id": 2, "status": ChunkStatus.PENDING_DOWNLOAD.value,
-                "downloaded_bytes": 0, "total_bytes": None, "speed_bytes_per_sec": None,
-            },
+            _chunk_record(id=1, status=ChunkStatus.DOWNLOADING.value,
+                          downloaded_bytes=1000, total_bytes=5000, speed_bytes_per_sec=200.0),
+            _chunk_record(id=2, status=ChunkStatus.PENDING_DOWNLOAD.value,
+                          downloaded_bytes=0, total_bytes=None, speed_bytes_per_sec=None),
         ]
 
         result = subject.list_jobs()
@@ -95,7 +98,7 @@ class TestJobService:
         assert result[0]["estimated_seconds_remaining"] == pytest.approx(20.0)
 
     def test_update_cookie_success(self, subject, mock_job_repo):
-        mock_job_repo.get_by_id.return_value = {"id": 1, "job_id": "test-job"}
+        mock_job_repo.get_by_id.return_value = _job_record(id=1, job_id="test-job")
 
         subject.update_cookie(1, "new-cookie")
 
@@ -108,10 +111,10 @@ class TestJobService:
             subject.update_cookie(1, "new-cookie")
 
     def test_retry_failed_chunks(self, subject, mock_job_repo, mock_chunk_repo):
-        mock_job_repo.get_by_id.return_value = {"id": 1}
+        mock_job_repo.get_by_id.return_value = _job_record(id=1)
         mock_chunk_repo.get_failed_for_job.return_value = [
-            {"id": 10, "chunk_index": 1},
-            {"id": 11, "chunk_index": 2},
+            _chunk_record(id=10, chunk_index=1, status=ChunkStatus.FAILED.value),
+            _chunk_record(id=11, chunk_index=2, status=ChunkStatus.FAILED.value),
         ]
 
         result = subject.retry_failed_chunks(1)
@@ -121,7 +124,7 @@ class TestJobService:
         mock_job_repo.update_status_if_failed.assert_called_once_with(1, JobStatus.IN_PROGRESS)
 
     def test_retry_failed_chunks_none_failed(self, subject, mock_job_repo, mock_chunk_repo):
-        mock_job_repo.get_by_id.return_value = {"id": 1}
+        mock_job_repo.get_by_id.return_value = _job_record(id=1)
         mock_chunk_repo.get_failed_for_job.return_value = []
 
         result = subject.retry_failed_chunks(1)
@@ -137,10 +140,8 @@ class TestCalculateJobProgress:
 
     def test_returns_zero_defaults_when_no_chunks_have_reported(self, subject):
         chunks = [
-            {
-                "status": ChunkStatus.PENDING_DOWNLOAD.value,
-                "downloaded_bytes": 0, "total_bytes": None, "speed_bytes_per_sec": None,
-            },
+            _chunk_record(status=ChunkStatus.PENDING_DOWNLOAD.value,
+                          downloaded_bytes=0, total_bytes=None, speed_bytes_per_sec=None),
         ]
 
         result = subject._calculate_job_progress(chunks)
@@ -154,14 +155,10 @@ class TestCalculateJobProgress:
 
     def test_sums_downloaded_and_expected_bytes_across_active_chunks(self, subject):
         chunks = [
-            {
-                "status": ChunkStatus.DOWNLOADING.value,
-                "downloaded_bytes": 1000, "total_bytes": 5000, "speed_bytes_per_sec": 200.0,
-            },
-            {
-                "status": ChunkStatus.DOWNLOADING.value,
-                "downloaded_bytes": 2000, "total_bytes": 4000, "speed_bytes_per_sec": 100.0,
-            },
+            _chunk_record(status=ChunkStatus.DOWNLOADING.value,
+                          downloaded_bytes=1000, total_bytes=5000, speed_bytes_per_sec=200.0),
+            _chunk_record(status=ChunkStatus.DOWNLOADING.value,
+                          downloaded_bytes=2000, total_bytes=4000, speed_bytes_per_sec=100.0),
         ]
 
         result = subject._calculate_job_progress(chunks)
@@ -173,10 +170,8 @@ class TestCalculateJobProgress:
 
     def test_excludes_speed_of_chunks_no_longer_downloading(self, subject):
         chunks = [
-            {
-                "status": ChunkStatus.DOWNLOADED.value,
-                "downloaded_bytes": 5000, "total_bytes": 5000, "speed_bytes_per_sec": 200.0,
-            },
+            _chunk_record(status=ChunkStatus.DOWNLOADED.value,
+                          downloaded_bytes=5000, total_bytes=5000, speed_bytes_per_sec=200.0),
         ]
 
         result = subject._calculate_job_progress(chunks)
@@ -187,10 +182,8 @@ class TestCalculateJobProgress:
 
     def test_estimated_seconds_remaining_is_none_when_speed_is_zero(self, subject):
         chunks = [
-            {
-                "status": ChunkStatus.DOWNLOADING.value,
-                "downloaded_bytes": 1000, "total_bytes": 5000, "speed_bytes_per_sec": 0.0,
-            },
+            _chunk_record(status=ChunkStatus.DOWNLOADING.value,
+                          downloaded_bytes=1000, total_bytes=5000, speed_bytes_per_sec=0.0),
         ]
 
         result = subject._calculate_job_progress(chunks)
@@ -212,10 +205,10 @@ class TestChunkService:
         return ChunkService(mock_job_repo, mock_chunk_repo)
 
     def test_get_chunks_for_job(self, subject, mock_job_repo, mock_chunk_repo):
-        mock_job_repo.get_by_id.return_value = {"id": 1}
+        mock_job_repo.get_by_id.return_value = _job_record(id=1)
         mock_chunk_repo.list_for_job.return_value = [
-            {"id": 1, "chunk_index": 1, "status": "downloaded"},
-            {"id": 2, "chunk_index": 2, "status": "extracted"},
+            _chunk_record(id=1, chunk_index=1, status=ChunkStatus.DOWNLOADED.value),
+            _chunk_record(id=2, chunk_index=2, status=ChunkStatus.EXTRACTED.value),
         ]
 
         result = subject.get_chunks_for_job(1)
@@ -230,7 +223,7 @@ class TestChunkService:
             subject.get_chunks_for_job(1)
 
     def test_retry_chunk(self, subject, mock_job_repo, mock_chunk_repo):
-        mock_chunk_repo.get_by_id.return_value = {"id": 10, "job_id": 1}
+        mock_chunk_repo.get_by_id.return_value = _chunk_record(id=10, job_id=1)
 
         subject.retry_chunk(10)
 
@@ -249,7 +242,7 @@ class TestChunkService:
         mock_chunk_repo.update_progress.assert_called_once_with(10, 1000, 5000, 200.0)
 
     def test_reextract_chunk(self, subject, mock_job_repo, mock_chunk_repo):
-        mock_chunk_repo.get_by_id.return_value = {"id": 10, "job_id": 1}
+        mock_chunk_repo.get_by_id.return_value = _chunk_record(id=10, job_id=1)
 
         subject.reextract_chunk(10)
 
@@ -277,15 +270,10 @@ class TestTaskService:
         return TaskService(mock_job_repo, mock_chunk_repo)
 
     def test_get_next_task_download(self, subject, mock_chunk_repo):
-        mock_chunk_repo.get_next_pending_download.return_value = {
-            "id": 1,
-            "job_id": "test-job",
-            "user_id": "user-1",
-            "timestamp": "20240101T120000",
-            "auth_user": "0",
-            "cookie": "test-cookie",
-            "chunk_index": 1,
-        }
+        mock_chunk_repo.get_next_pending_download.return_value = DownloadTaskInfo(
+            id=1, job_id="test-job", user_id="user-1", timestamp="20240101T120000",
+            auth_user="0", cookie="test-cookie", chunk_index=1,
+        )
 
         result = subject.get_next_task()
 
@@ -295,12 +283,9 @@ class TestTaskService:
 
     def test_get_next_task_extract(self, subject, mock_chunk_repo):
         mock_chunk_repo.get_next_pending_download.return_value = None
-        mock_chunk_repo.get_next_downloaded.return_value = {
-            "id": 2,
-            "job_id": "test-job",
-            "chunk_index": 1,
-            "timestamp": "20240101T120000",
-        }
+        mock_chunk_repo.get_next_downloaded.return_value = ExtractTaskInfo(
+            id=2, job_id="test-job", chunk_index=1, timestamp="20240101T120000",
+        )
 
         result = subject.get_next_task()
 

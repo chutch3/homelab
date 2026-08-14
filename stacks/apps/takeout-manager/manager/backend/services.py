@@ -3,6 +3,7 @@ from typing import Dict, Any, List, Optional
 
 from backend.models import JobStatus, ChunkStatus, TakeoutJob
 from backend.repositories import JobRepository, ChunkRepository
+from backend.domain.models import ChunkRecord
 
 
 class JobService:
@@ -34,8 +35,8 @@ class JobService:
         jobs = self._job_repo.list_all()
         result = []
         for job in jobs:
-            job_id = job["id"]
-            total_chunks = job["total_chunks"]
+            job_id = job.id
+            total_chunks = job.total_chunks
             chunk_stats = self._chunk_repo.get_status_counts_for_job(job_id)
             extracted = chunk_stats.get(ChunkStatus.EXTRACTED.value, 0)
             downloaded = (
@@ -49,11 +50,11 @@ class JobService:
             result.append(
                 {
                     "id": job_id,
-                    "job_id": job["job_id"],
-                    "user_id": job["user_id"],
-                    "timestamp": job["timestamp"],
+                    "job_id": job.job_id,
+                    "user_id": job.user_id,
+                    "timestamp": job.timestamp,
                     "total_chunks": total_chunks,
-                    "status": job["status"],
+                    "status": job.status,
                     "downloaded_chunks": downloaded,
                     "extracted_chunks": extracted,
                     "failed_chunks": failed,
@@ -64,13 +65,13 @@ class JobService:
             )
         return result
 
-    def _calculate_job_progress(self, chunks: List[Dict[str, Any]]) -> Dict[str, Any]:
-        total_downloaded_bytes = sum(c["downloaded_bytes"] or 0 for c in chunks)
-        total_expected_bytes = sum(c["total_bytes"] or 0 for c in chunks)
+    def _calculate_job_progress(self, chunks: List[ChunkRecord]) -> Dict[str, Any]:
+        total_downloaded_bytes = sum(c.downloaded_bytes or 0 for c in chunks)
+        total_expected_bytes = sum(c.total_bytes or 0 for c in chunks)
         combined_speed_bytes_per_sec = sum(
-            c["speed_bytes_per_sec"] or 0.0
+            c.speed_bytes_per_sec or 0.0
             for c in chunks
-            if c["status"] == ChunkStatus.DOWNLOADING.value
+            if c.status == ChunkStatus.DOWNLOADING.value
         )
         estimated_seconds_remaining = (
             (total_expected_bytes - total_downloaded_bytes) / combined_speed_bytes_per_sec
@@ -99,7 +100,7 @@ class JobService:
         if not failed_chunks:
             return {"message": "No failed chunks to retry", "retried_count": 0}
         for chunk in failed_chunks:
-            self._chunk_repo.reset_to_pending_download(chunk["id"])
+            self._chunk_repo.reset_to_pending_download(chunk.id)
         retried_count = len(failed_chunks)
         self._job_repo.update_status_if_failed(job_id, JobStatus.IN_PROGRESS)
         self.logger.info(
@@ -129,7 +130,7 @@ class ChunkService:
         if not chunk:
             raise ValueError(f"Chunk {chunk_id} not found")
         self._chunk_repo.reset_to_pending_download(chunk_id)
-        job_id = chunk["job_id"]
+        job_id = chunk.job_id
         self._job_repo.update_status_if_failed(job_id, JobStatus.IN_PROGRESS)
         self.logger.info("Retrying chunk", extra={"chunk_id": chunk_id, "job_id": job_id})
 
@@ -143,7 +144,7 @@ class ChunkService:
         if not chunk:
             raise ValueError(f"Chunk {chunk_id} not found")
         self._chunk_repo.reset_to_downloaded(chunk_id)
-        job_id = chunk["job_id"]
+        job_id = chunk.job_id
         self._job_repo.update_status_if_failed(job_id, JobStatus.IN_PROGRESS)
         self.logger.info("Re-extracting chunk", extra={"chunk_id": chunk_id, "job_id": job_id})
 
@@ -159,33 +160,33 @@ class TaskService:
         if download_task:
             self.logger.debug(
                 "Assigned download task",
-                extra={"task_id": download_task["id"], "chunk_index": download_task["chunk_index"]},
+                extra={"task_id": download_task.id, "chunk_index": download_task.chunk_index},
             )
             return {
-                "id": download_task["id"],
+                "id": download_task.id,
                 "type": "download",
                 "params": {
-                    "job_id": download_task["job_id"],
-                    "user_id": download_task["user_id"],
-                    "timestamp": download_task["timestamp"],
-                    "auth_user": download_task["auth_user"],
-                    "chunk_index": download_task["chunk_index"],
-                    "cookie": download_task["cookie"],
+                    "job_id": download_task.job_id,
+                    "user_id": download_task.user_id,
+                    "timestamp": download_task.timestamp,
+                    "auth_user": download_task.auth_user,
+                    "chunk_index": download_task.chunk_index,
+                    "cookie": download_task.cookie,
                 },
             }
         extract_task = self._chunk_repo.get_next_downloaded()
         if extract_task:
             self.logger.debug(
                 "Assigned extract task",
-                extra={"task_id": extract_task["id"], "chunk_index": extract_task["chunk_index"]},
+                extra={"task_id": extract_task.id, "chunk_index": extract_task.chunk_index},
             )
             return {
-                "id": extract_task["id"],
+                "id": extract_task.id,
                 "type": "extract",
                 "params": {
-                    "job_id": extract_task["job_id"],
-                    "chunk_index": extract_task["chunk_index"],
-                    "timestamp": extract_task["timestamp"],
+                    "job_id": extract_task.job_id,
+                    "chunk_index": extract_task.chunk_index,
+                    "timestamp": extract_task.timestamp,
                 },
             }
         return {"task": "none"}
