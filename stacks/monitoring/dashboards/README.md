@@ -6,8 +6,8 @@ This directory contains the Grafana dashboard provisioning configuration.
 
 Dashboards are stored in two locations:
 
-1. **NAS CIFS Mount** (`/etc/grafana/provisioning/dashboards` inside Grafana container)
-   - Mounted from `${NAS_SERVER}/grafana_dashboards`
+1. **Shared app-data mount** (`/etc/grafana/provisioning/dashboards` inside Grafana container)
+   - Bound from `/mnt/iscsi/app-data/grafana/dashboards` (OCFS2 cluster LUN, mounted on every node)
    - User-managed dashboards go here
    - Changes persist across deployments
    - Can be edited via Grafana UI
@@ -25,9 +25,9 @@ Dashboards are stored in two locations:
 2. Click "Save dashboard"
 3. Dashboard is automatically saved to the NAS mount
 
-### Method 2: Manual JSON Upload to NAS
+### Method 2: Manual JSON Upload
 1. Export dashboard as JSON from Grafana
-2. Copy JSON file to NAS: `/grafana_dashboards/*.json`
+2. Copy JSON file to the app-data mount: `/mnt/iscsi/app-data/grafana/dashboards/*.json`
 3. Grafana will auto-discover and load it within 30 seconds
 
 ### Method 3: Add to Repository (For Built-in Dashboards)
@@ -61,10 +61,10 @@ To create custom dashboards:
 ## Troubleshooting
 
 **Dashboards not appearing:**
-- Check NAS mount: `docker exec <grafana-container> ls -la /etc/grafana/provisioning/dashboards`
+- Check the mount: `docker exec <grafana-container> ls -la /etc/grafana/provisioning/dashboards`
 - Verify JSON syntax: `cat dashboard.json | jq .`
 - Check Grafana logs: `docker service logs monitoring_grafana`
 
 **Permission issues:**
-- Ensure Grafana can read NAS mount
-- Check CIFS credentials in `.env` file
+- Ensure the dir exists and is owned by `1000:1000`: `/mnt/iscsi/app-data/grafana/dashboards`
+- Pre-flight provisions it; re-run pre-flight if the mount is missing

@@ -198,9 +198,9 @@ volumes:
             type: "cifs"
             o: "username=${SMB_USERNAME},password=${SMB_PASSWORD},domain=${SMB_DOMAIN},vers=3.0,nobrl,uid=${PUID},gid=${PGID},file_mode=0644,dir_mode=0770,soft,actimeo=30"
             device: "//${NAS_SERVER}/photoprism_storage"
+    # Node-local AI model cache (large, re-downloadable). The ollama service is
+    # GPU-pinned so it always lands on the same node; deliberately off CIFS/iSCSI so
+    # regenerable blobs don't sit on backed-up storage. Re-downloads once on cutover.
+    # See GH #105.
     photoprism_ollama:
         driver: local
-        driver_opts:
-            type: "cifs"
-            o: "username=${SMB_USERNAME},password=${SMB_PASSWORD},domain=${SMB_DOMAIN},vers=3.0,nobrl,uid=${PUID},gid=${PGID},file_mode=0644,dir_mode=0770,soft,actimeo=30"
-            device: "//${NAS_SERVER}/photoprism_ollama"

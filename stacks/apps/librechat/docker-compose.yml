@@ -172,23 +172,26 @@ volumes:
         driver: local
         # Local storage on centralized database node for performance
 
+    # App state (logs / user uploads / generated images) moved off CIFS onto the
+    # OCFS2 app-data LUN — frequent small writes are slow/unsafe over SMB. The api
+    # service floats; OCFS2 is mounted on every node. See GH #105.
     librechat_logs:
         driver: local
         driver_opts:
-            type: "cifs"
-            o: "username=${SMB_USERNAME},password=${SMB_PASSWORD},domain=${SMB_DOMAIN},vers=3.0,nobrl,uid=0,gid=100,file_mode=0777,dir_mode=0777,soft,actimeo=30"
-            device: "//${NAS_SERVER}/librechat_logs"
+            type: "none"
+            o: "bind"
+            device: "/mnt/iscsi/app-data/librechat/logs"
 
     librechat_images:
         driver: local
         driver_opts:
-            type: "cifs"
-            o: "username=${SMB_USERNAME},password=${SMB_PASSWORD},domain=${SMB_DOMAIN},vers=3.0,nobrl,uid=0,gid=100,file_mode=0777,dir_mode=0777,soft,actimeo=30"
-            device: "//${NAS_SERVER}/librechat_images"
+            type: "none"
+            o: "bind"
+            device: "/mnt/iscsi/app-data/librechat/images"
 
     librechat_uploads:
         driver: local
         driver_opts:
-            type: "cifs"
-            o: "username=${SMB_USERNAME},password=${SMB_PASSWORD},domain=${SMB_DOMAIN},vers=3.0,nobrl,uid=0,gid=100,file_mode=0777,dir_mode=0777,soft,actimeo=30"
-            device: "//${NAS_SERVER}/librechat_uploads"
+            type: "none"
+            o: "bind"
+            device: "/mnt/iscsi/app-data/librechat/uploads"

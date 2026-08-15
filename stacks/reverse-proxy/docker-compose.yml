@@ -113,13 +113,16 @@ services:
             - traefik-public
 
 volumes:
+    # TLS certs (traefik writes acme.json here; actual_server reads them). Moved off
+    # CIFS onto the OCFS2 app-data LUN — tiny, POSIX, cluster-read. Shared by name
+    # with the actual_server stack. See GH #105.
     ssl_certs:
         name: ssl_certs
         driver: local
         driver_opts:
-            type: "cifs"
-            o: "username=${SMB_USERNAME},password=${SMB_PASSWORD},domain=${SMB_DOMAIN},vers=3.0,file_mode=0600,dir_mode=0770,soft,actimeo=30"
-            device: "//${NAS_SERVER}/ssl_certs"
+            type: "none"
+            o: "bind"
+            device: "/mnt/iscsi/app-data/ssl_certs"
 
 networks:
     traefik-public:

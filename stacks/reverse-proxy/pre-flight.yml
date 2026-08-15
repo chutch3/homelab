@@ -3,3 +3,8 @@ validate:
     - CLOUDFLARE_DNS_API_TOKEN
   labels:
     - traefik: "true"
+
+directories:
+  # Shared TLS cert store, also mounted read side by the actual_server stack.
+  # traefik (root) writes acme.json here. See GH #105.
+  - { path: ssl_certs, base: app_data, owner: 1000, group: 1000, mode: "0770" }

@@ -87,10 +87,12 @@ volumes:
             o: "bind"
             device: "/mnt/iscsi/app-data/actual_server/mcp"
 
+    # Shared TLS certs, read-only here (traefik in the reverse-proxy stack owns/writes
+    # them). Moved off CIFS onto the OCFS2 app-data LUN. See GH #105.
     ssl_certs:
         name: ssl_certs
         driver: local
         driver_opts:
-            type: "cifs"
-            o: "username=${SMB_USERNAME},password=${SMB_PASSWORD},domain=${SMB_DOMAIN},vers=3.0,file_mode=0770,dir_mode=0770,uid=1000,gid=1000,soft,actimeo=30"
-            device: "//${NAS_SERVER}/ssl_certs"
+            type: "none"
+            o: "bind"
+            device: "/mnt/iscsi/app-data/ssl_certs"

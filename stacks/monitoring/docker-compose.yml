@@ -133,9 +133,14 @@ services:
             - GF_AUTH_SIGNOUT_REDIRECT_URL=https://auth.${BASE_DOMAIN}/application/o/grafana/end-session/
             - GF_SERVER_ROOT_URL=https://grafana.${BASE_DOMAIN}
         deploy:
-            placement:
-                constraints:
-                    - node.role == manager
+            # Data + dashboards live on the OCFS2 app-data LUN (mounted on every
+            # node), so grafana is not pinned. Its config DB is SQLite; replicas:1
+            # + stop-first keep a single writer — the old task stops before the new
+            # one starts, so two instances never open the DB at once. See GH #105.
+            replicas: 1
+            update_config:
+                order: stop-first
+                parallelism: 1
             labels:
                 - "traefik.enable=true"
                 - "traefik.http.routers.grafana.rule=Host(`grafana.${BASE_DOMAIN}`)"
@@ -324,15 +329,23 @@ networks:
 volumes:
     prometheus_data:
     alertmanager_data:
-    grafana_data:
     loki_data:
     promtail_positions:
+    # Grafana's config DB (SQLite) + provisioned dashboards. Moved off node-local /
+    # CIFS onto the OCFS2 app-data LUN so grafana can float instead of being pinned
+    # to the manager. See GH #105.
+    grafana_data:
+        driver: local
+        driver_opts:
+            type: "none"
+            o: "bind"
+            device: "/mnt/iscsi/app-data/grafana/data"
     grafana_dashboards:
         driver: local
         driver_opts:
-            type: "cifs"
-            o: "username=${SMB_USERNAME},password=${SMB_PASSWORD},domain=${SMB_DOMAIN},vers=3.0,uid=1000,gid=1000,file_mode=0644,dir_mode=0755,soft,actimeo=30"
-            device: "//${NAS_SERVER}/grafana_dashboards"
+            type: "none"
+            o: "bind"
+            device: "/mnt/iscsi/app-data/grafana/dashboards"
 
 configs:
     prometheus_config_v9:

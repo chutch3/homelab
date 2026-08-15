@@ -5,3 +5,9 @@ secrets:
 validate:
   env:
     - GRAFANA_ADMIN_PASSWORD
+
+directories:
+  # grafana runs as 1000:1000; data holds its SQLite config DB, dashboards the
+  # provisioned JSON. Both on the OCFS2 app-data LUN so grafana can float.
+  - { path: grafana/data, base: app_data, owner: 1000, group: 1000 }
+  - { path: grafana/dashboards, base: app_data, owner: 1000, group: 1000 }

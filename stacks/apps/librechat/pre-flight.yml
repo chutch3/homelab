@@ -6,3 +6,10 @@ secrets:
 validate:
   env:
     - POSTGRES_PASSWORD
+
+directories:
+  # Reproduces the old CIFS grant (uid=0,gid=100,0777) so the api container writes
+  # regardless of its runtime uid; tighten once that uid is confirmed. See GH #105.
+  - { path: librechat/logs, base: app_data, owner: 0, group: 100, mode: "0777" }
+  - { path: librechat/images, base: app_data, owner: 0, group: 100, mode: "0777" }
+  - { path: librechat/uploads, base: app_data, owner: 0, group: 100, mode: "0777" }
