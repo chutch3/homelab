@@ -1,11 +1,11 @@
 # Gamarr Stack
 
-Game and ROM manager (Radarr/Sonarr-style) — searches indexers via the shared Prowlarr, grabs via qBittorrent or SABnzbd, and organizes into a dedicated NAS library that [RomM](../romm/) reads read-only.
+Game and ROM manager (Radarr/Sonarr-style). Runs **DDL-only**: it fetches games directly over HTTP from the sources in `sources.json` (archive.org No-Intro/Redump mirrors and Vimm's vault) and organizes them into a dedicated NAS library that [RomM](../romm/) reads read-only. No indexers, torrent, or usenet clients are involved.
 
 ## Prerequisites
 
 - `traefik-public` external overlay network exists
-- Root `.env` populated with all `GAMARR_*` variables (see [Environment variables](#environment-variables))
+- Root `.env` populated with the `GAMARR_*` variables (only `GAMARR_RAWG_API_KEY`, optional — see [Environment variables](#environment-variables))
 - Dedicated `//NAS/games` share exists on a pool with free space (**not** the full `all_data` pool)
 
 ## Deployment
@@ -30,14 +30,13 @@ The currently pinned tag may be further ahead of these three (check the tag suff
 
 Myrient (the previous DDL source) shut down 2026-03-31. `sources.json` repoints the "Myrient" driver at archive.org No-Intro/Redump mirrors and Vimm's vault instead. Pre-flight renders it to the config dir; `GAMARR_SOURCES_PATH` points the app at it.
 
-### Indexers
+### Downloads (DDL)
 
-Shared Prowlarr, same instance as Radarr/Sonarr. `PROWLARR_GAME_INDEXERS` can list torrent **and** usenet indexer IDs together — this fork tags each result by protocol and routes usenet grabs to SABnzbd automatically.
+Downloads are direct HTTP fetches gamarr performs itself — no torrent or usenet client. Prowlarr (blank API key) and SABnzbd (blank URL/key) are off, so no indexer or usenet grabs happen. qBittorrent can't be turned off by blanking `QB_URL` — the app falls back to a default URL when the var is empty — so instead `WATCHER_ENABLED=false` disables the torrent completion poller; the qB client is then never invoked (its only caller runs on torrent-protocol results, which never occur without an indexer).
 
-### Download clients
+Each fetch stages onto a **node-local scratch volume** (`gamarr_staging`, mounted at `/data/staging` = `QB_SAVE_PATH`, off both CIFS and iSCSI), then gamarr moves the finished file onto the `//NAS/games` share. The stage→import step is a cross-device move (local → CIFS), handled by the fork's buffered `moveFile` (upstream `io.Copy` EAGAINs on CIFS). Staging is throwaway: an interrupted DDL is deleted and re-fetched (no resume), so it need not survive a reschedule.
 
-- **qBittorrent** (shared, behind the downloads VPN) — `QB_SAVE_PATH=/data/torrents/games` is the path as qBittorrent sees it (it mounts the torrents share at `/data/torrents`); completed downloads land under `games/` there, and gamarr (mounting the same share) organizes them into the library.
-- **SABnzbd** (shared) — usenet grabs route here; only active once `GAMARR_SABNZBD_API_KEY` is set (needs both URL and key).
+> **Extraction caveat:** with `EXTRACT_ARCHIVES=true`, unpack (`7z`/`unrar`) runs at the *destination* on `//NAS/games`, not in local staging — so local staging speeds the download write but the unpack still runs over SMB. Extract-in-staging would need a fork change.
 
 ### Library layout
 
@@ -53,16 +52,12 @@ Dedicated `//NAS/games` share, mounted at `/data/games`. gamarr runs as root and
 
 ## Callouts
 
-- **Config placement** — `gamarr_config` is a bind mount on the iSCSI app-data LUN, which is only mounted on the manager node. The service is pinned to `node.role == manager` so the bind always resolves and the task can't land on a worker holding a stale volume.
+- **Config placement & floating** — `gamarr_config` is a bind on the iSCSI app-data LUN, an **OCFS2 cluster FS mounted on every node**, so the service is *not* pinned and can land anywhere. The config DB is SQLite (WAL); `replicas: 1` plus `update_config.order: stop-first` keep a single writer — the old task stops before the new one starts, so two instances never open the DB at once (a rolling update would otherwise overlap them).
 
 ## Environment variables
 
-All stack-specific variables are prefixed `GAMARR_` in the root `.env`. Shared variables (`TZ`, `BASE_DOMAIN`, `SMB_*`, `NAS_SERVER`) are unprefixed.
+All stack-specific variables are prefixed `GAMARR_` in the root `.env`. Shared variables (`TZ`, `BASE_DOMAIN`, `NAS_SERVER`) are unprefixed.
 
 | Variable | Description |
 |---|---|
-| `GAMARR_PROWLARR_API_KEY` | Prowlarr API key (required) |
-| `GAMARR_PROWLARR_GAME_INDEXERS` | Comma-separated Prowlarr indexer IDs, torrent and/or usenet (default: `7,5,15,9,8,3,4`) |
-| `GAMARR_QB_USER` / `GAMARR_QB_PASS` | qBittorrent credentials |
-| `GAMARR_SABNZBD_API_KEY` | SABnzbd API key — usenet routing stays inactive without it |
 | `GAMARR_RAWG_API_KEY` | Optional; blank disables release calendar/cover art |

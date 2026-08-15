@@ -2,24 +2,23 @@ version: "3.9"
 
 services:
     gamarr:
-        image: ghcr.io/chutch3/gamarr:main-vimmserial-7b0fe66
+        image: ghcr.io/chutch3/gamarr:main-vimmresume-a385f28
         container_name: gamarr
         environment:
             - TZ=${TZ}
             - GAMARR_PORT=5001
             - DATA_DIR=/data/gamarr
             - GAMARR_SOURCES_PATH=/data/gamarr/sources.json
-            - PROWLARR_URL=http://prowlarr:9696
-            - PROWLARR_API_KEY=${GAMARR_PROWLARR_API_KEY}
-            - PROWLARR_GAME_INDEXERS=${GAMARR_PROWLARR_GAME_INDEXERS:-7,5,15,9,8,3,4}
-            - QB_URL=http://qbittorrent:8080
-            - QB_USER=${GAMARR_QB_USER}
-            - QB_PASS=${GAMARR_QB_PASS}
-            - QB_CATEGORY=games
-            - QB_SAVE_PATH=/data/downloads/complete
-            - SABNZBD_URL=http://sabnzbd:8080
-            - SABNZBD_API_KEY=${GAMARR_SABNZBD_API_KEY}
-            - SABNZBD_CATEGORY=games
+            # DDL-only (archive.org / Vimm via sources.json). No Prowlarr (blank
+            # API key) or SABnzbd (blank URL/key), so no indexer/usenet grabs.
+            # qBittorrent can't be disabled by blanking QB_URL — the app falls back
+            # to a default URL when the var is empty — so disable the torrent
+            # completion poller directly. The qB client is then never invoked (its
+            # only caller runs on torrent-protocol results, which never occur here).
+            - WATCHER_ENABLED=false
+            # DDL downloads stage here (node-local scratch) before gamarr imports
+            # them onto the games share below.
+            - QB_SAVE_PATH=/data/staging
             - GAMES_VAULT_PATH=/data/games/vault
             - GAMES_ROMS_PATH=/data/games/roms
             - EXTRACT_ARCHIVES=true
@@ -27,15 +26,20 @@ services:
             - ROMM_URL=https://romm.${BASE_DOMAIN}
         volumes:
             - gamarr_config:/data/gamarr
-            - downloads:/data/downloads
             - games:/data/games
+            - gamarr_staging:/data/staging
         restart: unless-stopped
         networks:
             - traefik-public
         deploy:
-            placement:
-                constraints:
-                    - node.role == manager
+            # SQLite (WAL) config DB lives on the OCFS2 cluster LUN, which is
+            # mounted on every node, so the service can float. replicas:1 +
+            # stop-first guarantees a single writer — the old task stops before
+            # the new one starts, so two instances never open the DB at once.
+            replicas: 1
+            update_config:
+                order: stop-first
+                parallelism: 1
             labels:
                 - "traefik.enable=true"
                 - "traefik.http.routers.gamarr.rule=Host(`gamarr.${BASE_DOMAIN}`)"
@@ -62,14 +66,12 @@ volumes:
             o: "bind"
             device: "/mnt/iscsi/app-data/gamarr"
 
-    # Unified media share (//NAS/downloads -> all_data/media). Gamarr stages completed
-    # game/ROM downloads under downloads/roms, then imports into the games library below.
-    downloads:
+    # Node-local scratch for DDL downloads in progress. Docker-managed under
+    # /var/lib/docker on whatever node the service lands on — deliberately off
+    # both CIFS and the iSCSI LUN. Throwaway: a failed/interrupted DDL is deleted
+    # and re-fetched (no resume), so it need not survive a reschedule.
+    gamarr_staging:
         driver: local
-        driver_opts:
-            type: "cifs"
-            o: "username=${SMB_USERNAME},password=${SMB_PASSWORD},domain=${SMB_DOMAIN},vers=3.0,file_mode=0770,dir_mode=0770,uid=1000,gid=1000,soft,actimeo=30"
-            device: "//${NAS_SERVER}/downloads"
 
     games:
         driver: local

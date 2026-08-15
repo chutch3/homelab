@@ -1,6 +1,4 @@
-validate:
-  env:
-    - GAMARR_PROWLARR_API_KEY
+# DDL-only: no required env vars (GAMARR_RAWG_API_KEY is optional), so no validate block.
 
 directories:
   - { path: gamarr, base: app_data, owner: 1000, group: 1000 }
