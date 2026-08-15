@@ -55,7 +55,8 @@ version_toml = ["pyproject.toml:project.version"]
 branch = "main"
 upload_to_pypi = false
 upload_to_release = true
-build_command = "uv lock"
+# uv isn't in the python-semantic-release action container, so install it first
+build_command = "pip install uv && uv lock"
 assets = ["uv.lock"]
 commit_message = "chore(release): {version}"
 commit_parser = "conventional"
