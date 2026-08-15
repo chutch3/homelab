@@ -139,6 +139,15 @@ class TestGpthRunner:
         # dedicated destinations, so output should be flat year/month dirs.
         all_photos_flag_index = cmd.index("--all-photos-dir")
         assert cmd[all_photos_flag_index + 1] == ""
+        # "nothing" mode: no album symlinks/duplicates for MetadataService's
+        # extension-based walk to double-count, and no data loss (unlike "ignore").
+        albums_flag_index = cmd.index("--albums")
+        assert cmd[albums_flag_index + 1] == "nothing"
+        assert "--no-interactive" in cmd
+        # Pinned to DEVNULL: an unredirected stdin was observed to hang the
+        # real binary indefinitely even with --no-interactive omitted from
+        # consideration entirely — belt and suspenders against a stuck worker.
+        assert run.call_args.kwargs["stdin"] == subprocess.DEVNULL
 
     @pytest.mark.asyncio
     async def test_process_returns_false_and_logs_stderr_on_failure(self, subject, caplog):

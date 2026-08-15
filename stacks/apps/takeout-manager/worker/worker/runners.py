@@ -129,10 +129,16 @@ class TarRunner:
 class GpthRunner:
     """Wraps Google Photos Takeout Helper (Neo) — pairs each photo/video with its
     JSON sidecar and embeds the real capture date/GPS/etc as EXIF/XMP, organizing
-    output into <output_dir>/ALL_PHOTOS/<year>/<month>/...
+    output into <output_dir>/<year>/<month>/...
 
-    Flag choices are a best-effort reading of GPTH Neo's docs, not yet validated
-    against the real binary — expect to adjust these once it's actually running.
+    Flags verified against `gpth --help` output from the pinned binary (see
+    Dockerfile GPTH_VERSION): --no-interactive is real (--[no-]interactive) and
+    passed explicitly rather than relying on --input/--output implying it, since
+    without it a bare `gpth --help` was observed to hang forever reading stdin —
+    stdin is also pinned to DEVNULL below for the same reason. --albums nothing
+    is used because MetadataService walks the whole output tree by extension
+    without album awareness, so the default "shortcut" mode's symlinks would be
+    double-counted and "ignore" mode silently deletes album-only files.
     """
 
     def __init__(self) -> None:
@@ -143,6 +149,7 @@ class GpthRunner:
             "gpth",
             "--input", input_dir,
             "--output", output_dir,
+            "--albums", "nothing",
             "--write-exif",
             "--divide-to-dates", "2",
             "--all-photos-dir", "",
@@ -151,7 +158,12 @@ class GpthRunner:
 
         try:
             await asyncio.to_thread(
-                subprocess.run, command, check=True, capture_output=True, text=True
+                subprocess.run,
+                command,
+                check=True,
+                capture_output=True,
+                text=True,
+                stdin=subprocess.DEVNULL,
             )
             self.logger.info("Successfully processed metadata: %s -> %s", input_dir, output_dir)
             return True

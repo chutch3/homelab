@@ -1,8 +1,20 @@
 # Dockerfile for Worker Service
 FROM python:3.12-slim-bookworm
 
-RUN apt-get update && apt-get install -y --no-install-recommends curl ca-certificates \
+SHELL ["/bin/bash", "-o", "pipefail", "-c"]
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    curl ca-certificates libimage-exiftool-perl \
     && rm -rf /var/lib/apt/lists/*
+
+# Google Photos Takeout Helper (Neo) — pinned release + checksum verification.
+# Bump both together: https://github.com/Xentraxx/GooglePhotosTakeoutHelper_Neo/releases
+ARG GPTH_VERSION=6.1.8
+ARG GPTH_SHA256=9608ef1327ba6817acd8479da2bf201e544fa8fdf89e3f0e203c5ab091c22e9a
+RUN curl -fsSL -o /usr/local/bin/gpth \
+    "https://github.com/Xentraxx/GooglePhotosTakeoutHelper_Neo/releases/download/v${GPTH_VERSION}/gpth_neo-${GPTH_VERSION}-release-linux-x64.bin" \
+    && echo "${GPTH_SHA256}  /usr/local/bin/gpth" | sha256sum -c - \
+    && chmod +x /usr/local/bin/gpth
 
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
 
