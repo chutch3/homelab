@@ -38,7 +38,6 @@ Deploy any service: `task ansible:deploy:service -- -e "stack_name=<name>"`
 
 | Service | Domain | Stack Name | Notes |
 |---------|--------|------------|-------|
-| [PhotoPrism](photoprism.md) | `photos.*` | `photoprism` | AI-powered photo tagging and organization |
 | [Takeout Manager](takeout-manager.md) | `takeout.*` | `takeout-manager` | Google Photos Takeout distributed downloads |
 | [Immich](immich.md) | `photos.*` | `immich` | Mobile-first photo backup with ML |
 | [Emby](emby.md) | `emby.*` | `emby` | Media streaming — movies, TV, music |

@@ -74,7 +74,7 @@ Critical: SQLite databases MUST use OCFS2, not CIFS (causes corruption).
 ## Services by Category
 
 Infrastructure: Traefik, Technitium DNS, Prometheus, Grafana, Loki, Uptime Kuma, LibreNMS, Authentik
-Media: PhotoPrism, Immich, Emby, Sonarr, Radarr, Prowlarr, qBittorrent, SABnzbd
+Media: Immich, Emby, Sonarr, Radarr, Prowlarr, qBittorrent, SABnzbd
 Productivity: CryptPad, Mealie, FreshRSS, draw.io, Home Assistant, Node-RED
 AI/Dev: Ollama, LibreChat, MLflow, Prefect, Forgejo, Code-server
 Privacy: Tor Browser (KasmVNC + WireGuard VPN)

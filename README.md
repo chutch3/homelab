@@ -19,7 +19,7 @@ A Docker Swarm platform for self-hosted services. Deploys 37+ pre-configured ser
 
 **Applications**
 - Homepage, Actual Budget, Home Assistant, Node-RED, CryptPad, Mealie, Excalidraw, FreshRSS
-- PhotoPrism, Immich, Emby, Komga (comics/manga)
+- Immich, Emby, Komga (comics/manga)
 - Sonarr, Radarr, Prowlarr, Profilarr, qBittorrent, Deluge, SABnzbd, NZBGet
 - Forgejo (Git + CI/CD), GitHub Actions Runner, Code-server (VS Code in browser)
 - Vaultwarden, LibreChat, Kiwix (offline Wikipedia + Stack Overflow)

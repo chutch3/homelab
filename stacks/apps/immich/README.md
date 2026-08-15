@@ -15,25 +15,6 @@ This deployment provides:
 - Automatic SSL via Traefik
 - Integration with Homepage dashboard
 
-## Coexistence with PhotoPrism
-
-This stack is designed to coexist peacefully with PhotoPrism, allowing you to:
-- Run both applications simultaneously for evaluation
-- Share access to existing photo library (read-only)
-- Maintain separate upload directories
-- Choose your preferred solution without data migration
-
-**Key Differences:**
-
-| Feature | PhotoPrism | Immich |
-|---------|-----------|--------|
-| Domain | `photo.${BASE_DOMAIN}` | `photos.${BASE_DOMAIN}` |
-| Upload Storage | `photoprism_storage` | `immich` |
-| Shared Library | `home_media` (read/write) | `home_media` (read-only) |
-| Database | MariaDB (`photoprism_database`) | PostgreSQL (`immich_pgdata`) |
-| Mobile Apps | Web only | iOS & Android native apps |
-| ML Features | TensorFlow GPU | PyTorch CPU/GPU |
-
 ## Storage Architecture
 
 ### Immich Data Directory
@@ -113,12 +94,12 @@ NAS_SERVER=nas.your-domain.com
 
 ### Step 5: Configure External Library (Optional)
 
-To access your existing PhotoPrism photos:
+To access your existing photo library:
 
 1. Go to **Administration** → **External Libraries**
 2. Click **Create External Library**
 3. Configure:
-   - **Name:** PhotoPrism Library
+   - **Name:** Home Media Library
    - **Import Path:** `/mnt/media/photos`
    - **Scan Schedule:** Manual or Automatic
    - **Exclusion Patterns:** (optional) `**/Raw/**` to skip RAW files
@@ -136,29 +117,6 @@ Configure mobile app:
 1. Server URL: `https://photos.${BASE_DOMAIN}`
 2. Email/Password: Your Immich credentials
 3. Enable auto-backup in app settings
-
-## Deployment Options
-
-### Option 1: Run Both PhotoPrism and Immich
-```bash
-# Deploy both services
-./homelab deploy --only-apps photoprism,immich
-```
-**Use case:** Evaluate both, choose later
-
-### Option 2: Immich Only
-```bash
-# Deploy only Immich
-./homelab deploy --only-apps immich
-```
-**Use case:** New installation or committed to Immich
-
-### Option 3: PhotoPrism Only
-```bash
-# Skip Immich deployment
-./homelab deploy --skip-apps immich
-```
-**Use case:** Committed to PhotoPrism
 
 ## Configuration
 
@@ -265,7 +223,7 @@ ssh admin@nas.local 'du -sh /srv/immich_model_cache'
 
 ### External Library Not Scanning
 
-**Issue:** PhotoPrism photos not appearing
+**Issue:** Library photos not appearing
 
 **Solutions:**
 1. Verify mount inside container:
@@ -325,42 +283,6 @@ This stack deploys four services:
 | `immich-machine-learning` | ML processing | 3003 | Any node (GPU optional) |
 | `immich-redis` | Cache layer | 6379 | Any node |
 | `immich-postgres` | Database | 5432 | `database` labeled node |
-
-## Migration Paths
-
-### From PhotoPrism to Immich
-
-1. **Stop PhotoPrism:**
-   ```bash
-   ./homelab teardown --only-apps photoprism
-   ```
-
-2. **Update Immich mounts** to use `all_data` as main library:
-   ```yaml
-   volumes:
-     - all_data:/usr/src/app/upload
-   ```
-
-3. **Redeploy Immich:**
-   ```bash
-   ./homelab deploy --only-apps immich
-   ```
-
-4. **Scan library** in Immich UI
-
-### From Immich to PhotoPrism
-
-1. **Copy Immich uploads to PhotoPrism:**
-   ```bash
-   ssh admin@nas.local 'cp -r /srv/immich_upload/* /srv/all_data/'
-   ```
-
-2. **Rescan in PhotoPrism UI**
-
-3. **Stop Immich:**
-   ```bash
-   ./homelab teardown --only-apps immich
-   ```
 
 ## Resources
 

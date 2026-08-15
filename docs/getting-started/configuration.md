@@ -27,8 +27,6 @@ Copy `.env.example` to `.env` and set your values. Full list in the file; key va
 
 ```bash
 GRAFANA_ADMIN_PASSWORD=
-PHOTOPRISM_DB_PASSWORD=
-MARIADB_ROOT_PASSWORD=
 
 NAS_SERVER=192.168.1.50
 SMB_USERNAME=homelab

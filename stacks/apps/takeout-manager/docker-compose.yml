@@ -109,7 +109,7 @@ volumes:
             device: "//${NAS_SERVER}/google_photos_takeout"
 
     # Extraction targets now live under the consolidated home_media tree (SSD mirror),
-    # so immich/photoprism index them alongside home pictures/videos. The former
+    # so immich indexes them alongside home pictures/videos. The former
     # standalone google_photos_pictures/google_photos_videos shares were retired.
     takeout-pictures:
         driver: local
