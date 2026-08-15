@@ -2,6 +2,115 @@
 
 <!-- version list -->
 
+## v3.28.0 (2026-08-15)
+
+### Bug Fixes
+
+- Chown the staging dir in the image so fresh volumes are writable by 1000
+  ([`7b861d9`](https://github.com/chutch3/homelab/commit/7b861d9f419383f3ffe9ed6d6d36769703d5c445))
+
+- Don't mark a job failed while other chunks are still in progress
+  ([`23d52e1`](https://github.com/chutch3/homelab/commit/23d52e17e54957989f16832fca64618c1f60c2bb))
+
+- Install curl in takeout-worker image
+  ([`dd32ffd`](https://github.com/chutch3/homelab/commit/dd32ffd75318f5e0e277efedf930cdab0a9b0b7b))
+
+- Install uv in the release build_command so uv lock runs
+  ([`d2fb2a0`](https://github.com/chutch3/homelab/commit/d2fb2a035327563cdbb3eb43e1f2fc8cb2373d46))
+
+- Match current Google Takeout download URL and headers
+  ([`9233207`](https://github.com/chutch3/homelab/commit/92332076daaf8f99cfbbc1d4e5ff22dd8ce11044))
+
+- Mount immich external library at /mnt/media
+  ([`a0a6c5f`](https://github.com/chutch3/homelab/commit/a0a6c5f909ceb26992a7558e020496d17604599d))
+
+- Override alertmanager entrypoint so its config template renders
+  ([`32f4154`](https://github.com/chutch3/homelab/commit/32f41541a59bacb71a1dea9d5e9599139a5f0a01))
+
+- Regenerate uv.lock during release version bump
+  ([`1eafebc`](https://github.com/chutch3/homelab/commit/1eafebc3824b6bc6ad3e9afcd1da6ac0d782beec))
+
+- Run local docker context tasks as the invoking user
+  ([`f114494`](https://github.com/chutch3/homelab/commit/f114494acd522408d111ba862618fbc6dc96f138))
+
+- Run takeout-worker as PUID/PGID to fix CIFS write permission
+  ([`0ba60c9`](https://github.com/chutch3/homelab/commit/0ba60c927feaa441cc16cb0a148c486e3cafccc7))
+
+- Serve kolibri sandboxed content from a separate origin so html5 iframes load
+  ([`80b170a`](https://github.com/chutch3/homelab/commit/80b170a97a90639c0038c17ffc7e1678d39a0506))
+
+- Stage downloads locally before moving to CIFS to prevent truncation
+  ([`c338e59`](https://github.com/chutch3/homelab/commit/c338e599dd3b062cb1e38738e81162b68f0b93db))
+
+- Stage gamarr downloads in shared complete folder
+  ([`8bdc368`](https://github.com/chutch3/homelab/commit/8bdc36883acae1f5df8f91f910acf1231437dfae))
+
+### Chores
+
+- Bump kolibri to 0.19.5
+  ([`3a736a9`](https://github.com/chutch3/homelab/commit/3a736a9c151c4a0487edcd9b8e882cd0e35313b4))
+
+- Default kolibri image tag to latest
+  ([`b211d47`](https://github.com/chutch3/homelab/commit/b211d47f287e0f1056b108fee79a5dac9fe525f3))
+
+### Features
+
+- Add a job-level metadata task with manual re-drive
+  ([`a5f77da`](https://github.com/chutch3/homelab/commit/a5f77dae3ec3aa6fe5ea3dcea9dd141e37f3a587))
+
+- Add gamarr stack for game/ROM management
+  ([`86bcccd`](https://github.com/chutch3/homelab/commit/86bcccd94f61c1a91612af6d8006d55504f64f4d))
+
+- Add GPTH metadata processing to takeout worker
+  ([`98c8c84`](https://github.com/chutch3/homelab/commit/98c8c8476c545d793a01416a11b278f435e7c581))
+
+- Add romm stack with fiber database backups
+  ([`ea35995`](https://github.com/chutch3/homelab/commit/ea35995caaa36870e30400fa950d6a2a03cff025))
+
+- Allow re-extracting a chunk without re-downloading its archive
+  ([`bf20ac9`](https://github.com/chutch3/homelab/commit/bf20ac9e25e9ba9bd01963aedc43bc7480d664db))
+
+- Allow retrying an individual chunk from the job UI
+  ([`151e397`](https://github.com/chutch3/homelab/commit/151e397b689aae416029ddb669cf4f2e4bc28909))
+
+- Bundle gpth and exiftool into takeout worker image
+  ([`1965847`](https://github.com/chutch3/homelab/commit/1965847d937dae8874494d884ae5303baf0a3f6b))
+
+- Expose aggregated download progress and ETA on jobs
+  ([`c906018`](https://github.com/chutch3/homelab/commit/c906018089fb5a4b13ebf5fd11087e6e10c97f46))
+
+- Removed photoprism in favor of immich
+  ([`ef185e0`](https://github.com/chutch3/homelab/commit/ef185e0f512073d9ff0dc6b673c683a7d328a7da))
+
+- Track per-chunk download progress, speed, and ETA in the worker
+  ([`b5e310a`](https://github.com/chutch3/homelab/commit/b5e310a47eec5aa298b7b94146c7f51e0d81db8a))
+
+- Verify archive integrity before marking a chunk downloaded
+  ([`7b0ecf4`](https://github.com/chutch3/homelab/commit/7b0ecf4fd23320c8fc6c6f96086ad14df054c0ab))
+
+### Refactoring
+
+- Consolidate media shares into downloads and home_media
+  ([`126a1d7`](https://github.com/chutch3/homelab/commit/126a1d725d47746473ad7ad69a38ae0844cdfb6f))
+
+- Migrate leftover app-data CIFS shares to iSCSI and node-local
+  ([`15d4769`](https://github.com/chutch3/homelab/commit/15d4769a119934dab2d6faba948bd51c366e27fc))
+
+- Mount emby on the downloads share instead of all_data
+  ([`3b58f84`](https://github.com/chutch3/homelab/commit/3b58f84affcaa504714767cea93a8a8d09b45ada))
+
+- Rebuild the repository layer on SQLModel sessions like fiber
+  ([`176df2d`](https://github.com/chutch3/homelab/commit/176df2d774d0b7a94ba53a965d5eb7792da4a5cd))
+
+- Run gamarr DDL-only without indexer or torrent clients
+  ([`95225b5`](https://github.com/chutch3/homelab/commit/95225b59031821e059e0edc1d5d3397331967a4b))
+
+### Testing
+
+- Consolidate fiber integration and e2e test suite
+  ([`869477f`](https://github.com/chutch3/homelab/commit/869477f0f4191ca7fae75b58e6f84637571f3602))
+
+
 ## v3.27.2 (2026-07-27)
 
 ### Bug Fixes
