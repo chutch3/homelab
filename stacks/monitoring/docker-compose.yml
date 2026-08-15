@@ -42,9 +42,10 @@ services:
         image: prom/alertmanager:v0.27.0
         # Swarm configs are static; render the template from env at start, then exec.
         # sed uses '|' as delimiter — Postal SMTP creds must not contain '|' or '&'.
+        # entrypoint override is required: the image's ENTRYPOINT is /bin/alertmanager,
+        # so a bare command would run `/bin/alertmanager sh -c …` and error on `sh`.
+        entrypoint: ["/bin/sh", "-c"]
         command:
-            - sh
-            - -c
             - >
                 sed -e "s|BASE_DOMAIN_PLACEHOLDER|$${BASE_DOMAIN}|g"
                 -e "s|SMTP_USERNAME_PLACEHOLDER|$${ALERTMANAGER_SMTP_USERNAME}|g"
