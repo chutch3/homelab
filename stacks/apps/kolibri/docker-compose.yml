@@ -12,6 +12,11 @@ services:
       - PUID=${PUID:-1000}
       - PGID=${PGID:-1000}
       - KOLIBRI_HTTP_PORT=8080
+      # Serve sandboxed HTML5/exercise content from a separate origin (security
+      # isolation). Kolibri runs a second server on this port and builds iframe
+      # URLs against KOLIBRI_ZIP_CONTENT_ORIGIN instead of the default host:50099.
+      - KOLIBRI_ZIP_CONTENT_PORT=8081
+      - KOLIBRI_ZIP_CONTENT_ORIGIN=https://kolibri-zip.${BASE_DOMAIN}
       # OIDC/Authentik Configuration
       - CLIENT_ID=${KOLIBRI_OAUTH_CLIENT_ID}
       - CLIENT_SECRET=${KOLIBRI_OAUTH_CLIENT_SECRET}
@@ -36,7 +41,15 @@ services:
         - "traefik.http.routers.kolibri.rule=Host(`kolibri.${BASE_DOMAIN}`)"
         - "traefik.http.routers.kolibri.entrypoints=websecure"
         - "traefik.http.routers.kolibri.tls.certresolver=dns"
+        - "traefik.http.routers.kolibri.service=kolibri"
         - "traefik.http.services.kolibri.loadbalancer.server.port=8080"
+
+        # Sandboxed content origin (zipcontent server on port 8081)
+        - "traefik.http.routers.kolibri-zip.rule=Host(`kolibri-zip.${BASE_DOMAIN}`)"
+        - "traefik.http.routers.kolibri-zip.entrypoints=websecure"
+        - "traefik.http.routers.kolibri-zip.tls.certresolver=dns"
+        - "traefik.http.routers.kolibri-zip.service=kolibri-zip"
+        - "traefik.http.services.kolibri-zip.loadbalancer.server.port=8081"
         - "traefik.swarm.network=traefik-public"
 
         # Homepage dashboard

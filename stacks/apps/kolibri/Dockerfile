@@ -12,7 +12,7 @@ ENV KOLIBRI_RUN_MODE=docker
 
 WORKDIR /kolibrihome
 
-EXPOSE 8080
+EXPOSE 8080 8081
 
 COPY entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
