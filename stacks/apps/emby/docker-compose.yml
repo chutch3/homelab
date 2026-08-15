@@ -10,7 +10,12 @@ services:
             - GIDLIST=1000
         volumes:
             - emby:/config
-            - all_data:/mnt/external
+            # The media pool via the unified `downloads` share (//NAS/downloads =
+            # all_data/media), mounted at /mnt/external/media so Emby's stored
+            # library paths (/mnt/external/media/{movies,tv,...}) resolve unchanged.
+            # Replaces the former whole-pool //NAS/all_data mount (that share is
+            # retired — it and `downloads` were two SMB doors into the same tree).
+            - media:/mnt/external/media
         restart: on-failure
         networks:
             - traefik-public
@@ -34,12 +39,12 @@ networks:
         external: true
 
 volumes:
-    all_data:
+    media:
         driver: local
         driver_opts:
             type: "cifs"
             o: "username=${SMB_USERNAME},password=${SMB_PASSWORD},domain=${SMB_DOMAIN},vers=3.0,file_mode=0600,dir_mode=0770,soft,actimeo=30"
-            device: "//${NAS_SERVER}/all_data"
+            device: "//${NAS_SERVER}/downloads"
     emby:
         driver: local
         driver_opts:
