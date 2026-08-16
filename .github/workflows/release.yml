@@ -88,3 +88,29 @@ jobs:
                       docker buildx imagetools create "${repo}:latest" --tag "${repo}:${VERSION}"
                       echo "Promoted \`${repo}:${VERSION}\` (from \`:latest\`)." >> "$GITHUB_STEP_SUMMARY"
                   done
+
+    prune-old-releases:
+        # No installable artifacts here (images are the only versioned thing, and
+        # they live in ghcr.io regardless of whether a GitHub Release exists), so
+        # old releases are just changelog clutter. Keep a recent window and drop
+        # the rest so the releases list doesn't grow forever.
+        name: Prune old releases
+        needs: release
+        if: needs.release.outputs.released == 'true'
+        runs-on: ubuntu-latest
+        permissions:
+            contents: write
+        env:
+            GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+            KEEP: 10
+        steps:
+            - name: Delete releases and tags beyond the most recent ${{ env.KEEP }}
+              run: |
+                  set -euo pipefail
+                  gh release list --repo "${GITHUB_REPOSITORY}" --limit 200 \
+                      --json tagName,createdAt \
+                      --jq "sort_by(.createdAt) | reverse | .[${KEEP}:] | .[].tagName" |
+                      while read -r tag; do
+                          echo "Deleting release ${tag}"
+                          gh release delete "${tag}" --repo "${GITHUB_REPOSITORY}" --cleanup-tag --yes
+                      done
