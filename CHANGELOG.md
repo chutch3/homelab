@@ -2,6 +2,19 @@
 
 <!-- version list -->
 
+## v3.28.1 (2026-08-17)
+
+### Bug Fixes
+
+- Mount romm library read-write so ROM file renames work
+  ([`099e17a`](https://github.com/chutch3/homelab/commit/099e17a94b13c9871bc65d9e87b2204b834661b9))
+
+### Chores
+
+- Prune old releases beyond the last 10 after each release
+  ([`09748be`](https://github.com/chutch3/homelab/commit/09748be1b2f9f648167336d8421200466b53b195))
+
+
 ## v3.28.0 (2026-08-15)
 
 ### Bug Fixes
