@@ -32,20 +32,23 @@ services:
                 - homepage.description=Budgeting Application
 
     actual_mcp:
-        image: sstefanov/actual-mcp:v1.11.3
-        # WORKAROUND: v1.11.3 bundles @actual-app/api 26.3.0, which predates the schedules
-        # custom_upcoming_length column used by actual-server 26.5.x; upgrade it at startup
-        # until upstream ships a release built against ^26.5.0 (already on main)
-        # https://github.com/s-stefanov/actual-mcp/issues/165
-        entrypoint: ["/bin/sh", "-c", "cd /app && npm install --no-save --no-audit --no-fund @actual-app/api@26.5.2 && exec node build/index.js --sse --enable-write"]
-        command: []
+        # Replaced sstefanov/actual-mcp (SSE-only) with agigante80/actual-mcp-server:
+        # native Streamable HTTP support, which Open WebUI's MCP connector requires
+        # (it doesn't speak SSE). Also 74 tools vs. ~20, full write support.
+        image: ghcr.io/agigante80/actual-mcp-server:0.11.6
         environment:
             - ACTUAL_SERVER_URL=http://actual_server:5006
             - ACTUAL_PASSWORD=${ACTUAL_PASSWORD}
             - ACTUAL_BUDGET_SYNC_ID=${ACTUAL_BUDGET_SYNC_ID}
-            - ACTUAL_BUDGET_ENCRYPTION_PASSWORD=${ACTUAL_BUDGET_ENCRYPTION_PASSWORD}
+            - MCP_BRIDGE_DATA_DIR=/app/data
+            - MCP_BRIDGE_LOG_DIR=/app/logs
+            - MCP_BRIDGE_STORE_LOGS=true
+            # Server refuses to start unauthenticated on a non-loopback bind
+            # (0.0.0.0, required in Docker) unless this is set.
+            - MCP_SSE_AUTHORIZATION=${ACTUAL_MCP_AUTH_TOKEN}
         volumes:
-            - mcp_data:/data
+            - mcp_data:/app/data
+            - mcp_logs:/app/logs
         networks:
             - traefik-public
         deploy:
@@ -54,7 +57,7 @@ services:
                 - "traefik.http.routers.actual-mcp.rule=Host(`actual-mcp.${BASE_DOMAIN}`)"
                 - "traefik.http.routers.actual-mcp.entrypoints=websecure"
                 - "traefik.http.routers.actual-mcp.tls.certresolver=dns"
-                - "traefik.http.services.actual-mcp.loadbalancer.server.port=3000"
+                - "traefik.http.services.actual-mcp.loadbalancer.server.port=3600"
                 - "traefik.swarm.network=traefik-public"
 
                 - homepage.group=Finance
@@ -63,8 +66,9 @@ services:
                 - homepage.href=https://actual-mcp.${BASE_DOMAIN}/
                 - homepage.description=Actual Budget MCP Server
 
-                # HACK: no health endpoint on SSE-only MCP server; 400 from root confirms full stack is reachable
-                - uptime_kuma.accepted_statuscodes=200-299,400
+                # Unauthenticated health endpoint — no need to guess at status
+                # codes against the auth-gated /http MCP endpoint.
+                - uptime_kuma.path=/health
 
 networks:
     traefik-public:
@@ -86,6 +90,13 @@ volumes:
             type: "none"
             o: "bind"
             device: "/mnt/iscsi/app-data/actual_server/mcp"
+
+    mcp_logs:
+        driver: local
+        driver_opts:
+            type: "none"
+            o: "bind"
+            device: "/mnt/iscsi/app-data/actual_server/mcp-logs"
 
     # Shared TLS certs, read-only here (traefik in the reverse-proxy stack owns/writes
     # them). Moved off CIFS onto the OCFS2 app-data LUN. See GH #105.
