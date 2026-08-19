@@ -1,0 +1,9 @@
+validate:
+  labels:
+    - llm: "true"
+
+# Model store lives on node-local NVMe (the manager's EVO at /mnt/nvme),
+# same disk ollama used — single-node, llm-pinned service. GGUFs were
+# extracted directly from Ollama's own blob store, not re-downloaded.
+directories:
+  - { path: llamacpp/models, base: nvme, owner: 0, group: 0 }

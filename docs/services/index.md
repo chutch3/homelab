@@ -95,7 +95,7 @@ All clients route through NordVPN (OpenVPN). VPN kill switch active.
 
 | Service | Domain | Stack Name | Notes |
 |---------|--------|------------|-------|
-| [Ollama](ollama.md) | `ollama.*` | `ollama` | Local LLM inference with GPU |
+| [llama.cpp](llama-cpp.md) | `llama.*` | `llama-cpp` | Local LLM inference with GPU (router mode, multi-model) |
 | [LibreChat](librechat.md) | `chat.*` | `librechat` | Multi-model AI chat (GPT, Claude, local) |
 
 ---

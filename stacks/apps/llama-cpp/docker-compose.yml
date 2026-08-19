@@ -1,0 +1,70 @@
+version: "3.9"
+
+services:
+  llama-cpp:
+    image: ghcr.io/ggml-org/llama.cpp:server-cuda
+    container_name: llama-cpp
+    command:
+      - "--host"
+      - "0.0.0.0"
+      - "--port"
+      - "8080"
+      - "--jinja"
+      - "--models-preset"
+      - "/config/models-preset.ini"
+      # Cap concurrently-resident models: this is a count, not a VRAM budget.
+      # qwen3.6:35b alone now uses 21.3GB (ctx-size 65536) — adding any
+      # second model, even the small embedding one, would exceed the 3090's
+      # 24GB. This stays at 1 until there's a specific pairing measured safe.
+      - "--models-max"
+      - "1"
+    configs:
+      - source: llama_cpp_models_preset_v2
+        target: /config/models-preset.ini
+    volumes:
+      - llama-cpp-models:/models
+    networks:
+      - traefik-public
+    environment:
+      - NVIDIA_VISIBLE_DEVICES=all
+      - NVIDIA_DRIVER_CAPABILITIES=compute,utility
+    deploy:
+      replicas: 1
+      placement:
+        constraints:
+          # Same `llm` node label ollama used — see its stack for the
+          # relocation procedure if this ever needs to move.
+          - node.labels.llm == true
+      labels:
+        - "traefik.enable=true"
+        - "traefik.http.routers.llama-cpp.rule=Host(`llama.${BASE_DOMAIN}`)"
+        - "traefik.http.routers.llama-cpp.entrypoints=websecure"
+        - "traefik.http.routers.llama-cpp.tls.certresolver=dns"
+        - "traefik.http.services.llama-cpp.loadbalancer.server.port=8080"
+        - "traefik.swarm.network=traefik-public"
+
+        - "homepage.group=AI & Chat"
+        - "homepage.name=llama.cpp"
+        - "homepage.icon=mdi-brain"
+        - "homepage.href=https://llama.${BASE_DOMAIN}/"
+        - "homepage.description=Local LLM Runner"
+
+configs:
+  llama_cpp_models_preset_v2:
+    file: ./models-preset.ini
+
+networks:
+  traefik-public:
+    external: true
+
+volumes:
+  # GGUF files pulled directly out of Ollama's blob store (they're plain
+  # single-file GGUFs under the hood) — not re-downloaded. Node-local NVMe,
+  # same disk/mount ollama used, since this is also a single-node,
+  # llm-pinned service.
+  llama-cpp-models:
+    driver: local
+    driver_opts:
+      type: "none"
+      o: "bind"
+      device: "/mnt/nvme/llamacpp/models"
