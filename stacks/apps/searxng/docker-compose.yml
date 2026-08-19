@@ -1,0 +1,69 @@
+version: "3.9"
+
+services:
+  searxng:
+    image: docker.io/searxng/searxng:latest
+    environment:
+      # Overrides server.secret_key / valkey.url from settings.yml at the
+      # Python settings-loader level — no need to bake either into the file.
+      - SEARXNG_SECRET=${SEARXNG_SECRET}
+      - SEARXNG_VALKEY_URL=valkey://searxng_valkey:6379/0
+      - SEARXNG_BASE_URL=https://search.${BASE_DOMAIN}/
+      - SEARXNG_BIND_ADDRESS=0.0.0.0
+    volumes:
+      # Rendered by pre-flight.yml (templates:) from settings.yml.j2 — a real
+      # bind mount, not a docker config, because the entrypoint chowns this
+      # dir to searxng:searxng on boot (a read-only config mount would fail).
+      - searxng-config:/etc/searxng
+      # Favicon/thumbnail cache — reproducible, doesn't need to survive a
+      # reschedule to a different node.
+      - searxng-cache:/var/cache/searxng
+    networks:
+      - traefik-public
+    deploy:
+      replicas: 1
+      labels:
+        - "traefik.enable=true"
+        - "traefik.http.routers.searxng.rule=Host(`search.${BASE_DOMAIN}`)"
+        - "traefik.http.routers.searxng.entrypoints=websecure"
+        - "traefik.http.routers.searxng.tls.certresolver=dns"
+        - "traefik.http.services.searxng.loadbalancer.server.port=8080"
+        - "traefik.swarm.network=traefik-public"
+        # Gate human/browser access behind SSO. Open WebUI's backend calls the
+        # JSON API directly over the internal overlay network, so it never
+        # goes through Traefik/this middleware.
+        - "traefik.http.routers.searxng.middlewares=authentik@swarm"
+
+        - "homepage.group=AI & Chat"
+        - "homepage.name=SearXNG"
+        - "homepage.icon=searxng.png"
+        - "homepage.href=https://search.${BASE_DOMAIN}/"
+        - "homepage.description=Self-hosted metasearch (Open WebUI web search)"
+
+  valkey:
+    image: docker.io/valkey/valkey:9-alpine
+    command: valkey-server --save 30 1 --loglevel warning
+    volumes:
+      - searxng-valkey-data:/data
+    networks:
+      - traefik-public
+    deploy:
+      replicas: 1
+
+networks:
+  traefik-public:
+    external: true
+
+volumes:
+  # Rendered settings.yml lives on shared iSCSI app-data — see pre-flight.yml.
+  searxng-config:
+    driver: local
+    driver_opts:
+      type: "none"
+      o: "bind"
+      device: "/mnt/iscsi/app-data/searxng/config"
+
+  # Plain (non-bind) volumes: reproducible/ephemeral, don't need shared
+  # storage or to survive a node change.
+  searxng-cache:
+  searxng-valkey-data:

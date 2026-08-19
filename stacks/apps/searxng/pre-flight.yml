@@ -1,0 +1,7 @@
+# settings.yml is rendered from this stack's own file rather than shipped as a
+# docker config, because SearXNG's entrypoint chowns its /etc/searxng mount to
+# searxng:searxng on boot — a read-only docker config would make that fail.
+templates:
+  - src: settings.yml.j2
+    dest: searxng/config/settings.yml
+    base: app_data

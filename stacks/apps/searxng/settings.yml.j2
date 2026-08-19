@@ -1,0 +1,17 @@
+# Minimal override layered on SearXNG's baked-in defaults (use_default_settings).
+# https://docs.searxng.org/admin/settings/
+#
+# server.secret_key and valkey.url are set via SEARXNG_SECRET /
+# SEARXNG_VALKEY_URL env vars in the compose file instead of here.
+
+use_default_settings: true
+
+server:
+  image_proxy: true
+
+search:
+  # json is required for Open WebUI's web search integration — without it,
+  # SearXNG returns 403 on the API calls Open WebUI makes.
+  formats:
+    - html
+    - json
