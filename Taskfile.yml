@@ -3,6 +3,7 @@ version: "3"
 vars:
     PROJECT_NAME: homelab
     PYTHON_VERSION: "3.12"
+    REGISTRY_NAMESPACE: "${GITHUB_USERNAME}"
 
 dotenv: [".env"]
 
@@ -11,9 +12,6 @@ includes:
     status-pipeline:
         taskfile: tools/status-pipeline/Taskfile.yml
         dir: tools/status-pipeline
-
-env:
-    REGISTRY_NAMESPACE: $GITHUB_USERNAME
 
 tasks:
     setup:
@@ -92,7 +90,7 @@ tasks:
         desc: "Build & push an app's image(s) — task publish -- warden (requires registry login)"
         dir: stacks/apps/{{.CLI_ARGS}}
         cmds:
-            - IMAGE_TAG=latest docker buildx bake --allow fs.read=* -f docker-compose.yml --push
+            - IMAGE_TAG=latest GITHUB_USERNAME=${GITHUB_USERNAME} docker buildx bake --allow fs.read=* -f docker-compose.yml --push
 
     test-fast:
         desc: Run core tests with faster execution
