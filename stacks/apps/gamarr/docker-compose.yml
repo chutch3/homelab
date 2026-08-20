@@ -2,7 +2,7 @@ version: "3.9"
 
 services:
     gamarr:
-        image: ghcr.io/chutch3/gamarr:main-vimmresume-a385f28
+        image: ghcr.io/chutch3/gamarr:main-vimmregion-d365af9
         container_name: gamarr
         environment:
             - TZ=${TZ}
