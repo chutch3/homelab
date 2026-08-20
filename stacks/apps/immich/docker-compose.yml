@@ -5,7 +5,7 @@ services:
         image: ghcr.io/immich-app/immich-server:${IMMICH_VERSION:-release}
         volumes:
             - immich:/usr/src/app/upload
-            - home_media:/mnt/media:ro
+            - home_media:/mnt/media
             - /etc/localtime:/etc/localtime:ro
         environment:
             DB_HOSTNAME: immich-postgres
@@ -144,7 +144,7 @@ volumes:
         driver: local
         driver_opts:
             type: "cifs"
-            o: "username=${SMB_USERNAME},password=${SMB_PASSWORD},domain=${SMB_DOMAIN},vers=3.0,nobrl,uid=0,gid=100,file_mode=0777,dir_mode=0777,ro,soft,actimeo=30"
+            o: "username=${SMB_USERNAME},password=${SMB_PASSWORD},domain=${SMB_DOMAIN},vers=3.0,nobrl,uid=${PUID},gid=${PGID},file_mode=0644,dir_mode=0770,soft,actimeo=30"
             device: "//${NAS_SERVER}/home_media"
     # Immich's own data dir (upload/library/thumbs). Renamed share immich_upload -> immich.
     immich:
