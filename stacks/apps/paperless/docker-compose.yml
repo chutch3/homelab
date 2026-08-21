@@ -69,11 +69,14 @@ services:
             - USERMAP_GID=1000
             - PAPERLESS_ADMIN_USER=${PAPERLESS_ADMIN_USERNAME}
             - PAPERLESS_ADMIN_PASSWORD=${PAPERLESS_ADMIN_PASSWORD}
-            # Authentik OIDC Configuration — kept alongside the local admin login
-            # (not PAPERLESS_DISABLE_REGULAR_LOGIN) as a fallback, same as mealie/immich.
+            # Authentik OIDC Configuration — SSO-only login, groups synced from
+            # the "groups" scope so Authentik group membership drives permissions.
             - PAPERLESS_APPS=allauth.socialaccount.providers.openid_connect
             - PAPERLESS_SOCIAL_AUTO_SIGNUP=true
-            - PAPERLESS_SOCIALACCOUNT_PROVIDERS={"openid_connect":{"APPS":[{"provider_id":"authentik","name":"Authentik","client_id":"${PAPERLESS_OAUTH_CLIENT_ID}","secret":"${PAPERLESS_OAUTH_CLIENT_SECRET}","settings":{"server_url":"https://auth.${BASE_DOMAIN}/application/o/paperless/.well-known/openid-configuration"}}]}}
+            - PAPERLESS_SOCIALACCOUNT_PROVIDERS={"openid_connect":{"SCOPE":["openid","profile","email","groups"], "APPS":[{"provider_id":"authentik","name":"Authentik","client_id":"${PAPERLESS_OAUTH_CLIENT_ID}","secret":"${PAPERLESS_OAUTH_CLIENT_SECRET}","settings":{"server_url":"https://auth.${BASE_DOMAIN}/application/o/paperless/.well-known/openid-configuration"}}]}}
+            - PAPERLESS_DISABLE_REGULAR_LOGIN=true
+            - PAPERLESS_REDIRECT_LOGIN_TO_SSO=true
+            - PAPERLESS_SOCIAL_ACCOUNT_SYNC_GROUPS=true
         volumes:
             - paperless_data:/usr/src/paperless/data
             - paperless_media:/usr/src/paperless/media
