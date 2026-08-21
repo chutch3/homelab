@@ -40,6 +40,9 @@ services:
             - backups
         deploy:
             replicas: 1
+            placement:
+                constraints:
+                    - node.labels.database == true
             labels:
                 - "fiber.enable=true"
                 - "fiber.provider=swarm"

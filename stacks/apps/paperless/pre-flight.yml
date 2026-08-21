@@ -19,3 +19,5 @@ validate:
     - PAPERLESS_SECRET_KEY
     - PAPERLESS_ADMIN_USERNAME
     - PAPERLESS_ADMIN_PASSWORD
+  labels:
+    - database: "true"
