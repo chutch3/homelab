@@ -1,6 +1,6 @@
 # Services
 
-**41 deployed** · **15 SSO-integrated** · **v3.14.0**
+**42 deployed** · **16 SSO-integrated** · **v3.14.0**
 
 Deploy any service: `task ansible:deploy:service -- -e "stack_name=<name>"`
 
@@ -79,6 +79,7 @@ All clients route through NordVPN (OpenVPN). VPN kill switch active.
 | [Mealie](mealie.md) | `mealie.*` | `mealie` | Recipe management and meal planning |
 | [FreshRSS](freshrss.md) | `rss.*` | `freshrss` | RSS/Atom feed aggregator |
 | [draw.io](drawio.md) | `draw.*` | `drawio` | Network and architecture diagramming |
+| [ArchiveBox](archivebox.md) | `archivebox.*` | `archivebox` | Web page archiving (snapshots, screenshots, WARC) |
 
 ---
 

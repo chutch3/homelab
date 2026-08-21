@@ -1,0 +1,7 @@
+directories:
+  - { path: "archivebox", base: app_data, owner: 1000, group: 1000 }
+
+validate:
+  env:
+    - ARCHIVEBOX_ADMIN_USERNAME
+    - ARCHIVEBOX_ADMIN_PASSWORD

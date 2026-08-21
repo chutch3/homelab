@@ -1,0 +1,61 @@
+version: "3.9"
+
+services:
+    archivebox:
+        image: archivebox/archivebox:latest
+        environment:
+            - ALLOWED_HOSTS=archivebox.${BASE_DOMAIN}
+            - CSRF_TRUSTED_ORIGINS=https://archivebox.${BASE_DOMAIN}
+            # No native OIDC support — gated by the authentik@swarm forward-auth
+            # middleware below instead, so this admin login is a fallback, not
+            # the primary access control.
+            - PUBLIC_INDEX=False
+            - PUBLIC_SNAPSHOTS=False
+            - PUBLIC_ADD_VIEW=False
+            - ADMIN_USERNAME=${ARCHIVEBOX_ADMIN_USERNAME}
+            - ADMIN_PASSWORD=${ARCHIVEBOX_ADMIN_PASSWORD}
+            # Entrypoint matches the uid/gid that already owns /data instead of
+            # reading PUID/PGID, so pre-flight.yml provisions the dir as 1000:1000
+            # up front to keep it consistent with the rest of the fleet.
+            - DEFAULT_ARCHIVEBOX_UID=1000
+            - DEFAULT_ARCHIVEBOX_GID=1000
+            - TZ=${TZ}
+        volumes:
+            - archivebox_data:/data
+        restart: unless-stopped
+        networks:
+            - traefik-public
+        deploy:
+            replicas: 1
+            resources:
+                limits:
+                    memory: 2000M
+            labels:
+                - "traefik.enable=true"
+                - "traefik.http.routers.archivebox.rule=Host(`archivebox.${BASE_DOMAIN}`)"
+                - "traefik.http.routers.archivebox.entrypoints=websecure"
+                - "traefik.http.routers.archivebox.tls.certresolver=dns"
+                - "traefik.http.services.archivebox.loadbalancer.server.port=8000"
+                - "traefik.swarm.network=traefik-public"
+                - "traefik.http.routers.archivebox.middlewares=authentik@swarm"
+
+                - homepage.group=Tools
+                - homepage.name=ArchiveBox
+                - homepage.icon=archivebox.png
+                - homepage.href=https://archivebox.${BASE_DOMAIN}/
+                - homepage.description=Web page archiving
+
+networks:
+    traefik-public:
+        external: true
+
+volumes:
+    # Whole /data dir (snapshots + index.sqlite3) on OCFS2 app-data for now —
+    # simplest correct option and keeps the sqlite index off CIFS. Revisit and
+    # split archive/ off to CIFS if snapshot storage grows large.
+    archivebox_data:
+        driver: local
+        driver_opts:
+            type: "none"
+            o: "bind"
+            device: "/mnt/iscsi/app-data/archivebox"
