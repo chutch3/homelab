@@ -65,3 +65,6 @@ swarm_env_vars:
   PAPERLESS_SECRET_KEY: "test-secret"
   PAPERLESS_ADMIN_USERNAME: "admin"
   PAPERLESS_ADMIN_PASSWORD: "test-password"
+  NEXTCLOUD_DB_PASSWORD: "test-password"
+  NEXTCLOUD_ADMIN_USERNAME: "admin"
+  NEXTCLOUD_ADMIN_PASSWORD: "test-password"

@@ -1,0 +1,160 @@
+version: "3.9"
+
+services:
+    nextcloud-redis:
+        image: docker.io/valkey/valkey:9-alpine
+        volumes:
+            - nextcloud_redis:/data
+        restart: unless-stopped
+        healthcheck:
+            test: ["CMD-SHELL", "valkey-cli ping || exit 1"]
+            interval: 30s
+            timeout: 10s
+            retries: 3
+        networks:
+            - traefik-public
+        deploy:
+            replicas: 1
+
+    nextcloud-db:
+        image: postgres:16-alpine
+        environment:
+            POSTGRES_USER: ${NEXTCLOUD_DB_USER:-nextcloud}
+            POSTGRES_PASSWORD: ${NEXTCLOUD_DB_PASSWORD}
+            POSTGRES_DB: ${NEXTCLOUD_DB_NAME:-nextcloud}
+        volumes:
+            - nextcloud_db:/var/lib/postgresql/data
+        restart: unless-stopped
+        healthcheck:
+            test:
+                [
+                    "CMD-SHELL",
+                    "pg_isready -d ${NEXTCLOUD_DB_NAME:-nextcloud} -U ${NEXTCLOUD_DB_USER:-nextcloud}",
+                ]
+            interval: 30s
+            timeout: 5s
+            retries: 5
+            start_period: 20s
+        networks:
+            - traefik-public
+            - backups
+        deploy:
+            replicas: 1
+            labels:
+                - "fiber.enable=true"
+                - "fiber.provider=swarm"
+                - "fiber.engine=postgres"
+                - "fiber.dbname=${NEXTCLOUD_DB_NAME:-nextcloud}"
+                - "fiber.user=${NEXTCLOUD_DB_USER:-nextcloud}"
+                - "fiber.secret=nextcloud_db_password"
+                - "fiber.schedule=0 3 * * *"
+
+    nextcloud-app:
+        image: nextcloud:apache
+        environment:
+            - POSTGRES_HOST=nextcloud-db
+            - POSTGRES_DB=${NEXTCLOUD_DB_NAME:-nextcloud}
+            - POSTGRES_USER=${NEXTCLOUD_DB_USER:-nextcloud}
+            - POSTGRES_PASSWORD=${NEXTCLOUD_DB_PASSWORD}
+            - REDIS_HOST=nextcloud-redis
+            - NEXTCLOUD_ADMIN_USER=${NEXTCLOUD_ADMIN_USERNAME}
+            - NEXTCLOUD_ADMIN_PASSWORD=${NEXTCLOUD_ADMIN_PASSWORD}
+            - NEXTCLOUD_TRUSTED_DOMAINS=nextcloud.${BASE_DOMAIN}
+            - OVERWRITEPROTOCOL=https
+            - OVERWRITECLIURL=https://nextcloud.${BASE_DOMAIN}
+            - OVERWRITEHOST=nextcloud.${BASE_DOMAIN}
+            # Traefik overlay network subnet, same value FreshRSS uses for its
+            # trusted-proxy setting.
+            - TRUSTED_PROXIES=10.0.0.0/8
+            - TZ=${TZ}
+        volumes:
+            - nextcloud_html:/var/www/html
+            - nextcloud_data:/var/www/html/data
+        restart: unless-stopped
+        depends_on:
+            - nextcloud-db
+            - nextcloud-redis
+        networks:
+            - traefik-public
+        deploy:
+            replicas: 1
+            resources:
+                limits:
+                    memory: 2000M
+            labels:
+                - "traefik.enable=true"
+                - "traefik.http.routers.nextcloud.rule=Host(`nextcloud.${BASE_DOMAIN}`)"
+                - "traefik.http.routers.nextcloud.entrypoints=websecure"
+                - "traefik.http.routers.nextcloud.tls.certresolver=dns"
+                - "traefik.http.services.nextcloud.loadbalancer.server.port=80"
+                - "traefik.swarm.network=traefik-public"
+
+                - homepage.group=Productivity
+                - homepage.name=NextCloud
+                - homepage.icon=nextcloud.png
+                - homepage.href=https://nextcloud.${BASE_DOMAIN}/
+                - homepage.description=File sync, calendar & contacts
+
+    # Runs cron.php every 5 minutes instead of the default (slower) AJAX
+    # cron trigger — required background-job runner per Nextcloud's own docs.
+    nextcloud-cron:
+        image: nextcloud:apache
+        entrypoint: /cron.sh
+        environment:
+            - POSTGRES_HOST=nextcloud-db
+            - POSTGRES_DB=${NEXTCLOUD_DB_NAME:-nextcloud}
+            - POSTGRES_USER=${NEXTCLOUD_DB_USER:-nextcloud}
+            - POSTGRES_PASSWORD=${NEXTCLOUD_DB_PASSWORD}
+            - REDIS_HOST=nextcloud-redis
+            - TZ=${TZ}
+        volumes:
+            - nextcloud_html:/var/www/html
+            - nextcloud_data:/var/www/html/data
+        restart: unless-stopped
+        depends_on:
+            - nextcloud-db
+            - nextcloud-redis
+        networks:
+            - traefik-public
+        deploy:
+            replicas: 1
+
+networks:
+    traefik-public:
+        external: true
+    backups:
+        external: true
+
+volumes:
+    nextcloud_db:
+        driver: local
+        driver_opts:
+            type: "none"
+            o: "bind"
+            device: "/mnt/iscsi/app-data/nextcloud/postgresql"
+
+    # App code + config.php — entrypoint runs as root on boot and chowns this
+    # to www-data itself, so no pre-flight directory provisioning needed.
+    nextcloud_html:
+        driver: local
+        driver_opts:
+            type: "none"
+            o: "bind"
+            device: "/mnt/iscsi/app-data/nextcloud/html"
+
+    # User files. On app-data (not CIFS) — real POSIX locking for a sync
+    # target with concurrent writers beat capacity here. Revisit if usage
+    # outgrows the app-data LUN.
+    nextcloud_data:
+        driver: local
+        driver_opts:
+            type: "none"
+            o: "bind"
+            device: "/mnt/iscsi/app-data/nextcloud/data"
+
+    nextcloud_redis:
+        driver: local
+        driver_opts:
+            type: "none"
+            o: "bind"
+            device: "/mnt/iscsi/cache/nextcloud-redis"
