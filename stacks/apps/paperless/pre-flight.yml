@@ -3,11 +3,15 @@ secrets:
   - name: paperless_db_password
     from_env: PAPERLESS_DB_PASSWORD
 
-# Webserver runs as USERMAP_UID/GID=1000.
+# Webserver runs as USERMAP_UID/GID=1000. Postgres/valkey self-manage their
+# own ownership, but Docker's local volume driver still needs the bind-mount
+# source directory to exist before it will mount it.
 directories:
   - { path: "paperless/data", base: app_data, owner: 1000, group: 1000 }
   - { path: "paperless/media", base: app_data, owner: 1000, group: 1000 }
   - { path: "paperless/consume", base: app_data, owner: 1000, group: 1000 }
+  - { path: "paperless/postgresql", base: app_data }
+  - { path: "paperless-broker", base: cache }
 
 validate:
   env:

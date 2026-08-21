@@ -3,6 +3,16 @@ secrets:
   - name: nextcloud_db_password
     from_env: NEXTCLOUD_DB_PASSWORD
 
+# Postgres/valkey/nextcloud entrypoints all self-manage ownership (they run
+# their init step as root and chown/init the volume themselves), but Docker's
+# local volume driver still needs the bind-mount source directory to exist
+# before it will mount it.
+directories:
+  - { path: "nextcloud/postgresql", base: app_data }
+  - { path: "nextcloud/html", base: app_data }
+  - { path: "nextcloud/data", base: app_data }
+  - { path: "nextcloud-redis", base: cache }
+
 validate:
   env:
     - NEXTCLOUD_DB_PASSWORD
