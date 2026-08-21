@@ -61,3 +61,7 @@ swarm_env_vars:
   ROMM_AUTH_SECRET_KEY: "test-secret"
   ARCHIVEBOX_ADMIN_USERNAME: "admin"
   ARCHIVEBOX_ADMIN_PASSWORD: "test-password"
+  PAPERLESS_DB_PASSWORD: "test-password"
+  PAPERLESS_SECRET_KEY: "test-secret"
+  PAPERLESS_ADMIN_USERNAME: "admin"
+  PAPERLESS_ADMIN_PASSWORD: "test-password"

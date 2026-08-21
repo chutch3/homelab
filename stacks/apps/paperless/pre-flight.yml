@@ -1,0 +1,17 @@
+# Create the swarm secret Fiber reads to dump this DB.
+secrets:
+  - name: paperless_db_password
+    from_env: PAPERLESS_DB_PASSWORD
+
+# Webserver runs as USERMAP_UID/GID=1000.
+directories:
+  - { path: "paperless/data", base: app_data, owner: 1000, group: 1000 }
+  - { path: "paperless/media", base: app_data, owner: 1000, group: 1000 }
+  - { path: "paperless/consume", base: app_data, owner: 1000, group: 1000 }
+
+validate:
+  env:
+    - PAPERLESS_DB_PASSWORD
+    - PAPERLESS_SECRET_KEY
+    - PAPERLESS_ADMIN_USERNAME
+    - PAPERLESS_ADMIN_PASSWORD

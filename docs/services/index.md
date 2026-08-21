@@ -1,6 +1,6 @@
 # Services
 
-**42 deployed** · **16 SSO-integrated** · **v3.14.0**
+**43 deployed** · **17 SSO-integrated** · **v3.14.0**
 
 Deploy any service: `task ansible:deploy:service -- -e "stack_name=<name>"`
 
@@ -80,6 +80,7 @@ All clients route through NordVPN (OpenVPN). VPN kill switch active.
 | [FreshRSS](freshrss.md) | `rss.*` | `freshrss` | RSS/Atom feed aggregator |
 | [draw.io](drawio.md) | `draw.*` | `drawio` | Network and architecture diagramming |
 | [ArchiveBox](archivebox.md) | `archivebox.*` | `archivebox` | Web page archiving (snapshots, screenshots, WARC) |
+| [Paperless-ngx](paperless.md) | `paperless.*` | `paperless` | Document management — OCR, tagging, full-text search |
 
 ---
 
