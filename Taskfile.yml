@@ -118,7 +118,7 @@ tasks:
 
     lint:
         desc: Run all linting checks
-        deps: ["lint:shell", "lint:yaml", "lint:dockerfile", "lint:secrets", "lint:imports"]
+        deps: ["lint:shell", "lint:yaml", "lint:pre-commit", "lint:imports"]
 
     lint:imports:
         desc: Run import-linter on apps that define import contracts (fiber, warden)
@@ -139,29 +139,10 @@ tasks:
         cmds:
             - uv run yamllint .
 
-    lint:dockerfile:
-        desc: Run hadolint on Dockerfiles (using pre-commit)
-        cmds:
-            - uv run pre-commit run hadolint --all-files
-
-    lint:secrets:
-        desc: Run gitleaks to check for secrets (via pre-commit)
-        cmds:
-            - uv run pre-commit run gitleaks --all-files
-
-    lint:python:
-        desc: Run pre-commit hooks (includes Python linting)
+    lint:pre-commit:
+        desc: Run the whole pre-commit hook set (the same hooks git commit runs)
         cmds:
             - uv run pre-commit run --all-files
-
-    static-analysis:
-        desc: Run static analysis tools
-        deps: [lint, "security-scan"]
-
-    security-scan:
-        desc: Run security scanning (via pre-commit)
-        cmds:
-            - uv run pre-commit run gitleaks --all-files
 
     format:
         desc: Format code
@@ -235,8 +216,8 @@ tasks:
             - task: ansible:secrets:wipe
 
     check:
-        desc: Run all checks (lint, tests, static analysis, docs)
-        deps: [lint, "test:shell", "test", "test:ci", "static-analysis", "docs:validate"]
+        desc: Run all checks (lint, tests, docs)
+        deps: [lint, "test:shell", "test", "test:ci", "docs:validate"]
 
     release:version:
         desc: Check what the next version would be
