@@ -11,11 +11,15 @@ on:
     pull_request:
         paths:
             - "stacks/apps/*/**/tests/e2e/**"
+            - "ansible/**"
+            - "tests/ansible/idempotence/**"
             - ".github/workflows/e2e.yml"
     push:
         branches: [main]
         paths:
             - "stacks/apps/*/**/tests/e2e/**"
+            - "ansible/**"
+            - "tests/ansible/idempotence/**"
             - ".github/workflows/e2e.yml"
 
 concurrency:
@@ -39,3 +43,32 @@ jobs:
             # restores into a scratch Postgres, asserts the row count).
             - name: Run e2e tier
               run: uv run ci test --tier e2e
+
+    # Idempotence: bootstrap the runner, then bootstrap it again. The second run
+    # must report changed=0 — the evidence that a re-run against converged
+    # infrastructure does nothing, which is what "re-running is the resume" needs.
+    # The runner is the disposable target; it is thrown away either way.
+    idempotence:
+        name: Ansible idempotence
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@v4
+
+            - name: Set up uv
+              uses: astral-sh/setup-uv@v5
+              with:
+                  enable-cache: true
+
+            - name: Install dependencies
+              run: uv sync
+
+            # ssh and snmp read group_vars that are gitignored, so they cannot run
+            # here. What remains — common, docker, cifs — is the real convergence
+            # surface: apt packages, directories, the Docker repo and engine.
+            - name: Bootstrap twice, require no change on the second run
+              env:
+                  ANSIBLE_CONFIG: ansible/ansible.cfg
+              run: >-
+                  uv run ci idempotence ansible/playbooks/bootstrap.yml
+                  --become -i ansible/inventory/ -i tests/ansible/idempotence/hosts.yml
+                  --limit ci-node --skip-tags ssh,snmp

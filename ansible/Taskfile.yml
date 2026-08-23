@@ -582,6 +582,18 @@ tasks:
         cmds:
             - "{{.VENV_ANSIBLE_PLAYBOOK}} -i ansible/inventory/ tests/ansible/integration/test-preflight.yml -K {{.CLI_ARGS}}"
 
+    test:idempotence:
+        desc: "DESTRUCTIVE to the target: run bootstrap twice on THIS machine and require changed=0 on the second"
+        dir: "{{.ROOT_DIR}}"
+        prompt: "This bootstraps the local machine (installs packages, Docker). Only run it on a disposable node."
+        # ssh and snmp are skipped: both read group_vars that are gitignored, so
+        # they are absent in CI. --limit keeps this off the real hosts in 02-hosts.yml.
+        cmds:
+            - >-
+                uv run ci idempotence ansible/playbooks/bootstrap.yml
+                --become -i ansible/inventory/ -i tests/ansible/idempotence/hosts.yml
+                --limit ci-node --skip-tags ssh,snmp {{.CLI_ARGS}}
+
     secrets:wipe:
         desc: "DESTRUCTIVE: Securely remove local secret files (.env, ansible hosts, ssh config)"
         dir: "{{.ROOT_DIR}}"

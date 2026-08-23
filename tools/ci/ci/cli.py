@@ -6,6 +6,7 @@ Subcommands:
   ci test [SELECTOR] [--tier T] [--affected]   run app pytest suites by tier
   ci images [REPO_ROOT]                 list every buildable image name (one per line)
   ci gc [--apply] [--cutoff-days N]     prune stale :sha/untagged ghcr versions (dry-run by default)
+  ci idempotence PLAYBOOK [ANSIBLE ARGS] run a playbook twice; fail unless the second changes nothing
 """
 
 from __future__ import annotations
@@ -15,7 +16,7 @@ import json
 import subprocess
 import sys
 
-from ci import affected, apptests, gc
+from ci import affected, apptests, gc, idempotence
 
 
 def _cmd_affected(args: argparse.Namespace) -> int:
@@ -60,6 +61,10 @@ def _cmd_gc(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_idempotence(args: argparse.Namespace) -> int:
+    return idempotence.verify(args.playbook, args.ansible_args)
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="ci")
     sub = parser.add_subparsers(dest="cmd", required=True)
@@ -86,6 +91,13 @@ def build_parser() -> argparse.ArgumentParser:
     gc_p.add_argument("--cutoff-days", type=int, default=14)
     gc_p.add_argument("--apply", action="store_true", help="actually delete (default: dry-run)")
     gc_p.set_defaults(func=_cmd_gc)
+
+    idem = sub.add_parser("idempotence", help="run a playbook twice; the second must change nothing")
+    idem.add_argument("playbook")
+    # REMAINDER so ansible's own flags (-i, --limit, --skip-tags) pass through unparsed.
+    idem.add_argument("ansible_args", nargs=argparse.REMAINDER,
+                      help="passed through to ansible-playbook")
+    idem.set_defaults(func=_cmd_idempotence)
     return parser
 
 
