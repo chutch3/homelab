@@ -108,8 +108,5 @@ repos:
             exclude: |
                 (?x)^(
                   ansible/collections/|
-                  ansible/playbooks/ops/repair-storage\.yml$|
-                  ansible/roles/preflight/tasks/main\.yml$|
-                  ansible/roles/secrets/tasks/adapters/bitwarden\.yml$|
-                  ansible/roles/storage/tasks/iscsi-unmount\.yml$
+                  ansible/roles/preflight/tasks/main\.yml$
                 )
