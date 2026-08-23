@@ -93,3 +93,23 @@ repos:
                 fi; fi; done'
             language: system
             pass_filenames: false
+
+          - id: no-unconditional-changed-when
+            name: No unconditional changed_when in Ansible tasks
+            language: pygrep
+            entry: 'changed_when:\s*true\s*$'
+            # A task that always reports a change makes `changed=0` unreachable, so a
+            # second run can never prove it converged. Declare the real condition
+            # (`changed_when: result.rc == 0`) or `false` for a read-only probe.
+            # The exclusions are the ratchet: they name what is not clean yet and only
+            # ever shrink. preflight's two are the hooks.sh calls — Ansible cannot judge
+            # what an arbitrary script did, and 3.9 removes them.
+            files: ^ansible/.*\.ya?ml$
+            exclude: |
+                (?x)^(
+                  ansible/collections/|
+                  ansible/playbooks/ops/repair-storage\.yml$|
+                  ansible/roles/preflight/tasks/main\.yml$|
+                  ansible/roles/secrets/tasks/adapters/bitwarden\.yml$|
+                  ansible/roles/storage/tasks/iscsi-unmount\.yml$
+                )
