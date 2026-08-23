@@ -118,7 +118,7 @@ tasks:
 
     lint:
         desc: Run all linting checks
-        deps: ["lint:shell", "lint:yaml", "lint:pre-commit", "lint:imports"]
+        deps: ["lint:pre-commit", "lint:imports"]
 
     lint:imports:
         desc: Run import-linter on apps that define import contracts (fiber, warden)
@@ -129,20 +129,14 @@ tasks:
                     (cd "$d" && uv run lint-imports) || exit 1
                 done
 
-    lint:shell:
-        desc: Run shellcheck on shell scripts
-        cmds:
-            - find tools lib -name "*.sh" -type f -exec uv run shellcheck -x --source-path=lib --source-path=tools {} +
-
-    lint:yaml:
-        desc: Run yamllint on YAML files
-        cmds:
-            - uv run yamllint .
-
     lint:pre-commit:
-        desc: Run the whole pre-commit hook set (the same hooks git commit runs)
+        desc: "Run the whole pre-commit hook set; FROM_REF/TO_REF scope it to that diff"
+        # CI sets FROM_REF/TO_REF so a PR is linted on what it changed, the way a commit
+        # is. Unset (local, and pushes with no usable base) means the whole tree.
         cmds:
-            - uv run pre-commit run --all-files
+            - >-
+                uv run pre-commit run --show-diff-on-failure
+                {{if .FROM_REF}}--from-ref {{.FROM_REF}} --to-ref {{.TO_REF | default "HEAD"}}{{else}}--all-files{{end}}
 
     format:
         desc: Format code

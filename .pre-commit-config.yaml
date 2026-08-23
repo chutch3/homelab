@@ -44,6 +44,14 @@ repos:
 
     - repo: local
       hooks:
+          - id: shellcheck
+            name: ShellCheck
+            entry: uv run shellcheck -x --source-path=lib --source-path=tools
+            language: system
+            # Only the shared shell libraries and tooling; the per-stack scripts under
+            # stacks/ have never been checked and are not clean yet.
+            files: ^(tools|lib)/.*\.sh$
+
           - id: ansible-lint
             name: Ansible Lint
             entry: tools/dev/run-ansible-lint.sh
