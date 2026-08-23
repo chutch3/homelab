@@ -6,10 +6,6 @@
 # Domain configuration
 base_domain: "{{ lookup('env', 'BASE_DOMAIN') }}"
 
-# Bootstrap configuration
-bootstrap_state_dir: /var/lib/homelab
-bootstrap_version: "1.0.0"
-
 # Packages installed on every node during bootstrap.
 # Add a package here to install it. Feature roles gate on their key package
 # being present (e.g. 'snmpd' in packages enables SNMP configuration).

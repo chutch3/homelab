@@ -28,9 +28,3 @@
       import_role:
         name: ../roles/docker
       tags: ['docker']
-
-    - name: Update bootstrap state
-      shell: |
-        jq '.last_updated = "{{ ansible_date_time.iso8601 }}"'
-          {{ bootstrap_state_dir }}/bootstrap-state.json > /tmp/state.json
-        mv /tmp/state.json {{ bootstrap_state_dir }}/bootstrap-state.json

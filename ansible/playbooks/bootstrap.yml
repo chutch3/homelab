@@ -11,7 +11,6 @@
           Bootstrapping {{ inventory_hostname }}
           IP: {{ ansible_host }}
           User: {{ ansible_user }}
-          Version: {{ bootstrap_version }}
 
     - name: Gather facts
       setup:
@@ -21,27 +20,6 @@
           - hardware
           - network
           - virtual
-
-    - name: Check if node was previously bootstrapped
-      stat:
-        path: "{{ bootstrap_state_dir }}/bootstrap-state.json"
-      register: bootstrap_state_file
-
-    - name: Read previous bootstrap state
-      when: bootstrap_state_file.stat.exists
-      slurp:
-        src: "{{ bootstrap_state_dir }}/bootstrap-state.json"
-      register: previous_state
-
-    - name: Parse previous state
-      when: bootstrap_state_file.stat.exists
-      set_fact:
-        previous_bootstrap_version: "{{ (previous_state.content | b64decode | from_json).version }}"
-
-    - name: Display previous state
-      when: bootstrap_state_file.stat.exists
-      debug:
-        msg: "Previous bootstrap version: {{ previous_bootstrap_version }}"
 
   roles:
     - role: ../roles/common
@@ -76,39 +54,6 @@
     #   tags: ['firewall', 'security']
 
   post_tasks:
-    - name: Create bootstrap state directory
-      file:
-        path: "{{ bootstrap_state_dir }}"
-        state: directory
-        mode: '0755'
-
-    - name: Generate bootstrap state
-      copy:
-        content: |
-          {
-            "version": "{{ bootstrap_version }}",
-            "last_run": "{{ ansible_date_time.iso8601 }}",
-            "hostname": "{{ ansible_hostname }}",
-            "completed_roles": {{ ansible_play_role_names | to_json }},
-            "system_info": {
-              "os": "{{ ansible_distribution }} {{ ansible_distribution_version }}",
-              "arch": "{{ ansible_architecture }}",
-              "kernel": "{{ ansible_kernel }}",
-              "memory_mb": {{ ansible_memtotal_mb }},
-              "cpu_cores": {{ ansible_processor_vcpus }}
-            },
-            "docker_info": {
-              "version": "{{ docker_installed_version | default('unknown') }}",
-              "compose_version": "{{ docker_compose_installed_version | default('unknown') }}"
-            },
-            "gpu_detected": {{ gpu_present | default(false) | to_json }}
-          }
-        dest: "{{ bootstrap_state_dir }}/bootstrap-state.json"
-        mode: '0644'
-
     - name: Display completion message
       debug:
-        msg: |
-          ✓ Bootstrap complete for {{ inventory_hostname }}
-          Version: {{ bootstrap_version }}
-          State file: {{ bootstrap_state_dir }}/bootstrap-state.json
+        msg: "✓ Bootstrap complete for {{ inventory_hostname }}"

@@ -38,19 +38,9 @@
         port: 53
         timeout: 5
 
-    - name: Read bootstrap state
-      slurp:
-        src: "{{ bootstrap_state_dir }}/bootstrap-state.json"
-      register: state_file
-
-    - name: Parse and display state
-      debug:
-        msg: "{{ state_file.content | b64decode | from_json }}"
-
     - name: Validation summary
       debug:
         msg: |
           ✓ Docker running: {{ docker_service.changed == false }}
           ✓ Disk usage: {{ disk_usage.stdout }}%
           ✓ Memory: {{ ansible_memtotal_mb }}MB
-          ✓ Bootstrap version: {{ (state_file.content | b64decode | from_json).version }}
