@@ -112,6 +112,34 @@ services:
         networks:
             - traefik-public
 
+    error-pages:
+        image: ghcr.io/tarampampam/error-pages:4.2.4
+
+        environment:
+            - TEMPLATE_NAME=${ERROR_PAGES_THEME:-shuffle}
+
+        deploy:
+            replicas: 1
+            labels:
+                - "traefik.enable=true"
+                - "traefik.swarm.network=traefik-public"
+
+                # priority=1 keeps this catch-all from winning over any real Host() router
+                - "traefik.http.routers.error-pages.rule=HostRegexp(`.+`)"
+                - "traefik.http.routers.error-pages.entrypoints=websecure"
+                - "traefik.http.routers.error-pages.tls.certresolver=dns"
+                - "traefik.http.routers.error-pages.priority=1"
+                - "traefik.http.routers.error-pages.middlewares=error-pages@swarm"
+                - "traefik.http.services.error-pages.loadbalancer.server.port=8080"
+
+                # other stacks can opt in: add error-pages@swarm to their router's middlewares
+                - "traefik.http.middlewares.error-pages.errors.status=400-599"
+                - "traefik.http.middlewares.error-pages.errors.service=error-pages@swarm"
+                - "traefik.http.middlewares.error-pages.errors.query=/{status}.html"
+
+        networks:
+            - traefik-public
+
 volumes:
     # TLS certs (traefik writes acme.json here; actual_server reads them). Moved off
     # CIFS onto the OCFS2 app-data LUN — tiny, POSIX, cluster-read. Shared by name
