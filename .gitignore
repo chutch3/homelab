@@ -218,3 +218,6 @@ coverage/
 homeassistant/.storage/auth
 ansible/inventory/group_vars/all/ssh.yml
 ansible/inventory/group_vars/all/snmp.yml
+
+# Claude Code — local agent config, commands and notes
+.claude/
