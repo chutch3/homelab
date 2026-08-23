@@ -64,5 +64,5 @@ jobs:
             - name: Install dependencies
               run: task install
 
-            - name: Bootstrap twice, require no change on the second run
+            - name: Run each enrolled playbook twice
               run: task ansible:test:idempotence --yes
