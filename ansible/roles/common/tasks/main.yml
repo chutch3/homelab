@@ -24,4 +24,3 @@
   loop:
       - /opt/homelab
       - /var/log/homelab
-      - "{{ bootstrap_state_dir }}"

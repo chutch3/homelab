@@ -107,8 +107,10 @@
     - item.item.enabled | bool
     - item.item.mount_path is defined
     - item.rc == 0
+  register: storage_fuser_kill
   failed_when: false
-  changed_when: true
+  # fuser exits 0 only when it signalled something; 1 means there was nothing to kill.
+  changed_when: storage_fuser_kill.rc == 0
 
 - name: Force unmount remaining OCFS2 filesystems
   ansible.builtin.command: umount -f {{ item.item.mount_path }}
@@ -117,8 +119,9 @@
     - item.item.enabled | bool
     - item.item.mount_path is defined
     - item.rc == 0
+  register: storage_force_umount
   failed_when: false
-  changed_when: true
+  changed_when: storage_force_umount.rc == 0
 
 # ── Step 4: VERIFY mounts are gone ────────────────────────────────────────
 

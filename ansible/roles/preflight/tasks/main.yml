@@ -74,6 +74,7 @@
   register: preflight_hook_mode
   when: preflight_hooks_stat.stat.exists
 
+# Ansible cannot know what an arbitrary hooks.sh did. Removed with it in 3.9.
 - name: Run pre-deploy hook as root
   ansible.builtin.command:
     cmd: "bash {{ preflight_stack_path }}/hooks.sh pre_deploy"

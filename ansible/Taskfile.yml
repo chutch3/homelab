@@ -582,6 +582,22 @@ tasks:
         cmds:
             - "{{.VENV_ANSIBLE_PLAYBOOK}} -i ansible/inventory/ tests/ansible/integration/test-preflight.yml -K {{.CLI_ARGS}}"
 
+    test:idempotence:
+        desc: "DESTRUCTIVE to the target: run each enrolled playbook twice on THIS machine, requiring changed=0 on the second"
+        dir: "{{.ROOT_DIR}}"
+        prompt: "This converges the local machine (installs packages, Docker). Only run it on a disposable node."
+        vars:
+            # Enrolled playbooks. Grows as targets CI can converge become available;
+            # anything needing a real cluster is run by hand against one.
+            PLAYBOOKS: ansible/playbooks/bootstrap.yml
+        # ssh and snmp read group_vars that are gitignored, so they are absent in CI.
+        cmds:
+            - for: {var: PLAYBOOKS}
+              cmd: >-
+                  uv run ci idempotence {{.ITEM}}
+                  --become -i ansible/inventory/ -i tests/ansible/idempotence/hosts.yml
+                  --limit ci-node --skip-tags ssh,snmp {{.CLI_ARGS}}
+
     secrets:wipe:
         desc: "DESTRUCTIVE: Securely remove local secret files (.env, ansible hosts, ssh config)"
         dir: "{{.ROOT_DIR}}"

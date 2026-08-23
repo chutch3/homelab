@@ -93,3 +93,15 @@ repos:
                 fi; fi; done'
             language: system
             pass_filenames: false
+
+          - id: no-unconditional-changed-when
+            name: No unconditional changed_when in Ansible tasks
+            language: pygrep
+            entry: 'changed_when:\s*true\s*$'
+            # The exclusions are the ratchet: they only ever shrink.
+            files: ^ansible/.*\.ya?ml$
+            exclude: |
+                (?x)^(
+                  ansible/collections/|
+                  ansible/roles/preflight/tasks/main\.yml$
+                )
