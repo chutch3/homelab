@@ -44,9 +44,13 @@ volumes:
 
     # Unified media share (//NAS/downloads -> all_data/media): movies, tv, comics,
     # manga, incomplete, roms. Replaces the former split torrents/usenet shares.
+    # actimeo=1 (not the CIFS default 30s): Sonarr's own mount was caching stale
+    # attributes for files SABnzbd/NZBGet had just finished writing on their
+    # separate mounts, causing spurious "Failed to import episode" rejections
+    # that only cleared on a manual re-scan once the cache expired.
     downloads:
         driver: local
         driver_opts:
             type: "cifs"
-            o: "username=${SMB_USERNAME},password=${SMB_PASSWORD},domain=${SMB_DOMAIN},vers=3.0,file_mode=0770,dir_mode=0770,uid=1000,gid=1000,soft,actimeo=30"
+            o: "username=${SMB_USERNAME},password=${SMB_PASSWORD},domain=${SMB_DOMAIN},vers=3.0,file_mode=0770,dir_mode=0770,uid=1000,gid=1000,soft,actimeo=1"
             device: "//${NAS_SERVER}/downloads"

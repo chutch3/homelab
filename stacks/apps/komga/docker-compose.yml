@@ -81,5 +81,5 @@ volumes:
         driver: local
         driver_opts:
             type: "cifs"
-            o: "username=${SMB_USERNAME},password=${SMB_PASSWORD},domain=${SMB_DOMAIN},uid=1000,gid=1000,vers=3.0,file_mode=0600,dir_mode=0770,soft,actimeo=30"
+            o: "username=${SMB_USERNAME},password=${SMB_PASSWORD},domain=${SMB_DOMAIN},uid=1000,gid=1000,vers=3.0,file_mode=0600,dir_mode=0770,soft,actimeo=1"
             device: "//${NAS_SERVER}/downloads"
