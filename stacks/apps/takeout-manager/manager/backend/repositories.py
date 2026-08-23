@@ -5,8 +5,15 @@ from typing import Dict, List, Optional
 
 from sqlmodel import select
 
-from backend.db.models import Chunk as ChunkRow, Job as JobRow
+from backend.db.models import (
+    ArchiveExtraction as ArchiveExtractionRow,
+    ArchiveTimeline as ArchiveTimelineRow,
+    Chunk as ChunkRow,
+    Job as JobRow,
+)
 from backend.domain.models import (
+    ArchiveExtractionRecord,
+    ArchiveTimelineRecord,
     ChunkRecord,
     DownloadTaskInfo,
     ExtractTaskInfo,
@@ -28,6 +35,7 @@ def _to_job_record(row: JobRow) -> JobRecord:
         auth_user=row.auth_user,
         metadata_status=row.metadata_status,
         metadata_message=row.metadata_message,
+        auto_extract=row.auto_extract,
     )
 
 
@@ -56,6 +64,7 @@ class JobRepository:
         auth_user: str,
         cookie: str,
         total_chunks: int,
+        auto_extract: bool = True,
     ) -> int:
         with self._session_factory() as session:
             row = JobRow(
@@ -66,6 +75,7 @@ class JobRepository:
                 cookie=cookie,
                 total_chunks=total_chunks,
                 status=JobStatus.PENDING.value,
+                auto_extract=auto_extract,
             )
             session.add(row)
             session.commit()
@@ -197,6 +207,7 @@ class ChunkRepository:
                 select(ChunkRow, JobRow)
                 .join(JobRow, ChunkRow.job_id == JobRow.id)  # type: ignore[arg-type]
                 .where(ChunkRow.status == ChunkStatus.DOWNLOADED.value)
+                .where(JobRow.auto_extract == True)  # noqa: E712 — SQL boolean compare
                 .order_by(ChunkRow.id)
                 .limit(1)
             ).first()
@@ -294,3 +305,128 @@ class ChunkRepository:
         with self._session_factory() as session:
             rows = session.exec(select(ChunkRow).where(ChunkRow.job_id == job_id)).all()
             return [_to_chunk_record(row) for row in rows]
+
+
+def _to_archive_extraction_record(row: ArchiveExtractionRow) -> ArchiveExtractionRecord:
+    return ArchiveExtractionRecord(
+        id=row.id,
+        filename=row.filename,
+        status=row.status,
+        message=row.message,
+    )
+
+
+class ArchiveExtractionRepository:
+    PENDING = "pending_extraction"
+    EXTRACTING = "extracting"
+
+    def __init__(self, session_factory: Callable) -> None:
+        self._session_factory = session_factory
+
+    def create(self, filename: str) -> int:
+        with self._session_factory() as session:
+            row = ArchiveExtractionRow(filename=filename, status=self.PENDING)
+            session.add(row)
+            session.commit()
+            return row.id
+
+    def get_by_id(self, extraction_id: int) -> Optional[ArchiveExtractionRecord]:
+        with self._session_factory() as session:
+            row = session.get(ArchiveExtractionRow, extraction_id)
+            return _to_archive_extraction_record(row) if row else None
+
+    def get_next_pending(self) -> Optional[ArchiveExtractionRecord]:
+        with self._session_factory() as session:
+            row = session.exec(
+                select(ArchiveExtractionRow)
+                .where(ArchiveExtractionRow.status == self.PENDING)
+                .order_by(ArchiveExtractionRow.id)
+                .limit(1)
+            ).first()
+            if not row:
+                return None
+            row.status = self.EXTRACTING
+            session.add(row)
+            session.commit()
+            return _to_archive_extraction_record(row)
+
+    def update_status(self, extraction_id: int, status: str, message: str = "") -> None:
+        with self._session_factory() as session:
+            row = session.get(ArchiveExtractionRow, extraction_id)
+            if row:
+                row.status = status
+                row.message = message
+                session.add(row)
+                session.commit()
+
+
+def _to_archive_timeline_record(row: ArchiveTimelineRow) -> ArchiveTimelineRecord:
+    return ArchiveTimelineRecord(
+        id=row.id,
+        filename=row.filename,
+        status=row.status,
+        data=row.data,
+    )
+
+
+class ArchiveTimelineRepository:
+    PENDING = "pending"
+    PROCESSING = "processing"
+    COMPLETED = "completed"
+
+    def __init__(self, session_factory: Callable) -> None:
+        self._session_factory = session_factory
+
+    def create(self, filename: str) -> int:
+        with self._session_factory() as session:
+            row = ArchiveTimelineRow(filename=filename, status=self.PENDING)
+            session.add(row)
+            session.commit()
+            return row.id
+
+    def get_by_filename(self, filename: str) -> Optional[ArchiveTimelineRecord]:
+        with self._session_factory() as session:
+            row = session.exec(
+                select(ArchiveTimelineRow)
+                .where(ArchiveTimelineRow.filename == filename)
+                .order_by(ArchiveTimelineRow.id.desc())
+                .limit(1)
+            ).first()
+            return _to_archive_timeline_record(row) if row else None
+
+    def get_next_pending(self) -> Optional[ArchiveTimelineRecord]:
+        with self._session_factory() as session:
+            row = session.exec(
+                select(ArchiveTimelineRow)
+                .where(ArchiveTimelineRow.status == self.PENDING)
+                .order_by(ArchiveTimelineRow.id)
+                .limit(1)
+            ).first()
+            if not row:
+                return None
+            row.status = self.PROCESSING
+            session.add(row)
+            session.commit()
+            return _to_archive_timeline_record(row)
+
+    def upsert_result(self, filename: str, data: str) -> None:
+        with self._session_factory() as session:
+            row = session.exec(
+                select(ArchiveTimelineRow)
+                .where(ArchiveTimelineRow.filename == filename)
+                .order_by(ArchiveTimelineRow.id.desc())
+                .limit(1)
+            ).first()
+            if row is None:
+                row = ArchiveTimelineRow(filename=filename)
+            row.status = self.COMPLETED
+            row.data = data
+            session.add(row)
+            session.commit()
+
+    def list_all(self) -> List[ArchiveTimelineRecord]:
+        with self._session_factory() as session:
+            rows = session.exec(
+                select(ArchiveTimelineRow).order_by(ArchiveTimelineRow.filename)
+            ).all()
+            return [_to_archive_timeline_record(row) for row in rows]

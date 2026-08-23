@@ -1,6 +1,6 @@
 from pydantic import BaseModel
 from enum import Enum
-from typing import Optional
+from typing import Dict, Optional
 
 class JobStatus(str, Enum):
     PENDING = "pending"
@@ -30,6 +30,7 @@ class TakeoutJob(BaseModel):
     auth_user: str
     cookie: str
     total_chunks: int
+    auto_extract: bool = True
 
 class TaskStatus(BaseModel):
     status: ChunkStatus
@@ -46,3 +47,10 @@ class ChunkProgress(BaseModel):
 class MetadataTaskStatus(BaseModel):
     status: MetadataStatus
     message: str = ""
+
+class ArchiveExtractionStatus(BaseModel):
+    status: str
+    message: str = ""
+
+class ArchiveTimelineResult(BaseModel):
+    months: Dict[str, int]

@@ -131,54 +131,9 @@ class TestDaemonIntegration:
 
     @pytest.mark.asyncio
     async def test_full_extract_cycle(self, worker_container, tmp_path):
-        """Daemon dispatches an extract task through the real service and reports success."""
-        downloads_dir = tmp_path / "downloads"
-        pictures_dir = tmp_path / "pictures"
-        videos_dir = tmp_path / "videos"
-        downloads_dir.mkdir()
-        (downloads_dir / "takeout-20240101T120000Z-1-001.tgz").write_bytes(b"fake archive")
-
-        extract_task = {
-            "id": 2,
-            "type": "extract",
-            "params": {
-                "job_id": "test-job",
-                "timestamp": "20240101T120000",
-                "chunk_index": 1,
-            },
-        }
-
-        mock_manager_client = AsyncMock(spec=ManagerClient)
-        mock_manager_client.get_next_task.side_effect = [extract_task, None]
-
-        mock_tar_runner = AsyncMock(spec=TarRunner)
-
-        async def simulate_extract(archive_path, dest_dir):
-            Path(dest_dir).mkdir(parents=True, exist_ok=True)
-            (Path(dest_dir) / "photo.jpg").write_bytes(b"jpg")
-            (Path(dest_dir) / "clip.mp4").write_bytes(b"mp4")
-            return True
-
-        mock_tar_runner.extract.side_effect = simulate_extract
-
-        with worker_container.manager_client.override(mock_manager_client), \
-             worker_container.curl_runner.override(AsyncMock(spec=CurlRunner)), \
-             worker_container.tar_runner.override(mock_tar_runner):
-            try:
-                await asyncio.wait_for(run_daemon(), timeout=1.0)
-            except asyncio.TimeoutError:
-                pass
-
-        mock_manager_client.report_task_status.assert_called_once_with(
-            2, "extracted", "Extracted 1 pictures and 1 videos"
-        )
-
-    @pytest.mark.asyncio
-    async def test_full_metadata_cycle(self, worker_container, tmp_path):
-        """Daemon dispatches a metadata task through the real service: re-extracts
-        each chunk's retained archive, runs GPTH, splits the dated output into
-        pictures/videos, and removes the superseded flat copies from the original
-        per-chunk extraction."""
+        """Daemon dispatches the job-level extract task through the real GPTH service:
+        re-extracts each chunk's retained archive, runs GPTH, and splits the dated
+        output into pictures/videos."""
         downloads_dir = tmp_path / "downloads"
         pictures_dir = tmp_path / "pictures"
         videos_dir = tmp_path / "videos"
@@ -192,7 +147,7 @@ class TestDaemonIntegration:
 
         metadata_task = {
             "id": 9,
-            "type": "metadata",
+            "type": "extract",
             "params": {
                 "job_id": "test-job",
                 "timestamp": "20240101T120000",
@@ -204,7 +159,9 @@ class TestDaemonIntegration:
         mock_manager_client.get_next_task.side_effect = [metadata_task, None]
 
         mock_tar_runner = AsyncMock(spec=TarRunner)
-        mock_tar_runner.extract.return_value = True
+        mock_tar_runner.extract.return_value = [
+            "Takeout/Google Photos/Album/PXL_20240115_120000.jpg"
+        ]
 
         mock_gpth_runner = AsyncMock(spec=GpthRunner)
 
@@ -226,7 +183,11 @@ class TestDaemonIntegration:
                 pass
 
         mock_manager_client.report_metadata_task_status.assert_called_once_with(
-            9, "completed", "Processed metadata for 1 pictures and 1 videos"
+            9, "completed", "Extracted 1 pictures and 1 videos"
+        )
+        # The per-archive timeline is built for free from the extraction and reported.
+        mock_manager_client.report_timeline.assert_called_once_with(
+            "takeout-20240101T120000Z-1-001.tgz", {"2024-01": 1}
         )
         assert (pictures_dir / "2024" / "01" / "photo.jpg").exists()
         assert (videos_dir / "2024" / "01" / "clip.mp4").exists()

@@ -7,7 +7,7 @@ from worker.logger import StructuredFormatter
 from worker.manager_client import ManagerClient, init_async_client
 from worker.progress import DownloadProgressTracker
 from worker.runners import CurlRunner, GpthRunner, TarRunner
-from worker.services import DownloadService, MetadataService
+from worker.services import DownloadService, MetadataService, TimelineService
 
 
 def configure_logging(level: str = "INFO"):
@@ -61,4 +61,10 @@ class WorkerContainer(containers.DeclarativeContainer):
         download_path=config.paths.downloads,
         pictures_path=config.paths.pictures,
         videos_path=config.paths.videos,
+    )
+
+    timeline_service = providers.Factory(
+        TimelineService,
+        tar_runner=tar_runner,
+        download_path=config.paths.downloads,
     )

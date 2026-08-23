@@ -1,15 +1,24 @@
 import pytest
 from unittest.mock import Mock
 
-from backend.services import JobService, ChunkService, TaskService
+from backend.archive_scanner import ArchiveScanner
+from backend.services import JobService, ChunkService, TaskService, ArchiveService
 from backend.models import JobStatus, ChunkStatus, MetadataStatus, TakeoutJob
-from backend.repositories import JobRepository, ChunkRepository
+from backend.repositories import (
+    ArchiveExtractionRepository,
+    ArchiveTimelineRepository,
+    JobRepository,
+    ChunkRepository,
+)
 from backend.domain.models import (
+    ArchiveExtractionRecord,
+    ArchiveTimelineRecord,
     ChunkRecord,
     DownloadTaskInfo,
     ExtractTaskInfo,
     JobRecord,
     MetadataTaskInfo,
+    ScannedArchive,
 )
 
 
@@ -300,8 +309,38 @@ class TestTaskService:
         return Mock(spec=ChunkRepository)
 
     @pytest.fixture
-    def subject(self, mock_job_repo, mock_chunk_repo):
-        return TaskService(mock_job_repo, mock_chunk_repo)
+    def mock_extraction_repo(self):
+        repo = Mock(spec=ArchiveExtractionRepository)
+        repo.get_next_pending.return_value = None
+        return repo
+
+    @pytest.fixture
+    def mock_timeline_repo(self):
+        repo = Mock(spec=ArchiveTimelineRepository)
+        repo.get_next_pending.return_value = None
+        return repo
+
+    @pytest.fixture
+    def subject(self, mock_job_repo, mock_chunk_repo, mock_extraction_repo, mock_timeline_repo):
+        return TaskService(mock_job_repo, mock_chunk_repo, mock_extraction_repo, mock_timeline_repo)
+
+    def test_get_next_task_extract_archive_when_pipeline_idle(
+        self, subject, mock_chunk_repo, mock_job_repo, mock_extraction_repo
+    ):
+        mock_chunk_repo.get_next_pending_download.return_value = None
+        mock_chunk_repo.get_next_downloaded.return_value = None
+        mock_job_repo.claim_next_pending_metadata_job.return_value = None
+        mock_extraction_repo.get_next_pending.return_value = ArchiveExtractionRecord(
+            id=7, filename="takeout-Z-001.tgz", status="extracting", message=None
+        )
+
+        result = subject.get_next_task()
+
+        assert result == {
+            "id": 7,
+            "type": "extract_archive",
+            "params": {"filename": "takeout-Z-001.tgz"},
+        }
 
     def test_get_next_task_download(self, subject, mock_chunk_repo):
         mock_chunk_repo.get_next_pending_download.return_value = DownloadTaskInfo(
@@ -315,27 +354,34 @@ class TestTaskService:
         assert result["id"] == 1
         assert result["params"]["chunk_index"] == 1
 
-    def test_get_next_task_extract(self, subject, mock_chunk_repo):
+    def test_get_next_task_timeline_when_pipeline_idle(
+        self, subject, mock_chunk_repo, mock_job_repo, mock_timeline_repo
+    ):
         mock_chunk_repo.get_next_pending_download.return_value = None
-        mock_chunk_repo.get_next_downloaded.return_value = ExtractTaskInfo(
-            id=2, job_id="test-job", chunk_index=1, timestamp="20240101T120000",
+        mock_job_repo.claim_next_pending_metadata_job.return_value = None
+        mock_timeline_repo.get_next_pending.return_value = ArchiveTimelineRecord(
+            id=4, filename="takeout-Z-001.tgz", status="processing", data=None
         )
 
         result = subject.get_next_task()
 
-        assert result["type"] == "extract"
-        assert result["id"] == 2
+        assert result == {
+            "id": 4,
+            "type": "timeline",
+            "params": {"filename": "takeout-Z-001.tgz"},
+        }
 
-    def test_get_next_task_metadata(self, subject, mock_chunk_repo, mock_job_repo):
+    def test_get_next_task_extract_is_the_job_level_gpth_pass(
+        self, subject, mock_chunk_repo, mock_job_repo
+    ):
         mock_chunk_repo.get_next_pending_download.return_value = None
-        mock_chunk_repo.get_next_downloaded.return_value = None
         mock_job_repo.claim_next_pending_metadata_job.return_value = MetadataTaskInfo(
             id=1, job_id="test-job", timestamp="20240101T120000", total_chunks=3,
         )
 
         result = subject.get_next_task()
 
-        assert result["type"] == "metadata"
+        assert result["type"] == "extract"
         assert result["id"] == 1
         assert result["params"]["job_id"] == "test-job"
         assert result["params"]["timestamp"] == "20240101T120000"
@@ -343,25 +389,39 @@ class TestTaskService:
 
     def test_get_next_task_none_available(self, subject, mock_chunk_repo, mock_job_repo):
         mock_chunk_repo.get_next_pending_download.return_value = None
-        mock_chunk_repo.get_next_downloaded.return_value = None
         mock_job_repo.claim_next_pending_metadata_job.return_value = None
 
         result = subject.get_next_task()
 
         assert result == {"task": "none"}
 
-    def test_update_task_status_completed(self, subject, mock_job_repo, mock_chunk_repo):
+    def test_update_task_status_triggers_extract_pass_when_all_downloaded(
+        self, subject, mock_job_repo, mock_chunk_repo
+    ):
         mock_chunk_repo.get_job_id_for_chunk.return_value = 1
+        mock_job_repo.get_by_id.return_value = _job_record(id=1, auto_extract=True)
         mock_chunk_repo.get_all_statuses_for_job.return_value = [
-            ChunkStatus.EXTRACTED.value,
-            ChunkStatus.EXTRACTED.value,
+            ChunkStatus.DOWNLOADED.value,
+            ChunkStatus.DOWNLOADED.value,
         ]
 
-        subject.update_task_status(10, ChunkStatus.EXTRACTED, "Done")
+        subject.update_task_status(10, ChunkStatus.DOWNLOADED, "done")
 
-        mock_chunk_repo.update_status.assert_called_once_with(10, ChunkStatus.EXTRACTED, "Done")
-        mock_job_repo.update_status.assert_called_once_with(1, JobStatus.COMPLETED)
+        # Downloads finished: stay in progress and trigger the single GPTH pass.
+        mock_job_repo.update_status.assert_called_once_with(1, JobStatus.IN_PROGRESS)
         mock_job_repo.mark_metadata_pending.assert_called_once_with(1)
+
+    def test_update_task_status_without_auto_extract_completes_but_skips_metadata(
+        self, subject, mock_job_repo, mock_chunk_repo
+    ):
+        mock_chunk_repo.get_job_id_for_chunk.return_value = 1
+        mock_job_repo.get_by_id.return_value = _job_record(id=1, auto_extract=False)
+        mock_chunk_repo.get_all_statuses_for_job.return_value = [ChunkStatus.DOWNLOADED.value]
+
+        subject.update_task_status(10, ChunkStatus.DOWNLOADED, "done")
+
+        mock_job_repo.update_status.assert_called_once_with(1, JobStatus.COMPLETED)
+        mock_job_repo.mark_metadata_pending.assert_not_called()
 
     def test_update_task_status_failed(self, subject, mock_job_repo, mock_chunk_repo):
         mock_chunk_repo.get_job_id_for_chunk.return_value = 1
@@ -416,3 +476,181 @@ class TestTaskService:
         mock_job_repo.update_metadata_status.assert_called_once_with(
             1, MetadataStatus.COMPLETED, "Embedded EXIF for 42 files"
         )
+
+
+class TestArchiveService:
+    @pytest.fixture
+    def mock_scanner(self):
+        return Mock(spec=ArchiveScanner)
+
+    @pytest.fixture
+    def mock_job_repo(self):
+        return Mock(spec=JobRepository)
+
+    @pytest.fixture
+    def mock_chunk_repo(self):
+        return Mock(spec=ChunkRepository)
+
+    @pytest.fixture
+    def mock_extraction_repo(self):
+        return Mock(spec=ArchiveExtractionRepository)
+
+    @pytest.fixture
+    def mock_timeline_repo(self):
+        return Mock(spec=ArchiveTimelineRepository)
+
+    @pytest.fixture
+    def subject(
+        self, mock_scanner, mock_job_repo, mock_chunk_repo, mock_extraction_repo, mock_timeline_repo
+    ):
+        return ArchiveService(
+            mock_scanner, mock_job_repo, mock_chunk_repo, mock_extraction_repo, mock_timeline_repo
+        )
+
+    def test_request_extraction_queues_an_on_disk_archive(
+        self, subject, mock_scanner, mock_extraction_repo
+    ):
+        mock_scanner.scan.return_value = [ScannedArchive(filename="takeout-Z-001.tgz", size_bytes=5)]
+        mock_extraction_repo.create.return_value = 42
+
+        result = subject.request_extraction("takeout-Z-001.tgz")
+
+        assert result == 42
+        mock_extraction_repo.create.assert_called_once_with("takeout-Z-001.tgz")
+
+    def test_request_extraction_rejects_an_archive_not_on_disk(
+        self, subject, mock_scanner, mock_extraction_repo
+    ):
+        mock_scanner.scan.return_value = []
+
+        with pytest.raises(ValueError, match="not found"):
+            subject.request_extraction("ghost.tgz")
+        mock_extraction_repo.create.assert_not_called()
+
+    def test_update_extraction_status_delegates_to_repo(self, subject, mock_extraction_repo):
+        subject.update_extraction_status(7, "extracted", "Extracted 3 pictures and 1 videos")
+
+        mock_extraction_repo.update_status.assert_called_once_with(
+            7, "extracted", "Extracted 3 pictures and 1 videos"
+        )
+
+    def test_request_timeline_queues_an_on_disk_archive(
+        self, subject, mock_scanner, mock_timeline_repo
+    ):
+        mock_scanner.scan.return_value = [ScannedArchive(filename="takeout-Z-001.tgz", size_bytes=5)]
+        mock_timeline_repo.create.return_value = 3
+
+        assert subject.request_timeline("takeout-Z-001.tgz") == 3
+        mock_timeline_repo.create.assert_called_once_with("takeout-Z-001.tgz")
+
+    def test_get_timeline_returns_parsed_months(self, subject, mock_timeline_repo):
+        mock_timeline_repo.get_by_filename.return_value = ArchiveTimelineRecord(
+            id=1, filename="a.tgz", status="completed", data='{"2019-07": 10}'
+        )
+
+        assert subject.get_timeline("a.tgz") == {"status": "completed", "months": {"2019-07": 10}}
+
+    def test_get_timeline_none_when_never_requested(self, subject, mock_timeline_repo):
+        mock_timeline_repo.get_by_filename.return_value = None
+
+        assert subject.get_timeline("a.tgz") == {"status": "none", "months": None}
+
+    def test_save_timeline_result_upserts_by_filename(self, subject, mock_timeline_repo):
+        subject.save_timeline_result("a.tgz", {"2019-07": 10})
+
+        mock_timeline_repo.upsert_result.assert_called_once_with("a.tgz", '{"2019-07": 10}')
+
+    def test_list_timelines_parses_each_record(self, subject, mock_timeline_repo):
+        mock_timeline_repo.list_all.return_value = [
+            ArchiveTimelineRecord(id=1, filename="a.tgz", status="completed", data='{"2019-07": 3}'),
+            ArchiveTimelineRecord(id=2, filename="b.tgz", status="pending", data=None),
+        ]
+
+        result = subject.list_timelines()
+
+        assert result == [
+            {"filename": "a.tgz", "status": "completed", "months": {"2019-07": 3}},
+            {"filename": "b.tgz", "status": "pending", "months": None},
+        ]
+
+    def test_delete_archive_removes_an_on_disk_archive(self, subject, mock_scanner):
+        mock_scanner.scan.return_value = [ScannedArchive(filename="takeout-Z-001.tgz", size_bytes=5)]
+
+        subject.delete_archive("takeout-Z-001.tgz")
+
+        mock_scanner.delete.assert_called_once_with("takeout-Z-001.tgz")
+
+    def test_delete_archive_rejects_unknown_archive(self, subject, mock_scanner):
+        mock_scanner.scan.return_value = []
+
+        with pytest.raises(ValueError, match="not found"):
+            subject.delete_archive("ghost.tgz")
+        mock_scanner.delete.assert_not_called()
+
+    def test_list_archives_reconciles_tracked_chunk_with_db(
+        self, subject, mock_scanner, mock_job_repo, mock_chunk_repo
+    ):
+        mock_scanner.scan.return_value = [
+            ScannedArchive(filename="takeout-20240101T000000Z-1-001.tgz", size_bytes=10),
+        ]
+        mock_job_repo.list_all.return_value = [_job_record(id=7, timestamp="20240101T000000")]
+        mock_chunk_repo.list_for_job.return_value = [
+            _chunk_record(chunk_index=1, status=ChunkStatus.EXTRACTED.value),
+        ]
+
+        result = subject.list_archives()
+
+        assert result == [
+            {
+                "filename": "takeout-20240101T000000Z-1-001.tgz",
+                "size_bytes": 10,
+                "export_timestamp": "2024-01-01T00:00:00Z",
+                "source": "db",
+                "extract_status": ChunkStatus.EXTRACTED.value,
+            }
+        ]
+        mock_chunk_repo.list_for_job.assert_called_once_with(7)
+
+    def test_list_archives_marks_untracked_file_as_disk_orphan(
+        self, subject, mock_scanner, mock_job_repo
+    ):
+        mock_scanner.scan.return_value = [
+            ScannedArchive(filename="takeout-Z-001.tgz", size_bytes=20),
+        ]
+        mock_job_repo.list_all.return_value = []
+
+        result = subject.list_archives()
+
+        assert result == [
+            {
+                "filename": "takeout-Z-001.tgz",
+                "size_bytes": 20,
+                "export_timestamp": None,
+                "source": "disk",
+                "extract_status": "unknown",
+            }
+        ]
+
+    def test_list_archives_parses_timestamp_for_untracked_dated_file(
+        self, subject, mock_scanner, mock_job_repo
+    ):
+        mock_scanner.scan.return_value = [
+            ScannedArchive(filename="takeout-20240722T233425Z-001.zip", size_bytes=5),
+        ]
+        mock_job_repo.list_all.return_value = []
+
+        result = subject.list_archives()
+
+        assert result[0]["export_timestamp"] == "2024-07-22T23:34:25Z"
+        assert result[0]["source"] == "disk"
+
+    def test_list_archives_sorted_by_filename(self, subject, mock_scanner, mock_job_repo):
+        mock_scanner.scan.return_value = [
+            ScannedArchive(filename="takeout-Z-002.tgz", size_bytes=1),
+            ScannedArchive(filename="takeout-Z-001.tgz", size_bytes=1),
+        ]
+        mock_job_repo.list_all.return_value = []
+
+        result = subject.list_archives()
+
+        assert [a["filename"] for a in result] == ["takeout-Z-001.tgz", "takeout-Z-002.tgz"]

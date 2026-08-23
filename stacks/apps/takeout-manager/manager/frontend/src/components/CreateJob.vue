@@ -80,6 +80,14 @@
           <small>Copy the full Cookie header from your browser's network inspector</small>
         </div>
 
+        <div class="form-group checkbox-group">
+          <label for="auto_extract">
+            <input id="auto_extract" v-model="form.auto_extract" type="checkbox" />
+            Extract after download
+          </label>
+          <small>Leave on to auto-extract each chunk once downloaded; turn off to download only.</small>
+        </div>
+
         <div class="form-actions">
           <button type="submit" class="btn btn-primary" :disabled="loading">
             {{ loading ? 'Creating Job...' : 'Create Job' }}
@@ -112,7 +120,8 @@ export default {
       timestamp: '',
       auth_user: '0',
       total_chunks: 1,
-      cookie: ''
+      cookie: '',
+      auto_extract: true
     })
 
     const loading = ref(false)
@@ -135,7 +144,8 @@ export default {
           timestamp: '',
           auth_user: '0',
           total_chunks: 1,
-          cookie: ''
+          cookie: '',
+          auto_extract: true
         }
 
         // Notify parent

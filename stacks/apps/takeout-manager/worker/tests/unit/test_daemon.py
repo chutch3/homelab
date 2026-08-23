@@ -5,7 +5,7 @@ import asyncio
 from worker.daemon import run_daemon
 from worker.containers import WorkerContainer
 from worker.manager_client import ManagerClient
-from worker.services import DownloadService, MetadataService
+from worker.services import DownloadService, MetadataService, TimelineService
 
 
 class TestRunDaemon:
@@ -60,32 +60,36 @@ class TestRunDaemon:
 
     @pytest.mark.asyncio
     async def test_daemon_processes_extract_task(self, container):
+        # 'extract' is now the whole-export GPTH pass, handled by MetadataService.
         mock_manager_client = AsyncMock(spec=ManagerClient)
         mock_task = {
-            "id": 2,
+            "id": 9,
             "type": "extract",
-            "params": {
-                "chunk_index": 1,
-                "timestamp": "20240101T120000",
-                "job_id": "test-job",
-            },
+            "params": {"job_id": "test-job", "timestamp": "20240101T120000", "total_chunks": 1},
         }
         mock_manager_client.get_next_task.side_effect = [mock_task, None]
 
-        mock_download_service = Mock(spec=DownloadService)
-        mock_download_service.extract_chunk.return_value = (True, "Extracted 10 pictures and 5 videos")
+        mock_metadata_service = Mock(spec=MetadataService)
+        mock_metadata_service.process_job_metadata.return_value = (
+            True, "Extracted 100 files", {"takeout-20240101T120000Z-1-001.tgz": {"2024-01": 100}}
+        )
 
         with container.manager_client.override(mock_manager_client), \
-             container.download_service.override(mock_download_service):
+             container.metadata_service.override(mock_metadata_service):
             try:
                 await asyncio.wait_for(run_daemon(), timeout=1.0)
             except asyncio.TimeoutError:
                 pass
 
-        mock_download_service.extract_chunk.assert_called_once_with(mock_task)
-        mock_manager_client.report_task_status.assert_called_once_with(
-            2, "extracted", "Extracted 10 pictures and 5 videos"
+        mock_metadata_service.process_job_metadata.assert_called_once_with(mock_task)
+        mock_manager_client.report_metadata_task_status.assert_called_once_with(
+            9, "completed", "Extracted 100 files"
         )
+        # The piggyback timeline is reported too.
+        mock_manager_client.report_timeline.assert_called_once_with(
+            "takeout-20240101T120000Z-1-001.tgz", {"2024-01": 100}
+        )
+        mock_manager_client.report_task_status.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_daemon_handles_failed_download(self, container):
@@ -108,18 +112,19 @@ class TestRunDaemon:
         )
 
     @pytest.mark.asyncio
-    async def test_daemon_processes_metadata_task(self, container):
+    @pytest.mark.asyncio
+    async def test_daemon_processes_extract_archive_task(self, container):
         mock_manager_client = AsyncMock(spec=ManagerClient)
         mock_task = {
-            "id": 9,
-            "type": "metadata",
-            "params": {"job_id": "test-job", "timestamp": "20240101T120000", "total_chunks": 1},
+            "id": 7,
+            "type": "extract_archive",
+            "params": {"filename": "takeout-Z-001.tgz"},
         }
         mock_manager_client.get_next_task.side_effect = [mock_task, None]
 
         mock_metadata_service = Mock(spec=MetadataService)
-        mock_metadata_service.process_job_metadata.return_value = (
-            True, "Processed metadata for 1 pictures and 1 videos"
+        mock_metadata_service.extract_single_archive.return_value = (
+            True, "Extracted 3 pictures and 1 videos", {"takeout-Z-001.tgz": {"2019-07": 4}}
         )
 
         with container.manager_client.override(mock_manager_client), \
@@ -129,9 +134,36 @@ class TestRunDaemon:
             except asyncio.TimeoutError:
                 pass
 
-        mock_metadata_service.process_job_metadata.assert_called_once_with(mock_task)
-        mock_manager_client.report_metadata_task_status.assert_called_once_with(
-            9, "completed", "Processed metadata for 1 pictures and 1 videos"
+        mock_metadata_service.extract_single_archive.assert_called_once_with(mock_task)
+        mock_manager_client.report_archive_extraction_status.assert_called_once_with(
+            7, "extracted", "Extracted 3 pictures and 1 videos"
+        )
+        mock_manager_client.report_timeline.assert_called_once_with(
+            "takeout-Z-001.tgz", {"2019-07": 4}
+        )
+        mock_manager_client.report_task_status.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_daemon_processes_timeline_task(self, container):
+        mock_manager_client = AsyncMock(spec=ManagerClient)
+        mock_task = {"id": 4, "type": "timeline", "params": {"filename": "takeout-Z-001.tgz"}}
+        mock_manager_client.get_next_task.side_effect = [mock_task, None]
+
+        mock_timeline_service = Mock(spec=TimelineService)
+        mock_timeline_service.build_timeline.return_value = (
+            True, {"2019-07": 10}, "10 dated media across 1 months"
+        )
+
+        with container.manager_client.override(mock_manager_client), \
+             container.timeline_service.override(mock_timeline_service):
+            try:
+                await asyncio.wait_for(run_daemon(), timeout=1.0)
+            except asyncio.TimeoutError:
+                pass
+
+        mock_timeline_service.build_timeline.assert_called_once_with(mock_task)
+        mock_manager_client.report_timeline.assert_called_once_with(
+            "takeout-Z-001.tgz", {"2019-07": 10}
         )
         mock_manager_client.report_task_status.assert_not_called()
 

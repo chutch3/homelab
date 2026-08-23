@@ -1,9 +1,20 @@
+import json
 import logging
+import re
+from datetime import datetime, timezone
 from typing import Dict, Any, List, Optional
 
+from backend.archive_scanner import ArchiveScanner
 from backend.models import JobStatus, ChunkStatus, MetadataStatus, TakeoutJob
-from backend.repositories import JobRepository, ChunkRepository
+from backend.repositories import (
+    ArchiveExtractionRepository,
+    ArchiveTimelineRepository,
+    JobRepository,
+    ChunkRepository,
+)
 from backend.domain.models import ChunkRecord
+
+_ARCHIVE_TIMESTAMP_RE = re.compile(r"(\d{8}T\d{6})Z")
 
 
 class JobService:
@@ -20,6 +31,7 @@ class JobService:
             auth_user=job.auth_user,
             cookie=job.cookie,
             total_chunks=job.total_chunks,
+            auto_extract=job.auto_extract,
         )
         self._chunk_repo.create_chunks_for_job(new_job_id, job.total_chunks)
         self.logger.info(
@@ -155,13 +167,24 @@ class ChunkService:
         self._chunk_repo.reset_to_downloaded(chunk_id)
         job_id = chunk.job_id
         self._job_repo.update_status_if_failed(job_id, JobStatus.IN_PROGRESS)
+        # Extraction is a single whole-export GPTH pass now, so re-extracting a
+        # chunk re-runs that pass.
+        self._job_repo.mark_metadata_pending(job_id)
         self.logger.info("Re-extracting chunk", extra={"chunk_id": chunk_id, "job_id": job_id})
 
 
 class TaskService:
-    def __init__(self, job_repo: JobRepository, chunk_repo: ChunkRepository) -> None:
+    def __init__(
+        self,
+        job_repo: JobRepository,
+        chunk_repo: ChunkRepository,
+        extraction_repo: ArchiveExtractionRepository,
+        timeline_repo: ArchiveTimelineRepository,
+    ) -> None:
         self._job_repo = job_repo
         self._chunk_repo = chunk_repo
+        self._extraction_repo = extraction_repo
+        self._timeline_repo = timeline_repo
         self.logger: logging.Logger = logging.getLogger(self.__class__.__name__)
 
     def get_next_task(self) -> Dict[str, Any]:
@@ -183,32 +206,35 @@ class TaskService:
                     "cookie": download_task.cookie,
                 },
             }
-        extract_task = self._chunk_repo.get_next_downloaded()
+        # No per-chunk extract phase: GPTH extracts the whole export in one pass,
+        # dispatched once all chunks are downloaded.
+        extract_task = self._job_repo.claim_next_pending_metadata_job()
         if extract_task:
-            self.logger.debug(
-                "Assigned extract task",
-                extra={"task_id": extract_task.id, "chunk_index": extract_task.chunk_index},
-            )
+            self.logger.debug("Assigned extract task", extra={"task_id": extract_task.id})
             return {
                 "id": extract_task.id,
                 "type": "extract",
                 "params": {
                     "job_id": extract_task.job_id,
-                    "chunk_index": extract_task.chunk_index,
                     "timestamp": extract_task.timestamp,
+                    "total_chunks": extract_task.total_chunks,
                 },
             }
-        metadata_task = self._job_repo.claim_next_pending_metadata_job()
-        if metadata_task:
-            self.logger.debug("Assigned metadata task", extra={"task_id": metadata_task.id})
+        archive_task = self._extraction_repo.get_next_pending()
+        if archive_task:
+            self.logger.debug("Assigned extract_archive task", extra={"task_id": archive_task.id})
             return {
-                "id": metadata_task.id,
-                "type": "metadata",
-                "params": {
-                    "job_id": metadata_task.job_id,
-                    "timestamp": metadata_task.timestamp,
-                    "total_chunks": metadata_task.total_chunks,
-                },
+                "id": archive_task.id,
+                "type": "extract_archive",
+                "params": {"filename": archive_task.filename},
+            }
+        timeline_task = self._timeline_repo.get_next_pending()
+        if timeline_task:
+            self.logger.debug("Assigned timeline task", extra={"task_id": timeline_task.id})
+            return {
+                "id": timeline_task.id,
+                "type": "timeline",
+                "params": {"filename": timeline_task.filename},
             }
         return {"task": "none"}
 
@@ -218,10 +244,17 @@ class TaskService:
         if not job_id:
             self.logger.warning("No parent job found for task %s", task_id)
             return
+        job = self._job_repo.get_by_id(job_id)
+        auto_extract = job.auto_extract if job else True
         chunk_statuses = self._chunk_repo.get_all_statuses_for_job(job_id)
-        new_job_status = self._calculate_job_status(chunk_statuses)
+        new_job_status = self._calculate_job_status(chunk_statuses, auto_extract)
         self._job_repo.update_status(job_id, new_job_status)
-        if new_job_status == JobStatus.COMPLETED:
+        # Once every chunk is downloaded, trigger the single GPTH extract pass
+        # (unless the job opted out of extraction). The job stays in progress
+        # until that pass reports back.
+        if auto_extract and chunk_statuses and all(
+            s == ChunkStatus.DOWNLOADED.value for s in chunk_statuses
+        ):
             self._job_repo.mark_metadata_pending(job_id)
         self.logger.info(
             "Updated task status",
@@ -235,17 +268,111 @@ class TaskService:
 
     def update_metadata_task_status(self, job_id: int, status: MetadataStatus, message: str = "") -> None:
         self._job_repo.update_metadata_status(job_id, status, message)
+        # The GPTH pass is the extraction, so its outcome is the job's outcome.
+        if status == MetadataStatus.COMPLETED:
+            self._job_repo.update_status(job_id, JobStatus.COMPLETED)
+        elif status == MetadataStatus.FAILED:
+            self._job_repo.update_status(job_id, JobStatus.FAILED)
         self.logger.info(
-            "Updated metadata task status",
+            "Updated extract task status",
             extra={"job_id": job_id, "status": status.value},
         )
 
-    def _calculate_job_status(self, chunk_statuses: List[str]) -> JobStatus:
-        if all(s == ChunkStatus.EXTRACTED.value for s in chunk_statuses):
+    def _calculate_job_status(self, chunk_statuses: List[str], auto_extract: bool = True) -> JobStatus:
+        # With auto-extract off, a downloaded chunk is a terminal success — the
+        # job never enters the extract phase.
+        success_statuses = {ChunkStatus.EXTRACTED.value}
+        if not auto_extract:
+            success_statuses = {ChunkStatus.DOWNLOADED.value, ChunkStatus.EXTRACTED.value}
+        if all(s in success_statuses for s in chunk_statuses):
             return JobStatus.COMPLETED
-        terminal_statuses = {ChunkStatus.EXTRACTED.value, ChunkStatus.FAILED.value}
+        terminal_statuses = success_statuses | {ChunkStatus.FAILED.value}
         if all(s in terminal_statuses for s in chunk_statuses) and any(
             s == ChunkStatus.FAILED.value for s in chunk_statuses
         ):
             return JobStatus.FAILED
         return JobStatus.IN_PROGRESS
+
+
+class ArchiveService:
+    def __init__(
+        self,
+        scanner: ArchiveScanner,
+        job_repo: JobRepository,
+        chunk_repo: ChunkRepository,
+        extraction_repo: ArchiveExtractionRepository,
+        timeline_repo: ArchiveTimelineRepository,
+    ) -> None:
+        self._scanner = scanner
+        self._job_repo = job_repo
+        self._chunk_repo = chunk_repo
+        self._extraction_repo = extraction_repo
+        self._timeline_repo = timeline_repo
+
+    def request_extraction(self, filename: str) -> int:
+        on_disk = {archive.filename for archive in self._scanner.scan()}
+        if filename not in on_disk:
+            raise ValueError(f"Archive {filename} not found")
+        return self._extraction_repo.create(filename)
+
+    def update_extraction_status(self, extraction_id: int, status: str, message: str = "") -> None:
+        self._extraction_repo.update_status(extraction_id, status, message)
+
+    def delete_archive(self, filename: str) -> None:
+        on_disk = {archive.filename for archive in self._scanner.scan()}
+        if filename not in on_disk:
+            raise ValueError(f"Archive {filename} not found")
+        self._scanner.delete(filename)
+
+    def request_timeline(self, filename: str) -> int:
+        on_disk = {archive.filename for archive in self._scanner.scan()}
+        if filename not in on_disk:
+            raise ValueError(f"Archive {filename} not found")
+        return self._timeline_repo.create(filename)
+
+    def get_timeline(self, filename: str) -> Dict[str, Any]:
+        record = self._timeline_repo.get_by_filename(filename)
+        if not record:
+            return {"status": "none", "months": None}
+        months = json.loads(record.data) if record.data else None
+        return {"status": record.status, "months": months}
+
+    def save_timeline_result(self, filename: str, months: Dict[str, int]) -> None:
+        self._timeline_repo.upsert_result(filename, json.dumps(months))
+
+    def list_timelines(self) -> List[Dict[str, Any]]:
+        result = []
+        for record in self._timeline_repo.list_all():
+            months = json.loads(record.data) if record.data else None
+            result.append({"filename": record.filename, "status": record.status, "months": months})
+        return result
+
+    def list_archives(self) -> List[Dict[str, Any]]:
+        tracked = self._tracked_chunk_statuses()
+        archives = [
+            {
+                "filename": archive.filename,
+                "size_bytes": archive.size_bytes,
+                "export_timestamp": self._parse_timestamp(archive.filename),
+                "source": "db" if archive.filename in tracked else "disk",
+                "extract_status": tracked.get(archive.filename, "unknown"),
+            }
+            for archive in self._scanner.scan()
+        ]
+        return sorted(archives, key=lambda a: a["filename"])
+
+    def _tracked_chunk_statuses(self) -> Dict[str, str]:
+        statuses: Dict[str, str] = {}
+        for job in self._job_repo.list_all():
+            for chunk in self._chunk_repo.list_for_job(job.id):
+                name = f"takeout-{job.timestamp}Z-1-{chunk.chunk_index:03d}.tgz"
+                statuses[name] = chunk.status
+        return statuses
+
+    @staticmethod
+    def _parse_timestamp(filename: str) -> Optional[str]:
+        match = _ARCHIVE_TIMESTAMP_RE.search(filename)
+        if not match:
+            return None
+        parsed = datetime.strptime(match.group(1), "%Y%m%dT%H%M%S").replace(tzinfo=timezone.utc)
+        return parsed.isoformat().replace("+00:00", "Z")

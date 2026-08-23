@@ -21,9 +21,23 @@
         >
           Jobs
         </button>
+        <button
+          :class="['tab', { active: activeTab === 'archives' }]"
+          @click="activeTab = 'archives'"
+        >
+          Archives
+        </button>
+        <button
+          :class="['tab', { active: activeTab === 'timeline' }]"
+          @click="activeTab = 'timeline'"
+        >
+          Timeline
+        </button>
       </div>
 
       <CreateJob v-if="activeTab === 'create'" @job-created="handleJobCreated" />
+      <ArchiveList v-else-if="activeTab === 'archives'" />
+      <TimelineView v-else-if="activeTab === 'timeline'" />
       <JobList v-else @select-job="selectJob" :key="jobListKey" />
     </main>
 
@@ -36,13 +50,17 @@ import { ref } from 'vue'
 import CreateJob from './components/CreateJob.vue'
 import JobList from './components/JobList.vue'
 import JobModal from './components/JobModal.vue'
+import ArchiveList from './components/ArchiveList.vue'
+import TimelineView from './components/TimelineView.vue'
 
 export default {
   name: 'App',
   components: {
     CreateJob,
     JobList,
-    JobModal
+    JobModal,
+    ArchiveList,
+    TimelineView
   },
   setup() {
     const activeTab = ref('create')

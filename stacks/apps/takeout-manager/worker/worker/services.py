@@ -1,6 +1,7 @@
 import asyncio
 import logging
 import os
+import re
 import shutil
 import tempfile
 from typing import Any, Awaitable, Callable, Optional
@@ -8,8 +9,16 @@ from typing import Any, Awaitable, Callable, Optional
 from worker.runners import CurlRunner, GpthRunner, TarRunner
 from worker.progress import DownloadProgressTracker
 
-PICTURE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".gif", ".bmp", ".heic", ".webp"}
-VIDEO_EXTENSIONS = {".mp4", ".mov", ".avi", ".mkv", ".wmv", ".flv", ".webm"}
+# Keep these broad: an extension missing here is silently dropped from the
+# extracted library even though it stays in the backed-up archive.
+PICTURE_EXTENSIONS = {
+    ".jpg", ".jpeg", ".jfif", ".png", ".gif", ".bmp", ".webp", ".avif",
+    ".heic", ".heif", ".tif", ".tiff", ".dng", ".raw", ".cr2", ".nef", ".arw",
+}
+VIDEO_EXTENSIONS = {
+    ".mp4", ".m4v", ".mov", ".avi", ".mkv", ".wmv", ".flv", ".webm",
+    ".3gp", ".3g2", ".mpg", ".mpeg", ".mts", ".m2ts", ".mp",
+}
 
 ProgressCallback = Callable[[int, Optional[int], float], Awaitable[None]]
 
@@ -109,62 +118,6 @@ class DownloadService:
         else:
             return False, "Download failed"
 
-    async def extract_chunk(self, task: dict[str, Any]) -> tuple[bool, str]:
-        params = task.get("params", {})
-        if not params:
-            return False, "Task parameters are missing"
-
-        timestamp = params.get("timestamp")
-        chunk_index = params.get("chunk_index")
-
-        if not all([timestamp, chunk_index]):
-            return False, "Missing required parameters for extraction (timestamp, chunk_index)"
-
-        chunk_num_str = f"{chunk_index:03d}"
-        output_file = f"takeout-{timestamp}Z-1-{chunk_num_str}.tgz"
-        tgz_path = os.path.join(self.download_path, output_file)
-
-        if not os.path.exists(tgz_path):
-            return False, f"Archive not found: {tgz_path}"
-
-        temp_extract_dir = tempfile.mkdtemp(prefix="extract_temp_")
-
-        try:
-            success = await self.tar_runner.extract(tgz_path, temp_extract_dir)
-            if not success:
-                return False, "Failed to extract archive"
-
-            pictures_moved = 0
-            videos_moved = 0
-
-            for root, _, files in os.walk(temp_extract_dir):
-                for file in files:
-                    file_path = os.path.join(root, file)
-                    _, ext = os.path.splitext(file)
-                    ext_lower = ext.lower()
-
-                    if ext_lower in PICTURE_EXTENSIONS:
-                        os.makedirs(self.pictures_path, exist_ok=True)
-                        shutil.move(file_path, os.path.join(self.pictures_path, file))
-                        pictures_moved += 1
-                    elif ext_lower in VIDEO_EXTENSIONS:
-                        os.makedirs(self.videos_path, exist_ok=True)
-                        shutil.move(file_path, os.path.join(self.videos_path, file))
-                        videos_moved += 1
-
-            return True, f"Extracted {pictures_moved} pictures and {videos_moved} videos"
-
-        except Exception as e:
-            self.logger.error("Extraction failed with exception: %s", e)
-            return False, f"Extraction error: {str(e)}"
-
-        finally:
-            try:
-                if os.path.exists(temp_extract_dir):
-                    shutil.rmtree(temp_extract_dir)
-            except Exception as cleanup_error:
-                self.logger.warning("Failed to cleanup temp directory %s: %s", temp_extract_dir, cleanup_error)
-
 
 class MetadataService:
     def __init__(
@@ -182,33 +135,44 @@ class MetadataService:
         self.videos_path = videos_path
         self.logger = logging.getLogger(self.__class__.__name__)
 
-    async def process_job_metadata(self, task: dict[str, Any]) -> tuple[bool, str]:
+    async def process_job_metadata(self, task: dict[str, Any]) -> tuple[bool, str, dict[str, dict[str, int]]]:
         params = task.get("params", {})
         job_id = params.get("job_id")
         timestamp = params.get("timestamp")
         total_chunks = params.get("total_chunks")
 
         if any(v is None for v in [job_id, timestamp, total_chunks]):
-            return False, "Missing required metadata parameters"
+            return False, "Missing required metadata parameters", {}
 
-        raw_dir = tempfile.mkdtemp(prefix="metadata_raw_")
-        gpth_output_dir = tempfile.mkdtemp(prefix="metadata_gpth_")
+        archive_paths = [
+            os.path.join(self.download_path, f"takeout-{timestamp}Z-1-{i:03d}.tgz")
+            for i in range(1, total_chunks + 1)
+        ]
+        return await self._gpth_extract(archive_paths)
+
+    async def extract_single_archive(self, task: dict[str, Any]) -> tuple[bool, str, dict[str, dict[str, int]]]:
+        filename = task.get("params", {}).get("filename")
+        if not filename:
+            return False, "Missing filename for archive extraction", {}
+        return await self._gpth_extract([os.path.join(self.download_path, filename)])
+
+    async def _gpth_extract(self, archive_paths: list[str]) -> tuple[bool, str, dict[str, dict[str, int]]]:
+        raw_dir = tempfile.mkdtemp(prefix="gpth_raw_")
+        gpth_output_dir = tempfile.mkdtemp(prefix="gpth_out_")
+        # Per-archive month histograms, built for free from the unpack step.
+        timelines: dict[str, dict[str, int]] = {}
 
         try:
-            for chunk_index in range(1, total_chunks + 1):
-                chunk_num_str = f"{chunk_index:03d}"
-                archive_file = f"takeout-{timestamp}Z-1-{chunk_num_str}.tgz"
-                archive_path = os.path.join(self.download_path, archive_file)
-
+            for archive_path in archive_paths:
                 if not os.path.exists(archive_path):
-                    return False, f"Archive not found: {archive_path}"
-
-                success = await self.tar_runner.extract(archive_path, raw_dir)
-                if not success:
-                    return False, f"Failed to re-extract chunk {chunk_index}"
+                    return False, f"Archive not found: {archive_path}", timelines
+                names = await self.tar_runner.extract(archive_path, raw_dir)
+                if names is None:
+                    return False, f"Failed to extract {os.path.basename(archive_path)}", timelines
+                timelines[os.path.basename(archive_path)] = tally_months(names)
 
             if not await self.gpth_runner.process(raw_dir, gpth_output_dir):
-                return False, "GPTH processing failed"
+                return False, "GPTH processing failed", timelines
 
             pictures_moved = 0
             videos_moved = 0
@@ -238,11 +202,11 @@ class MetadataService:
 
                     shutil.move(os.path.join(root, file), dest_path)
 
-            return True, f"Processed metadata for {pictures_moved} pictures and {videos_moved} videos"
+            return True, f"Extracted {pictures_moved} pictures and {videos_moved} videos", timelines
 
         except Exception as e:
-            self.logger.error("Metadata processing failed with exception: %s", e)
-            return False, f"Metadata processing error: {str(e)}"
+            self.logger.error("GPTH extraction failed with exception: %s", e)
+            return False, f"Extraction error: {str(e)}", timelines
 
         finally:
             for temp_dir in (raw_dir, gpth_output_dir):
@@ -251,3 +215,45 @@ class MetadataService:
                         shutil.rmtree(temp_dir)
                 except Exception as cleanup_error:
                     self.logger.warning("Failed to cleanup temp directory %s: %s", temp_dir, cleanup_error)
+
+
+_TIMELINE_DATE_RE = re.compile(r"((?:19|20)\d{2})[-_]?([01]\d)[-_]?[0-3]\d")
+
+
+def tally_months(names: "list[str]") -> "dict[str, int]":
+    """Count dated media files per YYYY-MM from a list of archive member paths."""
+    months: dict[str, int] = {}
+    for name in names:
+        base = os.path.basename(name)
+        _, ext = os.path.splitext(base)
+        ext_lower = ext.lower()
+        if ext_lower not in PICTURE_EXTENSIONS and ext_lower not in VIDEO_EXTENSIONS:
+            continue
+        match = _TIMELINE_DATE_RE.search(base)
+        if match:
+            month = f"{match.group(1)}-{match.group(2)}"
+            months[month] = months.get(month, 0) + 1
+    return months
+
+
+class TimelineService:
+    """Builds a per-year media count for a single archive from its filenames."""
+
+    def __init__(self, tar_runner: TarRunner, download_path: str) -> None:
+        self.tar_runner = tar_runner
+        self.download_path = download_path
+        self.logger = logging.getLogger(self.__class__.__name__)
+
+    async def build_timeline(self, task: dict[str, Any]) -> tuple[bool, dict[str, int], str]:
+        filename = task.get("params", {}).get("filename")
+        if not filename:
+            return False, {}, "Missing filename for timeline"
+
+        archive_path = os.path.join(self.download_path, filename)
+        if not os.path.exists(archive_path):
+            return False, {}, f"Archive not found: {archive_path}"
+
+        names = await self.tar_runner.list_contents(archive_path)
+        months = tally_months(names)
+        total = sum(months.values())
+        return True, months, f"{total} dated media across {len(months)} months"

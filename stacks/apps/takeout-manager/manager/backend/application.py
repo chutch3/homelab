@@ -25,6 +25,9 @@ def create_app(container: Optional[ManagerContainer] = None) -> FastAPI:
     db_path = os.environ.get("APP_DB_FILE", default_db_path)
     container.config.db.url.from_value(f"sqlite:///{db_path}")
 
+    # Where the downloaded takeout archives live (read-only mount in the container).
+    container.config.archives.dir.from_value(os.environ.get("APP_ARCHIVES_DIR", "/downloads"))
+
     # Constructing the Database (a Singleton) triggers table creation.
     container.database()
 

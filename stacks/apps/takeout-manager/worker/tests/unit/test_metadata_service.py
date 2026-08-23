@@ -45,7 +45,7 @@ class TestMetadataService:
 
     @pytest.mark.asyncio
     async def test_missing_params(self, subject):
-        success, message = await subject.process_job_metadata({"id": 1, "type": "metadata", "params": {}})
+        success, message, _ = await subject.process_job_metadata({"id": 1, "type": "metadata", "params": {}})
         assert success is False
         assert message == "Missing required metadata parameters"
 
@@ -55,7 +55,7 @@ class TestMetadataService:
     ):
         (downloads_dir / "takeout-20240101T120000Z-1-001.tgz").write_bytes(b"a1")
         (downloads_dir / "takeout-20240101T120000Z-1-002.tgz").write_bytes(b"a2")
-        mock_tar_runner.extract.return_value = True
+        mock_tar_runner.extract.return_value = ["Takeout/Google Photos/A/PXL_20240101_1.jpg"]
         mock_gpth_runner.process.return_value = True
 
         task = {
@@ -82,7 +82,7 @@ class TestMetadataService:
             "params": {"job_id": "test-job", "timestamp": "20240101T120000", "total_chunks": 1},
         }
 
-        success, message = await subject.process_job_metadata(task)
+        success, message, _ = await subject.process_job_metadata(task)
 
         assert success is False
         assert "Archive not found" in message
@@ -92,24 +92,24 @@ class TestMetadataService:
         self, subject, mock_tar_runner, downloads_dir
     ):
         (downloads_dir / "takeout-20240101T120000Z-1-001.tgz").write_bytes(b"a1")
-        mock_tar_runner.extract.return_value = False
+        mock_tar_runner.extract.return_value = None
 
         task = {
             "id": 1, "type": "metadata",
             "params": {"job_id": "test-job", "timestamp": "20240101T120000", "total_chunks": 1},
         }
 
-        success, message = await subject.process_job_metadata(task)
+        success, message, _ = await subject.process_job_metadata(task)
 
         assert success is False
-        assert "chunk 1" in message
+        assert "Failed to extract" in message
 
     @pytest.mark.asyncio
     async def test_returns_failure_when_gpth_fails(
         self, subject, mock_tar_runner, mock_gpth_runner, downloads_dir
     ):
         (downloads_dir / "takeout-20240101T120000Z-1-001.tgz").write_bytes(b"a1")
-        mock_tar_runner.extract.return_value = True
+        mock_tar_runner.extract.return_value = ["Takeout/Google Photos/A/PXL_20240101_1.jpg"]
         mock_gpth_runner.process.return_value = False
 
         task = {
@@ -117,7 +117,7 @@ class TestMetadataService:
             "params": {"job_id": "test-job", "timestamp": "20240101T120000", "total_chunks": 1},
         }
 
-        success, message = await subject.process_job_metadata(task)
+        success, message, _ = await subject.process_job_metadata(task)
 
         assert success is False
         assert message == "GPTH processing failed"
@@ -127,7 +127,7 @@ class TestMetadataService:
         self, subject, mock_tar_runner, mock_gpth_runner, downloads_dir, pictures_dir, videos_dir
     ):
         (downloads_dir / "takeout-20240101T120000Z-1-001.tgz").write_bytes(b"a1")
-        mock_tar_runner.extract.return_value = True
+        mock_tar_runner.extract.return_value = ["Takeout/Google Photos/A/PXL_20240101_1.jpg"]
 
         async def simulate_gpth(input_dir, output_dir):
             dated = Path(output_dir) / "2024" / "01"
@@ -144,10 +144,10 @@ class TestMetadataService:
             "params": {"job_id": "test-job", "timestamp": "20240101T120000", "total_chunks": 1},
         }
 
-        success, message = await subject.process_job_metadata(task)
+        success, message, _ = await subject.process_job_metadata(task)
 
         assert success is True
-        assert message == "Processed metadata for 1 pictures and 1 videos"
+        assert message == "Extracted 1 pictures and 1 videos"
         assert (pictures_dir / "2024" / "01" / "photo.jpg").exists()
         assert (videos_dir / "2024" / "01" / "clip.mp4").exists()
         assert not (pictures_dir / "metadata.json").exists()
@@ -159,7 +159,7 @@ class TestMetadataService:
     ):
         (downloads_dir / "takeout-20240101T120000Z-1-001.tgz").write_bytes(b"a1")
         (pictures_dir / "photo.jpg").write_bytes(b"old flat copy without real exif")
-        mock_tar_runner.extract.return_value = True
+        mock_tar_runner.extract.return_value = ["Takeout/Google Photos/A/PXL_20240101_1.jpg"]
 
         async def simulate_gpth(input_dir, output_dir):
             dated = Path(output_dir) / "2024" / "01"
@@ -186,7 +186,7 @@ class TestMetadataService:
         self, subject, mock_tar_runner, mock_gpth_runner, downloads_dir
     ):
         (downloads_dir / "takeout-20240101T120000Z-1-001.tgz").write_bytes(b"a1")
-        mock_tar_runner.extract.return_value = True
+        mock_tar_runner.extract.return_value = ["Takeout/Google Photos/A/PXL_20240101_1.jpg"]
 
         async def simulate_gpth(input_dir, output_dir):
             dated = Path(output_dir) / "2024" / "01"
@@ -206,7 +206,7 @@ class TestMetadataService:
                 raise OSError("disk full")
             mp.setattr("shutil.move", raise_oserror)
 
-            success, message = await subject.process_job_metadata(task)
+            success, message, _ = await subject.process_job_metadata(task)
 
         assert success is False
         assert "disk full" in message
@@ -216,13 +216,13 @@ class TestMetadataService:
         self, subject, mock_tar_runner, mock_gpth_runner, downloads_dir
     ):
         (downloads_dir / "takeout-20240101T120000Z-1-001.tgz").write_bytes(b"a1")
-        mock_tar_runner.extract.return_value = True
+        mock_tar_runner.extract.return_value = ["Takeout/Google Photos/A/PXL_20240101_1.jpg"]
 
         captured_dirs = {}
 
         async def capture_extract(archive_path, raw_dir):
             captured_dirs["raw"] = raw_dir
-            return True
+            return ["Takeout/Google Photos/A/PXL_20240101_1.jpg"]
 
         mock_tar_runner.extract.side_effect = capture_extract
 
@@ -241,3 +241,42 @@ class TestMetadataService:
 
         assert not Path(captured_dirs["raw"]).exists()
         assert not Path(captured_dirs["gpth_output"]).exists()
+
+    @pytest.mark.asyncio
+    async def test_extract_single_archive_runs_gpth_and_returns_its_month_timeline(
+        self, subject, mock_tar_runner, mock_gpth_runner, downloads_dir, pictures_dir, videos_dir
+    ):
+        (downloads_dir / "takeout-Z-001.tgz").write_bytes(b"archive")
+        # tar extract now returns the member names it unpacked (from -v).
+        mock_tar_runner.extract.return_value = [
+            "Takeout/Google Photos/Album/PXL_20190705_120000.jpg",
+            "Takeout/Google Photos/Album/PXL_20190712_000000.mp4",
+        ]
+
+        async def simulate_gpth(input_dir, output_dir):
+            dated = Path(output_dir) / "2019" / "07"
+            dated.mkdir(parents=True, exist_ok=True)
+            (dated / "photo.jpg").write_bytes(b"x")
+            return True
+
+        mock_gpth_runner.process.side_effect = simulate_gpth
+
+        success, message, timelines = await subject.extract_single_archive(
+            {"id": 3, "type": "extract_archive", "params": {"filename": "takeout-Z-001.tgz"}}
+        )
+
+        assert success is True
+        assert message == "Extracted 1 pictures and 0 videos"
+        # The timeline was built for free from the extraction, keyed by archive.
+        assert timelines == {"takeout-Z-001.tgz": {"2019-07": 2}}
+        extracted_path = mock_tar_runner.extract.await_args.args[0]
+        assert extracted_path.endswith("takeout-Z-001.tgz")
+        assert (pictures_dir / "2019" / "07" / "photo.jpg").exists()
+
+    @pytest.mark.asyncio
+    async def test_extract_single_archive_missing_filename(self, subject):
+        success, message, _ = await subject.extract_single_archive(
+            {"id": 3, "type": "extract_archive", "params": {}}
+        )
+        assert success is False
+        assert "filename" in message.lower()

@@ -73,52 +73,8 @@ class TestCurlRunner:
         assert total is None
 
 
-class TestTarRunner:
-    @pytest.fixture
-    def subject(self):
-        return TarRunner()
-
-    @pytest.mark.asyncio
-    async def test_extract_returns_true_on_success(self, subject, tmp_path):
-        dest = str(tmp_path / "dest")
-        with patch("subprocess.run", return_value=MagicMock()) as run:
-            result = await subject.extract("/tmp/a.tgz", dest)
-        assert result is True
-        cmd = run.call_args[0][0]
-        assert cmd[:2] == ["tar", "-xzf"]
-
-    @pytest.mark.asyncio
-    async def test_extract_returns_false_when_dest_cannot_be_created(self, subject):
-        with patch("os.makedirs", side_effect=OSError("nope")):
-            result = await subject.extract("/tmp/a.tgz", "/dest")
-        assert result is False
-
-    @pytest.mark.asyncio
-    @pytest.mark.parametrize(
-        "stderr",
-        ["Unexpected EOF", "No such file or directory", "No space left on device",
-         "Permission denied", "some other failure"],
-    )
-    async def test_extract_returns_false_on_each_tar_error_branch(self, subject, tmp_path, stderr):
-        err = subprocess.CalledProcessError(2, ["tar"], stderr=stderr)
-        with patch("subprocess.run", side_effect=err):
-            result = await subject.extract("/tmp/a.tgz", str(tmp_path / "dest"))
-        assert result is False
-
-    @pytest.mark.asyncio
-    async def test_verify_returns_true_for_intact_archive(self, subject):
-        with patch("subprocess.run", return_value=MagicMock()) as run:
-            result = await subject.verify("/tmp/a.tgz")
-        assert result is True
-        cmd = run.call_args[0][0]
-        assert cmd == ["tar", "-tzf", "/tmp/a.tgz"]
-
-    @pytest.mark.asyncio
-    async def test_verify_returns_false_for_corrupted_archive(self, subject):
-        err = subprocess.CalledProcessError(2, ["tar"], stderr="Unexpected EOF in archive")
-        with patch("subprocess.run", side_effect=err):
-            result = await subject.verify("/tmp/a.tgz")
-        assert result is False
+# TarRunner is exercised against the real `tar` binary in
+# tests/integration/test_tar_runner.py — not by patching subprocess.
 
 
 class TestGpthRunner:

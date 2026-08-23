@@ -16,6 +16,7 @@ class JobRecord:
     auth_user: str
     metadata_status: Optional[str]
     metadata_message: Optional[str]
+    auto_extract: bool = True
 
 
 @dataclass(frozen=True)
@@ -55,3 +56,25 @@ class MetadataTaskInfo:
     job_id: str
     timestamp: str
     total_chunks: int
+
+
+@dataclass(frozen=True)
+class ScannedArchive:
+    filename: str
+    size_bytes: int
+
+
+@dataclass(frozen=True)
+class ArchiveExtractionRecord:
+    id: int
+    filename: str
+    status: str
+    message: Optional[str]
+
+
+@dataclass(frozen=True)
+class ArchiveTimelineRecord:
+    id: int
+    filename: str
+    status: str
+    data: Optional[str]

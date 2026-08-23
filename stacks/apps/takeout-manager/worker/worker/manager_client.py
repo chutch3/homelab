@@ -60,3 +60,25 @@ class ManagerClient:
             )
         except httpx.RequestError as e:
             self.logger.error("Could not report metadata status for job %s: %s", job_id, e)
+
+    async def report_archive_extraction_status(
+        self, extraction_id: int, status: str, message: str = ""
+    ) -> None:
+        try:
+            await self._client.post(
+                f"/api/archive-extractions/{extraction_id}/status",
+                json={"status": status, "message": message},
+            )
+        except httpx.RequestError as e:
+            self.logger.error(
+                "Could not report extraction status for archive %s: %s", extraction_id, e
+            )
+
+    async def report_timeline(self, filename: str, months: dict[str, int]) -> None:
+        try:
+            await self._client.post(
+                f"/api/archives/{filename}/timeline-result",
+                json={"months": months},
+            )
+        except httpx.RequestError as e:
+            self.logger.error("Could not report timeline for %s: %s", filename, e)

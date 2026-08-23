@@ -1,8 +1,14 @@
 from dependency_injector import containers, providers
 
+from backend.archive_scanner import ArchiveScanner
 from backend.db.database import Database
-from backend.repositories import JobRepository, ChunkRepository
-from backend.services import JobService, ChunkService, TaskService
+from backend.repositories import (
+    ArchiveExtractionRepository,
+    ArchiveTimelineRepository,
+    JobRepository,
+    ChunkRepository,
+)
+from backend.services import JobService, ChunkService, TaskService, ArchiveService
 
 
 class ManagerContainer(containers.DeclarativeContainer):
@@ -25,6 +31,16 @@ class ManagerContainer(containers.DeclarativeContainer):
         session_factory=database.provided.session,
     )
 
+    archive_extraction_repository = providers.Singleton(
+        ArchiveExtractionRepository,
+        session_factory=database.provided.session,
+    )
+
+    archive_timeline_repository = providers.Singleton(
+        ArchiveTimelineRepository,
+        session_factory=database.provided.session,
+    )
+
     job_service = providers.Factory(
         JobService,
         job_repo=job_repository,
@@ -41,4 +57,20 @@ class ManagerContainer(containers.DeclarativeContainer):
         TaskService,
         job_repo=job_repository,
         chunk_repo=chunk_repository,
+        extraction_repo=archive_extraction_repository,
+        timeline_repo=archive_timeline_repository,
+    )
+
+    archive_scanner = providers.Singleton(
+        ArchiveScanner,
+        archives_dir=config.archives.dir,
+    )
+
+    archive_service = providers.Factory(
+        ArchiveService,
+        scanner=archive_scanner,
+        job_repo=job_repository,
+        chunk_repo=chunk_repository,
+        extraction_repo=archive_extraction_repository,
+        timeline_repo=archive_timeline_repository,
     )

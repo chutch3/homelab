@@ -84,21 +84,23 @@ class TarRunner:
     def __init__(self) -> None:
         self.logger = logging.getLogger(self.__class__.__name__)
 
-    async def extract(self, tgz_path: str, dest_dir: str) -> bool:
+    async def extract(self, tgz_path: str, dest_dir: str) -> "list[str] | None":
         try:
             os.makedirs(dest_dir, exist_ok=True)
         except Exception as e:
             self.logger.error("Failed to create directory %s: %s", dest_dir, e)
-            return False
+            return None
 
-        command = ["tar", "-xzf", tgz_path, "-C", dest_dir]
+        command = ["tar", "-xzvf", tgz_path, "-C", dest_dir]
 
         try:
-            await asyncio.to_thread(
+            result = await asyncio.to_thread(
                 subprocess.run, command, check=True, capture_output=True, text=True
             )
             self.logger.info("Successfully extracted %s to %s", tgz_path, dest_dir)
-            return True
+            # `tar -v` prints the unpacked member list to stdout; captured here so
+            # callers can build a timeline without a second read of the archive.
+            return result.stdout.splitlines()
         except subprocess.CalledProcessError as e:
             stderr = e.stderr or ""
             if "Unexpected EOF" in stderr or "damaged" in stderr:
@@ -111,7 +113,18 @@ class TarRunner:
                 self.logger.error("Permission denied accessing %s", dest_dir)
             else:
                 self.logger.error("Extraction failed: %s", stderr)
-            return False
+            return None
+
+    async def list_contents(self, tgz_path: str) -> list[str]:
+        command = ["tar", "tzf", tgz_path]
+        try:
+            result = await asyncio.to_thread(
+                subprocess.run, command, check=True, capture_output=True, text=True
+            )
+            return result.stdout.splitlines()
+        except subprocess.CalledProcessError as e:
+            self.logger.error("Failed to list archive %s: %s", tgz_path, e.stderr)
+            return []
 
     async def verify(self, tgz_path: str) -> bool:
         command = ["tar", "-tzf", tgz_path]
