@@ -105,8 +105,7 @@
         - fsck_force | bool
       register: storage_fsck_result
       failed_when: false
-      # This play treats any non-zero rc as a hard failure two tasks below, so a
-      # clean exit is the only outcome that repaired anything.
+      # Any non-zero rc is a hard failure two tasks below.
       changed_when: storage_fsck_result.rc == 0
 
     - name: "[PHASE 3] Display fsck results"

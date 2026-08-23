@@ -45,7 +45,6 @@ def test_names_only_the_host_that_changed():
     [
         ("ok=1    changed=0    unreachable=1    failed=0", "unreachable=1"),
         ("ok=1    changed=0    unreachable=0    failed=2", "failed=2"),
-        # A failure outranks the change count: the run proved nothing either way.
         ("ok=1    changed=5    unreachable=0    failed=2", "failed=2"),
     ],
 )

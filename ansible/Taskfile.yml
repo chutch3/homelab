@@ -586,8 +586,7 @@ tasks:
         desc: "DESTRUCTIVE to the target: run bootstrap twice on THIS machine and require changed=0 on the second"
         dir: "{{.ROOT_DIR}}"
         prompt: "This bootstraps the local machine (installs packages, Docker). Only run it on a disposable node."
-        # ssh and snmp are skipped: both read group_vars that are gitignored, so
-        # they are absent in CI. --limit keeps this off the real hosts in 02-hosts.yml.
+        # ssh and snmp read group_vars that are gitignored, so they are absent in CI.
         cmds:
             - >-
                 uv run ci idempotence ansible/playbooks/bootstrap.yml

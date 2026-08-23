@@ -74,13 +74,12 @@
   register: preflight_hook_mode
   when: preflight_hooks_stat.stat.exists
 
+# Ansible cannot know what an arbitrary hooks.sh did. Removed with it in 3.9.
 - name: Run pre-deploy hook as root
   ansible.builtin.command:
     cmd: "bash {{ preflight_stack_path }}/hooks.sh pre_deploy"
   delegate_to: localhost
   become: true
-  # hooks.sh is an arbitrary per-stack script, so Ansible cannot know what it did;
-  # an unconditional change is the only honest answer. Removed with hooks.sh in 3.9.
   changed_when: true
   environment: "{{ swarm_env_vars | combine({
     'DOCKER_CONFIG': lookup('env', 'HOME') + '/.docker',
@@ -94,8 +93,6 @@
   ansible.builtin.command:
     cmd: "bash {{ preflight_stack_path }}/hooks.sh pre_deploy"
   delegate_to: localhost
-  # hooks.sh is an arbitrary per-stack script, so Ansible cannot know what it did;
-  # an unconditional change is the only honest answer. Removed with hooks.sh in 3.9.
   changed_when: true
   environment: "{{ swarm_env_vars | combine({
     'DOCKER_CONFIG': lookup('env', 'HOME') + '/.docker',

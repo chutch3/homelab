@@ -109,8 +109,7 @@
     - item.rc == 0
   register: storage_fuser_kill
   failed_when: false
-  # fuser exits 0 only when it matched and signalled a process; 1 means there was
-  # nothing to kill. Reporting a change on 1 hides that under failed_when: false.
+  # fuser exits 0 only when it signalled something; 1 means there was nothing to kill.
   changed_when: storage_fuser_kill.rc == 0
 
 - name: Force unmount remaining OCFS2 filesystems
@@ -122,8 +121,6 @@
     - item.rc == 0
   register: storage_force_umount
   failed_when: false
-  # A failed umount left the mount in place — that is not a change, and
-  # failed_when: false means nothing else would surface it.
   changed_when: storage_force_umount.rc == 0
 
 # ── Step 4: VERIFY mounts are gone ────────────────────────────────────────
