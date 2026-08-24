@@ -14,7 +14,7 @@ import pytest
 from conftest import ROOT, argvs, responds
 
 from ci.adapters import CommandResult
-from ci.cli import build_parser
+from ci.cli import build_container, build_parser
 
 TRAEFIK = 'services:\n    a:\n        deploy:\n            labels: ["traefik.enable=true"]\n'
 DECLARED = "x-homelab:\n    requires: [reverse-proxy]\n" + TRAEFIK
@@ -37,6 +37,29 @@ def run(container):
     container.unwire()
 
 
+# Every subcommand's argv must be enough to wire the container — the composition
+# root reads `--repo-root` off it, and nothing else checks that it is there.
+SUBCOMMANDS = [
+    ["affected"],
+    ["projects"],
+    ["images"],
+    ["gc"],
+    ["test"],
+    ["idempotence", "play.yml"],
+    ["deploy", "--plan"],
+    ["check-deps"],
+]
+
+
+@pytest.mark.parametrize("argv", SUBCOMMANDS, ids=lambda argv: argv[0])
+def test_build_container_wires_every_subcommand(argv):
+    container = build_container(build_parser().parse_args(argv), process_env={})
+    try:
+        assert container.repo_root() == "."
+    finally:
+        container.unwire()
+
+
 class TestParser:
     """`build_parser` — the argv contract, before any handler runs."""
 
@@ -47,6 +70,14 @@ class TestParser:
     def test_deploy_accepts_targets_with_plan(self):
         args = build_parser().parse_args(["deploy", "paperless", "komga", "--plan"])
         assert args.stacks == ["paperless", "komga"]
+
+    def test_idempotence_takes_repo_root_only_before_the_playbook(self):
+        """REMAINDER swallows everything after it, the flag included."""
+        before = build_parser().parse_args(["idempotence", "--repo-root", "/tmp", "play.yml"])
+        assert (before.repo_root, before.ansible_args) == ("/tmp", [])
+
+        after = build_parser().parse_args(["idempotence", "play.yml", "--repo-root", "/tmp"])
+        assert (after.repo_root, after.ansible_args) == (".", ["--repo-root", "/tmp"])
 
     def test_an_unknown_subcommand_is_rejected(self):
         with pytest.raises(SystemExit):

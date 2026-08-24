@@ -151,6 +151,10 @@ def build_parser() -> argparse.ArgumentParser:
     # REMAINDER so ansible's own flags (-i, --limit, --skip-tags) pass through unparsed.
     idem.add_argument("ansible_args", nargs=argparse.REMAINDER,
                       help="passed through to ansible-playbook")
+    # Unused by the check itself, but the composition root reads it off every
+    # subcommand's args. REMAINDER swallows everything after the playbook, so
+    # this one only takes effect before it: `ci idempotence --repo-root X play.yml`.
+    idem.add_argument("--repo-root", default=".")
     idem.set_defaults(func=_cmd_idempotence)
 
     dep = sub.add_parser("deploy", help="print the deploy plan and live state (--plan is the only mode)")
