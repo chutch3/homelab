@@ -92,6 +92,14 @@ def disabled_by_capability(env: dict[str, str] | None = None) -> set[str]:
     }
 
 
+def _cycle(edges: dict[str, list[str]], stuck: list[str]) -> list[str]:
+    """The stacks actually in a cycle, dropping those merely blocked behind one."""
+    members = set(stuck)
+    while shed := {s for s in members if not any(s in edges[o] for o in members)}:
+        members -= shed
+    return sorted(members)
+
+
 def resolve(
     graph: dict[str, list[str]],
     targets: list[str] | None = None,
@@ -130,7 +138,7 @@ def resolve(
     while remaining := sorted(wanted - placed):
         ready = [s for s in remaining if not set(edges[s]) - placed]
         if not ready:
-            raise UnresolvedGraph(f"dependency cycle among: {', '.join(remaining)}")
+            raise UnresolvedGraph(f"dependency cycle among: {', '.join(_cycle(edges, remaining))}")
         order.extend(ready)
         placed.update(ready)
     return order

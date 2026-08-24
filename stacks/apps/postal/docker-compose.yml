@@ -1,3 +1,6 @@
+x-homelab:
+    requires: [reverse-proxy]
+
 version: "3.9"
 
 # Postal mail platform — outbound-only house mail API.

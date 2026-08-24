@@ -129,3 +129,17 @@ class TestDisabledByCapability:
 
     def test_a_truthy_gate_leaves_its_provider_enabled(self):
         assert disabled_by_capability({"PRIMARY_DNS_MANAGED": "true"}) == set()
+
+
+class TestCycleReporting:
+    def test_names_only_the_cycle_not_the_stacks_it_blocks(self):
+        graph = {"a": ["b"], "b": ["a"], "blocked": ["a"], "also-blocked": ["blocked"]}
+        with pytest.raises(UnresolvedGraph) as exc:
+            resolve(graph)
+        message = str(exc.value)
+        assert "a" in message and "b" in message
+        assert "blocked" not in message
+
+    def test_a_stack_that_requires_itself_is_a_cycle(self):
+        with pytest.raises(UnresolvedGraph, match="loop"):
+            resolve({"loop": ["loop"]})

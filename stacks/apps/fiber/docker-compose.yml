@@ -1,3 +1,6 @@
+x-homelab:
+    requires: [authentik, reverse-proxy]
+
 services:
     fiber:
         image: ${REGISTRY:-ghcr.io}/${REGISTRY_NAMESPACE:-chutch3}/fiber:${IMAGE_TAG:-3.24.0}
