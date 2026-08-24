@@ -15,7 +15,6 @@ import logging
 from dataclasses import dataclass
 
 from ci.cluster import ClusterUnreachable, StackState, SwarmCluster
-from ci.ports import Output
 from ci.stackgraph import DependencyGraph, UnresolvedGraph
 
 log = logging.getLogger(__name__)
@@ -32,10 +31,9 @@ class PlanRow:
 
 
 class DeployPlan:
-    def __init__(self, graph: DependencyGraph, cluster: SwarmCluster, output: Output) -> None:
+    def __init__(self, graph: DependencyGraph, cluster: SwarmCluster) -> None:
         self._graph = graph
         self._cluster = cluster
-        self._output = output
 
     def rows(self, targets: list[str] | None = None) -> list[PlanRow]:
         order = self._graph.resolve(targets)
@@ -63,7 +61,7 @@ class DeployPlan:
             log.error("✗ %s", exc)
             return 1
         for line in _render(rows):
-            self._output.line(line)
+            print(line)
         log.info("%d stack(s) — plan only, nothing deployed.", len(rows))
         return 0
 

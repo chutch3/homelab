@@ -115,25 +115,25 @@ class TestDeployPlanRows:
 class TestDeployPlanReport:
     """`DeployPlan.report` — the printed plan, and what it refuses to do."""
 
-    def test_it_prints_a_row_per_stack_with_verb_state_and_reason(self, subject, live, output):
+    def test_it_prints_a_row_per_stack_with_verb_state_and_reason(self, subject, live, capsys):
         live(stacks="reverse-proxy\n", services="reverse-proxy_traefik\t1/1\n")
         assert subject.report(["paperless"]) == 0
-        assert [" ".join(line.split()) for line in output.lines] == [
+        assert [" ".join(line.split()) for line in capsys.readouterr().out.splitlines()] == [
             "ensure reverse-proxy converged → required by paperless",
             "ensure authentik absent → required by paperless",
             "deploy paperless absent → explicit target",
         ]
 
-    def test_the_columns_line_up_so_the_states_can_be_scanned(self, subject, live, output):
+    def test_the_columns_line_up_so_the_states_can_be_scanned(self, subject, live, capsys):
         live()
         subject.report(["paperless"])
-        assert len({line.index("→") for line in output.lines}) == 1
+        assert len({line.index("→") for line in capsys.readouterr().out.splitlines()}) == 1
 
-    def test_the_count_is_logged_so_stdout_carries_only_the_plan(self, subject, live, output, caplog):
+    def test_the_count_is_logged_so_stdout_carries_only_the_plan(self, subject, live, capsys, caplog):
         live()
         subject.report(["paperless"])
         assert "3 stack(s) — plan only, nothing deployed." in caplog.text
-        assert not any("stack(s)" in line for line in output.lines)
+        assert "stack(s)" not in capsys.readouterr().out
 
     def test_it_only_ever_lists(self, subject, live, commands):
         live()
@@ -144,13 +144,13 @@ class TestDeployPlanReport:
         ]
 
     def test_an_unresolvable_graph_exits_one_before_touching_the_cluster(
-        self, subject, filesystem, output, caplog, commands
+        self, subject, filesystem, capsys, caplog, commands
     ):
         filesystem.files["stacks/apps/ghost/docker-compose.yml"] = (
             "x-homelab:\n    requires: [nope]\nservices: {}\n"
         )
         assert subject.report(None) == 1
-        assert output.lines == []
+        assert capsys.readouterr().out == ""
         assert "ghost requires nope" in caplog.text
         assert argvs(commands) == []
 

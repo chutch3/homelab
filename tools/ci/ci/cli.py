@@ -37,7 +37,6 @@ from ci.containers import Container
 from ci.deploy import DeployPlan
 from ci.gc import RegistryGc
 from ci.idempotence import IdempotenceCheck
-from ci.ports import Output
 from ci.stackgraph import DependencyCheck
 
 
@@ -45,10 +44,9 @@ from ci.stackgraph import DependencyCheck
 def _cmd_affected(
     args: argparse.Namespace,
     catalog: UnitCatalog = Provide[Container.catalog],
-    output: Output = Provide[Container.output],
 ) -> int:
     changed = args.files or [line.strip() for line in sys.stdin if line.strip()]
-    output.line(json.dumps(catalog.matrix(changed)))
+    print(json.dumps(catalog.matrix(changed)))
     return 0
 
 
@@ -65,12 +63,11 @@ def _cmd_projects(
     args: argparse.Namespace,
     suites: AppSuites = Provide[Container.suites],
     suite_runner: SuiteRunner = Provide[Container.suite_runner],
-    output: Output = Provide[Container.output],
 ) -> int:
     changed = args.files or [line.strip() for line in sys.stdin if line.strip()]
     affected = set(suite_runner.affected_projects(suites.python_projects(), changed))
     affected |= set(suite_runner.affected_projects(suites.js_projects(), changed))
-    output.line(json.dumps([{"project": p} for p in sorted(affected)]))
+    print(json.dumps([{"project": p} for p in sorted(affected)]))
     return 0
 
 
@@ -78,10 +75,9 @@ def _cmd_projects(
 def _cmd_images(
     args: argparse.Namespace,
     catalog: UnitCatalog = Provide[Container.catalog],
-    output: Output = Provide[Container.output],
 ) -> int:
     for image in catalog.image_names():
-        output.line(image)
+        print(image)
     return 0
 
 

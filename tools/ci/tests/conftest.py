@@ -1,8 +1,9 @@
 """Fakes for the outer ring, and the container fixtures that inject them.
 
 These stand in for :mod:`ci.ports` — interfaces we own — so no test patches a
-stdlib or third-party name. Diagnostics are not among them: services log those
-through :mod:`logging`, and tests read them with ``caplog``. The command boundary is a ``Mock(spec=CommandRunner)``
+stdlib or third-party name. Process output is not among them: diagnostics go
+through :mod:`logging` (read with ``caplog``) and payload goes to stdout (read
+with ``capsys``) — both already have a seam, so owning one would add nothing. The command boundary is a ``Mock(spec=CommandRunner)``
 so ``assert_called_with`` validates it; the filesystem is a hand fake because it
 is stateful and a Mock would say nothing useful about a tree.
 
@@ -75,28 +76,6 @@ class FixedClock:
         return self.timestamp
 
 
-class RecordingOutput:
-    """Stands in for the payload stream — what a caller pipes or parses."""
-
-    def __init__(self) -> None:
-        self.lines: list[str] = []
-        self.raw_stdout: list[str] = []
-        self.raw_stderr: list[str] = []
-
-    def line(self, text: str = "") -> None:
-        self.lines.append(text)
-
-    def raw(self, text: str) -> None:
-        self.raw_stdout.append(text)
-
-    def raw_err(self, text: str) -> None:
-        self.raw_stderr.append(text)
-
-    @property
-    def text(self) -> str:
-        return "\n".join(self.lines)
-
-
 def responds(commands: Mock, *results: CommandResult) -> None:
     """Queue results for the next calls; anything after them succeeds silently."""
     queued = list(results)
@@ -131,10 +110,6 @@ def clock() -> FixedClock:
     return FixedClock()
 
 
-@pytest.fixture
-def output() -> RecordingOutput:
-    return RecordingOutput()
-
 
 @pytest.fixture(autouse=True)
 def _diagnostics(caplog):
@@ -149,7 +124,7 @@ def env() -> dict[str, str]:
 
 
 @pytest.fixture
-def container(filesystem, commands, clock, output, env) -> Container:
+def container(filesystem, commands, clock, env) -> Container:
     """A container with every outer-ring provider overridden by a fake."""
     c = Container()
     c.repo_root.override(providers.Object(str(ROOT)))
@@ -157,7 +132,6 @@ def container(filesystem, commands, clock, output, env) -> Container:
     c.filesystem.override(providers.Object(filesystem))
     c.commands.override(providers.Object(commands))
     c.clock.override(providers.Object(clock))
-    c.output.override(providers.Object(output))
     return c
 
 

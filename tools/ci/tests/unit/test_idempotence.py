@@ -96,12 +96,13 @@ class TestIdempotenceCheck:
         assert "✓ second run reported no change on 2 host(s)" in caplog.text
 
     def test_both_runs_stream_ansibles_own_output_through_untouched(
-        self, subject, commands, output
+        self, subject, commands, capsys
     ):
         responds(commands, CommandResult(0, CONVERGED, "warn\n"), CommandResult(0, CONVERGED))
         subject.verify(self.PLAYBOOK)
-        assert output.raw_stdout == [CONVERGED, CONVERGED]
-        assert output.raw_stderr == ["warn\n", ""]
+        streams = capsys.readouterr()
+        assert streams.out == CONVERGED + CONVERGED
+        assert streams.err == "warn\n"
 
     def test_the_playbook_runs_exactly_twice_with_the_same_argv(self, subject, commands):
         responds(commands, CommandResult(0, CONVERGED), CommandResult(0, CONVERGED))

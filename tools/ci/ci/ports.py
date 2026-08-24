@@ -54,26 +54,3 @@ class Clock(Protocol):
     """Wall-clock time, so anything with a cutoff can be tested at a fixed instant."""
 
     def now_timestamp(self) -> float: ...
-
-
-@runtime_checkable
-class Output(Protocol):
-    """The program's answer on stdout.
-
-    Only for output a caller consumes: JSON a workflow parses, an image list a
-    shell loops over, the plan rows, and a subprocess's own streams passed
-    through untouched. Diagnostics are not this — services log those, so they
-    reach stderr without being mistaken for the payload.
-    """
-
-    def line(self, text: str = "") -> None:
-        """One line of payload on stdout."""
-        ...
-
-    def raw(self, text: str) -> None:
-        """Payload written to stdout exactly as given — no newline added."""
-        ...
-
-    def raw_err(self, text: str) -> None:
-        """A subprocess's own stderr, passed through unchanged."""
-        ...

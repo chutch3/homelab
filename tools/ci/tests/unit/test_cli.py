@@ -66,24 +66,24 @@ class TestParser:
 class TestDeployCommand:
     """`ci deploy --plan` — prints a plan against live state, deploys nothing."""
 
-    def _fields(self, output) -> list[list[str]]:
-        return [line.split() for line in output.lines]
+    def _fields(self, capsys) -> list[list[str]]:
+        return [line.split() for line in capsys.readouterr().out.splitlines()]
 
-    def test_prints_a_row_per_stack_in_deploy_order(self, run, filesystem, output):
+    def test_prints_a_row_per_stack_in_deploy_order(self, run, filesystem, capsys):
         filesystem.files.update({
             "stacks/apps/paperless/docker-compose.yml": DECLARED,
             "stacks/reverse-proxy/docker-compose.yml": "services: {}\n",
         })
         assert run("deploy", "--plan") == 0
-        assert [row[1] for row in self._fields(output)] == ["reverse-proxy", "paperless"]
+        assert [row[1] for row in self._fields(capsys)] == ["reverse-proxy", "paperless"]
 
-    def test_a_stack_the_cluster_does_not_have_reports_absent(self, run, filesystem, output):
+    def test_a_stack_the_cluster_does_not_have_reports_absent(self, run, filesystem, capsys):
         filesystem.files["stacks/reverse-proxy/docker-compose.yml"] = "services: {}\n"
         run("deploy", "--plan")
-        assert self._fields(output) == [["deploy", "reverse-proxy", "absent"]]
+        assert self._fields(capsys) == [["deploy", "reverse-proxy", "absent"]]
 
     def test_a_stack_at_its_desired_replicas_reports_converged(
-        self, run, filesystem, output, commands
+        self, run, filesystem, capsys, commands
     ):
         filesystem.files["stacks/reverse-proxy/docker-compose.yml"] = "services: {}\n"
         responds(
@@ -92,18 +92,18 @@ class TestDeployCommand:
             CommandResult(0, "reverse-proxy_traefik\t1/1\n"),
         )
         run("deploy", "--plan")
-        assert self._fields(output) == [["deploy", "reverse-proxy", "converged"]]
+        assert self._fields(capsys) == [["deploy", "reverse-proxy", "converged"]]
 
     def test_reports_the_count_on_stderr_so_stdout_stays_pipeable(
-        self, run, filesystem, output, caplog
+        self, run, filesystem, capsys, caplog
     ):
         filesystem.files["stacks/reverse-proxy/docker-compose.yml"] = "services: {}\n"
         run("deploy", "--plan")
-        assert len(output.lines) == 1
+        assert len(capsys.readouterr().out.splitlines()) == 1
         assert "1 stack(s) — plan only, nothing deployed." in caplog.text
 
     def test_a_target_narrows_the_plan_to_its_closure_and_says_what_pulled_each_in(
-        self, run, filesystem, output
+        self, run, filesystem, capsys
     ):
         filesystem.files.update({
             "stacks/apps/paperless/docker-compose.yml": DECLARED,
@@ -111,19 +111,19 @@ class TestDeployCommand:
             "stacks/reverse-proxy/docker-compose.yml": "services: {}\n",
         })
         assert run("deploy", "paperless", "--plan") == 0
-        assert [" ".join(line.split()) for line in output.lines] == [
+        assert [" ".join(line.split()) for line in capsys.readouterr().out.splitlines()] == [
             "ensure reverse-proxy absent → required by paperless",
             "deploy paperless absent → explicit target",
         ]
 
     def test_an_unresolvable_graph_exits_one_and_explains_on_stderr(
-        self, run, filesystem, output, caplog
+        self, run, filesystem, capsys, caplog
     ):
         filesystem.files["stacks/apps/paperless/docker-compose.yml"] = (
             "x-homelab:\n    requires: [ghost-stack]\nservices: {}\n"
         )
         assert run("deploy", "--plan") == 1
-        assert output.lines == []
+        assert capsys.readouterr().out == ""
         assert "paperless requires ghost-stack" in caplog.text
 
     def test_it_only_ever_lists_the_cluster_never_changes_it(self, run, filesystem, commands):
@@ -176,24 +176,24 @@ class TestCheckDepsCommand:
 class TestAffectedCommand:
     """`ci affected` — the build matrix, as JSON on stdout."""
 
-    def test_emits_json_for_the_affected_units(self, run, filesystem, output):
+    def test_emits_json_for_the_affected_units(self, run, filesystem, capsys):
         filesystem.files["stacks/apps/warden/docker-compose.yml"] = BUILDABLE
         assert run("affected", ".", "stacks/apps/warden/app/main.py") == 0
-        assert [e["image_name"] for e in json.loads(output.text)] == ["warden"]
+        assert [e["image_name"] for e in json.loads(capsys.readouterr().out)] == ["warden"]
 
-    def test_an_unrelated_change_emits_an_empty_matrix(self, run, filesystem, output):
+    def test_an_unrelated_change_emits_an_empty_matrix(self, run, filesystem, capsys):
         filesystem.files["stacks/apps/warden/docker-compose.yml"] = BUILDABLE
         assert run("affected", ".", "docs/readme.md") == 0
-        assert json.loads(output.text) == []
+        assert json.loads(capsys.readouterr().out) == []
 
 
 class TestImagesCommand:
     """`ci images` — one buildable image name per line."""
 
-    def test_lists_every_image_once(self, run, filesystem, output, caplog):
+    def test_lists_every_image_once(self, run, filesystem, capsys, caplog):
         filesystem.files["stacks/apps/warden/docker-compose.yml"] = BUILDABLE
         assert run("images") == 0
-        assert output.lines == ["warden"]
+        assert capsys.readouterr().out.splitlines() == ["warden"]
 
 
 class TestGcCommand:
@@ -270,27 +270,27 @@ class TestProjectsCommand:
             "tools/ci/tests/unit/test_y.py": "",
         })
 
-    def _projects(self, output) -> list[str]:
-        return [e["project"] for e in json.loads(output.text)]
+    def _projects(self, capsys) -> list[str]:
+        return [e["project"] for e in json.loads(capsys.readouterr().out)]
 
-    def test_a_change_inside_a_project_selects_that_project(self, run, output):
+    def test_a_change_inside_a_project_selects_that_project(self, run, capsys):
         assert run("projects", ".", f"{self.PY}/main.py") == 0
-        assert self._projects(output) == [self.PY]
+        assert self._projects(capsys) == [self.PY]
 
-    def test_a_change_to_the_ci_tooling_selects_the_ci_tooling(self, run, output):
+    def test_a_change_to_the_ci_tooling_selects_the_ci_tooling(self, run, capsys):
         assert run("projects", ".", "tools/ci/ci/stackgraph.py") == 0
-        assert "tools/ci" in self._projects(output)
+        assert "tools/ci" in self._projects(capsys)
 
-    def test_an_unrelated_change_selects_nothing(self, run, output):
+    def test_an_unrelated_change_selects_nothing(self, run, capsys):
         assert run("projects", ".", "docs/index.md") == 0
-        assert self._projects(output) == []
+        assert self._projects(capsys) == []
 
-    def test_the_output_is_a_github_matrix_include_list(self, run, output):
+    def test_the_output_is_a_github_matrix_include_list(self, run, capsys):
         run("projects", ".", f"{self.PY}/main.py")
-        entries = json.loads(output.text)
+        entries = json.loads(capsys.readouterr().out)
         assert entries == [{"project": self.PY}]
 
-    def test_a_project_that_builds_no_image_is_reachable_only_by_path(self, run, output):
+    def test_a_project_that_builds_no_image_is_reachable_only_by_path(self, run, capsys):
         # tools/ci has no compose unit, so nothing but a path edit can select it.
         run("projects", ".", f"{self.PY}/main.py")
-        assert "tools/ci" not in self._projects(output)
+        assert "tools/ci" not in self._projects(capsys)

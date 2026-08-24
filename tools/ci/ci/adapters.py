@@ -8,7 +8,6 @@ as a pure function instead.
 from __future__ import annotations
 
 import subprocess
-import sys
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
@@ -56,14 +55,3 @@ class Subprocess:
 class SystemClock:
     def now_timestamp(self) -> float:
         return datetime.now(tz=timezone.utc).timestamp()
-
-
-class StdoutOutput:
-    def line(self, text: str = "") -> None:
-        print(text)
-
-    def raw(self, text: str) -> None:
-        sys.stdout.write(text)
-
-    def raw_err(self, text: str) -> None:
-        sys.stderr.write(text)

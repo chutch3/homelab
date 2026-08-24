@@ -9,8 +9,9 @@ from __future__ import annotations
 
 import logging
 import re
+import sys
 
-from ci.ports import CommandRunner, Output
+from ci.ports import CommandRunner
 
 log = logging.getLogger(__name__)
 
@@ -62,17 +63,16 @@ def violations(recap: dict[str, dict[str, int]]) -> dict[str, str]:
 class IdempotenceCheck:
     """Runs a playbook twice; the second run must report no change."""
 
-    def __init__(self, commands: CommandRunner, output: Output) -> None:
+    def __init__(self, commands: CommandRunner) -> None:
         self._commands = commands
-        self._output = output
 
     def verify(self, playbook: str, ansible_args: list[str] | None = None) -> int:
         cmd = ["ansible-playbook", playbook, *(ansible_args or [])]
         for run in (1, 2):
             log.info("=== idempotence: run %d/2 — %s", run, " ".join(cmd))
             result = self._commands.run(cmd, capture=True)
-            self._output.raw(result.stdout)
-            self._output.raw_err(result.stderr)
+            sys.stdout.write(result.stdout)
+            sys.stderr.write(result.stderr)
 
             if run == 1:
                 if not result.ok:
