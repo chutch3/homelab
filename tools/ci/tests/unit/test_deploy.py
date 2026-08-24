@@ -46,7 +46,7 @@ def live(commands):
 
 
 @pytest.fixture
-def plan(container, tree):
+def subject(container, tree):
     return container.deploy_plan()
 
 
@@ -57,55 +57,55 @@ def rows_by_stack(rows):
 class TestDeployPlanRows:
     """`DeployPlan.rows` — one row per stack the deploy would touch."""
 
-    def test_a_stack_absent_from_the_cluster_reports_absent(self, plan, live):
+    def test_a_stack_absent_from_the_cluster_reports_absent(self, subject, live):
         live(stacks="reverse-proxy\n", services="reverse-proxy_traefik\t1/1\n")
-        rows = rows_by_stack(plan.rows(["paperless"]))
+        rows = rows_by_stack(subject.rows(["paperless"]))
         assert rows["paperless"].state is StackState.ABSENT
         assert rows["authentik"].state is StackState.ABSENT
 
-    def test_a_stack_at_its_desired_replicas_reports_converged(self, plan, live):
+    def test_a_stack_at_its_desired_replicas_reports_converged(self, subject, live):
         live(stacks="reverse-proxy\n", services="reverse-proxy_traefik\t1/1\n")
-        assert rows_by_stack(plan.rows(["paperless"]))["reverse-proxy"].state is StackState.CONVERGED
+        assert rows_by_stack(subject.rows(["paperless"]))["reverse-proxy"].state is StackState.CONVERGED
 
-    def test_a_stack_deployed_but_short_of_its_replicas_reports_present(self, plan, live):
+    def test_a_stack_deployed_but_short_of_its_replicas_reports_present(self, subject, live):
         live(stacks="reverse-proxy\n", services="reverse-proxy_traefik\t0/1\n")
-        assert rows_by_stack(plan.rows(["paperless"]))["reverse-proxy"].state is StackState.PRESENT
+        assert rows_by_stack(subject.rows(["paperless"]))["reverse-proxy"].state is StackState.PRESENT
 
-    def test_an_explicit_target_says_so(self, plan, live):
+    def test_an_explicit_target_says_so(self, subject, live):
         live()
-        row = rows_by_stack(plan.rows(["paperless"]))["paperless"]
+        row = rows_by_stack(subject.rows(["paperless"]))["paperless"]
         assert row.verb == "deploy"
         assert row.reason == "explicit target"
 
-    def test_a_dependency_names_the_target_that_required_it(self, plan, live):
+    def test_a_dependency_names_the_target_that_required_it(self, subject, live):
         live()
-        row = rows_by_stack(plan.rows(["paperless"]))["authentik"]
+        row = rows_by_stack(subject.rows(["paperless"]))["authentik"]
         assert row.verb == "ensure"
         assert row.reason == "required by paperless"
 
-    def test_a_transitive_dependency_names_the_target_not_the_middle_stack(self, plan, live):
+    def test_a_transitive_dependency_names_the_target_not_the_middle_stack(self, subject, live):
         live()
-        assert rows_by_stack(plan.rows(["paperless"]))["reverse-proxy"].reason == "required by paperless"
+        assert rows_by_stack(subject.rows(["paperless"]))["reverse-proxy"].reason == "required by paperless"
 
-    def test_a_dependency_of_several_targets_names_them_all(self, plan, live):
+    def test_a_dependency_of_several_targets_names_them_all(self, subject, live):
         live()
-        rows = rows_by_stack(plan.rows(["paperless", "authentik"]))
+        rows = rows_by_stack(subject.rows(["paperless", "authentik"]))
         assert rows["reverse-proxy"].reason == "required by authentik, paperless"
 
-    def test_a_target_that_is_also_a_dependency_is_still_an_explicit_target(self, plan, live):
+    def test_a_target_that_is_also_a_dependency_is_still_an_explicit_target(self, subject, live):
         live()
-        rows = rows_by_stack(plan.rows(["paperless", "authentik"]))
+        rows = rows_by_stack(subject.rows(["paperless", "authentik"]))
         assert rows["authentik"].verb == "deploy"
         assert rows["authentik"].reason == "explicit target"
 
-    def test_a_full_plan_has_no_target_to_attribute_rows_to(self, plan, live):
+    def test_a_full_plan_has_no_target_to_attribute_rows_to(self, subject, live):
         live()
-        assert {row.reason for row in plan.rows(None)} == {""}
-        assert {row.verb for row in plan.rows(None)} == {"deploy"}
+        assert {row.reason for row in subject.rows(None)} == {""}
+        assert {row.verb for row in subject.rows(None)} == {"deploy"}
 
-    def test_rows_come_in_deploy_order(self, plan, live):
+    def test_rows_come_in_deploy_order(self, subject, live):
         live()
-        assert [row.stack for row in plan.rows(["paperless"])] == [
+        assert [row.stack for row in subject.rows(["paperless"])] == [
             "reverse-proxy",
             "authentik",
             "paperless",
@@ -115,45 +115,45 @@ class TestDeployPlanRows:
 class TestDeployPlanReport:
     """`DeployPlan.report` — the printed plan, and what it refuses to do."""
 
-    def test_it_prints_a_row_per_stack_with_verb_state_and_reason(self, plan, live, console):
+    def test_it_prints_a_row_per_stack_with_verb_state_and_reason(self, subject, live, console):
         live(stacks="reverse-proxy\n", services="reverse-proxy_traefik\t1/1\n")
-        assert plan.report(["paperless"]) == 0
+        assert subject.report(["paperless"]) == 0
         assert [" ".join(line.split()) for line in console.stdout] == [
             "ensure reverse-proxy converged → required by paperless",
             "ensure authentik absent → required by paperless",
             "deploy paperless absent → explicit target",
         ]
 
-    def test_the_columns_line_up_so_the_states_can_be_scanned(self, plan, live, console):
+    def test_the_columns_line_up_so_the_states_can_be_scanned(self, subject, live, console):
         live()
-        plan.report(["paperless"])
+        subject.report(["paperless"])
         assert len({line.index("→") for line in console.stdout}) == 1
 
-    def test_the_count_goes_to_stderr_so_stdout_stays_pipeable(self, plan, live, console):
+    def test_the_count_goes_to_stderr_so_stdout_stays_pipeable(self, subject, live, console):
         live()
-        plan.report(["paperless"])
+        subject.report(["paperless"])
         assert "3 stack(s) — plan only, nothing deployed." in "\n".join(console.stderr)
 
-    def test_it_only_ever_lists(self, plan, live, commands):
+    def test_it_only_ever_lists(self, subject, live, commands):
         live()
-        plan.report(None)
+        subject.report(None)
         assert [argv[:3] for argv in argvs(commands)] == [
             ["docker", "stack", "ls"],
             ["docker", "service", "ls"],
         ]
 
     def test_an_unresolvable_graph_exits_one_before_touching_the_cluster(
-        self, plan, filesystem, console, commands
+        self, subject, filesystem, console, commands
     ):
         filesystem.files["stacks/apps/ghost/docker-compose.yml"] = (
             "x-homelab:\n    requires: [nope]\nservices: {}\n"
         )
-        assert plan.report(None) == 1
+        assert subject.report(None) == 1
         assert console.stdout == []
         assert "ghost requires nope" in "\n".join(console.stderr)
         assert argvs(commands) == []
 
-    def test_an_unreachable_cluster_exits_one_and_explains(self, plan, commands, console):
+    def test_an_unreachable_cluster_exits_one_and_explains(self, subject, commands, console):
         responds(commands, CommandResult(1, "", "Cannot connect to the Docker daemon"))
-        assert plan.report(None) == 1
+        assert subject.report(None) == 1
         assert "Cannot connect to the Docker daemon" in "\n".join(console.stderr)

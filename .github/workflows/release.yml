@@ -83,7 +83,7 @@ jobs:
               # still get tagged — so the whole platform ends up on one version.
               run: |
                   set -euo pipefail
-                  for image in $(uv run ci images .); do
+                  for image in $(uv run ci images); do
                       repo="${REGISTRY}/${REGISTRY_NAMESPACE}/${image}"
                       docker buildx imagetools create "${repo}:latest" --tag "${repo}:${VERSION}"
                       echo "Promoted \`${repo}:${VERSION}\` (from \`:latest\`)." >> "$GITHUB_STEP_SUMMARY"

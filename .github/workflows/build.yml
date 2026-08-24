@@ -56,8 +56,8 @@ jobs:
                   else
                       files="$(git diff --name-only "$base"...HEAD)"
                   fi
-                  units="$(printf '%s\n' "$files" | uv run ci affected .)"
-                  projects="$(printf '%s\n' "$files" | uv run ci projects .)"
+                  units="$(printf '%s\n' "$files" | uv run ci affected)"
+                  projects="$(printf '%s\n' "$files" | uv run ci projects)"
                   echo "units=$units" >> "$GITHUB_OUTPUT"
                   echo "projects=$projects" >> "$GITHUB_OUTPUT"
                   echo "Affected units:    $units"

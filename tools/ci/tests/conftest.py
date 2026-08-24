@@ -18,6 +18,7 @@ import pytest
 from dependency_injector import providers
 
 from ci.adapters import CommandResult
+from ci.config import load_env
 from ci.containers import Container
 from ci.ports import CommandRunner
 
@@ -99,7 +100,12 @@ def responds(commands: Mock, *results: CommandResult) -> None:
 
 
 def argvs(commands: Mock) -> list[list[str]]:
-    """The argv of every command the runner was asked to run, in order."""
+    """The argv of every command the runner was asked to run, in order.
+
+    Preferred over ``assert_called_with`` at this boundary: what matters is the
+    whole sequence a subcommand issues, and a list of argvs shows an unexpected
+    extra call — which a per-call assertion silently ignores.
+    """
     return [call.args[0] for call in commands.run.call_args_list]
 
 
@@ -136,8 +142,8 @@ def env() -> dict[str, str]:
 def container(filesystem, commands, clock, console, env) -> Container:
     """A container with every outer-ring provider overridden by a fake."""
     c = Container()
-    c.config.repo_root.from_value(str(ROOT))
-    c.config.env.from_value(env)
+    c.repo_root.override(providers.Object(str(ROOT)))
+    c.env.override(providers.Object(env))
     c.filesystem.override(providers.Object(filesystem))
     c.commands.override(providers.Object(commands))
     c.clock.override(providers.Object(clock))
@@ -148,9 +154,7 @@ def container(filesystem, commands, clock, console, env) -> Container:
 @pytest.fixture
 def repo_container() -> Container:
     """A real container pointed at this repository — the integration seam."""
-    from ci.config import load_env
-
     c = Container()
-    c.config.repo_root.from_value(str(REPO_ROOT))
-    c.config.env.from_value(load_env(c.filesystem(), REPO_ROOT, {}))
+    c.repo_root.override(providers.Object(str(REPO_ROOT)))
+    c.env.override(providers.Object(load_env(c.filesystem(), REPO_ROOT, {})))
     return c

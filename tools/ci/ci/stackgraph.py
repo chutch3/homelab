@@ -4,7 +4,8 @@ Deploy order was the output of ``find``. It is now a topological sort of the
 declarations. :class:`StackTree` owns the filesystem; :class:`DependencyGraph`
 holds the logic and takes the tree, so its tests never touch disk.
 
-Nothing here deploys — it only decides what order a deploy would use.
+Nothing here deploys — it only decides what order a deploy would use, and
+:class:`DependencyCheck` reports whether the declarations hold up at all.
 """
 
 from __future__ import annotations
@@ -16,7 +17,7 @@ from pathlib import Path
 import yaml
 
 from ci.config import disabled_providers
-from ci.ports import FileSystem
+from ci.ports import Console, FileSystem
 
 # Stacks live one directory deep in each of these, alongside a docker-compose.yml.
 STACK_ROOTS = ("stacks", "stacks/apps")
@@ -141,6 +142,33 @@ class DependencyGraph:
     def required_by(self, targets: list[str]) -> dict[str, list[str]]:
         """For each stack a target pulls in, the targets that reach it."""
         return required_by(self.edges(), targets, sorted(self.disabled()))
+
+
+class DependencyCheck:
+    """The verdict `ci check-deps` prints: the declarations resolve, and are complete."""
+
+    def __init__(self, graph: DependencyGraph, console: Console) -> None:
+        self._graph = graph
+        self._console = console
+
+    def report(self) -> int:
+        try:
+            stacks = self._graph.stacks()
+            self._graph.resolve()
+        except UnresolvedGraph as exc:
+            self._console.out(f"✗ {exc}")
+            return 1
+        if missing := self._graph.undeclared():
+            self._console.out(
+                "✗ dependencies visible in the compose file but not declared in x-homelab.requires:"
+            )
+            for stack, requires in sorted(missing.items()):
+                self._console.out(f"    {stack}: {', '.join(sorted(requires))}")
+            return 1
+        self._console.out(
+            f"✓ {len(stacks)} stacks resolve, with every dependency they reveal declared"
+        )
+        return 0
 
 
 def required_by(

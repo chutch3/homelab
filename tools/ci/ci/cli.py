@@ -1,15 +1,18 @@
 """The ``ci`` command — one CLI surface for the repo's build/test tooling.
 
 Subcommands:
-  ci affected [REPO_ROOT] [FILE ...]   print the affected build matrix as JSON
-                                       (files default to stdin, newline-separated)
+  ci affected [FILE ...]                print the affected build matrix as JSON
+                                        (files default to stdin, newline-separated)
+  ci projects [FILE ...]                print the test projects a change affects, as JSON
   ci test [SELECTOR] [--tier T] [--affected]   run app pytest suites by tier
-  ci images [REPO_ROOT]                 list every buildable image name (one per line)
+  ci images                             list every buildable image name (one per line)
   ci gc [--apply] [--cutoff-days N]     prune stale :sha/untagged ghcr versions (dry-run by default)
   ci idempotence PLAYBOOK [ANSIBLE ARGS] run a playbook twice; fail unless the second changes nothing
   ci deploy [STACK ...] --plan          print the deploy plan and live state; deploy nothing
-  ci check-deps [REPO_ROOT]             the x-homelab declarations resolve, and are complete
-  ci projects [REPO_ROOT] [FILE ...]    print the test projects a change affects, as JSON
+  ci check-deps                         the x-homelab declarations resolve, and are complete
+
+Every subcommand takes ``--repo-root`` (default ``.``); nothing takes it
+positionally, so a positional argument always means the same thing.
 
 Each handler is one call into an injected service — behaviour lives in the
 services, not here — so tests drive them through the container with fakes
@@ -23,6 +26,7 @@ import json
 import os
 import sys
 
+from dependency_injector import providers
 from dependency_injector.wiring import Provide, inject
 
 from ci.affected import UnitCatalog
@@ -33,7 +37,7 @@ from ci.deploy import DeployPlan
 from ci.gc import RegistryGc
 from ci.idempotence import IdempotenceCheck
 from ci.ports import Console
-from ci.stackgraph import DependencyGraph, UnresolvedGraph
+from ci.stackgraph import DependencyCheck
 
 
 @inject
@@ -108,22 +112,9 @@ def _cmd_deploy(
 @inject
 def _cmd_check_deps(
     args: argparse.Namespace,
-    graph: DependencyGraph = Provide[Container.graph],
-    console: Console = Provide[Container.console],
+    dependency_check: DependencyCheck = Provide[Container.dependency_check],
 ) -> int:
-    try:
-        stacks = graph.stacks()
-        graph.resolve()
-    except UnresolvedGraph as exc:
-        console.out(f"✗ {exc}")
-        return 1
-    if missing := graph.undeclared():
-        console.out("✗ dependencies visible in the compose file but not declared in x-homelab.requires:")
-        for stack, requires in sorted(missing.items()):
-            console.out(f"    {stack}: {', '.join(sorted(requires))}")
-        return 1
-    console.out(f"✓ {len(stacks)} stacks resolve, with every dependency they reveal declared")
-    return 0
+    return dependency_check.report()
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -131,8 +122,8 @@ def build_parser() -> argparse.ArgumentParser:
     sub = parser.add_subparsers(dest="cmd", required=True)
 
     aff = sub.add_parser("affected", help="print the affected build matrix as JSON")
-    aff.add_argument("repo_root", nargs="?", default=".")
     aff.add_argument("files", nargs="*")
+    aff.add_argument("--repo-root", default=".")
     aff.set_defaults(func=_cmd_affected)
 
     test = sub.add_parser("test", help="run app pytest suites by tier")
@@ -144,18 +135,18 @@ def build_parser() -> argparse.ArgumentParser:
     test.set_defaults(func=_cmd_test)
 
     proj = sub.add_parser("projects", help="print the test projects a change affects, as JSON")
-    proj.add_argument("repo_root", nargs="?", default=".")
     proj.add_argument("files", nargs="*")
+    proj.add_argument("--repo-root", default=".")
     proj.set_defaults(func=_cmd_projects)
 
     images = sub.add_parser("images", help="list every buildable image name (one per line)")
-    images.add_argument("repo_root", nargs="?", default=".")
+    images.add_argument("--repo-root", default=".")
     images.set_defaults(func=_cmd_images)
 
     gc_p = sub.add_parser("gc", help="prune stale :sha/untagged ghcr versions (dry-run by default)")
-    gc_p.add_argument("repo_root", nargs="?", default=".")
     gc_p.add_argument("--cutoff-days", type=int, default=14)
     gc_p.add_argument("--apply", action="store_true", help="actually delete (default: dry-run)")
+    gc_p.add_argument("--repo-root", default=".")
     gc_p.set_defaults(func=_cmd_gc)
 
     idem = sub.add_parser("idempotence", help="run a playbook twice; the second must change nothing")
@@ -175,18 +166,23 @@ def build_parser() -> argparse.ArgumentParser:
     dep.set_defaults(func=_cmd_deploy)
 
     deps = sub.add_parser("check-deps", help="the x-homelab declarations resolve, and are complete")
-    deps.add_argument("repo_root", nargs="?", default=".")
+    deps.add_argument("--repo-root", default=".")
     deps.set_defaults(func=_cmd_check_deps)
     return parser
 
 
 def build_container(args: argparse.Namespace, process_env: dict[str, str] | None = None) -> Container:
     """Wire the container for one invocation: this run's repo root and environment."""
-    repo_root = getattr(args, "repo_root", ".") or "."
     container = Container()
-    container.config.repo_root.from_value(repo_root)
-    container.config.env.from_value(
-        load_env(container.filesystem(), repo_root, dict(os.environ if process_env is None else process_env))
+    container.repo_root.override(providers.Object(args.repo_root))
+    container.env.override(
+        providers.Object(
+            load_env(
+                container.filesystem(),
+                args.repo_root,
+                dict(os.environ if process_env is None else process_env),
+            )
+        )
     )
     container.wire(modules=[__name__])
     return container
