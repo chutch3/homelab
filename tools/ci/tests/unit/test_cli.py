@@ -64,32 +64,57 @@ class TestParser:
 
 
 class TestDeployCommand:
-    """`ci deploy --plan` — prints an order, deploys nothing."""
+    """`ci deploy --plan` — prints a plan against live state, deploys nothing."""
 
-    def test_prints_the_resolved_order_one_stack_per_line(self, run, filesystem, console):
+    def _fields(self, console) -> list[list[str]]:
+        return [line.split() for line in console.stdout]
+
+    def test_prints_a_row_per_stack_in_deploy_order(self, run, filesystem, console):
         filesystem.files.update({
             "stacks/apps/paperless/docker-compose.yml": DECLARED,
             "stacks/reverse-proxy/docker-compose.yml": "services: {}\n",
         })
         assert run("deploy", "--plan") == 0
-        assert console.stdout == ["reverse-proxy", "paperless"]
+        assert [row[1] for row in self._fields(console)] == ["reverse-proxy", "paperless"]
+
+    def test_a_stack_the_cluster_does_not_have_reports_absent(self, run, filesystem, console):
+        filesystem.files["stacks/reverse-proxy/docker-compose.yml"] = "services: {}\n"
+        run("deploy", "--plan")
+        assert self._fields(console) == [["deploy", "reverse-proxy", "absent"]]
+
+    def test_a_stack_at_its_desired_replicas_reports_converged(
+        self, run, filesystem, console, commands
+    ):
+        filesystem.files["stacks/reverse-proxy/docker-compose.yml"] = "services: {}\n"
+        responds(
+            commands,
+            CommandResult(0, "reverse-proxy\n"),
+            CommandResult(0, "reverse-proxy_traefik\t1/1\n"),
+        )
+        run("deploy", "--plan")
+        assert self._fields(console) == [["deploy", "reverse-proxy", "converged"]]
 
     def test_reports_the_count_on_stderr_so_stdout_stays_pipeable(
         self, run, filesystem, console
     ):
         filesystem.files["stacks/reverse-proxy/docker-compose.yml"] = "services: {}\n"
         run("deploy", "--plan")
-        assert console.stdout == ["reverse-proxy"]
+        assert len(console.stdout) == 1
         assert "1 stack(s) — plan only, nothing deployed." in "\n".join(console.stderr)
 
-    def test_a_target_narrows_the_plan_to_its_closure(self, run, filesystem, console):
+    def test_a_target_narrows_the_plan_to_its_closure_and_says_what_pulled_each_in(
+        self, run, filesystem, console
+    ):
         filesystem.files.update({
             "stacks/apps/paperless/docker-compose.yml": DECLARED,
             "stacks/apps/komga/docker-compose.yml": DECLARED,
             "stacks/reverse-proxy/docker-compose.yml": "services: {}\n",
         })
         assert run("deploy", "paperless", "--plan") == 0
-        assert console.stdout == ["reverse-proxy", "paperless"]
+        assert [" ".join(line.split()) for line in console.stdout] == [
+            "ensure reverse-proxy absent → required by paperless",
+            "deploy paperless absent → explicit target",
+        ]
 
     def test_an_unresolvable_graph_exits_one_and_explains_on_stderr(
         self, run, filesystem, console
@@ -101,10 +126,13 @@ class TestDeployCommand:
         assert console.stdout == []
         assert "paperless requires ghost-stack" in "\n".join(console.stderr)
 
-    def test_it_never_runs_a_command(self, run, filesystem, commands):
+    def test_it_only_ever_lists_the_cluster_never_changes_it(self, run, filesystem, commands):
         filesystem.files["stacks/reverse-proxy/docker-compose.yml"] = "services: {}\n"
         run("deploy", "--plan")
-        assert argvs(commands) == []
+        assert [argv[:3] for argv in argvs(commands)] == [
+            ["docker", "stack", "ls"],
+            ["docker", "service", "ls"],
+        ]
 
 
 class TestCheckDepsCommand:

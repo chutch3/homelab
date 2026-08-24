@@ -10,7 +10,14 @@ from __future__ import annotations
 
 import pytest
 
-from ci.stackgraph import Stack, StackTree, UnresolvedGraph, cycle_members, resolve
+from ci.stackgraph import (
+    Stack,
+    StackTree,
+    UnresolvedGraph,
+    cycle_members,
+    required_by,
+    resolve,
+)
 from conftest import ROOT, FakeFileSystem
 
 ROUTED = {
@@ -81,6 +88,34 @@ def test_resolve_treats_a_stack_requiring_itself_as_a_cycle():
     with pytest.raises(UnresolvedGraph) as exc:
         resolve({"loop": ["loop"]})
     assert str(exc.value) == "dependency cycle among: loop"
+
+
+def test_required_by_attributes_a_dependency_to_the_target_that_named_it():
+    assert required_by(ROUTED, ["paperless"])["authentik"] == ["paperless"]
+
+
+def test_required_by_attributes_a_transitive_dependency_to_the_target_not_the_middle():
+    assert required_by(ROUTED, ["paperless"])["reverse-proxy"] == ["paperless"]
+
+
+def test_required_by_names_every_target_that_reaches_a_shared_dependency():
+    assert required_by(ROUTED, ["paperless", "authentik"])["reverse-proxy"] == [
+        "authentik",
+        "paperless",
+    ]
+
+
+def test_required_by_never_makes_a_target_its_own_dependency():
+    assert "paperless" not in required_by(ROUTED, ["paperless"])
+
+
+def test_required_by_ignores_a_disabled_stack_and_the_edges_into_it():
+    graph = {"dns": [], "reverse-proxy": ["dns"], "paperless": ["reverse-proxy"]}
+    assert required_by(graph, ["paperless"], disabled=["dns"]) == {"reverse-proxy": ["paperless"]}
+
+
+def test_required_by_survives_a_cycle_rather_than_looping_forever():
+    assert required_by(CYCLE, ["komga"]) == {"authentik": ["komga"], "paperless": ["komga"]}
 
 
 def test_cycle_members_names_only_the_cycle_not_the_stacks_it_blocks():

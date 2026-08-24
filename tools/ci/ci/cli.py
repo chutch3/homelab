@@ -7,7 +7,7 @@ Subcommands:
   ci images [REPO_ROOT]                 list every buildable image name (one per line)
   ci gc [--apply] [--cutoff-days N]     prune stale :sha/untagged ghcr versions (dry-run by default)
   ci idempotence PLAYBOOK [ANSIBLE ARGS] run a playbook twice; fail unless the second changes nothing
-  ci deploy [STACK ...] --plan          print the resolved deploy order; deploy nothing
+  ci deploy [STACK ...] --plan          print the deploy plan and live state; deploy nothing
   ci check-deps [REPO_ROOT]             the x-homelab declarations resolve, and are complete
   ci projects [REPO_ROOT] [FILE ...]    print the test projects a change affects, as JSON
 
@@ -29,6 +29,7 @@ from ci.affected import UnitCatalog
 from ci.apptests import AppSuites, SuiteRunner
 from ci.config import load_env
 from ci.containers import Container
+from ci.deploy import DeployPlan
 from ci.gc import RegistryGc
 from ci.idempotence import IdempotenceCheck
 from ci.ports import Console
@@ -99,18 +100,9 @@ def _cmd_idempotence(
 @inject
 def _cmd_deploy(
     args: argparse.Namespace,
-    graph: DependencyGraph = Provide[Container.graph],
-    console: Console = Provide[Container.console],
+    deploy_plan: DeployPlan = Provide[Container.deploy_plan],
 ) -> int:
-    try:
-        order = graph.resolve(args.stacks or None)
-    except UnresolvedGraph as exc:
-        console.err(f"✗ {exc}")
-        return 1
-    for stack in order:
-        console.out(stack)
-    console.err(f"\n{len(order)} stack(s) — plan only, nothing deployed.")
-    return 0
+    return deploy_plan.report(args.stacks or None)
 
 
 @inject
@@ -173,12 +165,12 @@ def build_parser() -> argparse.ArgumentParser:
                       help="passed through to ansible-playbook")
     idem.set_defaults(func=_cmd_idempotence)
 
-    dep = sub.add_parser("deploy", help="print the resolved deploy order (--plan is the only mode)")
+    dep = sub.add_parser("deploy", help="print the deploy plan and live state (--plan is the only mode)")
     dep.add_argument("stacks", nargs="*", help="deploy targets; omit for every stack")
     # Required until 1.3 gives `ci deploy` something to execute — refusing here
     # beats a flag that silently means nothing.
     dep.add_argument("--plan", action="store_true", required=True,
-                     help="print the order and deploy nothing")
+                     help="print the plan and deploy nothing")
     dep.add_argument("--repo-root", default=".")
     dep.set_defaults(func=_cmd_deploy)
 

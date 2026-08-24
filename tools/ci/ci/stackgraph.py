@@ -138,6 +138,38 @@ class DependencyGraph:
         """Deploy order: every stack after all of its dependencies."""
         return resolve(self.edges(), targets, sorted(self.disabled()))
 
+    def required_by(self, targets: list[str]) -> dict[str, list[str]]:
+        """For each stack a target pulls in, the targets that reach it."""
+        return required_by(self.edges(), targets, sorted(self.disabled()))
+
+
+def required_by(
+    graph: dict[str, list[str]],
+    targets: list[str],
+    disabled: list[str] | None = None,
+) -> dict[str, list[str]]:
+    """Stack -> the named targets that reach it, transitively, over the declarations.
+
+    A target never appears as its own dependency: `deploy paperless` reports
+    reverse-proxy as required by paperless even though authentik sits between
+    them, because paperless is the thing that was asked for.
+    """
+    off = set(disabled or ())
+    edges = {s: set(r) - off for s, r in graph.items() if s not in off}
+    reached: dict[str, set[str]] = {}
+    for target in targets:
+        if target in off:
+            continue
+        seen: set[str] = set()
+        frontier = list(edges.get(target, ()))
+        while frontier:
+            if (stack := frontier.pop()) not in seen:
+                seen.add(stack)
+                frontier.extend(edges.get(stack, ()))
+        for stack in seen:
+            reached.setdefault(stack, set()).add(target)
+    return {stack: sorted(ts) for stack, ts in reached.items()}
+
 
 def cycle_members(edges: dict[str, list[str]], stuck: list[str]) -> list[str]:
     """The stacks actually in a cycle, dropping those merely blocked behind one."""
