@@ -60,13 +60,25 @@ class Stack:
 
 
 class StackTree:
-    """Reads the stacks out of the working tree, each compose file parsed once."""
+    """Reads the stacks out of the working tree, each compose file parsed once.
+
+    Once per *tree*, not once per call: a plan asks for the order and then for
+    what pulled each stack in, and `ci check-deps` asks three questions. Each is
+    a fresh read without this, which is 54 compose files parsed three times.
+    The tree is built per invocation, so it never outlives the working copy.
+    """
 
     def __init__(self, filesystem: FileSystem, repo_root: str | Path = ".") -> None:
         self._fs = filesystem
         self._root = Path(repo_root)
+        self._stacks: dict[str, Stack] | None = None
 
     def stacks(self) -> dict[str, Stack]:
+        if self._stacks is None:
+            self._stacks = self._read()
+        return self._stacks
+
+    def _read(self) -> dict[str, Stack]:
         stacks: dict[str, Stack] = {}
         for stack_root in STACK_ROOTS:
             for path in self._fs.glob(self._root / stack_root, "*/docker-compose.yml"):

@@ -192,6 +192,14 @@ class TestStackTree:
         assert sorted(filesystem.reads) == sorted(set(filesystem.reads))
         assert len(filesystem.reads) == 3
 
+    def test_asking_again_does_not_re_read_the_tree(self, subject, filesystem):
+        """Callers ask several questions of one tree; the disk is read for the first."""
+        self._seed(filesystem, paperless=DECLARED, komga=DECLARED, kopia=DECLARED)
+        subject.stacks()
+        subject.stacks()
+        subject.stacks()
+        assert len(filesystem.reads) == 3
+
     def test_a_name_used_in_both_roots_fails_rather_than_shadowing(self, subject, filesystem):
         filesystem.files.update(
             {
@@ -322,6 +330,13 @@ class TestDependencyCheck:
         self._seed(filesystem, gamarr="x-homelab:\n    requires: [romm]\nservices: {}\n")
         assert subject.report() == 1
         assert "gamarr requires romm" in caplog.text
+
+    def test_it_reads_the_tree_once_however_many_questions_it_asks(
+        self, subject, filesystem
+    ):
+        self._seed(filesystem, paperless=DECLARED, **{"reverse-proxy": "services: {}\n"})
+        subject.report()
+        assert len(filesystem.reads) == 2
 
     def test_a_malformed_declaration_fails_explaining_the_shape(
         self, subject, filesystem, caplog

@@ -103,6 +103,14 @@ class TestDeployPlanRows:
         assert {row.reason for row in subject.rows(None)} == {""}
         assert {row.verb for row in subject.rows(None)} == {"deploy"}
 
+    def test_it_reads_the_tree_once_though_it_asks_the_graph_twice(
+        self, subject, live, filesystem
+    ):
+        """Order and attribution are two questions; the compose files are read for both."""
+        live()
+        subject.rows(["paperless"])
+        assert len(filesystem.reads) == len(TREE)
+
     def test_rows_come_in_deploy_order(self, subject, live):
         live()
         assert [row.stack for row in subject.rows(["paperless"])] == [

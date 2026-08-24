@@ -64,108 +64,46 @@ class TestParser:
 
 
 class TestDeployCommand:
-    """`ci deploy --plan` — prints a plan against live state, deploys nothing."""
+    """`ci deploy --plan` — that argv reaches the plan and its verdict comes back.
 
-    def _fields(self, capsys) -> list[list[str]]:
-        return [line.split() for line in capsys.readouterr().out.splitlines()]
+    What the plan *says* is `test_deploy.py`'s job. These two assert only the
+    wiring: the payload reaches stdout, and a failure's exit code propagates.
+    """
 
-    def test_prints_a_row_per_stack_in_deploy_order(self, run, filesystem, capsys):
+    def test_the_plan_reaches_stdout_and_succeeds(self, run, filesystem, capsys):
         filesystem.files.update({
             "stacks/apps/paperless/docker-compose.yml": DECLARED,
             "stacks/reverse-proxy/docker-compose.yml": "services: {}\n",
         })
         assert run("deploy", "--plan") == 0
-        assert [row[1] for row in self._fields(capsys)] == ["reverse-proxy", "paperless"]
+        printed = capsys.readouterr().out
+        assert [line.split()[1] for line in printed.splitlines()] == ["reverse-proxy", "paperless"]
 
-    def test_a_stack_the_cluster_does_not_have_reports_absent(self, run, filesystem, capsys):
-        filesystem.files["stacks/reverse-proxy/docker-compose.yml"] = "services: {}\n"
-        run("deploy", "--plan")
-        assert self._fields(capsys) == [["deploy", "reverse-proxy", "absent"]]
-
-    def test_a_stack_at_its_desired_replicas_reports_converged(
-        self, run, filesystem, capsys, commands
-    ):
-        filesystem.files["stacks/reverse-proxy/docker-compose.yml"] = "services: {}\n"
-        responds(
-            commands,
-            CommandResult(0, "reverse-proxy\n"),
-            CommandResult(0, "reverse-proxy_traefik\t1/1\n"),
-        )
-        run("deploy", "--plan")
-        assert self._fields(capsys) == [["deploy", "reverse-proxy", "converged"]]
-
-    def test_reports_the_count_on_stderr_so_stdout_stays_pipeable(
-        self, run, filesystem, capsys, caplog
-    ):
-        filesystem.files["stacks/reverse-proxy/docker-compose.yml"] = "services: {}\n"
-        run("deploy", "--plan")
-        assert len(capsys.readouterr().out.splitlines()) == 1
-        assert "1 stack(s) — plan only, nothing deployed." in caplog.text
-
-    def test_a_target_narrows_the_plan_to_its_closure_and_says_what_pulled_each_in(
+    def test_a_plan_that_cannot_be_built_propagates_its_exit_code(
         self, run, filesystem, capsys
-    ):
-        filesystem.files.update({
-            "stacks/apps/paperless/docker-compose.yml": DECLARED,
-            "stacks/apps/komga/docker-compose.yml": DECLARED,
-            "stacks/reverse-proxy/docker-compose.yml": "services: {}\n",
-        })
-        assert run("deploy", "paperless", "--plan") == 0
-        assert [" ".join(line.split()) for line in capsys.readouterr().out.splitlines()] == [
-            "ensure reverse-proxy absent → required by paperless",
-            "deploy paperless absent → explicit target",
-        ]
-
-    def test_an_unresolvable_graph_exits_one_and_explains_on_stderr(
-        self, run, filesystem, capsys, caplog
     ):
         filesystem.files["stacks/apps/paperless/docker-compose.yml"] = (
             "x-homelab:\n    requires: [ghost-stack]\nservices: {}\n"
         )
         assert run("deploy", "--plan") == 1
         assert capsys.readouterr().out == ""
-        assert "paperless requires ghost-stack" in caplog.text
-
-    def test_it_only_ever_lists_the_cluster_never_changes_it(self, run, filesystem, commands):
-        filesystem.files["stacks/reverse-proxy/docker-compose.yml"] = "services: {}\n"
-        run("deploy", "--plan")
-        assert [argv[:3] for argv in argvs(commands)] == [
-            ["docker", "stack", "ls"],
-            ["docker", "service", "ls"],
-        ]
 
 
 class TestCheckDepsCommand:
-    """`ci check-deps` — the pre-commit hook's entry point."""
+    """`ci check-deps` — the pre-commit hook's entry point.
 
-    def test_a_clean_tree_passes_and_reports_the_count(self, run, filesystem, caplog):
+    The verdicts themselves are `test_stackgraph.py::TestDependencyCheck`; these
+    assert that argv reaches it and both exit codes come back.
+    """
+
+    def test_a_clean_tree_exits_zero(self, run, filesystem):
         filesystem.files.update({
             "stacks/apps/paperless/docker-compose.yml": DECLARED,
             "stacks/reverse-proxy/docker-compose.yml": "services: {}\n",
         })
         assert run("check-deps") == 0
-        assert "✓ 2 stacks resolve" in caplog.text
 
-    def test_an_undeclared_dependency_exits_one_naming_the_stack(
-        self, run, filesystem, caplog
-    ):
-        filesystem.files.update({
-            "stacks/apps/komga/docker-compose.yml": TRAEFIK,
-            "stacks/reverse-proxy/docker-compose.yml": "services: {}\n",
-        })
-        assert run("check-deps") == 1
-        assert "    komga: reverse-proxy" in caplog.text
-
-    def test_a_malformed_declaration_exits_one_explaining_the_shape(
-        self, run, filesystem, caplog
-    ):
-        filesystem.files["stacks/apps/paperless/docker-compose.yml"] = (
-            "x-homelab:\n    requires: reverse-proxy\nservices: {}\n"
-        )
-        assert run("check-deps") == 1
-        assert "x-homelab.requires must be a list" in caplog.text
-
-    def test_a_dangling_edge_from_a_deleted_stack_exits_one(self, run, filesystem, caplog):
+    def test_a_tree_that_does_not_check_out_exits_one(self, run, filesystem, caplog):
         filesystem.files["stacks/apps/gamarr/docker-compose.yml"] = (
             "x-homelab:\n    requires: [romm]\nservices: {}\n"
         )
