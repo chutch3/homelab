@@ -26,35 +26,35 @@ class TestContainer:
         c.env.override(providers.Object({}))
         return c
 
-    def test_an_adapter_is_shared_because_it_holds_no_state_worth_rebuilding(self, subject):
+    def test_filesystem_is_shared_because_it_holds_no_state_worth_rebuilding(self, subject):
         assert subject.filesystem() is subject.filesystem()
 
-    def test_the_cluster_is_shared_so_one_invocation_reads_the_cluster_once(self, subject):
+    def test_cluster_is_shared_so_one_invocation_reads_the_cluster_once(self, subject):
         assert subject.cluster() is subject.cluster()
 
-    def test_a_service_is_rebuilt_so_it_closes_over_this_run_s_configuration(self, subject):
+    def test_graph_is_rebuilt_so_it_closes_over_this_runs_configuration(self, subject):
         assert subject.graph() is not subject.graph()
 
-    def test_a_container_without_a_repo_root_refuses_to_build_a_service(self):
+    def test_repo_root_is_required_before_any_service_can_be_built(self):
         container = Container()
         container.env.override(providers.Object({}))
         with pytest.raises(errors.Error):
             container.graph()
 
-    def test_a_container_without_an_environment_refuses_to_build_a_service(self):
+    def test_env_is_required_before_any_service_can_be_built(self):
         container = Container()
         container.repo_root.override(providers.Object(str(ROOT)))
         with pytest.raises(errors.Error):
             container.graph()
 
-    def test_a_repo_root_that_is_not_a_path_is_rejected(self):
+    def test_repo_root_rejects_a_value_that_is_not_a_string(self):
         container = Container()
         with pytest.raises(errors.Error):
             container.repo_root.override(providers.Object(object()))
             container.env.override(providers.Object({}))
             container.graph()
 
-    def test_an_environment_that_is_not_a_mapping_is_rejected(self):
+    def test_env_rejects_a_value_that_is_not_a_mapping(self):
         container = Container()
         with pytest.raises(errors.Error):
             container.repo_root.override(providers.Object(str(ROOT)))

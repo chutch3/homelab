@@ -50,7 +50,7 @@ class TestDeployPlanner:
 
     # --- the plan it builds -------------------------------------------------
 
-    def test_a_target_pulls_in_its_chain_each_row_carrying_its_live_state(
+    def test_rows_a_target_pulls_in_its_chain_each_carrying_its_live_state(
         self, subject, live
     ):
         """One assertion for the whole plan: order, state, and why each row is there."""
@@ -64,7 +64,7 @@ class TestDeployPlanner:
             PlanRow("paperless", StackState.ABSENT, Origin.TARGET),
         ]
 
-    def test_a_shared_dependency_names_every_target_and_a_named_target_stays_one(
+    def test_rows_a_shared_dependency_names_every_target_that_needs_it(
         self, subject, live
     ):
         live()
@@ -79,7 +79,7 @@ class TestDeployPlanner:
             PlanRow("paperless", StackState.ABSENT, Origin.TARGET),
         ]
 
-    def test_a_full_plan_has_no_target_to_attribute_rows_to(self, subject, live):
+    def test_rows_a_full_plan_has_no_target_to_attribute_rows_to(self, subject, live):
         live()
         assert subject.rows(None) == [
             PlanRow("reverse-proxy", StackState.ABSENT, Origin.WHOLE_TREE),
@@ -87,7 +87,7 @@ class TestDeployPlanner:
             PlanRow("paperless", StackState.ABSENT, Origin.WHOLE_TREE),
         ]
 
-    def test_it_reads_the_tree_once_though_it_asks_the_graph_twice(
+    def test_rows_reads_the_tree_once_though_it_asks_the_graph_twice(
         self, subject, live, filesystem
     ):
         """Order and attribution are two questions; the compose files answer both."""
@@ -97,7 +97,7 @@ class TestDeployPlanner:
 
     # --- the plan it prints --------------------------------------------------
 
-    def test_it_prints_a_row_per_stack_with_verb_state_and_reason(self, subject, live, capsys):
+    def test_report_prints_a_row_per_stack_with_verb_state_and_reason(self, subject, live, capsys):
         live(stacks="reverse-proxy\n", services="reverse-proxy_traefik\t1/1\n")
         assert subject.report(["paperless"]) == 0
         assert [" ".join(line.split()) for line in capsys.readouterr().out.splitlines()] == [
@@ -106,12 +106,12 @@ class TestDeployPlanner:
             "deploy paperless absent → explicit target",
         ]
 
-    def test_the_columns_line_up_so_the_states_can_be_scanned(self, subject, live, capsys):
+    def test_report_aligns_the_columns_so_the_states_can_be_scanned(self, subject, live, capsys):
         live()
         subject.report(["paperless"])
         assert len({line.index("→") for line in capsys.readouterr().out.splitlines()}) == 1
 
-    def test_the_count_is_logged_so_stdout_carries_only_the_plan(
+    def test_report_logs_the_count_so_stdout_carries_only_the_plan(
         self, subject, live, capsys, caplog
     ):
         live()
@@ -119,7 +119,7 @@ class TestDeployPlanner:
         assert "3 stack(s) — plan only, nothing deployed." in caplog.text
         assert "stack(s)" not in capsys.readouterr().out
 
-    def test_it_only_ever_lists(self, subject, live, commands):
+    def test_report_only_ever_lists_the_cluster(self, subject, live, commands):
         live()
         subject.report(None)
         assert [argv[:3] for argv in argvs(commands)] == [
@@ -127,7 +127,7 @@ class TestDeployPlanner:
             ["docker", "service", "ls"],
         ]
 
-    def test_an_unresolvable_graph_exits_one_before_touching_the_cluster(
+    def test_report_an_unresolvable_graph_exits_one_before_touching_the_cluster(
         self, subject, filesystem, capsys, caplog, commands
     ):
         filesystem.files["stacks/apps/ghost/docker-compose.yml"] = (
@@ -138,7 +138,7 @@ class TestDeployPlanner:
         assert "ghost requires nope" in caplog.text
         assert argvs(commands) == []
 
-    def test_an_unreachable_cluster_exits_one_and_explains(self, subject, commands, caplog):
+    def test_report_an_unreachable_cluster_exits_one_and_explains(self, subject, commands, caplog):
         responds(commands, CommandResult(1, "", "Cannot connect to the Docker daemon"))
         assert subject.report(None) == 1
         assert "Cannot connect to the Docker daemon" in caplog.text

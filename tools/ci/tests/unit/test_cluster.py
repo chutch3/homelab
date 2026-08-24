@@ -45,29 +45,29 @@ class TestSwarmCluster:
 
         return _subject
 
-    def test_a_stack_not_listed_is_absent(self, subject):
+    def test_state_a_stack_not_listed_is_absent(self, subject):
         cluster = subject(stacks="authentik\n", services="authentik_server\t1/1\n")
         assert cluster.state("paperless") is StackState.ABSENT
 
-    def test_every_service_at_its_desired_replicas_is_converged(self, subject):
+    def test_state_every_service_at_its_desired_replicas_is_converged(self, subject):
         cluster = subject(
             stacks="paperless\n",
             services="paperless_web\t1/1\npaperless_db\t2/2\n",
         )
         assert cluster.state("paperless") is StackState.CONVERGED
 
-    def test_a_single_service_short_of_desired_leaves_the_stack_present(self, subject):
+    def test_state_a_single_service_short_of_desired_leaves_the_stack_present(self, subject):
         cluster = subject(
             stacks="paperless\n",
             services="paperless_web\t1/1\npaperless_db\t0/1\n",
         )
         assert cluster.state("paperless") is StackState.PRESENT
 
-    def test_a_listed_stack_with_no_services_yet_is_present_not_converged(self, subject):
+    def test_state_a_listed_stack_with_no_services_yet_is_present(self, subject):
         cluster = subject(stacks="paperless\n", services="")
         assert cluster.state("paperless") is StackState.PRESENT
 
-    def test_a_service_is_attributed_to_the_longest_stack_name_that_prefixes_it(self, subject):
+    def test_state_attributes_a_service_to_the_longest_stack_name_prefixing_it(self, subject):
         cluster = subject(
             stacks="actual\nactual_server\n",
             services="actual_web\t1/1\nactual_server_actual_mcp\t0/1\n",
@@ -75,22 +75,22 @@ class TestSwarmCluster:
         assert cluster.state("actual") is StackState.CONVERGED
         assert cluster.state("actual_server") is StackState.PRESENT
 
-    def test_a_service_belonging_to_no_listed_stack_is_ignored(self, subject):
+    def test_state_ignores_a_service_belonging_to_no_listed_stack(self, subject):
         cluster = subject(stacks="paperless\n", services="orphan_svc\t0/1\n")
         assert cluster.state("paperless") is StackState.PRESENT
 
-    def test_it_only_ever_lists(self, subject, commands):
+    def test_states_only_ever_lists(self, subject, commands):
         subject(stacks="paperless\n", services="paperless_web\t1/1\n").states()
         assert argvs(commands) == [STACK_LS, SERVICE_LS]
 
-    def test_the_cluster_is_read_once_however_many_stacks_are_asked_about(self, subject, commands):
+    def test_state_reads_the_cluster_once_however_many_stacks_are_asked_about(self, subject, commands):
         cluster = subject(stacks="a\nb\n", services="a_x\t1/1\nb_y\t1/1\n")
         cluster.state("a")
         cluster.state("b")
         cluster.state("c")
         assert argvs(commands) == [STACK_LS, SERVICE_LS]
 
-    def test_an_unreachable_cluster_fails_naming_the_command_and_its_error(self, subject, commands):
+    def test_states_an_unreachable_cluster_fails_naming_the_command_and_its_error(self, subject, commands):
         cluster = subject()
         responds(commands, CommandResult(1, "", "Cannot connect to the Docker daemon"))
         with pytest.raises(ClusterUnreachable) as exc:

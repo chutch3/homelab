@@ -11,6 +11,7 @@ on:
     pull_request:
         paths:
             - "stacks/apps/*/**/tests/e2e/**"
+            - "tools/ci/tests/e2e/**"
             - "ansible/**"
             - "tests/ansible/idempotence/**"
             - ".github/workflows/e2e.yml"
@@ -18,6 +19,7 @@ on:
         branches: [main]
         paths:
             - "stacks/apps/*/**/tests/e2e/**"
+            - "tools/ci/tests/e2e/**"
             - "ansible/**"
             - "tests/ansible/idempotence/**"
             - ".github/workflows/e2e.yml"

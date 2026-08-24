@@ -203,7 +203,7 @@ class TestStackTree:
         assert sorted(filesystem.reads) == sorted(set(filesystem.reads))
         assert len(filesystem.reads) == 3
 
-    def test_asking_again_does_not_re_read_the_tree(self, subject, filesystem):
+    def test_stacks_asking_again_does_not_re_read_the_tree(self, subject, filesystem):
         """Callers ask several questions of one tree; the disk is read for the first."""
         self._seed(filesystem, paperless=DECLARED, komga=DECLARED, kopia=DECLARED)
         subject.stacks()
@@ -311,47 +311,45 @@ class TestThisRepo:
         assert subject.undeclared() == {}
 
 
-class TestCheckDependencies:
-    """`check_dependencies` — the verdict `ci check-deps` prints."""
+def _tree(filesystem: FakeFileSystem, **stacks: str) -> None:
+    filesystem.files.update(compose(**stacks))
 
-    @pytest.fixture
-    def subject(self, container):
-        return container.graph()
 
-    def _seed(self, filesystem: FakeFileSystem, **stacks: str) -> None:
-        filesystem.files.update(compose(**stacks))
+def test_check_dependencies_passes_a_tree_that_resolves_and_declares_everything(
+    container, filesystem, caplog
+):
+    _tree(filesystem, paperless=DECLARED, **{"reverse-proxy": "services: {}\n"})
+    assert check_dependencies(container.graph()) == 0
+    assert "✓ 2 stacks resolve" in caplog.text
 
-    def test_a_tree_that_resolves_and_declares_everything_passes(
-        self, subject, filesystem, caplog
-    ):
-        self._seed(filesystem, paperless=DECLARED, **{"reverse-proxy": "services: {}\n"})
-        assert check_dependencies(subject) == 0
-        assert "✓ 2 stacks resolve" in caplog.text
 
-    def test_an_undeclared_dependency_fails_naming_the_stack_and_what_it_hid(
-        self, subject, filesystem, caplog
-    ):
-        self._seed(filesystem, komga=TRAEFIK_LABEL, **{"reverse-proxy": "services: {}\n"})
-        assert check_dependencies(subject) == 1
-        assert "    komga: reverse-proxy" in caplog.text
+def test_check_dependencies_names_the_stack_hiding_an_undeclared_dependency(
+    container, filesystem, caplog
+):
+    _tree(filesystem, komga=TRAEFIK_LABEL, **{"reverse-proxy": "services: {}\n"})
+    assert check_dependencies(container.graph()) == 1
+    assert "    komga: reverse-proxy" in caplog.text
 
-    def test_an_unresolvable_graph_fails_before_it_looks_for_undeclared_edges(
-        self, subject, filesystem, caplog
-    ):
-        self._seed(filesystem, gamarr="x-homelab:\n    requires: [romm]\nservices: {}\n")
-        assert check_dependencies(subject) == 1
-        assert "gamarr requires romm" in caplog.text
 
-    def test_it_reads_the_tree_once_however_many_questions_it_asks(
-        self, subject, filesystem
-    ):
-        self._seed(filesystem, paperless=DECLARED, **{"reverse-proxy": "services: {}\n"})
-        check_dependencies(subject)
-        assert len(filesystem.reads) == 2
+def test_check_dependencies_fails_on_an_unresolvable_graph_before_looking_for_gaps(
+    container, filesystem, caplog
+):
+    _tree(filesystem, gamarr="x-homelab:\n    requires: [romm]\nservices: {}\n")
+    assert check_dependencies(container.graph()) == 1
+    assert "gamarr requires romm" in caplog.text
 
-    def test_a_malformed_declaration_fails_explaining_the_shape(
-        self, subject, filesystem, caplog
-    ):
-        self._seed(filesystem, paperless="x-homelab:\n    requires: reverse-proxy\nservices: {}\n")
-        assert check_dependencies(subject) == 1
-        assert "x-homelab.requires must be a list" in caplog.text
+
+def test_check_dependencies_explains_the_shape_of_a_malformed_declaration(
+    container, filesystem, caplog
+):
+    _tree(filesystem, paperless="x-homelab:\n    requires: reverse-proxy\nservices: {}\n")
+    assert check_dependencies(container.graph()) == 1
+    assert "x-homelab.requires must be a list" in caplog.text
+
+
+def test_check_dependencies_reads_the_tree_once_however_many_questions_it_asks(
+    container, filesystem
+):
+    _tree(filesystem, paperless=DECLARED, **{"reverse-proxy": "services: {}\n"})
+    check_dependencies(container.graph())
+    assert len(filesystem.reads) == 2

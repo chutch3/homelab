@@ -70,7 +70,7 @@ class TestDeployCommand:
     wiring: the payload reaches stdout, and a failure's exit code propagates.
     """
 
-    def test_the_plan_reaches_stdout_and_succeeds(self, run, filesystem, capsys):
+    def test_deploy_prints_the_plan_and_exits_zero(self, run, filesystem, capsys):
         filesystem.files.update({
             "stacks/apps/paperless/docker-compose.yml": DECLARED,
             "stacks/reverse-proxy/docker-compose.yml": "services: {}\n",
@@ -79,7 +79,7 @@ class TestDeployCommand:
         printed = capsys.readouterr().out
         assert [line.split()[1] for line in printed.splitlines()] == ["reverse-proxy", "paperless"]
 
-    def test_a_plan_that_cannot_be_built_propagates_its_exit_code(
+    def test_deploy_propagates_a_failed_plans_exit_code(
         self, run, filesystem, capsys
     ):
         filesystem.files["stacks/apps/paperless/docker-compose.yml"] = (
@@ -96,14 +96,14 @@ class TestCheckDepsCommand:
     assert that argv reaches it and both exit codes come back.
     """
 
-    def test_a_clean_tree_exits_zero(self, run, filesystem):
+    def test_check_deps_exits_zero_for_a_clean_tree(self, run, filesystem):
         filesystem.files.update({
             "stacks/apps/paperless/docker-compose.yml": DECLARED,
             "stacks/reverse-proxy/docker-compose.yml": "services: {}\n",
         })
         assert run("check-deps") == 0
 
-    def test_a_tree_that_does_not_check_out_exits_one(self, run, filesystem, caplog):
+    def test_check_deps_exits_one_for_a_tree_that_does_not_check_out(self, run, filesystem, caplog):
         filesystem.files["stacks/apps/gamarr/docker-compose.yml"] = (
             "x-homelab:\n    requires: [romm]\nservices: {}\n"
         )
