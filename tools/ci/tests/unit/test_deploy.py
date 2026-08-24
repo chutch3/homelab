@@ -13,7 +13,7 @@ from conftest import argvs, responds
 
 from ci.adapters import CommandResult
 from ci.cluster import StackState
-from ci.deploy import Origin
+from ci.deploy import Origin, PlanRow
 
 LABELS = 'services:\n    a:\n        deploy:\n            labels: [{}]\n'
 TRAEFIK = LABELS.format('"traefik.enable=true"')
@@ -29,6 +29,11 @@ TREE = {
     "stacks/apps/authentik/docker-compose.yml": NEEDS_PROXY,
     "stacks/apps/paperless/docker-compose.yml": NEEDS_AUTH,
 }
+
+
+def by_stack(rows: list[PlanRow]) -> dict[str, PlanRow]:
+    """Rows keyed by name, so an assertion names the stack it is about."""
+    return {row.stack: row for row in rows}
 
 
 class TestDeployPlanner:
@@ -48,25 +53,22 @@ class TestDeployPlanner:
 
         return _live
 
-    def _by_stack(self, rows):
-        return {row.stack: row for row in rows}
-
     # --- the rows it builds -------------------------------------------------
 
     def test_a_stack_absent_from_the_cluster_reports_absent(self, subject, live):
         live(stacks="reverse-proxy\n", services="reverse-proxy_traefik\t1/1\n")
-        rows = self._by_stack(subject.rows(["paperless"]))
+        rows = by_stack(subject.rows(["paperless"]))
         assert rows["paperless"].state is StackState.ABSENT
         assert rows["authentik"].state is StackState.ABSENT
 
     def test_a_stack_at_its_desired_replicas_reports_converged(self, subject, live):
         live(stacks="reverse-proxy\n", services="reverse-proxy_traefik\t1/1\n")
-        rows = self._by_stack(subject.rows(["paperless"]))
+        rows = by_stack(subject.rows(["paperless"]))
         assert rows["reverse-proxy"].state is StackState.CONVERGED
 
     def test_a_stack_deployed_but_short_of_its_replicas_reports_present(self, subject, live):
         live(stacks="reverse-proxy\n", services="reverse-proxy_traefik\t0/1\n")
-        rows = self._by_stack(subject.rows(["paperless"]))
+        rows = by_stack(subject.rows(["paperless"]))
         assert rows["reverse-proxy"].state is StackState.PRESENT
 
     def test_rows_come_in_deploy_order(self, subject, live):
@@ -81,29 +83,29 @@ class TestDeployPlanner:
 
     def test_an_explicit_target_says_so(self, subject, live):
         live()
-        row = self._by_stack(subject.rows(["paperless"]))["paperless"]
+        row = by_stack(subject.rows(["paperless"]))["paperless"]
         assert row.origin is Origin.TARGET
         assert row.required_by == ()
 
     def test_a_dependency_names_the_target_that_required_it(self, subject, live):
         live()
-        row = self._by_stack(subject.rows(["paperless"]))["authentik"]
+        row = by_stack(subject.rows(["paperless"]))["authentik"]
         assert row.origin is Origin.DEPENDENCY
         assert row.required_by == ("paperless",)
 
     def test_a_transitive_dependency_names_the_target_not_the_middle_stack(self, subject, live):
         live()
-        rows = self._by_stack(subject.rows(["paperless"]))
+        rows = by_stack(subject.rows(["paperless"]))
         assert rows["reverse-proxy"].required_by == ("paperless",)
 
     def test_a_dependency_of_several_targets_names_them_all(self, subject, live):
         live()
-        rows = self._by_stack(subject.rows(["paperless", "authentik"]))
+        rows = by_stack(subject.rows(["paperless", "authentik"]))
         assert rows["reverse-proxy"].required_by == ("authentik", "paperless")
 
     def test_a_target_that_is_also_a_dependency_is_still_an_explicit_target(self, subject, live):
         live()
-        rows = self._by_stack(subject.rows(["paperless", "authentik"]))
+        rows = by_stack(subject.rows(["paperless", "authentik"]))
         assert rows["authentik"].origin is Origin.TARGET
         assert rows["authentik"].required_by == ()
 
