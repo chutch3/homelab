@@ -2,6 +2,84 @@
 
 <!-- version list -->
 
+## v3.29.0 (2026-08-24)
+
+### Bug Fixes
+
+- Allow immich write access to home_media share
+  ([`002295a`](https://github.com/chutch3/homelab/commit/002295a31a1786efce30f65404519d45a8a5dd32))
+
+- Extend postgres healthcheck grace period past slow initdb
+  ([`9cf1d35`](https://github.com/chutch3/homelab/commit/9cf1d353c1245595b0225788e9f24f8b2a180c29))
+
+- Lower CIFS actimeo to stop stale-cache import failures
+  ([`1d30e1f`](https://github.com/chutch3/homelab/commit/1d30e1ff0233883947f9e960ea3a6d9dbf564d97))
+
+- Pass GITHUB_USERNAME explicitly to buildx bake in publish task
+  ([`abcf715`](https://github.com/chutch3/homelab/commit/abcf715dd152dd6f54f9ddfead37016d6325fdc7))
+
+- Pin immich machine learning to the photos node to avoid GPU contention with llama-cpp
+  ([`e74fead`](https://github.com/chutch3/homelab/commit/e74feadc2ef141e0a57fe34ef0c86f5cd79baf2c))
+
+- Provision missing postgres and redis directories for nextcloud and paperless
+  ([`f58323d`](https://github.com/chutch3/homelab/commit/f58323d5b9c93117bd30cd917af1bfbc4dd16acc))
+
+### Chores
+
+- Bump gamarr to main-vimmregion-d365af9
+  ([`cf36710`](https://github.com/chutch3/homelab/commit/cf367107f857453076151ece4c1fe91e415fd2da))
+
+- Ignore local claude code config
+  ([`72848b2`](https://github.com/chutch3/homelab/commit/72848b22e6f35b965c2409c11c41d050fa5019d6))
+
+### Continuous Integration
+
+- Lint only changed files and fold shellcheck/yamllint into pre-commit (closes #108)
+  ([`fea7482`](https://github.com/chutch3/homelab/commit/fea7482a11672e2a5c9fd3d0760c37791c009e7e))
+
+- Make idempotence measurable (closes #109)
+  ([`79650c3`](https://github.com/chutch3/homelab/commit/79650c36bd3911f56e9cfb2b5b7d43e9baad9bfe))
+
+- Run the whole pre-commit hook set in CI (closes #107)
+  ([`aa8d221`](https://github.com/chutch3/homelab/commit/aa8d2219f4f336835203b01b59a386216e743b39))
+
+### Features
+
+- Add a catch-all error-pages service to the reverse proxy
+  ([`4520800`](https://github.com/chutch3/homelab/commit/4520800489aef517c8ecb4c7a3cc72c5e5993989))
+
+- Add archivebox stack for web page archiving
+  ([`1bb600f`](https://github.com/chutch3/homelab/commit/1bb600ff1e060344cfd6f7a7bf5e4c2bc1208788))
+
+- Add nextcloud stack for file sync and calendar
+  ([`5b96814`](https://github.com/chutch3/homelab/commit/5b968140aa9ce9b989bd896aa190f7125be7d5cc))
+
+- Add paperless-ngx stack for document management
+  ([`0ef0057`](https://github.com/chutch3/homelab/commit/0ef0057ac9b65656688d629bffde4012b32c18a2))
+
+- Add self-hosted searxng for open webui web search
+  ([`87f9b4b`](https://github.com/chutch3/homelab/commit/87f9b4bb2ec2ce4a7747394cb3ad397a9523aadb))
+
+- Pin nextcloud and paperless databases to the database node
+  ([`77f2615`](https://github.com/chutch3/homelab/commit/77f261568d9159010933c54d62080590b3c748d6))
+
+- Replace ollama with llama.cpp router mode
+  ([`aa80b68`](https://github.com/chutch3/homelab/commit/aa80b68ddd8b3de217504f3bb0b71d74e2cca416))
+
+- Stage sabnzbd incomplete downloads on node-local scratch
+  ([`db0542e`](https://github.com/chutch3/homelab/commit/db0542ea2fcfa76bbdfcd5cd871942bd92d241c3))
+
+- Switch actual budget mcp to streamable http for open webui
+  ([`19d8826`](https://github.com/chutch3/homelab/commit/19d8826108f639954ca1918f0339c058afd59abe))
+
+- Sync authentik groups and require sso login for paperless
+  ([`fa52b2f`](https://github.com/chutch3/homelab/commit/fa52b2fbee994ec9c83053d7e6ef322a8b6090af))
+
+- Takeout-manager now helps more with managing the archives, export format and understanding the
+  timelines of each takeout export piece
+  ([`72e8fc1`](https://github.com/chutch3/homelab/commit/72e8fc1ff6d1fac6644a200a06dbeaccfd5ad805))
+
+
 ## v3.28.1 (2026-08-17)
 
 ### Bug Fixes
