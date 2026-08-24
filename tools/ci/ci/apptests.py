@@ -23,10 +23,13 @@ single call rather than a place where behaviour accumulates.
 from __future__ import annotations
 
 import json
+import logging
 from pathlib import Path
 
 from ci.affected import UnitCatalog
-from ci.ports import CommandRunner, Console, FileSystem
+from ci.ports import CommandRunner, FileSystem
+
+log = logging.getLogger(__name__)
 
 TIERS = ("unit", "integration", "e2e")
 # Directories holding code that is not ours; a manifest inside one is not a project.
@@ -70,12 +73,10 @@ class AppSuites:
         self,
         filesystem: FileSystem,
         commands: CommandRunner,
-        console: Console,
         repo_root: str | Path = ".",
     ) -> None:
         self._fs = filesystem
         self._commands = commands
-        self._console = console
         self._root = Path(repo_root)
 
     def projects_with(self, manifest: str) -> list[str]:
@@ -126,7 +127,7 @@ class AppSuites:
             if not present:
                 continue
             ran_any = True
-            self._console.out(f"==> {rel} : {' '.join(present)}")
+            log.info("==> %s : %s", rel, " ".join(present))
             paths = [f"tests/{t}" for t in present]
             extra = [] if gated else ["-o", "addopts="]
             if not self._commands.run(["uv", "run", "pytest", *paths, *extra], cwd=proj).ok:
@@ -146,7 +147,7 @@ class AppSuites:
             if script not in self._scripts(proj / "package.json"):
                 continue
             ran_any = True
-            self._console.out(f"==> {rel} : npm run {script}")
+            log.info("==> %s : npm run %s", rel, script)
             if not self._commands.run(["npm", "ci"], cwd=proj).ok:
                 rc = 1
                 continue
@@ -168,13 +169,11 @@ class SuiteRunner:
         suites: AppSuites,
         catalog: UnitCatalog,
         commands: CommandRunner,
-        console: Console,
         repo_root: str | Path = ".",
     ) -> None:
         self._suites = suites
         self._catalog = catalog
         self._commands = commands
-        self._console = console
         self._root = str(repo_root)
 
     def changed_files(self, base: str) -> list[str]:
@@ -214,5 +213,5 @@ class SuiteRunner:
         )
         js_rc, js_ran = self._suites.run_js(pick(self._suites.js_projects()), tier)
         if not (py_ran or js_ran):
-            self._console.out("No matching test suites.")
+            log.info("No matching test suites.")
         return py_rc or js_rc

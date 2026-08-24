@@ -1,7 +1,8 @@
 """Fakes for the outer ring, and the container fixtures that inject them.
 
 These stand in for :mod:`ci.ports` — interfaces we own — so no test patches a
-stdlib or third-party name. The command boundary is a ``Mock(spec=CommandRunner)``
+stdlib or third-party name. Diagnostics are not among them: services log those
+through :mod:`logging`, and tests read them with ``caplog``. The command boundary is a ``Mock(spec=CommandRunner)``
 so ``assert_called_with`` validates it; the filesystem is a hand fake because it
 is stateful and a Mock would say nothing useful about a tree.
 
@@ -10,6 +11,7 @@ is stateful and a Mock would say nothing useful about a tree.
 
 from __future__ import annotations
 
+import logging
 import re
 from pathlib import Path
 from unittest.mock import Mock
@@ -73,24 +75,26 @@ class FixedClock:
         return self.timestamp
 
 
-class RecordingConsole:
+class RecordingOutput:
+    """Stands in for the payload stream — what a caller pipes or parses."""
+
     def __init__(self) -> None:
-        self.stdout: list[str] = []
-        self.stderr: list[str] = []
-        self.written: list[str] = []
+        self.lines: list[str] = []
+        self.raw_stdout: list[str] = []
+        self.raw_stderr: list[str] = []
 
-    def out(self, message: str = "") -> None:
-        self.stdout.append(message)
+    def line(self, text: str = "") -> None:
+        self.lines.append(text)
 
-    def err(self, message: str = "") -> None:
-        self.stderr.append(message)
+    def raw(self, text: str) -> None:
+        self.raw_stdout.append(text)
 
-    def write(self, text: str) -> None:
-        self.written.append(text)
+    def raw_err(self, text: str) -> None:
+        self.raw_stderr.append(text)
 
     @property
     def text(self) -> str:
-        return "\n".join(self.stdout)
+        return "\n".join(self.lines)
 
 
 def responds(commands: Mock, *results: CommandResult) -> None:
@@ -128,8 +132,14 @@ def clock() -> FixedClock:
 
 
 @pytest.fixture
-def console() -> RecordingConsole:
-    return RecordingConsole()
+def output() -> RecordingOutput:
+    return RecordingOutput()
+
+
+@pytest.fixture(autouse=True)
+def _diagnostics(caplog):
+    """Diagnostics are logged, so every test captures them at INFO by default."""
+    caplog.set_level(logging.INFO)
 
 
 @pytest.fixture
@@ -139,7 +149,7 @@ def env() -> dict[str, str]:
 
 
 @pytest.fixture
-def container(filesystem, commands, clock, console, env) -> Container:
+def container(filesystem, commands, clock, output, env) -> Container:
     """A container with every outer-ring provider overridden by a fake."""
     c = Container()
     c.repo_root.override(providers.Object(str(ROOT)))
@@ -147,7 +157,7 @@ def container(filesystem, commands, clock, console, env) -> Container:
     c.filesystem.override(providers.Object(filesystem))
     c.commands.override(providers.Object(commands))
     c.clock.override(providers.Object(clock))
-    c.console.override(providers.Object(console))
+    c.output.override(providers.Object(output))
     return c
 
 

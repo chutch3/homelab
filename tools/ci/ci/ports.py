@@ -57,13 +57,23 @@ class Clock(Protocol):
 
 
 @runtime_checkable
-class Console(Protocol):
-    """Process output."""
+class Output(Protocol):
+    """The program's answer on stdout.
 
-    def out(self, message: str = "") -> None: ...
+    Only for output a caller consumes: JSON a workflow parses, an image list a
+    shell loops over, the plan rows, and a subprocess's own streams passed
+    through untouched. Diagnostics are not this — services log those, so they
+    reach stderr without being mistaken for the payload.
+    """
 
-    def err(self, message: str = "") -> None: ...
+    def line(self, text: str = "") -> None:
+        """One line of payload on stdout."""
+        ...
 
-    def write(self, text: str) -> None:
-        """Emit text exactly as given — no trailing newline added."""
+    def raw(self, text: str) -> None:
+        """Payload written to stdout exactly as given — no newline added."""
+        ...
+
+    def raw_err(self, text: str) -> None:
+        """A subprocess's own stderr, passed through unchanged."""
         ...

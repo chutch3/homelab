@@ -303,29 +303,29 @@ class TestDependencyCheck:
         filesystem.files.update(compose(**stacks))
 
     def test_a_tree_that_resolves_and_declares_everything_passes(
-        self, subject, filesystem, console
+        self, subject, filesystem, caplog
     ):
         self._seed(filesystem, paperless=DECLARED, **{"reverse-proxy": "services: {}\n"})
         assert subject.report() == 0
-        assert console.text.startswith("✓ 2 stacks resolve")
+        assert "✓ 2 stacks resolve" in caplog.text
 
     def test_an_undeclared_dependency_fails_naming_the_stack_and_what_it_hid(
-        self, subject, filesystem, console
+        self, subject, filesystem, caplog
     ):
         self._seed(filesystem, komga=TRAEFIK_LABEL, **{"reverse-proxy": "services: {}\n"})
         assert subject.report() == 1
-        assert "    komga: reverse-proxy" in console.text
+        assert "    komga: reverse-proxy" in caplog.text
 
     def test_an_unresolvable_graph_fails_before_it_looks_for_undeclared_edges(
-        self, subject, filesystem, console
+        self, subject, filesystem, caplog
     ):
         self._seed(filesystem, gamarr="x-homelab:\n    requires: [romm]\nservices: {}\n")
         assert subject.report() == 1
-        assert "gamarr requires romm" in console.text
+        assert "gamarr requires romm" in caplog.text
 
     def test_a_malformed_declaration_fails_explaining_the_shape(
-        self, subject, filesystem, console
+        self, subject, filesystem, caplog
     ):
         self._seed(filesystem, paperless="x-homelab:\n    requires: reverse-proxy\nservices: {}\n")
         assert subject.report() == 1
-        assert "x-homelab.requires must be a list" in console.text
+        assert "x-homelab.requires must be a list" in caplog.text

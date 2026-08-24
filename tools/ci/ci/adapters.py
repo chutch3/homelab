@@ -58,12 +58,12 @@ class SystemClock:
         return datetime.now(tz=timezone.utc).timestamp()
 
 
-class StdoutConsole:
-    def out(self, message: str = "") -> None:
-        print(message)
+class StdoutOutput:
+    def line(self, text: str = "") -> None:
+        print(text)
 
-    def err(self, message: str = "") -> None:
-        print(message, file=sys.stderr)
-
-    def write(self, text: str) -> None:
+    def raw(self, text: str) -> None:
         sys.stdout.write(text)
+
+    def raw_err(self, text: str) -> None:
+        sys.stderr.write(text)

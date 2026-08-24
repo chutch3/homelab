@@ -9,8 +9,8 @@ from __future__ import annotations
 import pytest
 
 from ci import ports
-from ci.adapters import CommandResult, LocalFileSystem, StdoutConsole, Subprocess, SystemClock
-from conftest import FakeFileSystem, FixedClock, RecordingConsole
+from ci.adapters import CommandResult, LocalFileSystem, StdoutOutput, Subprocess, SystemClock
+from conftest import FakeFileSystem, FixedClock, RecordingOutput
 
 
 @pytest.mark.parametrize(
@@ -18,7 +18,7 @@ from conftest import FakeFileSystem, FixedClock, RecordingConsole
     [
         (ports.FileSystem, LocalFileSystem(), FakeFileSystem()),
         (ports.Clock, SystemClock(), FixedClock()),
-        (ports.Console, StdoutConsole(), RecordingConsole()),
+        (ports.Output, StdoutOutput(), RecordingOutput()),
     ],
 )
 def test_the_fake_and_the_real_adapter_satisfy_the_same_port(port, real, fake):

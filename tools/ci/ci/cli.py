@@ -23,6 +23,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import logging
 import os
 import sys
 
@@ -36,7 +37,7 @@ from ci.containers import Container
 from ci.deploy import DeployPlan
 from ci.gc import RegistryGc
 from ci.idempotence import IdempotenceCheck
-from ci.ports import Console
+from ci.ports import Output
 from ci.stackgraph import DependencyCheck
 
 
@@ -44,10 +45,10 @@ from ci.stackgraph import DependencyCheck
 def _cmd_affected(
     args: argparse.Namespace,
     catalog: UnitCatalog = Provide[Container.catalog],
-    console: Console = Provide[Container.console],
+    output: Output = Provide[Container.output],
 ) -> int:
     changed = args.files or [line.strip() for line in sys.stdin if line.strip()]
-    console.out(json.dumps(catalog.matrix(changed)))
+    output.line(json.dumps(catalog.matrix(changed)))
     return 0
 
 
@@ -64,12 +65,12 @@ def _cmd_projects(
     args: argparse.Namespace,
     suites: AppSuites = Provide[Container.suites],
     suite_runner: SuiteRunner = Provide[Container.suite_runner],
-    console: Console = Provide[Container.console],
+    output: Output = Provide[Container.output],
 ) -> int:
     changed = args.files or [line.strip() for line in sys.stdin if line.strip()]
     affected = set(suite_runner.affected_projects(suites.python_projects(), changed))
     affected |= set(suite_runner.affected_projects(suites.js_projects(), changed))
-    console.out(json.dumps([{"project": p} for p in sorted(affected)]))
+    output.line(json.dumps([{"project": p} for p in sorted(affected)]))
     return 0
 
 
@@ -77,10 +78,10 @@ def _cmd_projects(
 def _cmd_images(
     args: argparse.Namespace,
     catalog: UnitCatalog = Provide[Container.catalog],
-    console: Console = Provide[Container.console],
+    output: Output = Provide[Container.output],
 ) -> int:
     for image in catalog.image_names():
-        console.out(image)
+        output.line(image)
     return 0
 
 
@@ -189,6 +190,9 @@ def build_container(args: argparse.Namespace, process_env: dict[str, str] | None
 
 
 def main() -> None:
+    # Diagnostics go to stderr through logging; stdout carries only the payload,
+    # which callers pipe and parse.
+    logging.basicConfig(level=logging.INFO, format="%(message)s", stream=sys.stderr)
     args = build_parser().parse_args()
     build_container(args)
     raise SystemExit(args.func(args))

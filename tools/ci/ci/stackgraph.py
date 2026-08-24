@@ -10,6 +10,7 @@ Nothing here deploys — it only decides what order a deploy would use, and
 
 from __future__ import annotations
 
+import logging
 import re
 from dataclasses import dataclass
 from pathlib import Path
@@ -17,7 +18,9 @@ from pathlib import Path
 import yaml
 
 from ci.config import disabled_providers
-from ci.ports import Console, FileSystem
+from ci.ports import FileSystem
+
+log = logging.getLogger(__name__)
 
 # Stacks live one directory deep in each of these, alongside a docker-compose.yml.
 STACK_ROOTS = ("stacks", "stacks/apps")
@@ -147,27 +150,24 @@ class DependencyGraph:
 class DependencyCheck:
     """The verdict `ci check-deps` prints: the declarations resolve, and are complete."""
 
-    def __init__(self, graph: DependencyGraph, console: Console) -> None:
+    def __init__(self, graph: DependencyGraph) -> None:
         self._graph = graph
-        self._console = console
 
     def report(self) -> int:
         try:
             stacks = self._graph.stacks()
             self._graph.resolve()
         except UnresolvedGraph as exc:
-            self._console.out(f"✗ {exc}")
+            log.error("✗ %s", exc)
             return 1
         if missing := self._graph.undeclared():
-            self._console.out(
+            log.error(
                 "✗ dependencies visible in the compose file but not declared in x-homelab.requires:"
             )
             for stack, requires in sorted(missing.items()):
-                self._console.out(f"    {stack}: {', '.join(sorted(requires))}")
+                log.error("    %s: %s", stack, ", ".join(sorted(requires)))
             return 1
-        self._console.out(
-            f"✓ {len(stacks)} stacks resolve, with every dependency they reveal declared"
-        )
+        log.info("✓ %d stacks resolve, with every dependency they reveal declared", len(stacks))
         return 0
 
 

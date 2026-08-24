@@ -115,24 +115,25 @@ class TestDeployPlanRows:
 class TestDeployPlanReport:
     """`DeployPlan.report` — the printed plan, and what it refuses to do."""
 
-    def test_it_prints_a_row_per_stack_with_verb_state_and_reason(self, subject, live, console):
+    def test_it_prints_a_row_per_stack_with_verb_state_and_reason(self, subject, live, output):
         live(stacks="reverse-proxy\n", services="reverse-proxy_traefik\t1/1\n")
         assert subject.report(["paperless"]) == 0
-        assert [" ".join(line.split()) for line in console.stdout] == [
+        assert [" ".join(line.split()) for line in output.lines] == [
             "ensure reverse-proxy converged → required by paperless",
             "ensure authentik absent → required by paperless",
             "deploy paperless absent → explicit target",
         ]
 
-    def test_the_columns_line_up_so_the_states_can_be_scanned(self, subject, live, console):
+    def test_the_columns_line_up_so_the_states_can_be_scanned(self, subject, live, output):
         live()
         subject.report(["paperless"])
-        assert len({line.index("→") for line in console.stdout}) == 1
+        assert len({line.index("→") for line in output.lines}) == 1
 
-    def test_the_count_goes_to_stderr_so_stdout_stays_pipeable(self, subject, live, console):
+    def test_the_count_is_logged_so_stdout_carries_only_the_plan(self, subject, live, output, caplog):
         live()
         subject.report(["paperless"])
-        assert "3 stack(s) — plan only, nothing deployed." in "\n".join(console.stderr)
+        assert "3 stack(s) — plan only, nothing deployed." in caplog.text
+        assert not any("stack(s)" in line for line in output.lines)
 
     def test_it_only_ever_lists(self, subject, live, commands):
         live()
@@ -143,17 +144,17 @@ class TestDeployPlanReport:
         ]
 
     def test_an_unresolvable_graph_exits_one_before_touching_the_cluster(
-        self, subject, filesystem, console, commands
+        self, subject, filesystem, output, caplog, commands
     ):
         filesystem.files["stacks/apps/ghost/docker-compose.yml"] = (
             "x-homelab:\n    requires: [nope]\nservices: {}\n"
         )
         assert subject.report(None) == 1
-        assert console.stdout == []
-        assert "ghost requires nope" in "\n".join(console.stderr)
+        assert output.lines == []
+        assert "ghost requires nope" in caplog.text
         assert argvs(commands) == []
 
-    def test_an_unreachable_cluster_exits_one_and_explains(self, subject, commands, console):
+    def test_an_unreachable_cluster_exits_one_and_explains(self, subject, commands, caplog):
         responds(commands, CommandResult(1, "", "Cannot connect to the Docker daemon"))
         assert subject.report(None) == 1
-        assert "Cannot connect to the Docker daemon" in "\n".join(console.stderr)
+        assert "Cannot connect to the Docker daemon" in caplog.text

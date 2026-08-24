@@ -11,11 +11,14 @@ stack that was named, `ensure` for one pulled in behind it.
 
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass
 
 from ci.cluster import ClusterUnreachable, StackState, SwarmCluster
-from ci.ports import Console
+from ci.ports import Output
 from ci.stackgraph import DependencyGraph, UnresolvedGraph
+
+log = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -29,10 +32,10 @@ class PlanRow:
 
 
 class DeployPlan:
-    def __init__(self, graph: DependencyGraph, cluster: SwarmCluster, console: Console) -> None:
+    def __init__(self, graph: DependencyGraph, cluster: SwarmCluster, output: Output) -> None:
         self._graph = graph
         self._cluster = cluster
-        self._console = console
+        self._output = output
 
     def rows(self, targets: list[str] | None = None) -> list[PlanRow]:
         order = self._graph.resolve(targets)
@@ -57,11 +60,11 @@ class DeployPlan:
         try:
             rows = self.rows(targets)
         except (UnresolvedGraph, ClusterUnreachable) as exc:
-            self._console.err(f"✗ {exc}")
+            log.error("✗ %s", exc)
             return 1
         for line in _render(rows):
-            self._console.out(line)
-        self._console.err(f"\n{len(rows)} stack(s) — plan only, nothing deployed.")
+            self._output.line(line)
+        log.info("%d stack(s) — plan only, nothing deployed.", len(rows))
         return 0
 
 

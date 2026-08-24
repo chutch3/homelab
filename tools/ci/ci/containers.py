@@ -18,7 +18,7 @@ from __future__ import annotations
 
 from dependency_injector import containers, providers
 
-from ci.adapters import LocalFileSystem, StdoutConsole, Subprocess, SystemClock
+from ci.adapters import LocalFileSystem, StdoutOutput, Subprocess, SystemClock
 from ci.affected import UnitCatalog
 from ci.apptests import AppSuites, SuiteRunner
 from ci.cluster import SwarmCluster
@@ -35,14 +35,13 @@ class Container(containers.DeclarativeContainer):
     filesystem = providers.Singleton(LocalFileSystem)
     commands = providers.Singleton(Subprocess)
     clock = providers.Singleton(SystemClock)
-    console = providers.Singleton(StdoutConsole)
+    output = providers.Singleton(StdoutOutput)
 
     catalog = providers.Factory(UnitCatalog, filesystem=filesystem, repo_root=repo_root)
     suites = providers.Factory(
         AppSuites,
         filesystem=filesystem,
         commands=commands,
-        console=console,
         repo_root=repo_root,
     )
     suite_runner = providers.Factory(
@@ -50,18 +49,17 @@ class Container(containers.DeclarativeContainer):
         suites=suites,
         catalog=catalog,
         commands=commands,
-        console=console,
         repo_root=repo_root,
     )
     registry_gc = providers.Factory(
-        RegistryGc, catalog=catalog, commands=commands, clock=clock, console=console
+        RegistryGc, catalog=catalog, commands=commands, clock=clock
     )
-    idempotence = providers.Factory(IdempotenceCheck, commands=commands, console=console)
+    idempotence = providers.Factory(IdempotenceCheck, commands=commands, output=output)
 
     stack_tree = providers.Factory(StackTree, filesystem=filesystem, repo_root=repo_root)
     graph = providers.Factory(DependencyGraph, tree=stack_tree, env=env)
-    dependency_check = providers.Factory(DependencyCheck, graph=graph, console=console)
+    dependency_check = providers.Factory(DependencyCheck, graph=graph)
     cluster = providers.Singleton(SwarmCluster, commands=commands)
     deploy_plan = providers.Factory(
-        DeployPlan, graph=graph, cluster=cluster, console=console
+        DeployPlan, graph=graph, cluster=cluster, output=output
     )
