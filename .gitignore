@@ -221,3 +221,9 @@ ansible/inventory/group_vars/all/snmp.yml
 
 # Claude Code — local agent config, commands and notes
 .claude/
+
+# `ci` is a root dev-dependency installed editable from tools/ci, so its
+# dependencies are resolved in the root uv.lock. Running its suite writes a
+# redundant lock beside its pyproject — one that can only drift from the root.
+# (The standalone app projects are different: their locks are committed.)
+tools/ci/uv.lock
