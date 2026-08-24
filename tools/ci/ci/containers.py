@@ -22,7 +22,7 @@ from ci.adapters import LocalFileSystem, Subprocess, SystemClock
 from ci.affected import UnitCatalog
 from ci.apptests import AppSuites, SuiteRunner
 from ci.cluster import SwarmCluster
-from ci.deploy import DeployPlan
+from ci.deploy import DeployPlanner
 from ci.gc import RegistryGc
 from ci.idempotence import IdempotenceCheck
 from ci.stackgraph import DependencyGraph, StackTree
@@ -58,4 +58,4 @@ class Container(containers.DeclarativeContainer):
     stack_tree = providers.Factory(StackTree, filesystem=filesystem, repo_root=repo_root)
     graph = providers.Factory(DependencyGraph, tree=stack_tree, env=env)
     cluster = providers.Singleton(SwarmCluster, commands=commands)
-    deploy_plan = providers.Factory(DeployPlan, graph=graph, cluster=cluster)
+    planner = providers.Factory(DeployPlanner, graph=graph, cluster=cluster)

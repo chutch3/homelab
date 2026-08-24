@@ -34,7 +34,7 @@ from ci.affected import UnitCatalog
 from ci.apptests import AppSuites, SuiteRunner
 from ci.config import load_env
 from ci.containers import Container
-from ci.deploy import DeployPlan
+from ci.deploy import DeployPlanner
 from ci.gc import RegistryGc
 from ci.idempotence import IdempotenceCheck
 from ci.stackgraph import DependencyGraph, check_dependencies
@@ -101,9 +101,9 @@ def _cmd_idempotence(
 @inject
 def _cmd_deploy(
     args: argparse.Namespace,
-    deploy_plan: DeployPlan = Provide[Container.deploy_plan],
+    planner: DeployPlanner = Provide[Container.planner],
 ) -> int:
-    return deploy_plan.report(args.stacks or None)
+    return planner.report(args.stacks or None)
 
 
 @inject

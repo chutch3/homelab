@@ -47,7 +47,7 @@ class PlanRow:
     required_by: tuple[str, ...] = ()
 
 
-class DeployPlan:
+class DeployPlanner:
     def __init__(self, graph: DependencyGraph, cluster: SwarmCluster) -> None:
         self._graph = graph
         self._cluster = cluster

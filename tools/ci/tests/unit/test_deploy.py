@@ -1,4 +1,4 @@
-"""Tests for the deploy plan (`ci.deploy`) — order plus live state, printed.
+"""Tests for `ci.deploy.DeployPlanner` — resolved order plus live cluster state.
 
 A plan is only useful if it says what will happen rather than listing
 everything, so the assertions here are about the two things that distinguish
@@ -23,6 +23,7 @@ NEEDS_AUTH = "x-homelab:\n    requires: [reverse-proxy, authentik]\n" + LABELS.f
     '"traefik.enable=true", "traefik.http.routers.p.middlewares=authentik@swarm"'
 )
 
+# paperless → authentik → reverse-proxy, so one target exercises a transitive edge.
 TREE = {
     "stacks/reverse-proxy/docker-compose.yml": PROXY,
     "stacks/apps/authentik/docker-compose.yml": NEEDS_PROXY,
@@ -30,72 +31,79 @@ TREE = {
 }
 
 
-@pytest.fixture
-def tree(filesystem):
-    filesystem.files.update(TREE)
-    return filesystem
+class TestDeployPlanner:
+    """`DeployPlanner` — the plan it builds, and the plan it prints."""
 
+    @pytest.fixture
+    def subject(self, container, filesystem):
+        filesystem.files.update(TREE)
+        return container.planner()
 
-@pytest.fixture
-def live(commands):
-    """Seed what the cluster reports: stack names, then `service<TAB>replicas`."""
+    @pytest.fixture
+    def live(self, commands):
+        """Seed what the cluster reports: stack names, then `service<TAB>replicas`."""
 
-    def _live(stacks: str = "", services: str = "") -> None:
-        responds(commands, CommandResult(0, stacks), CommandResult(0, services))
+        def _live(stacks: str = "", services: str = "") -> None:
+            responds(commands, CommandResult(0, stacks), CommandResult(0, services))
 
-    return _live
+        return _live
 
+    def _by_stack(self, rows):
+        return {row.stack: row for row in rows}
 
-@pytest.fixture
-def subject(container, tree):
-    return container.deploy_plan()
-
-
-def rows_by_stack(rows):
-    return {row.stack: row for row in rows}
-
-
-class TestDeployPlanRows:
-    """`DeployPlan.rows` — one row per stack the deploy would touch."""
+    # --- the rows it builds -------------------------------------------------
 
     def test_a_stack_absent_from_the_cluster_reports_absent(self, subject, live):
         live(stacks="reverse-proxy\n", services="reverse-proxy_traefik\t1/1\n")
-        rows = rows_by_stack(subject.rows(["paperless"]))
+        rows = self._by_stack(subject.rows(["paperless"]))
         assert rows["paperless"].state is StackState.ABSENT
         assert rows["authentik"].state is StackState.ABSENT
 
     def test_a_stack_at_its_desired_replicas_reports_converged(self, subject, live):
         live(stacks="reverse-proxy\n", services="reverse-proxy_traefik\t1/1\n")
-        assert rows_by_stack(subject.rows(["paperless"]))["reverse-proxy"].state is StackState.CONVERGED
+        rows = self._by_stack(subject.rows(["paperless"]))
+        assert rows["reverse-proxy"].state is StackState.CONVERGED
 
     def test_a_stack_deployed_but_short_of_its_replicas_reports_present(self, subject, live):
         live(stacks="reverse-proxy\n", services="reverse-proxy_traefik\t0/1\n")
-        assert rows_by_stack(subject.rows(["paperless"]))["reverse-proxy"].state is StackState.PRESENT
+        rows = self._by_stack(subject.rows(["paperless"]))
+        assert rows["reverse-proxy"].state is StackState.PRESENT
+
+    def test_rows_come_in_deploy_order(self, subject, live):
+        live()
+        assert [row.stack for row in subject.rows(["paperless"])] == [
+            "reverse-proxy",
+            "authentik",
+            "paperless",
+        ]
+
+    # --- why each row is in the plan ----------------------------------------
 
     def test_an_explicit_target_says_so(self, subject, live):
         live()
-        row = rows_by_stack(subject.rows(["paperless"]))["paperless"]
+        row = self._by_stack(subject.rows(["paperless"]))["paperless"]
         assert row.origin is Origin.TARGET
         assert row.required_by == ()
 
     def test_a_dependency_names_the_target_that_required_it(self, subject, live):
         live()
-        row = rows_by_stack(subject.rows(["paperless"]))["authentik"]
+        row = self._by_stack(subject.rows(["paperless"]))["authentik"]
         assert row.origin is Origin.DEPENDENCY
         assert row.required_by == ("paperless",)
 
     def test_a_transitive_dependency_names_the_target_not_the_middle_stack(self, subject, live):
         live()
-        assert rows_by_stack(subject.rows(["paperless"]))["reverse-proxy"].required_by == ("paperless",)
+        rows = self._by_stack(subject.rows(["paperless"]))
+        assert rows["reverse-proxy"].required_by == ("paperless",)
 
     def test_a_dependency_of_several_targets_names_them_all(self, subject, live):
         live()
-        rows = rows_by_stack(subject.rows(["paperless", "authentik"]))
+        rows = self._by_stack(subject.rows(["paperless", "authentik"]))
         assert rows["reverse-proxy"].required_by == ("authentik", "paperless")
 
     def test_a_target_that_is_also_a_dependency_is_still_an_explicit_target(self, subject, live):
         live()
-        rows = rows_by_stack(subject.rows(["paperless", "authentik"]))
+        rows = self._by_stack(subject.rows(["paperless", "authentik"]))
         assert rows["authentik"].origin is Origin.TARGET
         assert rows["authentik"].required_by == ()
 
@@ -107,22 +115,12 @@ class TestDeployPlanRows:
     def test_it_reads_the_tree_once_though_it_asks_the_graph_twice(
         self, subject, live, filesystem
     ):
-        """Order and attribution are two questions; the compose files are read for both."""
+        """Order and attribution are two questions; the compose files answer both."""
         live()
         subject.rows(["paperless"])
         assert len(filesystem.reads) == len(TREE)
 
-    def test_rows_come_in_deploy_order(self, subject, live):
-        live()
-        assert [row.stack for row in subject.rows(["paperless"])] == [
-            "reverse-proxy",
-            "authentik",
-            "paperless",
-        ]
-
-
-class TestDeployPlanReport:
-    """`DeployPlan.report` — the printed plan, and what it refuses to do."""
+    # --- the plan it prints --------------------------------------------------
 
     def test_it_prints_a_row_per_stack_with_verb_state_and_reason(self, subject, live, capsys):
         live(stacks="reverse-proxy\n", services="reverse-proxy_traefik\t1/1\n")
@@ -138,7 +136,9 @@ class TestDeployPlanReport:
         subject.report(["paperless"])
         assert len({line.index("→") for line in capsys.readouterr().out.splitlines()}) == 1
 
-    def test_the_count_is_logged_so_stdout_carries_only_the_plan(self, subject, live, capsys, caplog):
+    def test_the_count_is_logged_so_stdout_carries_only_the_plan(
+        self, subject, live, capsys, caplog
+    ):
         live()
         subject.report(["paperless"])
         assert "3 stack(s) — plan only, nothing deployed." in caplog.text

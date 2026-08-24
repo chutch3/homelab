@@ -16,16 +16,15 @@ from conftest import ROOT
 from ci.containers import Container
 
 
-@pytest.fixture
-def subject() -> Container:
-    c = Container()
-    c.repo_root.override(providers.Object(str(ROOT)))
-    c.env.override(providers.Object({}))
-    return c
+class TestContainer:
+    """`Container` — which providers are shared, and what it refuses to build."""
 
-
-class TestLifetimes:
-    """Which providers are shared, and which are rebuilt."""
+    @pytest.fixture
+    def subject(self) -> Container:
+        c = Container()
+        c.repo_root.override(providers.Object(str(ROOT)))
+        c.env.override(providers.Object({}))
+        return c
 
     def test_an_adapter_is_shared_because_it_holds_no_state_worth_rebuilding(self, subject):
         assert subject.filesystem() is subject.filesystem()
@@ -35,10 +34,6 @@ class TestLifetimes:
 
     def test_a_service_is_rebuilt_so_it_closes_over_this_run_s_configuration(self, subject):
         assert subject.graph() is not subject.graph()
-
-
-class TestRequiredConfiguration:
-    """A container that was not told where it is, or what is switched on."""
 
     def test_a_container_without_a_repo_root_refuses_to_build_a_service(self):
         container = Container()

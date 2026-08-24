@@ -19,17 +19,6 @@ STACK_LS = ["docker", "stack", "ls", "--format", "{{.Name}}"]
 SERVICE_LS = ["docker", "service", "ls", "--format", "{{.Name}}\t{{.Replicas}}"]
 
 
-@pytest.fixture
-def subject(container, commands):
-    """The cluster under test, over what `stack ls` / `service ls` are made to report."""
-
-    def _subject(stacks: str = "", services: str = "") -> SwarmCluster:
-        responds(commands, CommandResult(0, stacks), CommandResult(0, services))
-        return container.cluster()
-
-    return _subject
-
-
 def test_parse_replicas_reads_running_over_desired():
     assert parse_replicas("2/3") == (2, 3)
 
@@ -45,6 +34,16 @@ def test_parse_replicas_never_reports_an_unreadable_column_as_converged():
 
 class TestSwarmCluster:
     """`SwarmCluster` — what the cluster says exists, and what has converged."""
+
+    @pytest.fixture
+    def subject(self, container, commands):
+        """The cluster under test, over what `stack ls` / `service ls` report."""
+
+        def _subject(stacks: str = "", services: str = "") -> SwarmCluster:
+            responds(commands, CommandResult(0, stacks), CommandResult(0, services))
+            return container.cluster()
+
+        return _subject
 
     def test_a_stack_not_listed_is_absent(self, subject):
         cluster = subject(stacks="authentik\n", services="authentik_server\t1/1\n")
