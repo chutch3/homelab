@@ -14,6 +14,8 @@ import json
 
 import pytest
 
+from conftest import argvs, responds
+
 from ci.adapters import CommandResult
 from ci.gc import versions_to_prune
 
@@ -72,39 +74,39 @@ class TestRegistryGc:
         return CommandResult(0, stdout=json.dumps(versions))
 
     def test_lists_versions_for_every_buildable_image(self, subject, commands):
-        commands._results = [self._listing([])]
+        responds(commands, self._listing([]))
         subject.prune()
-        assert commands.argvs[0] == [
+        assert argvs(commands)[0] == [
             "gh", "api", "--paginate", "/user/packages/container/warden/versions"
         ]
 
     def test_a_dry_run_deletes_nothing_and_says_so(self, subject, commands, console):
-        commands._results = [self._listing([_v(4, 30, ["oldsha"])])]
+        responds(commands, self._listing([_v(4, 30, ["oldsha"])]))
         assert subject.prune() == 1
-        assert commands.argvs == [
+        assert argvs(commands) == [
             ["gh", "api", "--paginate", "/user/packages/container/warden/versions"]
         ]
         assert console.stdout[-1] == "Would prune 1 version(s)."
         assert "[dry-run] would delete version 4" in console.text
 
     def test_apply_issues_a_delete_per_stale_version(self, subject, commands, console):
-        commands._results = [self._listing([_v(4, 30, ["oldsha"]), _v(6, 30, [])])]
+        responds(commands, self._listing([_v(4, 30, ["oldsha"]), _v(6, 30, [])]))
         assert subject.prune(apply=True) == 2
-        assert commands.argvs[1:] == [
+        assert argvs(commands)[1:] == [
             ["gh", "api", "-X", "DELETE", "/user/packages/container/warden/versions/4"],
             ["gh", "api", "-X", "DELETE", "/user/packages/container/warden/versions/6"],
         ]
         assert console.stdout[-1] == "Pruned 2 version(s)."
 
     def test_a_release_version_is_never_deleted(self, subject, commands):
-        commands._results = [self._listing([_v(1, 900, ["1.2.0"])])]
+        responds(commands, self._listing([_v(1, 900, ["1.2.0"])]))
         assert subject.prune(apply=True) == 0
-        assert len(commands.argvs) == 1  # the listing only
+        assert len(argvs(commands)) == 1  # the listing only
 
     def test_the_cutoff_is_honoured(self, subject, commands):
-        commands._results = [self._listing([_v(4, 30, ["oldsha"])])]
+        responds(commands, self._listing([_v(4, 30, ["oldsha"])]))
         assert subject.prune(cutoff_days=60) == 0
 
     def test_an_empty_body_is_treated_as_no_versions(self, subject, commands):
-        commands._results = [CommandResult(0, stdout="")]
+        responds(commands, CommandResult(0, stdout=""))
         assert subject.prune() == 0

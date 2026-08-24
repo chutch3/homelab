@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import re
 
-from ci.adapters import CommandRunner, Console
+from ci.ports import CommandRunner, Console
 
 _ANSI = re.compile(r"\x1b\[[0-9;]*m")
 _HOST_LINE = re.compile(r"^(?P<host>\S+)\s*:\s+(?P<counters>(?:\w+=\d+\s*)+)$")
@@ -68,8 +68,8 @@ class IdempotenceCheck:
         for run in (1, 2):
             self._console.out(f"\n=== idempotence: run {run}/2 — {' '.join(cmd)}\n")
             result = self._commands.run(cmd, capture=True)
-            self._console.out(result.stdout)
-            self._console.err(result.stderr)
+            self._console.write(result.stdout)
+            self._console.err(result.stderr.rstrip("\n"))
 
             if run == 1:
                 if not result.ok:

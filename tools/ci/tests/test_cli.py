@@ -11,6 +11,8 @@ import json
 
 import pytest
 
+from conftest import ROOT, argvs, responds
+
 from ci.adapters import CommandResult
 from ci.cli import build_parser
 
@@ -102,7 +104,7 @@ class TestDeployCommand:
     def test_it_never_runs_a_command(self, run, filesystem, commands):
         filesystem.files["stacks/reverse-proxy/docker-compose.yml"] = "services: {}\n"
         run("deploy", "--plan")
-        assert commands.argvs == []
+        assert argvs(commands) == []
 
 
 class TestCheckDepsCommand:
@@ -171,10 +173,10 @@ class TestGcCommand:
 
     def test_defaults_to_a_dry_run(self, run, filesystem, commands, console):
         filesystem.files["stacks/apps/warden/docker-compose.yml"] = BUILDABLE
-        commands._results = [CommandResult(0, "[]")]
+        responds(commands, *[CommandResult(0, "[]")])
         assert run("gc") == 0
         assert console.stdout[-1] == "Would prune 0 version(s)."
-        assert all("DELETE" not in a for argv in commands.argvs for a in argv)
+        assert all("DELETE" not in a for argv in argvs(commands) for a in argv)
 
 
 class TestTestCommand:
@@ -188,20 +190,20 @@ class TestTestCommand:
         filesystem.files["stacks/apps/warden/app/pyproject.toml"] = "[project]\n"
         filesystem.files["stacks/apps/warden/app/tests/unit/test_x.py"] = ""
         assert run("test", "warden") == 0
-        assert commands.argvs == [["uv", "run", "pytest", "tests/unit"]]
+        assert argvs(commands) == [["uv", "run", "pytest", "tests/unit"]]
 
     def test_an_explicit_tier_clears_addopts(self, run, filesystem, commands):
         filesystem.files["stacks/apps/warden/app/pyproject.toml"] = "[project]\n"
         filesystem.files["stacks/apps/warden/app/tests/unit/test_x.py"] = ""
         run("test", "warden", "--tier", "unit")
-        assert commands.argvs == [["uv", "run", "pytest", "tests/unit", "-o", "addopts="]]
+        assert argvs(commands) == [["uv", "run", "pytest", "tests/unit", "-o", "addopts="]]
 
     def test_affected_mode_asks_git_for_the_diff_range(self, run, filesystem, commands):
         filesystem.files["stacks/apps/warden/docker-compose.yml"] = BUILDABLE
-        commands._results = [CommandResult(0, "stacks/apps/warden/app/main.py\n")]
+        responds(commands, *[CommandResult(0, "stacks/apps/warden/app/main.py\n")])
         run("test", "--affected", "--base", "origin/main")
-        assert commands.argvs[0] == [
-            "git", "-C", ".", "diff", "--name-only", "origin/main...HEAD"
+        assert argvs(commands)[0] == [
+            "git", "-C", str(ROOT), "diff", "--name-only", "origin/main...HEAD"
         ]
 
 
@@ -213,7 +215,7 @@ class TestIdempotenceCommand:
             "PLAY RECAP ****\n"
             "node-01                    : ok=3    changed=0    unreachable=0    failed=0\n"
         )
-        commands._results = [CommandResult(0, recap), CommandResult(0, recap)]
+        responds(commands, *[CommandResult(0, recap), CommandResult(0, recap)])
         assert run("idempotence", "play.yml") == 0
 
     def test_a_drifting_playbook_exits_one(self, run, commands):
@@ -221,5 +223,5 @@ class TestIdempotenceCommand:
             "PLAY RECAP ****\n"
             "node-01                    : ok=3    changed=2    unreachable=0    failed=0\n"
         )
-        commands._results = [CommandResult(0, recap), CommandResult(0, recap)]
+        responds(commands, *[CommandResult(0, recap), CommandResult(0, recap)])
         assert run("idempotence", "play.yml") == 1

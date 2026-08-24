@@ -1,6 +1,6 @@
 """Tests for the app test-suite runner (the `ci test` logic).
 
-Selection and tier resolution are pure. :class:`TestSuites` is driven through
+Selection and tier resolution are pure. :class:`AppSuites` is driven through
 fakes, so these assert on the argv it *would* have run rather than running
 pytest or npm.
 """
@@ -10,6 +10,8 @@ from __future__ import annotations
 import json
 
 import pytest
+
+from conftest import ROOT, argvs, responds
 
 from ci.adapters import CommandResult
 from ci.apptests import js_script_for_tier, select_projects, tiers_to_run
@@ -49,8 +51,8 @@ def test_js_script_for_tier():
     assert js_script_for_tier("unit") == "test:unit"
 
 
-class TestSuitesDiscovery:
-    """`TestSuites` — which projects it finds, and which it refuses to."""
+class TestAppSuitesDiscovery:
+    """`AppSuites` — which projects it finds, and which it refuses to."""
 
     @pytest.fixture
     def subject(self, container):
@@ -87,8 +89,8 @@ class TestSuitesDiscovery:
         assert subject.js_projects() == ["stacks/apps/fiber/ui"]
 
 
-class TestSuitesPythonRuns:
-    """`TestSuites.run_python` — what it invokes, and what it reports."""
+class TestAppSuitesPythonRuns:
+    """`AppSuites.run_python` — what it invokes, and what it reports."""
 
     PROJECT = "stacks/apps/warden/app"
 
@@ -101,24 +103,24 @@ class TestSuitesPythonRuns:
     def test_existing_tiers_run_in_one_pytest_call_keeping_addopts(self, subject, commands):
         rc, ran = subject.run_python([self.PROJECT], ["unit", "integration", "e2e"], gated=True)
         assert (rc, ran) == (0, True)
-        assert commands.argvs == [["uv", "run", "pytest", "tests/unit", "tests/integration"]]
+        assert argvs(commands) == [["uv", "run", "pytest", "tests/unit", "tests/integration"]]
 
     def test_the_run_happens_in_the_project_directory(self, subject, commands):
         subject.run_python([self.PROJECT], ["unit"])
-        assert commands.calls[0]["cwd"].as_posix().endswith(self.PROJECT)
+        assert commands.run.call_args_list[0].kwargs["cwd"].as_posix().endswith(self.PROJECT)
 
     def test_an_ungated_run_clears_addopts(self, subject, commands):
         subject.run_python([self.PROJECT], ["unit"], gated=False)
-        assert commands.argvs == [["uv", "run", "pytest", "tests/unit", "-o", "addopts="]]
+        assert argvs(commands) == [["uv", "run", "pytest", "tests/unit", "-o", "addopts="]]
 
     def test_a_project_with_no_matching_tier_runs_nothing(self, subject, commands):
         rc, ran = subject.run_python([self.PROJECT], ["e2e"])
         assert (rc, ran) == (0, False)
-        assert commands.argvs == []
+        assert argvs(commands) == []
 
     def test_a_failing_suite_sets_the_exit_code(self, container, filesystem, commands):
         filesystem.files[f"{self.PROJECT}/tests/unit/test_x.py"] = ""
-        commands._results = [CommandResult(1)]
+        commands.run.side_effect = [CommandResult(1)]
         rc, ran = container.suites().run_python([self.PROJECT], ["unit"])
         assert (rc, ran) == (1, True)
 
@@ -127,8 +129,8 @@ class TestSuitesPythonRuns:
         assert console.stdout == [f"==> {self.PROJECT} : unit"]
 
 
-class TestSuitesJsRuns:
-    """`TestSuites.run_js` — npm ci then the tier's script, and the failure paths."""
+class TestAppSuitesJsRuns:
+    """`AppSuites.run_js` — npm ci then the tier's script, and the failure paths."""
 
     PROJECT = "stacks/apps/fiber/ui"
 
@@ -142,19 +144,91 @@ class TestSuitesJsRuns:
     def test_installs_then_runs_the_default_script(self, subject, commands):
         rc, ran = subject.run_js([self.PROJECT], None)
         assert (rc, ran) == (0, True)
-        assert commands.argvs == [["npm", "ci"], ["npm", "run", "test"]]
+        assert argvs(commands) == [["npm", "ci"], ["npm", "run", "test"]]
 
     def test_an_explicit_tier_runs_its_own_script(self, subject, commands):
         subject.run_js([self.PROJECT], "unit")
-        assert commands.argvs[-1] == ["npm", "run", "test:unit"]
+        assert argvs(commands)[-1] == ["npm", "run", "test:unit"]
 
     def test_a_tier_the_project_does_not_declare_is_skipped(self, subject, commands):
         rc, ran = subject.run_js([self.PROJECT], "e2e")
         assert (rc, ran) == (0, False)
-        assert commands.argvs == []
+        assert argvs(commands) == []
 
     def test_a_failed_install_skips_the_test_run(self, subject, commands):
-        commands._results = [CommandResult(1)]
+        commands.run.side_effect = [CommandResult(1)]
         rc, ran = subject.run_js([self.PROJECT], None)
         assert (rc, ran) == (1, True)
-        assert commands.argvs == [["npm", "ci"]]
+        assert argvs(commands) == [["npm", "ci"]]
+
+
+class TestSuiteRunner:
+    """`SuiteRunner` — the whole `ci test` decision, moved out of the CLI handler."""
+
+    PY = "stacks/apps/warden/app"
+    BUILDABLE = (
+        "services:\n  warden:\n    image: ghcr.io/ns/warden:1.0.0\n"
+        "    build: { context: ., dockerfile: Dockerfile }\n"
+    )
+
+    @pytest.fixture
+    def subject(self, container, filesystem):
+        filesystem.files[f"{self.PY}/pyproject.toml"] = "[project]\n"
+        filesystem.files[f"{self.PY}/tests/unit/test_x.py"] = ""
+        return container.suite_runner()
+
+    def test_a_selector_narrows_to_that_project(self, subject, commands):
+        assert subject.run(selector="warden") == 0
+        assert argvs(commands) == [["uv", "run", "pytest", "tests/unit"]]
+
+    def test_a_selector_matching_nothing_runs_nothing_and_says_so(
+        self, subject, commands, console
+    ):
+        assert subject.run(selector="nope") == 0
+        assert argvs(commands) == []
+        assert "No matching test suites." in console.text
+
+    def test_an_explicit_tier_clears_the_coverage_gate(self, subject, commands):
+        subject.run(selector="warden", tier="unit")
+        assert argvs(commands) == [["uv", "run", "pytest", "tests/unit", "-o", "addopts="]]
+
+    def test_changed_contexts_come_from_the_diff_against_the_base(
+        self, container, filesystem, commands
+    ):
+        filesystem.files["stacks/apps/warden/docker-compose.yml"] = self.BUILDABLE
+        responds(commands, CommandResult(0, "stacks/apps/warden/app/main.py\n"))
+        assert container.suite_runner().changed_contexts("origin/main") == {"stacks/apps/warden"}
+        assert argvs(commands)[0] == [
+            "git", "-C", str(ROOT), "diff", "--name-only", "origin/main...HEAD"
+        ]
+
+    def test_an_unrelated_diff_yields_no_contexts(self, container, filesystem, commands):
+        filesystem.files["stacks/apps/warden/docker-compose.yml"] = self.BUILDABLE
+        responds(commands, CommandResult(0, "docs/readme.md\n"))
+        assert container.suite_runner().changed_contexts("origin/main") == set()
+
+    def test_select_falls_back_to_the_selector_when_not_in_affected_mode(self, subject):
+        assert subject.select(["a/warden", "a/fiber"], "warden", None) == ["a/warden"]
+
+    def test_select_uses_the_contexts_in_affected_mode_ignoring_the_selector(self, subject):
+        picked = subject.select(["stacks/apps/warden/app", "stacks/apps/fiber/app"], None,
+                                {"stacks/apps/warden"})
+        assert picked == ["stacks/apps/warden/app"]
+
+    def test_affected_mode_runs_only_the_changed_projects_suite(
+        self, container, filesystem, commands
+    ):
+        filesystem.files["stacks/apps/warden/docker-compose.yml"] = self.BUILDABLE
+        filesystem.files[f"{self.PY}/pyproject.toml"] = "[project]\n"
+        filesystem.files[f"{self.PY}/tests/unit/test_x.py"] = ""
+        filesystem.files["stacks/apps/fiber/app/pyproject.toml"] = "[project]\n"
+        filesystem.files["stacks/apps/fiber/app/tests/unit/test_y.py"] = ""
+        responds(commands, CommandResult(0, "stacks/apps/warden/app/main.py\n"))
+        container.suite_runner().run(affected=True)
+        assert argvs(commands)[1:] == [["uv", "run", "pytest", "tests/unit"]]
+
+    def test_a_failing_python_suite_sets_the_exit_code(self, container, filesystem, commands):
+        filesystem.files[f"{self.PY}/pyproject.toml"] = "[project]\n"
+        filesystem.files[f"{self.PY}/tests/unit/test_x.py"] = ""
+        responds(commands, CommandResult(1))
+        assert container.suite_runner().run(selector="warden") == 1

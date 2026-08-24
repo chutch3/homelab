@@ -251,11 +251,11 @@ class TestFakeFileSystemFidelity:
     def test_discovery_globs_agree_with_the_real_filesystem_on_this_repo(
         self, repo_container, filesystem
     ):
-        from ci.adapters import FileSystem
+        from ci.adapters import LocalFileSystem
         from ci.affected import DISCOVERY_GLOBS
         from conftest import REPO_ROOT
 
-        real = FileSystem()
+        real = LocalFileSystem()
         for pattern in DISCOVERY_GLOBS:
             found = real.glob(REPO_ROOT, pattern)
             rels = {p.relative_to(REPO_ROOT).as_posix() for p in found}

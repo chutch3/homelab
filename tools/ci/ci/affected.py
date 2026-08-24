@@ -19,7 +19,7 @@ from pathlib import Path
 
 import yaml
 
-from ci.adapters import FileSystem
+from ci.ports import FileSystem
 
 # Roots walked for buildable units — recursive, so the monitoring stack
 # (stacks/monitoring/docker-compose.yml) and any nested compose are covered.

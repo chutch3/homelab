@@ -10,24 +10,27 @@ Subcommands:
   ci deploy [STACK ...] --plan          print the resolved deploy order; deploy nothing
   ci check-deps [REPO_ROOT]             the x-homelab declarations resolve, and are complete
 
-Handlers take their collaborators by injection, so tests drive them through the
-container with fakes instead of touching the filesystem or spawning processes.
+Each handler is one call into an injected service — behaviour lives in the
+services, not here — so tests drive them through the container with fakes
+instead of touching the filesystem or spawning processes.
 """
 
 from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 
 from dependency_injector.wiring import Provide, inject
 
-from ci.adapters import CommandRunner, Console
 from ci.affected import UnitCatalog
-from ci.apptests import TestSuites, select_projects, tiers_to_run
+from ci.apptests import SuiteRunner
+from ci.config import load_env
 from ci.containers import Container
 from ci.gc import RegistryGc
 from ci.idempotence import IdempotenceCheck
+from ci.ports import Console
 from ci.stackgraph import DependencyGraph, UnresolvedGraph
 
 
@@ -45,30 +48,9 @@ def _cmd_affected(
 @inject
 def _cmd_test(
     args: argparse.Namespace,
-    suites: TestSuites = Provide[Container.suites],
-    catalog: UnitCatalog = Provide[Container.catalog],
-    commands: CommandRunner = Provide[Container.commands],
-    console: Console = Provide[Container.console],
+    suite_runner: SuiteRunner = Provide[Container.suite_runner],
 ) -> int:
-    if args.affected:
-        # Test only the projects under the contexts a change vs the base touched.
-        diff = commands.run(
-            ["git", "-C", args.repo_root, "diff", "--name-only", f"{args.base}...HEAD"],
-            capture=True, check=True,
-        ).stdout.split()
-        contexts = {entry["context"] for entry in catalog.matrix(diff)}
-        pick = lambda ps: sorted({p for c in contexts for p in select_projects(ps, c)})  # noqa: E731
-    else:
-        pick = lambda ps: select_projects(ps, args.selector)  # noqa: E731
-
-    # No --tier → the gated default suite (unit+integration, combined coverage).
-    py_rc, py_ran = suites.run_python(
-        pick(suites.python_projects()), tiers_to_run(args.tier), gated=args.tier is None
-    )
-    js_rc, js_ran = suites.run_js(pick(suites.js_projects()), args.tier)
-    if not (py_ran or js_ran):
-        console.out("No matching test suites.")
-    return py_rc or js_rc
+    return suite_runner.run(args.selector, args.tier, args.affected, args.base)
 
 
 @inject
@@ -186,10 +168,14 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def build_container(args: argparse.Namespace) -> Container:
-    """Wire the container for one invocation, with this run's repo root."""
+def build_container(args: argparse.Namespace, process_env: dict[str, str] | None = None) -> Container:
+    """Wire the container for one invocation: this run's repo root and environment."""
+    repo_root = getattr(args, "repo_root", ".") or "."
     container = Container()
-    container.config.repo_root.from_value(getattr(args, "repo_root", ".") or ".")
+    container.config.repo_root.from_value(repo_root)
+    container.config.env.from_value(
+        load_env(container.filesystem(), repo_root, dict(os.environ if process_env is None else process_env))
+    )
     container.wire(modules=[__name__])
     return container
 

@@ -15,7 +15,8 @@ from pathlib import Path
 
 import yaml
 
-from ci.adapters import Environment, FileSystem
+from ci.config import disabled_providers
+from ci.ports import FileSystem
 
 # Stacks live one directory deep in each of these, alongside a docker-compose.yml.
 STACK_ROOTS = ("stacks", "stacks/apps")
@@ -28,12 +29,6 @@ INFERENCE = (
     ("authentik", re.compile(r"middlewares=[^\"]*authentik@|auth\.\$\{BASE_DOMAIN\}")),
 )
 
-# Providers the cluster can be configured without. Deploy already skips the dns
-# stack on primary_dns_managed (ansible/playbooks/deploy/stacks.yml); the graph
-# has to drop the edges into it too, or every routed stack becomes unresolvable.
-CAPABILITY_GATES = {"dns": "PRIMARY_DNS_MANAGED"}
-
-_FALSEY = ("false", "no", "0", "")
 
 
 class UnresolvedGraph(Exception):
@@ -117,14 +112,12 @@ class DependencyGraph:
     def __init__(
         self,
         tree: StackTree,
-        environment: Environment,
-        repo_root: str | Path = ".",
+        env: dict[str, str] | None = None,
         gates: dict[str, str] | None = None,
     ) -> None:
         self._tree = tree
-        self._environment = environment
-        self._repo_root = repo_root
-        self._gates = CAPABILITY_GATES if gates is None else gates
+        self._env = env or {}
+        self._gates = gates
 
     def stacks(self) -> dict[str, Stack]:
         return self._tree.stacks()
@@ -139,12 +132,7 @@ class DependencyGraph:
 
     def disabled(self) -> set[str]:
         """Provider stacks this environment has switched off."""
-        env = self._environment.values(self._repo_root)
-        return {
-            stack
-            for stack, var in self._gates.items()
-            if env.get(var, "true").strip().lower() in _FALSEY
-        }
+        return disabled_providers(self._env, self._gates)
 
     def resolve(self, targets: list[str] | None = None) -> list[str]:
         """Deploy order: every stack after all of its dependencies."""

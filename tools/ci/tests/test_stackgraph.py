@@ -1,18 +1,16 @@
 """Tests for the stack dependency graph (`ci deploy --plan` / `ci check-deps`).
 
 The dangerous case is a false pass: an order that puts a stack before something
-it needs, or a declaration the tree does not actually satisfy. Ordering and
-cycle detection are exercised on plain mappings; everything that would read the
-tree goes through a fake filesystem instead.
+it needs, or a declaration the tree does not actually satisfy. `resolve` and
+`cycle_members` are functions over plain mappings and are tested as such;
+everything that would read the tree goes through a fake filesystem.
 """
 
 from __future__ import annotations
 
 import pytest
-from dependency_injector import providers
 
-from ci.adapters import Environment
-from ci.stackgraph import DependencyGraph, Stack, StackTree, UnresolvedGraph, cycle_members, resolve
+from ci.stackgraph import Stack, StackTree, UnresolvedGraph, cycle_members, resolve
 from conftest import ROOT, FakeFileSystem
 
 ROUTED = {
@@ -23,6 +21,7 @@ ROUTED = {
 
 TRAEFIK_LABEL = 'services:\n    a:\n        deploy:\n            labels: ["traefik.enable=true"]\n'
 DECLARED = "x-homelab:\n    requires: [reverse-proxy]\n" + TRAEFIK_LABEL
+CYCLE = {"authentik": ["paperless"], "paperless": ["authentik"], "komga": ["authentik"]}
 
 
 def compose(**stacks: str) -> dict[str, str]:
@@ -30,62 +29,62 @@ def compose(**stacks: str) -> dict[str, str]:
     return {f"stacks/apps/{name}/docker-compose.yml": text for name, text in stacks.items()}
 
 
-class TestResolve:
-    """`resolve` — deploy order over a plain {stack: requires} mapping."""
-
-    def test_orders_every_stack_after_its_dependencies(self):
-        order = resolve(ROUTED)
-        assert order.index("reverse-proxy") < order.index("authentik") < order.index("paperless")
-
-    def test_orders_the_whole_tree_when_no_targets_are_named(self):
-        assert set(resolve(ROUTED)) == set(ROUTED)
-
-    def test_a_target_pulls_in_only_its_own_dependencies(self):
-        assert resolve(ROUTED, targets=["authentik"]) == ["reverse-proxy", "authentik"]
-
-    def test_independent_stacks_are_ordered_alphabetically(self):
-        assert resolve({"beta": [], "alpha": [], "gamma": []}) == ["alpha", "beta", "gamma"]
-
-    def test_the_same_graph_always_resolves_to_the_same_order(self):
-        graph = {"d": ["a"], "c": ["a"], "b": ["c", "d"], "a": []}
-        assert resolve(graph) == resolve(graph)
-
-    def test_a_dependency_on_a_stack_that_does_not_exist_fails_naming_both_ends(self):
-        with pytest.raises(UnresolvedGraph) as exc:
-            resolve({"paperless": ["ghost-stack"]})
-        assert "paperless requires ghost-stack" in str(exc.value)
-
-    def test_a_target_that_does_not_exist_fails_naming_it(self):
-        with pytest.raises(UnresolvedGraph, match="no such stack: ghost-stack"):
-            resolve(ROUTED, targets=["ghost-stack"])
-
-    def test_a_disabled_stack_is_dropped_from_the_order(self):
-        assert resolve({"dns": [], "paperless": ["dns"]}, disabled=["dns"]) == ["paperless"]
-
-    def test_a_disabled_stack_named_as_a_target_is_still_dropped(self):
-        order = resolve(
-            {"dns": [], "paperless": ["dns"]}, targets=["dns", "paperless"], disabled=["dns"]
-        )
-        assert order == ["paperless"]
+def test_resolve_orders_every_stack_after_its_dependencies():
+    order = resolve(ROUTED)
+    assert order.index("reverse-proxy") < order.index("authentik") < order.index("paperless")
 
 
-class TestCycleMembers:
-    """`cycle_members` — which stacks a cycle report should actually name."""
+def test_resolve_orders_the_whole_tree_when_no_targets_are_named():
+    assert set(resolve(ROUTED)) == set(ROUTED)
 
-    def test_names_only_the_cycle_not_the_stacks_it_blocks(self):
-        edges = {"authentik": ["paperless"], "paperless": ["authentik"], "komga": ["authentik"]}
-        assert cycle_members(edges, sorted(edges)) == ["authentik", "paperless"]
 
-    def test_a_cycle_report_names_its_members_and_nothing_else(self):
-        graph = {"authentik": ["paperless"], "paperless": ["authentik"], "komga": ["authentik"]}
-        with pytest.raises(UnresolvedGraph) as exc:
-            resolve(graph)
-        assert str(exc.value) == "dependency cycle among: authentik, paperless"
+def test_resolve_pulls_in_only_a_targets_own_dependencies():
+    assert resolve(ROUTED, targets=["authentik"]) == ["reverse-proxy", "authentik"]
 
-    def test_a_stack_that_requires_itself_is_a_cycle(self):
-        with pytest.raises(UnresolvedGraph) as exc:
-            resolve({"loop": ["loop"]})
-        assert str(exc.value) == "dependency cycle among: loop"
+
+def test_resolve_orders_independent_stacks_alphabetically():
+    assert resolve({"beta": [], "alpha": [], "gamma": []}) == ["alpha", "beta", "gamma"]
+
+
+def test_resolve_is_deterministic():
+    graph = {"d": ["a"], "c": ["a"], "b": ["c", "d"], "a": []}
+    assert resolve(graph) == resolve(graph)
+
+
+def test_resolve_fails_naming_both_ends_of_a_dependency_that_does_not_exist():
+    with pytest.raises(UnresolvedGraph) as exc:
+        resolve({"paperless": ["ghost-stack"]})
+    assert "paperless requires ghost-stack" in str(exc.value)
+
+
+def test_resolve_fails_naming_a_target_that_does_not_exist():
+    with pytest.raises(UnresolvedGraph, match="no such stack: ghost-stack"):
+        resolve(ROUTED, targets=["ghost-stack"])
+
+
+def test_resolve_drops_a_disabled_stack_and_the_edges_into_it():
+    assert resolve({"dns": [], "paperless": ["dns"]}, disabled=["dns"]) == ["paperless"]
+
+
+def test_resolve_drops_a_disabled_stack_even_when_it_is_the_target():
+    order = resolve({"dns": [], "paperless": ["dns"]}, targets=["dns", "paperless"], disabled=["dns"])
+    assert order == ["paperless"]
+
+
+def test_resolve_reports_a_cycle_naming_its_members_and_nothing_else():
+    with pytest.raises(UnresolvedGraph) as exc:
+        resolve(CYCLE)
+    assert str(exc.value) == "dependency cycle among: authentik, paperless"
+
+
+def test_resolve_treats_a_stack_requiring_itself_as_a_cycle():
+    with pytest.raises(UnresolvedGraph) as exc:
+        resolve({"loop": ["loop"]})
+    assert str(exc.value) == "dependency cycle among: loop"
+
+
+def test_cycle_members_names_only_the_cycle_not_the_stacks_it_blocks():
+    assert cycle_members(CYCLE, sorted(CYCLE)) == ["authentik", "paperless"]
 
 
 class TestStack:
@@ -224,27 +223,14 @@ class TestDependencyGraph:
     ):
         self._seed(filesystem, dns="services: {}\n",
                    paperless="x-homelab:\n    requires: [dns]\nservices: {}\n")
-        container.environment.override(
-            providers.Object(Environment(filesystem, {"PRIMARY_DNS_MANAGED": value}))
-        )
+        container.config.env.from_value({"PRIMARY_DNS_MANAGED": value})
         subject = container.graph()
         assert subject.disabled() == {"dns"}
         assert subject.resolve() == ["paperless"]
 
-    def test_a_gate_set_only_in_dotenv_is_honoured(self, container, filesystem):
+    def test_a_truthy_gate_keeps_its_provider(self, container, filesystem):
         self._seed(filesystem, dns="services: {}\n")
-        filesystem.files[".env"] = "# a comment\nPRIMARY_DNS_MANAGED=false\n"
-        container.environment.override(
-            providers.Object(Environment(filesystem, {}))
-        )
-        assert container.graph().disabled() == {"dns"}
-
-    def test_the_process_environment_wins_over_dotenv(self, container, filesystem):
-        self._seed(filesystem, dns="services: {}\n")
-        filesystem.files[".env"] = "PRIMARY_DNS_MANAGED=false\n"
-        container.environment.override(
-            providers.Object(Environment(filesystem, {"PRIMARY_DNS_MANAGED": "true"}))
-        )
+        container.config.env.from_value({"PRIMARY_DNS_MANAGED": "true"})
         assert container.graph().disabled() == set()
 
 

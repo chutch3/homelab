@@ -10,6 +10,8 @@ from __future__ import annotations
 
 import pytest
 
+from conftest import argvs, responds
+
 from ci.adapters import CommandResult
 from ci.idempotence import parse_recap, violations
 
@@ -89,28 +91,28 @@ class TestIdempotenceCheck:
         return container.idempotence()
 
     def test_a_converged_second_run_passes(self, subject, commands, console):
-        commands._results = [CommandResult(0, CONVERGED), CommandResult(0, CONVERGED)]
+        responds(commands, CommandResult(0, CONVERGED), CommandResult(0, CONVERGED))
         assert subject.verify(self.PLAYBOOK) == 0
         assert "✓ second run reported no change on 2 host(s)" in console.text
 
     def test_the_playbook_runs_exactly_twice_with_the_same_argv(self, subject, commands):
-        commands._results = [CommandResult(0, CONVERGED), CommandResult(0, CONVERGED)]
+        responds(commands, CommandResult(0, CONVERGED), CommandResult(0, CONVERGED))
         subject.verify(self.PLAYBOOK, ["-i", "inventory/"])
         expected = ["ansible-playbook", self.PLAYBOOK, "-i", "inventory/"]
-        assert commands.argvs == [expected, expected]
+        assert argvs(commands) == [expected, expected]
 
     def test_a_changed_second_run_fails_naming_the_host(self, subject, commands, console):
-        commands._results = [CommandResult(0, CONVERGED), CommandResult(0, DRIFTED)]
+        responds(commands, CommandResult(0, CONVERGED), CommandResult(0, DRIFTED))
         assert subject.verify(self.PLAYBOOK) == 1
         assert "manager-01: changed=3" in console.text
 
     def test_a_failed_first_run_never_reaches_the_second(self, subject, commands, console):
-        commands._results = [CommandResult(2, "boom")]
+        responds(commands, CommandResult(2, "boom"))
         assert subject.verify(self.PLAYBOOK) == 2
-        assert len(commands.argvs) == 1
+        assert len(argvs(commands)) == 1
         assert "nothing to compare" in console.text
 
     def test_a_second_run_with_no_recap_is_a_failure_not_a_pass(self, subject, commands, console):
-        commands._results = [CommandResult(0, CONVERGED), CommandResult(0, "died early")]
+        responds(commands, CommandResult(0, CONVERGED), CommandResult(0, "died early"))
         assert subject.verify(self.PLAYBOOK) == 1
         assert "did not complete" in console.text

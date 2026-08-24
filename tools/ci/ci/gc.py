@@ -14,7 +14,7 @@ import json
 import re
 from datetime import datetime
 
-from ci.adapters import Clock, CommandRunner, Console
+from ci.ports import Clock, CommandRunner, Console
 from ci.affected import UnitCatalog
 
 _SEMVER = re.compile(r"^\d+\.\d+\.\d+")

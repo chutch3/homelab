@@ -13,8 +13,9 @@ A single explicit ``--tier`` runs that tier alone and clears ``addopts`` (a part
 run shouldn't trip the coverage gate). e2e is not in the default suite — it's run
 explicitly via ``--tier e2e`` (the e2e workflow).
 
-Selection is pure; :class:`TestSuites` takes the filesystem and command runner, so
-its tests assert on the argv it would have run rather than running anything.
+Selection is pure. :class:`AppSuites` takes the filesystem and command runner;
+:class:`SuiteRunner` owns the whole `ci test` decision, so the CLI handler is a
+single call rather than a place where behaviour accumulates.
 """
 
 from __future__ import annotations
@@ -22,7 +23,8 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from ci.adapters import CommandRunner, Console, FileSystem
+from ci.affected import UnitCatalog
+from ci.ports import CommandRunner, Console, FileSystem
 
 TIERS = ("unit", "integration", "e2e")
 # The gated default suite: unit + integration, coverage measured across both.
@@ -57,7 +59,7 @@ def js_script_for_tier(tier: str | None) -> str:
     return "test" if tier is None else f"test:{tier}"
 
 
-class TestSuites:
+class AppSuites:
     """Discovers the apps' test projects and runs their tiers."""
 
     def __init__(
@@ -141,3 +143,57 @@ class TestSuites:
             if not self._commands.run(["npm", "run", script], cwd=proj).ok:
                 rc = 1
         return rc, ran_any
+
+
+class SuiteRunner:
+    """Everything `ci test` does: pick the projects, run both languages, report.
+
+    Lives here rather than in the CLI handler so the selection rules — including
+    ``--affected``, which needs a git diff and the build matrix — are inner-ring
+    logic with tests, not something only reachable through argparse.
+    """
+
+    def __init__(
+        self,
+        suites: AppSuites,
+        catalog: UnitCatalog,
+        commands: CommandRunner,
+        console: Console,
+        repo_root: str | Path = ".",
+    ) -> None:
+        self._suites = suites
+        self._catalog = catalog
+        self._commands = commands
+        self._console = console
+        self._root = str(repo_root)
+
+    def changed_contexts(self, base: str) -> set[str]:
+        """Build contexts touched by the diff against ``base`` — the --affected set."""
+        diff = self._commands.run(
+            ["git", "-C", self._root, "diff", "--name-only", f"{base}...HEAD"],
+            capture=True, check=True,
+        ).stdout.split()
+        return {entry["context"] for entry in self._catalog.matrix(diff)}
+
+    def select(self, projects: list[str], selector: str | None, contexts: set[str] | None) -> list[str]:
+        """Projects to run: those under any changed context, or those matching a selector."""
+        if contexts is None:
+            return select_projects(projects, selector)
+        return sorted({p for c in contexts for p in select_projects(projects, c)})
+
+    def run(
+        self, selector: str | None = None, tier: str | None = None,
+        affected: bool = False, base: str = "origin/main",
+    ) -> int:
+        contexts = self.changed_contexts(base) if affected else None
+        # No --tier → the gated default suite (unit+integration, combined coverage).
+        py_rc, py_ran = self._suites.run_python(
+            self.select(self._suites.python_projects(), selector, contexts),
+            tiers_to_run(tier), gated=tier is None,
+        )
+        js_rc, js_ran = self._suites.run_js(
+            self.select(self._suites.js_projects(), selector, contexts), tier
+        )
+        if not (py_ran or js_ran):
+            self._console.out("No matching test suites.")
+        return py_rc or js_rc

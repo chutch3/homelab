@@ -1,32 +1,35 @@
 """Fakes for the outer ring, and the container fixtures that inject them.
 
-These stand in for :mod:`ci.adapters` — objects we own — so no test patches a
-stdlib or third-party name. Anything a test wants to assert about a boundary
-(what argv was run, what was printed) is recorded here.
+These stand in for :mod:`ci.ports` — interfaces we own — so no test patches a
+stdlib or third-party name. The command boundary is a ``Mock(spec=CommandRunner)``
+so ``assert_called_with`` validates it; the filesystem is a hand fake because it
+is stateful and a Mock would say nothing useful about a tree.
+
+``test_ports.py`` asserts every fake here still satisfies the port it stands for.
 """
 
 from __future__ import annotations
 
 import re
 from pathlib import Path
+from unittest.mock import Mock
 
 import pytest
 from dependency_injector import providers
 
 from ci.adapters import CommandResult
 from ci.containers import Container
+from ci.ports import CommandRunner
 
 ROOT = Path("/repo")
+REPO_ROOT = Path(__file__).resolve().parents[3]
 
 
 def _glob_to_regex(pattern: str) -> re.Pattern[str]:
     """Translate a pathlib glob to a regex, matching `**` across directories."""
     out = ""
     for part in pattern.split("/"):
-        if part == "**":
-            out += r"(?:[^/]+/)*"
-        else:
-            out += re.escape(part).replace(r"\*", r"[^/]*") + "/"
+        out += r"(?:[^/]+/)*" if part == "**" else re.escape(part).replace(r"\*", r"[^/]*") + "/"
     return re.compile("^" + out.rstrip("/") + "$")
 
 
@@ -58,24 +61,7 @@ class FakeFileSystem:
         return rel in self.files or any(f.startswith(rel + "/") for f in self.files)
 
     def is_dir(self, path: Path) -> bool:
-        rel = self._rel(path)
-        return any(f.startswith(rel + "/") for f in self.files)
-
-
-class FakeCommandRunner:
-    """Records every argv it was asked to run and replays queued results."""
-
-    def __init__(self, results: list[CommandResult] | None = None) -> None:
-        self.calls: list[dict] = []
-        self._results = list(results or [])
-
-    def run(self, argv, cwd=None, capture=False, check=False) -> CommandResult:
-        self.calls.append({"argv": list(argv), "cwd": cwd, "capture": capture, "check": check})
-        return self._results.pop(0) if self._results else CommandResult(0)
-
-    @property
-    def argvs(self) -> list[list[str]]:
-        return [c["argv"] for c in self.calls]
+        return any(f.startswith(self._rel(path) + "/") for f in self.files)
 
 
 class FixedClock:
@@ -90,6 +76,7 @@ class RecordingConsole:
     def __init__(self) -> None:
         self.stdout: list[str] = []
         self.stderr: list[str] = []
+        self.written: list[str] = []
 
     def out(self, message: str = "") -> None:
         self.stdout.append(message)
@@ -97,9 +84,23 @@ class RecordingConsole:
     def err(self, message: str = "") -> None:
         self.stderr.append(message)
 
+    def write(self, text: str) -> None:
+        self.written.append(text)
+
     @property
     def text(self) -> str:
         return "\n".join(self.stdout)
+
+
+def responds(commands: Mock, *results: CommandResult) -> None:
+    """Queue results for the next calls; anything after them succeeds silently."""
+    queued = list(results)
+    commands.run.side_effect = lambda *a, **k: queued.pop(0) if queued else CommandResult(0)
+
+
+def argvs(commands: Mock) -> list[list[str]]:
+    """The argv of every command the runner was asked to run, in order."""
+    return [call.args[0] for call in commands.run.call_args_list]
 
 
 @pytest.fixture
@@ -108,8 +109,11 @@ def filesystem() -> FakeFileSystem:
 
 
 @pytest.fixture
-def commands() -> FakeCommandRunner:
-    return FakeCommandRunner()
+def commands() -> Mock:
+    """The command boundary. `spec` stops a renamed method being silently spoofed."""
+    mock = Mock(spec=CommandRunner)
+    mock.run.return_value = CommandResult(0)
+    return mock
 
 
 @pytest.fixture
@@ -123,10 +127,17 @@ def console() -> RecordingConsole:
 
 
 @pytest.fixture
-def container(filesystem, commands, clock, console) -> Container:
+def env() -> dict[str, str]:
+    """The merged environment the container hands to services. Empty by default."""
+    return {}
+
+
+@pytest.fixture
+def container(filesystem, commands, clock, console, env) -> Container:
     """A container with every outer-ring provider overridden by a fake."""
     c = Container()
     c.config.repo_root.from_value(str(ROOT))
+    c.config.env.from_value(env)
     c.filesystem.override(providers.Object(filesystem))
     c.commands.override(providers.Object(commands))
     c.clock.override(providers.Object(clock))
@@ -134,12 +145,12 @@ def container(filesystem, commands, clock, console) -> Container:
     return c
 
 
-REPO_ROOT = Path(__file__).resolve().parents[3]
-
-
 @pytest.fixture
 def repo_container() -> Container:
     """A real container pointed at this repository — the integration seam."""
+    from ci.config import load_env
+
     c = Container()
     c.config.repo_root.from_value(str(REPO_ROOT))
+    c.config.env.from_value(load_env(c.filesystem(), REPO_ROOT, {}))
     return c
