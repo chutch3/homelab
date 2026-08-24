@@ -225,3 +225,5 @@ ENV VITE_IS_PLATFORM=true
 
 ENTRYPOINT ["/usr/bin/dumb-init", "--"]
 CMD ["sudo", "-E", "/usr/local/bin/devbox-start.sh"]
+
+# probe: verifying an image-only change still builds when no test project is affected
