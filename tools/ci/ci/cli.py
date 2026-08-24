@@ -7,62 +7,131 @@ Subcommands:
   ci images [REPO_ROOT]                 list every buildable image name (one per line)
   ci gc [--apply] [--cutoff-days N]     prune stale :sha/untagged ghcr versions (dry-run by default)
   ci idempotence PLAYBOOK [ANSIBLE ARGS] run a playbook twice; fail unless the second changes nothing
+  ci deploy [STACK ...] --plan          print the resolved deploy order; deploy nothing
+  ci check-deps [REPO_ROOT]             the x-homelab declarations resolve, and are complete
+  ci projects [REPO_ROOT] [FILE ...]    print the test projects a change affects, as JSON
+
+Each handler is one call into an injected service — behaviour lives in the
+services, not here — so tests drive them through the container with fakes
+instead of touching the filesystem or spawning processes.
 """
 
 from __future__ import annotations
 
 import argparse
 import json
-import subprocess
+import os
 import sys
 
-from ci import affected, apptests, gc, idempotence
+from dependency_injector.wiring import Provide, inject
+
+from ci.affected import UnitCatalog
+from ci.apptests import AppSuites, SuiteRunner
+from ci.config import load_env
+from ci.containers import Container
+from ci.gc import RegistryGc
+from ci.idempotence import IdempotenceCheck
+from ci.ports import Console
+from ci.stackgraph import DependencyGraph, UnresolvedGraph
 
 
-def _cmd_affected(args: argparse.Namespace) -> int:
+@inject
+def _cmd_affected(
+    args: argparse.Namespace,
+    catalog: UnitCatalog = Provide[Container.catalog],
+    console: Console = Provide[Container.console],
+) -> int:
     changed = args.files or [line.strip() for line in sys.stdin if line.strip()]
-    print(json.dumps(affected.compute_matrix(args.repo_root, changed)))
+    console.out(json.dumps(catalog.matrix(changed)))
     return 0
 
 
-def _cmd_test(args: argparse.Namespace) -> int:
-    if args.affected:
-        # Test only the projects under the contexts a change vs the base touched.
-        diff = subprocess.run(
-            ["git", "-C", args.repo_root, "diff", "--name-only", f"{args.base}...HEAD"],
-            capture_output=True, text=True, check=True,
-        ).stdout.split()
-        contexts = {entry["context"] for entry in affected.compute_matrix(args.repo_root, diff)}
-        pick = lambda ps: sorted({p for c in contexts for p in apptests.select_projects(ps, c)})  # noqa: E731
-    else:
-        pick = lambda ps: apptests.select_projects(ps, args.selector)  # noqa: E731
-
-    # No --tier → the gated default suite (unit+integration, combined coverage).
-    py_rc, py_ran = apptests.run_tests(
-        args.repo_root, pick(apptests.discover_test_projects(args.repo_root)),
-        apptests.tiers_to_run(args.tier), gated=args.tier is None,
-    )
-    js_rc, js_ran = apptests.run_js_tests(
-        args.repo_root, pick(apptests.discover_js_projects(args.repo_root)), args.tier,
-    )
-    if not (py_ran or js_ran):
-        print("No matching test suites.")
-    return py_rc or js_rc
+@inject
+def _cmd_test(
+    args: argparse.Namespace,
+    suite_runner: SuiteRunner = Provide[Container.suite_runner],
+) -> int:
+    return suite_runner.run(args.selector, args.tier, args.affected, args.base)
 
 
-def _cmd_images(args: argparse.Namespace) -> int:
-    for image in affected.list_images(args.repo_root):
-        print(image)
+@inject
+def _cmd_projects(
+    args: argparse.Namespace,
+    suites: AppSuites = Provide[Container.suites],
+    suite_runner: SuiteRunner = Provide[Container.suite_runner],
+    console: Console = Provide[Container.console],
+) -> int:
+    changed = args.files or [line.strip() for line in sys.stdin if line.strip()]
+    affected = set(suite_runner.affected_projects(suites.python_projects(), changed))
+    affected |= set(suite_runner.affected_projects(suites.js_projects(), changed))
+    console.out(json.dumps([{"project": p} for p in sorted(affected)]))
     return 0
 
 
-def _cmd_gc(args: argparse.Namespace) -> int:
-    gc.prune(args.repo_root, cutoff_days=args.cutoff_days, apply=args.apply)
+@inject
+def _cmd_images(
+    args: argparse.Namespace,
+    catalog: UnitCatalog = Provide[Container.catalog],
+    console: Console = Provide[Container.console],
+) -> int:
+    for image in catalog.image_names():
+        console.out(image)
     return 0
 
 
-def _cmd_idempotence(args: argparse.Namespace) -> int:
+@inject
+def _cmd_gc(
+    args: argparse.Namespace,
+    registry_gc: RegistryGc = Provide[Container.registry_gc],
+) -> int:
+    registry_gc.prune(cutoff_days=args.cutoff_days, apply=args.apply)
+    return 0
+
+
+@inject
+def _cmd_idempotence(
+    args: argparse.Namespace,
+    idempotence: IdempotenceCheck = Provide[Container.idempotence],
+) -> int:
     return idempotence.verify(args.playbook, args.ansible_args)
+
+
+@inject
+def _cmd_deploy(
+    args: argparse.Namespace,
+    graph: DependencyGraph = Provide[Container.graph],
+    console: Console = Provide[Container.console],
+) -> int:
+    try:
+        order = graph.resolve(args.stacks or None)
+    except UnresolvedGraph as exc:
+        console.err(f"✗ {exc}")
+        return 1
+    for stack in order:
+        console.out(stack)
+    console.err(f"\n{len(order)} stack(s) — plan only, nothing deployed.")
+    return 0
+
+
+@inject
+def _cmd_check_deps(
+    args: argparse.Namespace,
+    graph: DependencyGraph = Provide[Container.graph],
+    console: Console = Provide[Container.console],
+) -> int:
+    try:
+        stacks = graph.stacks()
+        graph.resolve()
+    except UnresolvedGraph as exc:
+        console.out(f"✗ {exc}")
+        return 1
+    if missing := graph.undeclared():
+        console.out("✗ dependencies visible in the compose file but not declared in x-homelab.requires:")
+        for stack, requires in sorted(missing.items()):
+            console.out(f"    {stack}: {', '.join(sorted(requires))}")
+        return 1
+    console.out(f"✓ {len(stacks)} stacks resolve, with every dependency they reveal declared")
+    return 0
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -82,6 +151,11 @@ def build_parser() -> argparse.ArgumentParser:
     test.add_argument("--repo-root", default=".")
     test.set_defaults(func=_cmd_test)
 
+    proj = sub.add_parser("projects", help="print the test projects a change affects, as JSON")
+    proj.add_argument("repo_root", nargs="?", default=".")
+    proj.add_argument("files", nargs="*")
+    proj.set_defaults(func=_cmd_projects)
+
     images = sub.add_parser("images", help="list every buildable image name (one per line)")
     images.add_argument("repo_root", nargs="?", default=".")
     images.set_defaults(func=_cmd_images)
@@ -98,11 +172,37 @@ def build_parser() -> argparse.ArgumentParser:
     idem.add_argument("ansible_args", nargs=argparse.REMAINDER,
                       help="passed through to ansible-playbook")
     idem.set_defaults(func=_cmd_idempotence)
+
+    dep = sub.add_parser("deploy", help="print the resolved deploy order (--plan is the only mode)")
+    dep.add_argument("stacks", nargs="*", help="deploy targets; omit for every stack")
+    # Required until 1.3 gives `ci deploy` something to execute — refusing here
+    # beats a flag that silently means nothing.
+    dep.add_argument("--plan", action="store_true", required=True,
+                     help="print the order and deploy nothing")
+    dep.add_argument("--repo-root", default=".")
+    dep.set_defaults(func=_cmd_deploy)
+
+    deps = sub.add_parser("check-deps", help="the x-homelab declarations resolve, and are complete")
+    deps.add_argument("repo_root", nargs="?", default=".")
+    deps.set_defaults(func=_cmd_check_deps)
     return parser
+
+
+def build_container(args: argparse.Namespace, process_env: dict[str, str] | None = None) -> Container:
+    """Wire the container for one invocation: this run's repo root and environment."""
+    repo_root = getattr(args, "repo_root", ".") or "."
+    container = Container()
+    container.config.repo_root.from_value(repo_root)
+    container.config.env.from_value(
+        load_env(container.filesystem(), repo_root, dict(os.environ if process_env is None else process_env))
+    )
+    container.wire(modules=[__name__])
+    return container
 
 
 def main() -> None:
     args = build_parser().parse_args()
+    build_container(args)
     raise SystemExit(args.func(args))
 
 

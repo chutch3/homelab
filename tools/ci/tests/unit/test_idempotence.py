@@ -2,13 +2,17 @@
 
 The pure part reads a PLAY RECAP and decides whether the second run was a no-op.
 The dangerous case is a false pass: a run that failed, never reached a recap, or
-touched no hosts must not read as clean. Driving ansible-playbook is glue.
+touched no hosts must not read as clean. :class:`IdempotenceCheck` is driven
+through a fake command runner, so both runs happen without ansible.
 """
 
 from __future__ import annotations
 
 import pytest
 
+from conftest import argvs, responds
+
+from ci.adapters import CommandResult
 from ci.idempotence import parse_recap, violations
 
 CONVERGED = """
@@ -75,3 +79,40 @@ def test_a_run_with_no_recap_raises_rather_than_passing():
 def test_a_recap_naming_no_hosts_raises():
     with pytest.raises(ValueError, match="no hosts"):
         parse_recap("PLAY RECAP ****\n\n")
+
+
+class TestIdempotenceCheck:
+    """`IdempotenceCheck.verify` — runs a playbook twice and judges the second."""
+
+    PLAYBOOK = "ansible/playbooks/bootstrap.yml"
+
+    @pytest.fixture
+    def subject(self, container):
+        return container.idempotence()
+
+    def test_a_converged_second_run_passes(self, subject, commands, console):
+        responds(commands, CommandResult(0, CONVERGED), CommandResult(0, CONVERGED))
+        assert subject.verify(self.PLAYBOOK) == 0
+        assert "✓ second run reported no change on 2 host(s)" in console.text
+
+    def test_the_playbook_runs_exactly_twice_with_the_same_argv(self, subject, commands):
+        responds(commands, CommandResult(0, CONVERGED), CommandResult(0, CONVERGED))
+        subject.verify(self.PLAYBOOK, ["-i", "inventory/"])
+        expected = ["ansible-playbook", self.PLAYBOOK, "-i", "inventory/"]
+        assert argvs(commands) == [expected, expected]
+
+    def test_a_changed_second_run_fails_naming_the_host(self, subject, commands, console):
+        responds(commands, CommandResult(0, CONVERGED), CommandResult(0, DRIFTED))
+        assert subject.verify(self.PLAYBOOK) == 1
+        assert "manager-01: changed=3" in console.text
+
+    def test_a_failed_first_run_never_reaches_the_second(self, subject, commands, console):
+        responds(commands, CommandResult(2, "boom"))
+        assert subject.verify(self.PLAYBOOK) == 2
+        assert len(argvs(commands)) == 1
+        assert "nothing to compare" in console.text
+
+    def test_a_second_run_with_no_recap_is_a_failure_not_a_pass(self, subject, commands, console):
+        responds(commands, CommandResult(0, CONVERGED), CommandResult(0, "died early"))
+        assert subject.verify(self.PLAYBOOK) == 1
+        assert "did not complete" in console.text

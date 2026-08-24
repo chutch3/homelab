@@ -1,3 +1,6 @@
+x-homelab:
+    requires: [reverse-proxy]
+
 services:
     dns-server:
         image: technitium/dns-server:15.2.0

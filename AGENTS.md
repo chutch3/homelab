@@ -54,6 +54,16 @@ deploy:
     - "traefik.swarm.network=traefik-public"
 ```
 
+**Stack dependencies** (`x-homelab.requires`, top-level in the compose file) — what must be
+converged before this stack deploys. `uv run ci deploy --plan [stack ...]` prints the resolved
+order; a cycle or a dependency on a stack that does not exist fails the pre-commit check.
+Anything a compose file gives away — a `traefik.enable=true` label, an `authentik@swarm`
+middleware, an `auth.${BASE_DOMAIN}` issuer — must be declared:
+```yaml
+x-homelab:
+    requires: [reverse-proxy, authentik]
+```
+
 **Storage volumes** — three types:
 ```yaml
 # iSCSI (databases, configs) — bind mount to OCFS2

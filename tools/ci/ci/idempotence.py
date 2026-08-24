@@ -1,15 +1,15 @@
 """Second-run idempotence — the `ci idempotence` logic.
 
 A converged playbook reports ``changed=0`` when run again. :func:`parse_recap`
-and :func:`violations` are pure and unit-tested; :func:`verify` runs the
-playbook twice.
+and :func:`violations` are pure; :class:`IdempotenceCheck` takes the command
+runner, so its tests drive both runs without invoking ansible.
 """
 
 from __future__ import annotations
 
 import re
-import subprocess
-import sys
+
+from ci.ports import CommandRunner, Console
 
 _ANSI = re.compile(r"\x1b\[[0-9;]*m")
 _HOST_LINE = re.compile(r"^(?P<host>\S+)\s*:\s+(?P<counters>(?:\w+=\d+\s*)+)$")
@@ -56,30 +56,38 @@ def violations(recap: dict[str, dict[str, int]]) -> dict[str, str]:
     return out
 
 
-def verify(playbook: str, ansible_args: list[str] | None = None) -> int:
-    """Run the playbook twice; fail if the second run reports any change."""
-    cmd = ["ansible-playbook", playbook, *(ansible_args or [])]
-    for run in (1, 2):
-        print(f"\n=== idempotence: run {run}/2 — {' '.join(cmd)}\n", flush=True)
-        result = subprocess.run(cmd, capture_output=True, text=True)
-        sys.stdout.write(result.stdout)
-        sys.stderr.write(result.stderr)
+class IdempotenceCheck:
+    """Runs a playbook twice; the second run must report no change."""
 
-        if run == 1:
-            if result.returncode != 0:
-                print(f"\n✗ first run failed (rc={result.returncode}) — nothing to compare")
-                return result.returncode
-            continue
+    def __init__(self, commands: CommandRunner, console: Console) -> None:
+        self._commands = commands
+        self._console = console
 
-        try:
-            recap = parse_recap(result.stdout)
-        except ValueError as exc:
-            print(f"\n✗ {exc}")
-            return 1
-        if bad := violations(recap):
-            print("\n✗ second run was not a no-op:")
-            for host, why in sorted(bad.items()):
-                print(f"    {host}: {why}")
-            return 1
-        print(f"\n✓ second run reported no change on {len(recap)} host(s)")
-    return 0
+    def verify(self, playbook: str, ansible_args: list[str] | None = None) -> int:
+        cmd = ["ansible-playbook", playbook, *(ansible_args or [])]
+        for run in (1, 2):
+            self._console.out(f"\n=== idempotence: run {run}/2 — {' '.join(cmd)}\n")
+            result = self._commands.run(cmd, capture=True)
+            self._console.write(result.stdout)
+            self._console.err(result.stderr.rstrip("\n"))
+
+            if run == 1:
+                if not result.ok:
+                    self._console.out(
+                        f"\n✗ first run failed (rc={result.returncode}) — nothing to compare"
+                    )
+                    return result.returncode
+                continue
+
+            try:
+                recap = parse_recap(result.stdout)
+            except ValueError as exc:
+                self._console.out(f"\n✗ {exc}")
+                return 1
+            if bad := violations(recap):
+                self._console.out("\n✗ second run was not a no-op:")
+                for host, why in sorted(bad.items()):
+                    self._console.out(f"    {host}: {why}")
+                return 1
+            self._console.out(f"\n✓ second run reported no change on {len(recap)} host(s)")
+        return 0

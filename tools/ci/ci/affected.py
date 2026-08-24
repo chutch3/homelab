@@ -5,8 +5,9 @@ set of files a change touched, :func:`affected_units` returns every unit whose
 ``x-homelab.watch`` globs match — many-to-many on purpose, so one shared file
 (e.g. ``images/devbox/Dockerfile``) flags every consumer that watches it.
 
-Discovery (YAML I/O) lives in :func:`discover_units`; matching is the pure
-function :func:`affected_units` so it can be unit-tested with plain data.
+Discovery (YAML I/O) lives in :class:`UnitCatalog`, which takes a filesystem;
+matching is the pure function :func:`affected_units` so it can be unit-tested
+with plain data.
 """
 
 from __future__ import annotations
@@ -17,6 +18,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 import yaml
+
+from ci.ports import FileSystem
 
 # Roots walked for buildable units — recursive, so the monitoring stack
 # (stacks/monitoring/docker-compose.yml) and any nested compose are covered.
@@ -89,41 +92,6 @@ def _match(path: str, glob: str) -> bool:
     return fnmatch.fnmatch(path, glob)
 
 
-def discover_units(repo_root: str | os.PathLike[str]) -> list[Unit]:
-    """Parse every compose file under the discovery roots into a list of :class:`Unit`."""
-    root = Path(repo_root)
-    units: list[Unit] = []
-    for pattern in DISCOVERY_GLOBS:
-        for compose_path in sorted(root.glob(pattern)):
-            try:
-                data = yaml.safe_load(compose_path.read_text()) or {}
-            except yaml.YAMLError:
-                continue
-            stack_dir = _norm(str(compose_path.parent.relative_to(root)))
-            for name, svc in (data.get("services") or {}).items():
-                if not isinstance(svc, dict) or "build" not in svc:
-                    continue
-                build = svc["build"]
-                if isinstance(build, str):
-                    context, dockerfile = build, None
-                else:
-                    context = build.get("context", ".")
-                    dockerfile = build.get("dockerfile")
-                context_repo = _norm(os.path.join(stack_dir, context))
-                homelab = svc.get("x-homelab") or {}
-                watch = tuple(homelab.get("watch") or [f"{stack_dir}/**"])
-                units.append(
-                    Unit(
-                        service=name,
-                        image=svc.get("image", ""),
-                        stack_dir=stack_dir,
-                        context=context_repo,
-                        dockerfile=dockerfile,
-                        compose_file=_norm(str(compose_path.relative_to(root))),
-                        watch=watch,
-                    )
-                )
-    return units
 
 
 def affected_units(changed_files: list[str], units: list[Unit]) -> list[Unit]:
@@ -150,13 +118,57 @@ def dedupe_by_image(units: list[Unit]) -> list[Unit]:
     return list(seen.values())
 
 
-def compute_matrix(repo_root: str | os.PathLike[str], changed_files: list[str]) -> list[dict]:
-    """The deduped build matrix (one entry per image) for a set of changed files."""
-    units = discover_units(repo_root)
-    selected = units if tooling_changed(changed_files) else affected_units(changed_files, units)
-    return [u.as_dict() for u in dedupe_by_image(selected)]
+class UnitCatalog:
+    """Every buildable unit in the tree, and the build matrix for a change."""
 
+    def __init__(self, filesystem: FileSystem, repo_root: str | os.PathLike[str] = ".") -> None:
+        self._fs = filesystem
+        self._root = Path(repo_root)
 
-def list_images(repo_root: str | os.PathLike[str]) -> list[str]:
-    """Every buildable image name (deduped, sorted) — used to promote all images on release."""
-    return sorted({u.image_name for u in discover_units(repo_root)})
+    def units(self) -> list[Unit]:
+        """Parse every compose file under the discovery roots into :class:`Unit` objects."""
+        units: list[Unit] = []
+        for pattern in DISCOVERY_GLOBS:
+            for compose_path in self._fs.glob(self._root, pattern):
+                try:
+                    data = yaml.safe_load(self._fs.read_text(compose_path)) or {}
+                except yaml.YAMLError:
+                    continue
+                units.extend(self._units_in(compose_path, data))
+        return units
+
+    def _units_in(self, compose_path: Path, data: dict) -> list[Unit]:
+        stack_dir = _norm(str(compose_path.parent.relative_to(self._root)))
+        found = []
+        for name, svc in (data.get("services") or {}).items():
+            if not isinstance(svc, dict) or "build" not in svc:
+                continue
+            build = svc["build"]
+            if isinstance(build, str):
+                context, dockerfile = build, None
+            else:
+                context = build.get("context", ".")
+                dockerfile = build.get("dockerfile")
+            homelab = svc.get("x-homelab") or {}
+            found.append(
+                Unit(
+                    service=name,
+                    image=svc.get("image", ""),
+                    stack_dir=stack_dir,
+                    context=_norm(os.path.join(stack_dir, context)),
+                    dockerfile=dockerfile,
+                    compose_file=_norm(str(compose_path.relative_to(self._root))),
+                    watch=tuple(homelab.get("watch") or [f"{stack_dir}/**"]),
+                )
+            )
+        return found
+
+    def matrix(self, changed_files: list[str]) -> list[dict]:
+        """The deduped build matrix (one entry per image) for a set of changed files."""
+        units = self.units()
+        selected = units if tooling_changed(changed_files) else affected_units(changed_files, units)
+        return [u.as_dict() for u in dedupe_by_image(selected)]
+
+    def image_names(self) -> list[str]:
+        """Every buildable image name (deduped, sorted) — used to promote on release."""
+        return sorted({u.image_name for u in self.units()})

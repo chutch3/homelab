@@ -4,18 +4,18 @@ Per-commit ``:sha`` builds accumulate one version per main commit. This prunes
 the stale ones (sha-only or untagged, older than a cutoff) while keeping releases
 (semver tags) and the moving ``:latest`` / ``:main`` tags.
 
-:func:`versions_to_prune` is pure and unit-tested; :func:`prune` is the gh-CLI
-I/O wrapper (lists image names from the compose units, lists/deletes versions).
+:func:`versions_to_prune` is pure; :class:`RegistryGc` takes the clock and the
+command runner, so its tests fix "now" and assert on the gh calls it would make.
 """
 
 from __future__ import annotations
 
 import json
 import re
-import subprocess
-from datetime import datetime, timezone
+from datetime import datetime
 
-from ci.affected import discover_units
+from ci.ports import Clock, CommandRunner, Console
+from ci.affected import UnitCatalog
 
 _SEMVER = re.compile(r"^\d+\.\d+\.\d+")
 _KEEP_TAGS = {"latest", "main"}
@@ -43,30 +43,46 @@ def versions_to_prune(versions: list[dict], now_ts: float, cutoff_days: int = 14
     return prune
 
 
-def _gh_json(args: list[str]) -> list:
-    out = subprocess.run(["gh", "api", *args], capture_output=True, text=True, check=True).stdout
-    return json.loads(out or "[]")
+class RegistryGc:
+    """Lists each buildable image's stale ghcr versions and (optionally) deletes them."""
 
+    def __init__(
+        self,
+        catalog: UnitCatalog,
+        commands: CommandRunner,
+        clock: Clock,
+        console: Console,
+    ) -> None:
+        self._catalog = catalog
+        self._commands = commands
+        self._clock = clock
+        self._console = console
 
-def prune(repo_root: str, cutoff_days: int = 14, apply: bool = False, runner=subprocess.run) -> int:
-    """List each buildable image's stale versions and (optionally) delete them.
+    def prune(self, cutoff_days: int = 14, apply: bool = False) -> int:
+        """Dry-run by default. Uses the local ``gh`` CLI auth (read+delete:packages).
 
-    Dry-run by default. Uses the local ``gh`` CLI auth (needs read:packages +
-    delete:packages). Returns the number of versions pruned (or that would be).
-    """
-    images = sorted({u.image_name for u in discover_units(repo_root)})
-    now_ts = datetime.now(tz=timezone.utc).timestamp()
-    total = 0
-    for image in images:
-        versions = _gh_json(["--paginate", f"/user/packages/container/{image}/versions"])
-        ids = versions_to_prune(versions, now_ts, cutoff_days)
-        for vid in ids:
-            total += 1
-            if apply:
-                runner(["gh", "api", "-X", "DELETE",
-                        f"/user/packages/container/{image}/versions/{vid}"], check=True)
-                print(f"{image}: deleted version {vid}")
-            else:
-                print(f"{image}: [dry-run] would delete version {vid}")
-    print(f"{'Pruned' if apply else 'Would prune'} {total} version(s).")
-    return total
+        Returns the number of versions pruned (or that would be).
+        """
+        now_ts = self._clock.now_timestamp()
+        total = 0
+        for image in self._catalog.image_names():
+            versions = self._gh_json(
+                ["--paginate", f"/user/packages/container/{image}/versions"]
+            )
+            for vid in versions_to_prune(versions, now_ts, cutoff_days):
+                total += 1
+                if apply:
+                    self._commands.run(
+                        ["gh", "api", "-X", "DELETE",
+                         f"/user/packages/container/{image}/versions/{vid}"],
+                        check=True,
+                    )
+                    self._console.out(f"{image}: deleted version {vid}")
+                else:
+                    self._console.out(f"{image}: [dry-run] would delete version {vid}")
+        self._console.out(f"{'Pruned' if apply else 'Would prune'} {total} version(s).")
+        return total
+
+    def _gh_json(self, args: list[str]) -> list:
+        result = self._commands.run(["gh", "api", *args], capture=True, check=True)
+        return json.loads(result.stdout or "[]")

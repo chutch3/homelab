@@ -41,6 +41,11 @@ repos:
             name: Validate pre-flight.yml files
             files: 'pre-flight\.yml$'
             args: ["--schemafile", "schemas/pre-flight.schema.json"]
+          - id: check-jsonschema
+            alias: check-stack-manifest
+            name: Validate x-homelab stack manifests
+            files: ^stacks/(apps/)?[^/]+/docker-compose\.yml$
+            args: ["--schemafile", "schemas/stack-manifest.schema.json"]
 
     - repo: local
       hooks:
@@ -93,6 +98,15 @@ repos:
                 fi; fi; done'
             language: system
             pass_filenames: false
+
+          - id: stack-deps-declared
+            name: Stack dependencies declared in x-homelab.requires
+            entry: uv run ci check-deps
+            language: system
+            pass_filenames: false
+            # Whole-tree, every commit: deleting a stack is what dangles an edge,
+            # and pre-commit never passes a deleted path to a `files:` hook.
+            always_run: true
 
           - id: no-unconditional-changed-when
             name: No unconditional changed_when in Ansible tasks
