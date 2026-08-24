@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import logging
 import re
+from collections.abc import Collection, Mapping
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -159,28 +160,56 @@ class DependencyGraph:
         return required_by(self.edges(), targets, sorted(self.disabled()))
 
 
-class DependencyCheck:
+def check_dependencies(graph: DependencyGraph) -> int:
     """The verdict `ci check-deps` prints: the declarations resolve, and are complete."""
+    try:
+        stacks = graph.stacks()
+        graph.resolve()
+    except UnresolvedGraph as exc:
+        log.error("✗ %s", exc)
+        return 1
+    if missing := graph.undeclared():
+        log.error(
+            "✗ dependencies visible in the compose file but not declared in x-homelab.requires:"
+        )
+        for stack, requires in sorted(missing.items()):
+            log.error("    %s: %s", stack, ", ".join(sorted(requires)))
+        return 1
+    log.info("✓ %d stacks resolve, with every dependency they reveal declared", len(stacks))
+    return 0
 
-    def __init__(self, graph: DependencyGraph) -> None:
-        self._graph = graph
 
-    def report(self) -> int:
-        try:
-            stacks = self._graph.stacks()
-            self._graph.resolve()
-        except UnresolvedGraph as exc:
-            log.error("✗ %s", exc)
-            return 1
-        if missing := self._graph.undeclared():
-            log.error(
-                "✗ dependencies visible in the compose file but not declared in x-homelab.requires:"
-            )
-            for stack, requires in sorted(missing.items()):
-                log.error("    %s: %s", stack, ", ".join(sorted(requires)))
-            return 1
-        log.info("✓ %d stacks resolve, with every dependency they reveal declared", len(stacks))
-        return 0
+def _declared_edges(
+    graph: dict[str, list[str]], disabled: list[str] | None = None
+) -> dict[str, set[str]]:
+    """The declarations with disabled providers, and the edges into them, dropped.
+
+    Raises rather than resolving a graph that names a stack which does not
+    exist. Every walk over the declarations starts here, so they all agree
+    about what counts as broken.
+    """
+    off = set(disabled or ())
+    edges = {s: set(requires) - off for s, requires in graph.items() if s not in off}
+    if unknown := {(s, d) for s, ds in edges.items() for d in ds if d not in edges}:
+        detail = ", ".join(f"{s} requires {d}" for s, d in sorted(unknown))
+        raise UnresolvedGraph(f"dependency on a stack that does not exist: {detail}")
+    return edges
+
+
+def _check_targets(graph: dict[str, list[str]], targets: list[str]) -> None:
+    if missing := sorted(set(targets) - set(graph)):
+        raise UnresolvedGraph(f"no such stack: {', '.join(missing)}")
+
+
+def _reachable(edges: dict[str, set[str]], start: str) -> set[str]:
+    """Everything `start` depends on, transitively. Never includes `start` itself."""
+    seen: set[str] = set()
+    frontier = list(edges.get(start, ()))
+    while frontier:
+        if (stack := frontier.pop()) not in seen:
+            seen.add(stack)
+            frontier.extend(edges.get(stack, ()))
+    return seen
 
 
 def required_by(
@@ -194,24 +223,18 @@ def required_by(
     reverse-proxy as required by paperless even though authentik sits between
     them, because paperless is the thing that was asked for.
     """
-    off = set(disabled or ())
-    edges = {s: set(r) - off for s, r in graph.items() if s not in off}
+    edges = _declared_edges(graph, disabled)
+    _check_targets(graph, targets)
     reached: dict[str, set[str]] = {}
     for target in targets:
-        if target in off:
+        if target not in edges:
             continue
-        seen: set[str] = set()
-        frontier = list(edges.get(target, ()))
-        while frontier:
-            if (stack := frontier.pop()) not in seen:
-                seen.add(stack)
-                frontier.extend(edges.get(stack, ()))
-        for stack in seen:
+        for stack in _reachable(edges, target):
             reached.setdefault(stack, set()).add(target)
     return {stack: sorted(ts) for stack, ts in reached.items()}
 
 
-def cycle_members(edges: dict[str, list[str]], stuck: list[str]) -> list[str]:
+def cycle_members(edges: Mapping[str, Collection[str]], stuck: list[str]) -> list[str]:
     """The stacks actually in a cycle, dropping those merely blocked behind one."""
     members = set(stuck)
     while shed := {s for s in members if not any(s in edges[o] for o in members)}:
@@ -230,35 +253,25 @@ def resolve(
     ``disabled`` names providers this environment does without — they are
     dropped, and so are the edges into them, rather than failing to resolve.
     """
-    off = set(disabled or ())
-    edges = {
-        stack: sorted(set(requires) - off)
-        for stack, requires in graph.items()
-        if stack not in off
-    }
+    edges = _declared_edges(graph, disabled)
 
-    if unknown := {(s, d) for s, ds in edges.items() for d in ds if d not in edges}:
-        detail = ", ".join(f"{s} requires {d}" for s, d in sorted(unknown))
-        raise UnresolvedGraph(f"dependency on a stack that does not exist: {detail}")
-
-    wanted = set(edges)
-    if targets is not None:
-        if missing := sorted(set(targets) - set(graph)):
-            raise UnresolvedGraph(f"no such stack: {', '.join(missing)}")
-        wanted, frontier = set(), [t for t in targets if t not in off]
-        while frontier:
-            if (stack := frontier.pop()) not in wanted:
-                wanted.add(stack)
-                frontier.extend(edges[stack])
+    if targets is None:
+        wanted = set(edges)
+    else:
+        _check_targets(graph, targets)
+        named = {t for t in targets if t in edges}
+        wanted = named.union(*(_reachable(edges, t) for t in named)) if named else set()
 
     order: list[str] = []
     placed: set[str] = set()
     # Alphabetical among stacks whose dependencies are all placed, so the same
     # graph always yields the same order.
     while remaining := sorted(wanted - placed):
-        ready = [s for s in remaining if not set(edges[s]) - placed]
+        ready = [s for s in remaining if not edges[s] - placed]
         if not ready:
-            raise UnresolvedGraph(f"dependency cycle among: {', '.join(cycle_members(edges, remaining))}")
+            raise UnresolvedGraph(
+                f"dependency cycle among: {', '.join(cycle_members(edges, remaining))}"
+            )
         order.extend(ready)
         placed.update(ready)
     return order

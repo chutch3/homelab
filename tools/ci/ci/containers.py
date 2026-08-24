@@ -25,7 +25,7 @@ from ci.cluster import SwarmCluster
 from ci.deploy import DeployPlan
 from ci.gc import RegistryGc
 from ci.idempotence import IdempotenceCheck
-from ci.stackgraph import DependencyCheck, DependencyGraph, StackTree
+from ci.stackgraph import DependencyGraph, StackTree
 
 
 class Container(containers.DeclarativeContainer):
@@ -57,6 +57,5 @@ class Container(containers.DeclarativeContainer):
 
     stack_tree = providers.Factory(StackTree, filesystem=filesystem, repo_root=repo_root)
     graph = providers.Factory(DependencyGraph, tree=stack_tree, env=env)
-    dependency_check = providers.Factory(DependencyCheck, graph=graph)
     cluster = providers.Singleton(SwarmCluster, commands=commands)
     deploy_plan = providers.Factory(DeployPlan, graph=graph, cluster=cluster)

@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
+from enum import Enum
 
 from ci.cluster import ClusterUnreachable, StackState, SwarmCluster
 from ci.stackgraph import DependencyGraph, UnresolvedGraph
@@ -20,14 +21,30 @@ from ci.stackgraph import DependencyGraph, UnresolvedGraph
 log = logging.getLogger(__name__)
 
 
+class Origin(Enum):
+    """How a stack got into the plan."""
+
+    TARGET = "target"  # named on the command line
+    DEPENDENCY = "dependency"  # pulled in behind a target
+    WHOLE_TREE = "whole-tree"  # no targets named, so the plan is everything
+
+    @property
+    def verb(self) -> str:
+        return "ensure" if self is Origin.DEPENDENCY else "deploy"
+
+
 @dataclass(frozen=True)
 class PlanRow:
-    """One stack in the plan: how it got there, and what it is right now."""
+    """One stack in the plan: how it got there, and what it is right now.
 
-    verb: str
+    Holds no display text. `required_by` is the stacks themselves, so a caller
+    can act on them; turning that into a column is :func:`_render`'s job.
+    """
+
     stack: str
     state: StackState
-    reason: str
+    origin: Origin
+    required_by: tuple[str, ...] = ()
 
 
 class DeployPlan:
@@ -43,14 +60,15 @@ class DeployPlan:
         named = set(targets or ())
         rows = []
         for stack in order:
+            requiring: tuple[str, ...] = ()
             if not targets:
-                verb, reason = "deploy", ""
+                origin = Origin.WHOLE_TREE
             elif stack in named:
-                verb, reason = "deploy", "explicit target"
+                origin = Origin.TARGET
             else:
-                verb = "ensure"
-                reason = f"required by {', '.join(pulled_in.get(stack, []))}"
-            rows.append(PlanRow(verb, stack, self._cluster.state(stack), reason))
+                origin = Origin.DEPENDENCY
+                requiring = tuple(pulled_in.get(stack, []))
+            rows.append(PlanRow(stack, self._cluster.state(stack), origin, requiring))
         return rows
 
     def report(self, targets: list[str] | None = None) -> int:
@@ -66,13 +84,22 @@ class DeployPlan:
         return 0
 
 
+def _reason(row: PlanRow) -> str:
+    """Why the row is in the plan, as the column reads it."""
+    if row.origin is Origin.DEPENDENCY:
+        return f"required by {', '.join(row.required_by)}"
+    if row.origin is Origin.TARGET:
+        return "explicit target"
+    return ""
+
+
 def _render(rows: list[PlanRow]) -> list[str]:
     """Aligned columns, so the states can be scanned down rather than read."""
-    verb = max((len(r.verb) for r in rows), default=0)
+    verb = max((len(r.origin.verb) for r in rows), default=0)
     stack = max((len(r.stack) for r in rows), default=0)
     state = max((len(r.state.value) for r in rows), default=0)
     return [
-        f"  {r.verb:<{verb}}   {r.stack:<{stack}}   {r.state.value:<{state}}"
-        + (f"   → {r.reason}" if r.reason else "")
+        f"  {r.origin.verb:<{verb}}   {r.stack:<{stack}}   {r.state.value:<{state}}"
+        + (f"   → {reason}" if (reason := _reason(r)) else "")
         for r in rows
     ]

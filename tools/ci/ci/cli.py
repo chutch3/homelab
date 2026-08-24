@@ -37,7 +37,7 @@ from ci.containers import Container
 from ci.deploy import DeployPlan
 from ci.gc import RegistryGc
 from ci.idempotence import IdempotenceCheck
-from ci.stackgraph import DependencyCheck
+from ci.stackgraph import DependencyGraph, check_dependencies
 
 
 @inject
@@ -109,9 +109,9 @@ def _cmd_deploy(
 @inject
 def _cmd_check_deps(
     args: argparse.Namespace,
-    dependency_check: DependencyCheck = Provide[Container.dependency_check],
+    graph: DependencyGraph = Provide[Container.graph],
 ) -> int:
-    return dependency_check.report()
+    return check_dependencies(graph)
 
 
 def build_parser() -> argparse.ArgumentParser:

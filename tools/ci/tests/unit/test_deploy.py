@@ -13,6 +13,7 @@ from conftest import argvs, responds
 
 from ci.adapters import CommandResult
 from ci.cluster import StackState
+from ci.deploy import Origin
 
 LABELS = 'services:\n    a:\n        deploy:\n            labels: [{}]\n'
 TRAEFIK = LABELS.format('"traefik.enable=true"')
@@ -74,34 +75,34 @@ class TestDeployPlanRows:
     def test_an_explicit_target_says_so(self, subject, live):
         live()
         row = rows_by_stack(subject.rows(["paperless"]))["paperless"]
-        assert row.verb == "deploy"
-        assert row.reason == "explicit target"
+        assert row.origin is Origin.TARGET
+        assert row.required_by == ()
 
     def test_a_dependency_names_the_target_that_required_it(self, subject, live):
         live()
         row = rows_by_stack(subject.rows(["paperless"]))["authentik"]
-        assert row.verb == "ensure"
-        assert row.reason == "required by paperless"
+        assert row.origin is Origin.DEPENDENCY
+        assert row.required_by == ("paperless",)
 
     def test_a_transitive_dependency_names_the_target_not_the_middle_stack(self, subject, live):
         live()
-        assert rows_by_stack(subject.rows(["paperless"]))["reverse-proxy"].reason == "required by paperless"
+        assert rows_by_stack(subject.rows(["paperless"]))["reverse-proxy"].required_by == ("paperless",)
 
     def test_a_dependency_of_several_targets_names_them_all(self, subject, live):
         live()
         rows = rows_by_stack(subject.rows(["paperless", "authentik"]))
-        assert rows["reverse-proxy"].reason == "required by authentik, paperless"
+        assert rows["reverse-proxy"].required_by == ("authentik", "paperless")
 
     def test_a_target_that_is_also_a_dependency_is_still_an_explicit_target(self, subject, live):
         live()
         rows = rows_by_stack(subject.rows(["paperless", "authentik"]))
-        assert rows["authentik"].verb == "deploy"
-        assert rows["authentik"].reason == "explicit target"
+        assert rows["authentik"].origin is Origin.TARGET
+        assert rows["authentik"].required_by == ()
 
     def test_a_full_plan_has_no_target_to_attribute_rows_to(self, subject, live):
         live()
-        assert {row.reason for row in subject.rows(None)} == {""}
-        assert {row.verb for row in subject.rows(None)} == {"deploy"}
+        assert {row.origin for row in subject.rows(None)} == {Origin.WHOLE_TREE}
+        assert {row.required_by for row in subject.rows(None)} == {()}
 
     def test_it_reads_the_tree_once_though_it_asks_the_graph_twice(
         self, subject, live, filesystem

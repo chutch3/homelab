@@ -12,10 +12,10 @@ import pytest
 from dependency_injector import providers
 
 from ci.stackgraph import (
-    DependencyCheck,
     Stack,
     StackTree,
     UnresolvedGraph,
+    check_dependencies,
     cycle_members,
     required_by,
     resolve,
@@ -114,6 +114,17 @@ def test_required_by_never_makes_a_target_its_own_dependency():
 def test_required_by_ignores_a_disabled_stack_and_the_edges_into_it():
     graph = {"dns": [], "reverse-proxy": ["dns"], "paperless": ["reverse-proxy"]}
     assert required_by(graph, ["paperless"], disabled=["dns"]) == {"reverse-proxy": ["paperless"]}
+
+
+def test_required_by_rejects_a_dangling_edge_exactly_as_resolve_does():
+    """Both walk the same declarations, so both must refuse the same broken ones."""
+    with pytest.raises(UnresolvedGraph, match="paperless requires ghost-stack"):
+        required_by({"paperless": ["ghost-stack"]}, ["paperless"])
+
+
+def test_required_by_rejects_a_target_that_does_not_exist():
+    with pytest.raises(UnresolvedGraph, match="no such stack: ghost-stack"):
+        required_by(ROUTED, ["ghost-stack"])
 
 
 def test_required_by_survives_a_cycle_rather_than_looping_forever():
@@ -300,12 +311,12 @@ class TestThisRepo:
         assert subject.undeclared() == {}
 
 
-class TestDependencyCheck:
-    """`DependencyCheck` — the pre-commit hook's verdict on the declarations."""
+class TestCheckDependencies:
+    """`check_dependencies` — the verdict `ci check-deps` prints."""
 
     @pytest.fixture
     def subject(self, container):
-        return container.dependency_check()
+        return container.graph()
 
     def _seed(self, filesystem: FakeFileSystem, **stacks: str) -> None:
         filesystem.files.update(compose(**stacks))
@@ -314,33 +325,33 @@ class TestDependencyCheck:
         self, subject, filesystem, caplog
     ):
         self._seed(filesystem, paperless=DECLARED, **{"reverse-proxy": "services: {}\n"})
-        assert subject.report() == 0
+        assert check_dependencies(subject) == 0
         assert "✓ 2 stacks resolve" in caplog.text
 
     def test_an_undeclared_dependency_fails_naming_the_stack_and_what_it_hid(
         self, subject, filesystem, caplog
     ):
         self._seed(filesystem, komga=TRAEFIK_LABEL, **{"reverse-proxy": "services: {}\n"})
-        assert subject.report() == 1
+        assert check_dependencies(subject) == 1
         assert "    komga: reverse-proxy" in caplog.text
 
     def test_an_unresolvable_graph_fails_before_it_looks_for_undeclared_edges(
         self, subject, filesystem, caplog
     ):
         self._seed(filesystem, gamarr="x-homelab:\n    requires: [romm]\nservices: {}\n")
-        assert subject.report() == 1
+        assert check_dependencies(subject) == 1
         assert "gamarr requires romm" in caplog.text
 
     def test_it_reads_the_tree_once_however_many_questions_it_asks(
         self, subject, filesystem
     ):
         self._seed(filesystem, paperless=DECLARED, **{"reverse-proxy": "services: {}\n"})
-        subject.report()
+        check_dependencies(subject)
         assert len(filesystem.reads) == 2
 
     def test_a_malformed_declaration_fails_explaining_the_shape(
         self, subject, filesystem, caplog
     ):
         self._seed(filesystem, paperless="x-homelab:\n    requires: reverse-proxy\nservices: {}\n")
-        assert subject.report() == 1
+        assert check_dependencies(subject) == 1
         assert "x-homelab.requires must be a list" in caplog.text
