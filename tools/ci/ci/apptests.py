@@ -1,11 +1,13 @@
 """Run the apps' test suites by tier — the ``ci test`` subcommand.
 
-Discovery is structural. A dir under ``stacks/`` with a ``pyproject.toml`` is a Python
-project (each declares its own pytest dev-group, so ``uv run pytest`` self-bootstraps);
-tiers are ``tests/{unit,integration,e2e}`` subdirs, run if they exist. A dir with a
-``package.json`` declaring a ``test`` script is a JS project, run with npm (``npm ci``
-then ``npm run test`` / ``test:<tier>``). An app can be both (e.g. a Python backend with
-a browser-JS frontend), in which case ``ci test`` runs both.
+Discovery is structural and applies to the whole repo, not just ``stacks/``: any dir
+with a ``pyproject.toml`` is a Python project (each declares its own pytest dev-group,
+so ``uv run pytest`` self-bootstraps), and tiers are ``tests/{unit,integration,e2e}``
+subdirs, run if they exist. That includes ``tools/ci`` — this package tests itself by
+the same rule as everything else, with no special case. A dir with a ``package.json``
+declaring a ``test`` script is a JS project, run with npm (``npm ci`` then
+``npm run test`` / ``test:<tier>``). An app can be both (e.g. a Python backend with a
+browser-JS frontend), in which case ``ci test`` runs both.
 
 The default (gated) run executes unit + integration **together in one pytest**, so
 the project's ``--cov-fail-under`` applies to the *combined* coverage of both tiers.
@@ -27,6 +29,8 @@ from ci.affected import UnitCatalog
 from ci.ports import CommandRunner, Console, FileSystem
 
 TIERS = ("unit", "integration", "e2e")
+# Directories holding code that is not ours; a manifest inside one is not a project.
+VENDORED = frozenset({".venv", "venv", "node_modules", ".git", "site-packages"})
 # The gated default suite: unit + integration, coverage measured across both.
 DEFAULT_TIERS = ("unit", "integration")
 
@@ -74,25 +78,31 @@ class AppSuites:
         self._console = console
         self._root = Path(repo_root)
 
+    def projects_with(self, manifest: str) -> list[str]:
+        """Repo-relative dirs holding ``manifest``, anywhere in the tree.
+
+        The repo root is excluded: it is the boundary of the scan, not a project
+        inside itself. Its ``tests/`` holds bats suites, which pytest cannot run.
+        """
+        found = set()
+        for path in self._fs.glob(self._root, f"**/{manifest}"):
+            if VENDORED & set(path.parts):
+                continue
+            rel = path.parent.relative_to(self._root).as_posix()
+            if rel != ".":
+                found.add(rel)
+        return sorted(found)
+
     def python_projects(self) -> list[str]:
-        """Repo-relative dirs under stacks/ that contain a ``pyproject.toml``."""
-        return sorted(
-            {
-                p.parent.relative_to(self._root).as_posix()
-                for p in self._fs.glob(self._root, "stacks/**/pyproject.toml")
-                if ".venv" not in p.parts
-            }
-        )
+        """Every dir with a ``pyproject.toml`` — apps, and the CI tooling itself."""
+        return self.projects_with("pyproject.toml")
 
     def js_projects(self) -> list[str]:
-        """Repo-relative dirs under stacks/ whose ``package.json`` declares a ``test`` script."""
-        return sorted(
-            {
-                p.parent.relative_to(self._root).as_posix()
-                for p in self._fs.glob(self._root, "stacks/**/package.json")
-                if "node_modules" not in p.parts and "test" in self._scripts(p)
-            }
-        )
+        """Every dir whose ``package.json`` declares a ``test`` script."""
+        return [
+            rel for rel in self.projects_with("package.json")
+            if "test" in self._scripts(self._root / rel / "package.json")
+        ]
 
     def _scripts(self, package_json: Path) -> dict[str, str]:
         try:
@@ -167,33 +177,42 @@ class SuiteRunner:
         self._console = console
         self._root = str(repo_root)
 
-    def changed_contexts(self, base: str) -> set[str]:
-        """Build contexts touched by the diff against ``base`` — the --affected set."""
-        diff = self._commands.run(
+    def changed_files(self, base: str) -> list[str]:
+        """Repo-relative paths the diff against ``base`` touched."""
+        return self._commands.run(
             ["git", "-C", self._root, "diff", "--name-only", f"{base}...HEAD"],
             capture=True, check=True,
         ).stdout.split()
-        return {entry["context"] for entry in self._catalog.matrix(diff)}
 
-    def select(self, projects: list[str], selector: str | None, contexts: set[str] | None) -> list[str]:
-        """Projects to run: those under any changed context, or those matching a selector."""
-        if contexts is None:
-            return select_projects(projects, selector)
-        return sorted({p for c in contexts for p in select_projects(projects, c)})
+    def affected_projects(self, projects: list[str], changed: list[str]) -> list[str]:
+        """Projects a change reaches, by either route.
+
+        A project is affected if it sits under a build context the change touched —
+        which honours ``x-homelab.watch`` fan-out — *or* if the change edited a file
+        inside it. The second route is what reaches projects that build no image,
+        such as ``tools/ci``.
+        """
+        contexts = {entry["context"] for entry in self._catalog.matrix(changed)}
+        by_context = {p for c in contexts for p in select_projects(projects, c)}
+        by_path = {p for p in projects if any(f == p or f.startswith(f"{p}/") for f in changed)}
+        return sorted(by_context | by_path)
 
     def run(
         self, selector: str | None = None, tier: str | None = None,
         affected: bool = False, base: str = "origin/main",
     ) -> int:
-        contexts = self.changed_contexts(base) if affected else None
+        changed = self.changed_files(base) if affected else None
+
+        def pick(projects: list[str]) -> list[str]:
+            if changed is None:
+                return select_projects(projects, selector)
+            return self.affected_projects(projects, changed)
+
         # No --tier → the gated default suite (unit+integration, combined coverage).
         py_rc, py_ran = self._suites.run_python(
-            self.select(self._suites.python_projects(), selector, contexts),
-            tiers_to_run(tier), gated=tier is None,
+            pick(self._suites.python_projects()), tiers_to_run(tier), gated=tier is None
         )
-        js_rc, js_ran = self._suites.run_js(
-            self.select(self._suites.js_projects(), selector, contexts), tier
-        )
+        js_rc, js_ran = self._suites.run_js(pick(self._suites.js_projects()), tier)
         if not (py_ran or js_ran):
             self._console.out("No matching test suites.")
         return py_rc or js_rc

@@ -192,28 +192,35 @@ class TestSuiteRunner:
         subject.run(selector="warden", tier="unit")
         assert argvs(commands) == [["uv", "run", "pytest", "tests/unit", "-o", "addopts="]]
 
-    def test_changed_contexts_come_from_the_diff_against_the_base(
+    def test_changed_files_come_from_the_diff_against_the_base(
         self, container, filesystem, commands
     ):
-        filesystem.files["stacks/apps/warden/docker-compose.yml"] = self.BUILDABLE
-        responds(commands, CommandResult(0, "stacks/apps/warden/app/main.py\n"))
-        assert container.suite_runner().changed_contexts("origin/main") == {"stacks/apps/warden"}
+        responds(commands, CommandResult(0, "stacks/apps/warden/app/main.py\ndocs/x.md\n"))
+        changed = container.suite_runner().changed_files("origin/main")
+        assert changed == ["stacks/apps/warden/app/main.py", "docs/x.md"]
         assert argvs(commands)[0] == [
             "git", "-C", str(ROOT), "diff", "--name-only", "origin/main...HEAD"
         ]
 
-    def test_an_unrelated_diff_yields_no_contexts(self, container, filesystem, commands):
+    def test_a_project_is_affected_when_the_diff_edits_a_file_inside_it(self, subject):
+        assert subject.affected_projects([self.PY], [f"{self.PY}/main.py"]) == [self.PY]
+
+    def test_a_project_is_not_affected_by_an_unrelated_change(self, subject):
+        assert subject.affected_projects([self.PY], ["docs/readme.md"]) == []
+
+    def test_a_prefix_that_is_not_a_directory_boundary_does_not_count(self, subject):
+        assert subject.affected_projects(["a/warden"], ["a/warden-other/x.py"]) == []
+
+    def test_a_project_is_affected_through_the_build_context_it_sits_under(
+        self, container, filesystem
+    ):
         filesystem.files["stacks/apps/warden/docker-compose.yml"] = self.BUILDABLE
-        responds(commands, CommandResult(0, "docs/readme.md\n"))
-        assert container.suite_runner().changed_contexts("origin/main") == set()
+        runner = container.suite_runner()
+        # main.py is under the warden build context, which the watch glob covers.
+        assert runner.affected_projects([self.PY], ["stacks/apps/warden/app/main.py"]) == [self.PY]
 
-    def test_select_falls_back_to_the_selector_when_not_in_affected_mode(self, subject):
-        assert subject.select(["a/warden", "a/fiber"], "warden", None) == ["a/warden"]
-
-    def test_select_uses_the_contexts_in_affected_mode_ignoring_the_selector(self, subject):
-        picked = subject.select(["stacks/apps/warden/app", "stacks/apps/fiber/app"], None,
-                                {"stacks/apps/warden"})
-        assert picked == ["stacks/apps/warden/app"]
+    def test_a_project_that_builds_no_image_is_still_reached_by_a_path_edit(self, subject):
+        assert subject.affected_projects(["tools/ci"], ["tools/ci/ci/stackgraph.py"]) == ["tools/ci"]
 
     def test_affected_mode_runs_only_the_changed_projects_suite(
         self, container, filesystem, commands
