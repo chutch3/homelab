@@ -225,3 +225,44 @@ class TestIdempotenceCommand:
         )
         responds(commands, *[CommandResult(0, recap), CommandResult(0, recap)])
         assert run("idempotence", "play.yml") == 1
+
+
+class TestProjectsCommand:
+    """`ci projects` — the test matrix, the sibling of `ci affected`'s build matrix."""
+
+    PY = "stacks/apps/warden/app"
+
+    @pytest.fixture(autouse=True)
+    def _tree(self, filesystem):
+        filesystem.files.update({
+            "stacks/apps/warden/docker-compose.yml": BUILDABLE,
+            f"{self.PY}/pyproject.toml": "[project]\n",
+            f"{self.PY}/tests/unit/test_x.py": "",
+            "tools/ci/pyproject.toml": "[project]\n",
+            "tools/ci/tests/unit/test_y.py": "",
+        })
+
+    def _projects(self, console) -> list[str]:
+        return [e["project"] for e in json.loads(console.text)]
+
+    def test_a_change_inside_a_project_selects_that_project(self, run, console):
+        assert run("projects", ".", f"{self.PY}/main.py") == 0
+        assert self._projects(console) == [self.PY]
+
+    def test_a_change_to_the_ci_tooling_selects_the_ci_tooling(self, run, console):
+        assert run("projects", ".", "tools/ci/ci/stackgraph.py") == 0
+        assert "tools/ci" in self._projects(console)
+
+    def test_an_unrelated_change_selects_nothing(self, run, console):
+        assert run("projects", ".", "docs/index.md") == 0
+        assert self._projects(console) == []
+
+    def test_the_output_is_a_github_matrix_include_list(self, run, console):
+        run("projects", ".", f"{self.PY}/main.py")
+        entries = json.loads(console.text)
+        assert entries == [{"project": self.PY}]
+
+    def test_a_project_that_builds_no_image_is_reachable_only_by_path(self, run, console):
+        # tools/ci has no compose unit, so nothing but a path edit can select it.
+        run("projects", ".", f"{self.PY}/main.py")
+        assert "tools/ci" not in self._projects(console)

@@ -81,9 +81,3 @@ jobs:
               env:
                   FROM_REF: ${{ steps.range.outputs.from }}
                   TO_REF: ${{ steps.range.outputs.to }}
-
-            # The `ci` tool's own suite. Deliberately `uv run pytest`, not
-            # `ci test` — a change that breaks the CLI must still be able to
-            # report which of its tests failed.
-            - name: Test the CI tooling
-              run: task test:ci

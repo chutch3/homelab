@@ -18,12 +18,15 @@ env:
     REGISTRY_NAMESPACE: ${{ github.repository_owner }}
 
 jobs:
-    # Compute which buildable units a change touched → JSON matrix.
+    # Compute what a change touched → two JSON matrices: images to build, and
+    # test projects to run. They are not the same set — tools/ci is a test
+    # project that builds no image, and an image can have no test project.
     detect:
         name: Detect affected
         runs-on: ubuntu-latest
         outputs:
             units: ${{ steps.affected.outputs.units }}
+            projects: ${{ steps.affected.outputs.projects }}
         steps:
             - uses: actions/checkout@v4
               with:
@@ -54,20 +57,25 @@ jobs:
                       files="$(git diff --name-only "$base"...HEAD)"
                   fi
                   units="$(printf '%s\n' "$files" | uv run ci affected .)"
+                  projects="$(printf '%s\n' "$files" | uv run ci projects .)"
                   echo "units=$units" >> "$GITHUB_OUTPUT"
-                  echo "Affected: $units"
+                  echo "projects=$projects" >> "$GITHUB_OUTPUT"
+                  echo "Affected units:    $units"
+                  echo "Affected projects: $projects"
 
-    # One job per affected unit — run its unit+integration suite. Mirrors `build`;
+    # One job per affected test project — its unit+integration suite. Projects are
+    # discovered by manifest anywhere in the tree, so the CI tooling under tools/ci
+    # runs here by the same rule as an app, and only when a change reaches it.
     # `build` needs this, so an image never builds/pushes when its tests fail.
     test:
-        name: Test ${{ matrix.service }}
+        name: Test ${{ matrix.project }}
         needs: detect
-        if: needs.detect.outputs.units != '[]'
+        if: needs.detect.outputs.projects != '[]'
         runs-on: ubuntu-latest
         strategy:
             fail-fast: false
             matrix:
-                include: ${{ fromJSON(needs.detect.outputs.units) }}
+                include: ${{ fromJSON(needs.detect.outputs.projects) }}
         steps:
             - uses: actions/checkout@v4
 
@@ -105,7 +113,7 @@ jobs:
               # (e2e.yml / `ci test --tier e2e`). Keyed on the build context so multi-image
               # stacks test the right subtree; runs pytest and/or npm test per unit, and
               # no-ops for units with neither a pyproject nor a package.json (devbox).
-              run: uv run ci test "${{ matrix.context }}"
+              run: uv run ci test "${{ matrix.project }}"
 
     # Always-run required check for tests (mirrors Build gate) — this, not the
     # path-filtered matrix, is what branch protection should require.
@@ -126,7 +134,11 @@ jobs:
     build:
         name: Build ${{ matrix.service }}
         needs: [detect, test]
-        if: needs.detect.outputs.units != '[]'
+        # `test` is skipped when a change touches no test project (an image-only
+        # change); that must not skip the build, but a test failure must stop it.
+        if: >-
+            always() && needs.detect.outputs.units != '[]'
+            && needs.test.result != 'failure' && needs.test.result != 'cancelled'
         runs-on: ubuntu-latest
         strategy:
             fail-fast: false

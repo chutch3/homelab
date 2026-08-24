@@ -9,6 +9,7 @@ Subcommands:
   ci idempotence PLAYBOOK [ANSIBLE ARGS] run a playbook twice; fail unless the second changes nothing
   ci deploy [STACK ...] --plan          print the resolved deploy order; deploy nothing
   ci check-deps [REPO_ROOT]             the x-homelab declarations resolve, and are complete
+  ci projects [REPO_ROOT] [FILE ...]    print the test projects a change affects, as JSON
 
 Each handler is one call into an injected service — behaviour lives in the
 services, not here — so tests drive them through the container with fakes
@@ -25,7 +26,7 @@ import sys
 from dependency_injector.wiring import Provide, inject
 
 from ci.affected import UnitCatalog
-from ci.apptests import SuiteRunner
+from ci.apptests import AppSuites, SuiteRunner
 from ci.config import load_env
 from ci.containers import Container
 from ci.gc import RegistryGc
@@ -51,6 +52,20 @@ def _cmd_test(
     suite_runner: SuiteRunner = Provide[Container.suite_runner],
 ) -> int:
     return suite_runner.run(args.selector, args.tier, args.affected, args.base)
+
+
+@inject
+def _cmd_projects(
+    args: argparse.Namespace,
+    suites: AppSuites = Provide[Container.suites],
+    suite_runner: SuiteRunner = Provide[Container.suite_runner],
+    console: Console = Provide[Container.console],
+) -> int:
+    changed = args.files or [line.strip() for line in sys.stdin if line.strip()]
+    affected = set(suite_runner.affected_projects(suites.python_projects(), changed))
+    affected |= set(suite_runner.affected_projects(suites.js_projects(), changed))
+    console.out(json.dumps([{"project": p} for p in sorted(affected)]))
+    return 0
 
 
 @inject
@@ -135,6 +150,11 @@ def build_parser() -> argparse.ArgumentParser:
     test.add_argument("--base", default="origin/main")
     test.add_argument("--repo-root", default=".")
     test.set_defaults(func=_cmd_test)
+
+    proj = sub.add_parser("projects", help="print the test projects a change affects, as JSON")
+    proj.add_argument("repo_root", nargs="?", default=".")
+    proj.add_argument("files", nargs="*")
+    proj.set_defaults(func=_cmd_projects)
 
     images = sub.add_parser("images", help="list every buildable image name (one per line)")
     images.add_argument("repo_root", nargs="?", default=".")
