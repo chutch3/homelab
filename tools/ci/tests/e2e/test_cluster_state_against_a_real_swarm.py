@@ -1,19 +1,12 @@
 """`SwarmCluster` against a real Swarm, on a throwaway single-node cluster.
 
-The unit suite feeds :class:`SwarmCluster` replica columns written by hand, so
-it proves the parsing but not that Docker still prints what we parse. It also
-never observes ``PRESENT``: every stack in the homelab is converged, so the one
-state that means "deployed but not there yet" has only ever existed in a fake.
+The unit suite feeds it replica columns written by hand, so it proves the
+parsing but not that Docker still prints what we parse — and it never observes
+``PRESENT``, because every stack in the homelab is converged.
 
-This deploys two probe stacks and reads them back:
-
-  ci-plan-probe   one service converges, one can never be scheduled  -> PRESENT
-  ci-plan-ok      one service, converged                             -> CONVERGED
-  ci-plan-absent  never deployed                                     -> ABSENT
-
-It runs against the **local** daemon only, never the operator's cluster: the
-context is pinned to ``default`` for the whole module and the suite skips if
-that daemon is missing. A swarm it initialised is a swarm it leaves.
+Runs against the local daemon only: the context is pinned to ``default`` and
+the suite skips if that daemon is missing. A swarm it starts is a swarm it
+leaves.
 """
 
 from __future__ import annotations
@@ -29,14 +22,11 @@ from ci.cluster import SERVICE_LS, StackState, SwarmCluster, parse_replicas
 PROBE = "ci-plan-probe"
 CONVERGED = "ci-plan-ok"
 NEVER_DEPLOYED = "ci-plan-absent"
-pytestmark = pytest.mark.e2e
-
 IMAGE = "alpine:3"
 TIMEOUT_SECONDS = 180
 
 # `stuck` carries a constraint no node satisfies, so its task never leaves
-# pending and the service sits at 0/1 — which is what makes the stack PRESENT
-# rather than CONVERGED. `ready` is what proves the difference is real.
+# pending and the service sits at 0/1 — which is what makes the stack PRESENT.
 PROBE_COMPOSE = f"""
 services:
     ready:
@@ -57,23 +47,32 @@ services:
         command: ["sleep", "600"]
 """
 
+SETTLED = {
+    f"{CONVERGED}_ready": "1/1",
+    f"{PROBE}_ready": "1/1",
+    f"{PROBE}_stuck": "0/1",
+}
+
 
 def docker(*args: str, check: bool = True) -> subprocess.CompletedProcess[str]:
     return subprocess.run(["docker", *args], capture_output=True, text=True, check=check)
 
 
-def state_of(stack: str) -> StackState:
-    """A fresh cluster each call — `SwarmCluster` caches, so polling needs a new one."""
-    return SwarmCluster(Subprocess()).state(stack)
+def replicas() -> dict[str, str]:
+    """What `docker service ls` reports, read without the code under test."""
+    rows = (line.partition("\t") for line in docker(*SERVICE_LS[1:]).stdout.splitlines())
+    return {name: column for name, _, column in rows if name}
 
 
-def _await(stack: str, wanted: StackState) -> None:
+def _await_settled() -> None:
+    """Wait on Docker's own view, so the assertions are not just echoing setup."""
+    seen: dict[str, str] = {}
     deadline = time.monotonic() + TIMEOUT_SECONDS
     while time.monotonic() < deadline:
-        if (seen := state_of(stack)) is wanted:
+        if (seen := {k: v for k, v in replicas().items() if k in SETTLED}) == SETTLED:
             return
         time.sleep(2)
-    raise AssertionError(f"{stack} was {seen.value}, not {wanted.value}, after {TIMEOUT_SECONDS}s")
+    raise AssertionError(f"probe stacks settled at {seen}, wanted {SETTLED}")
 
 
 @pytest.fixture(scope="module")
@@ -83,11 +82,11 @@ def swarm(tmp_path_factory):
     patch.setenv("DOCKER_CONTEXT", "default")
     patch.delenv("DOCKER_HOST", raising=False)
     try:
-        probe = docker("info", "--format", "{{.Swarm.LocalNodeState}}", check=False)
-        if probe.returncode != 0:
-            pytest.skip(f"no local docker daemon: {probe.stderr.strip()}")
+        node = docker("info", "--format", "{{.Swarm.LocalNodeState}}", check=False)
+        if node.returncode != 0:
+            pytest.skip(f"no local docker daemon: {node.stderr.strip()}")
 
-        ours = probe.stdout.strip() == "inactive"
+        ours = node.stdout.strip() == "inactive"
         if ours and (init := docker(
             "swarm", "init", "--advertise-addr", "127.0.0.1", check=False
         )).returncode != 0:
@@ -96,11 +95,9 @@ def swarm(tmp_path_factory):
         try:
             tmp = tmp_path_factory.mktemp("probe")
             for stack, compose in ((PROBE, PROBE_COMPOSE), (CONVERGED, CONVERGED_COMPOSE)):
-                path = tmp / f"{stack}.yml"
-                path.write_text(compose)
+                (path := tmp / f"{stack}.yml").write_text(compose)
                 docker("stack", "deploy", "-c", str(path), stack)
-            _await(CONVERGED, StackState.CONVERGED)
-            _await(PROBE, StackState.PRESENT)
+            _await_settled()
             yield
         finally:
             for stack in (PROBE, CONVERGED):
@@ -111,26 +108,17 @@ def swarm(tmp_path_factory):
         patch.undo()
 
 
-def test_state_a_stack_short_of_its_replicas_is_present(swarm):
-    assert state_of(PROBE) is StackState.PRESENT
+@pytest.mark.e2e
+def test_state_reports_each_stack_as_the_cluster_actually_holds_it(swarm):
+    cluster = SwarmCluster(Subprocess())
+    assert {name: cluster.state(name) for name in (CONVERGED, PROBE, NEVER_DEPLOYED)} == {
+        CONVERGED: StackState.CONVERGED,
+        PROBE: StackState.PRESENT,
+        NEVER_DEPLOYED: StackState.ABSENT,
+    }
 
 
-def test_state_a_stack_at_its_desired_replicas_is_converged(swarm):
-    assert state_of(CONVERGED) is StackState.CONVERGED
-
-
-def test_state_a_stack_that_was_never_deployed_is_absent(swarm):
-    assert state_of(NEVER_DEPLOYED) is StackState.ABSENT
-
-
+@pytest.mark.e2e
 def test_parse_replicas_reads_every_column_a_real_swarm_prints(swarm):
-    """The guard against Docker changing the column out from under the parser."""
-    rows = [
-        line.partition("\t")
-        for line in docker(*SERVICE_LS[1:]).stdout.splitlines()
-        if line.strip()
-    ]
-    assert rows, "the probe stacks should have produced services to read"
-    for name, _, replicas in rows:
-        running, _ = parse_replicas(replicas)
-        assert running >= 0, f"{name}: unparsed replicas column {replicas!r}"
+    assert (columns := replicas()), "the probe stacks should have produced services"
+    assert all(parse_replicas(column)[0] >= 0 for column in columns.values()), columns
