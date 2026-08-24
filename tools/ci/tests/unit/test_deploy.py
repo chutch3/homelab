@@ -31,11 +31,6 @@ TREE = {
 }
 
 
-def by_stack(rows: list[PlanRow]) -> dict[str, PlanRow]:
-    """Rows keyed by name, so an assertion names the stack it is about."""
-    return {row.stack: row for row in rows}
-
-
 class TestDeployPlanner:
     """`DeployPlanner` — the plan it builds, and the plan it prints."""
 
@@ -53,66 +48,44 @@ class TestDeployPlanner:
 
         return _live
 
-    # --- the rows it builds -------------------------------------------------
+    # --- the plan it builds -------------------------------------------------
 
-    def test_a_stack_absent_from_the_cluster_reports_absent(self, subject, live):
-        live(stacks="reverse-proxy\n", services="reverse-proxy_traefik\t1/1\n")
-        rows = by_stack(subject.rows(["paperless"]))
-        assert rows["paperless"].state is StackState.ABSENT
-        assert rows["authentik"].state is StackState.ABSENT
-
-    def test_a_stack_at_its_desired_replicas_reports_converged(self, subject, live):
-        live(stacks="reverse-proxy\n", services="reverse-proxy_traefik\t1/1\n")
-        rows = by_stack(subject.rows(["paperless"]))
-        assert rows["reverse-proxy"].state is StackState.CONVERGED
-
-    def test_a_stack_deployed_but_short_of_its_replicas_reports_present(self, subject, live):
-        live(stacks="reverse-proxy\n", services="reverse-proxy_traefik\t0/1\n")
-        rows = by_stack(subject.rows(["paperless"]))
-        assert rows["reverse-proxy"].state is StackState.PRESENT
-
-    def test_rows_come_in_deploy_order(self, subject, live):
-        live()
-        assert [row.stack for row in subject.rows(["paperless"])] == [
-            "reverse-proxy",
-            "authentik",
-            "paperless",
+    def test_a_target_pulls_in_its_chain_each_row_carrying_its_live_state(
+        self, subject, live
+    ):
+        """One assertion for the whole plan: order, state, and why each row is there."""
+        live(
+            stacks="reverse-proxy\nauthentik\n",
+            services="reverse-proxy_traefik\t1/1\nauthentik_server\t0/1\n",
+        )
+        assert subject.rows(["paperless"]) == [
+            PlanRow("reverse-proxy", StackState.CONVERGED, Origin.DEPENDENCY, ("paperless",)),
+            PlanRow("authentik", StackState.PRESENT, Origin.DEPENDENCY, ("paperless",)),
+            PlanRow("paperless", StackState.ABSENT, Origin.TARGET),
         ]
 
-    # --- why each row is in the plan ----------------------------------------
-
-    def test_an_explicit_target_says_so(self, subject, live):
+    def test_a_shared_dependency_names_every_target_and_a_named_target_stays_one(
+        self, subject, live
+    ):
         live()
-        row = by_stack(subject.rows(["paperless"]))["paperless"]
-        assert row.origin is Origin.TARGET
-        assert row.required_by == ()
-
-    def test_a_dependency_names_the_target_that_required_it(self, subject, live):
-        live()
-        row = by_stack(subject.rows(["paperless"]))["authentik"]
-        assert row.origin is Origin.DEPENDENCY
-        assert row.required_by == ("paperless",)
-
-    def test_a_transitive_dependency_names_the_target_not_the_middle_stack(self, subject, live):
-        live()
-        rows = by_stack(subject.rows(["paperless"]))
-        assert rows["reverse-proxy"].required_by == ("paperless",)
-
-    def test_a_dependency_of_several_targets_names_them_all(self, subject, live):
-        live()
-        rows = by_stack(subject.rows(["paperless", "authentik"]))
-        assert rows["reverse-proxy"].required_by == ("authentik", "paperless")
-
-    def test_a_target_that_is_also_a_dependency_is_still_an_explicit_target(self, subject, live):
-        live()
-        rows = by_stack(subject.rows(["paperless", "authentik"]))
-        assert rows["authentik"].origin is Origin.TARGET
-        assert rows["authentik"].required_by == ()
+        assert subject.rows(["paperless", "authentik"]) == [
+            PlanRow(
+                "reverse-proxy",
+                StackState.ABSENT,
+                Origin.DEPENDENCY,
+                ("authentik", "paperless"),
+            ),
+            PlanRow("authentik", StackState.ABSENT, Origin.TARGET),
+            PlanRow("paperless", StackState.ABSENT, Origin.TARGET),
+        ]
 
     def test_a_full_plan_has_no_target_to_attribute_rows_to(self, subject, live):
         live()
-        assert {row.origin for row in subject.rows(None)} == {Origin.WHOLE_TREE}
-        assert {row.required_by for row in subject.rows(None)} == {()}
+        assert subject.rows(None) == [
+            PlanRow("reverse-proxy", StackState.ABSENT, Origin.WHOLE_TREE),
+            PlanRow("authentik", StackState.ABSENT, Origin.WHOLE_TREE),
+            PlanRow("paperless", StackState.ABSENT, Origin.WHOLE_TREE),
+        ]
 
     def test_it_reads_the_tree_once_though_it_asks_the_graph_twice(
         self, subject, live, filesystem
