@@ -8,92 +8,132 @@ Subcommands:
   ci gc [--apply] [--cutoff-days N]     prune stale :sha/untagged ghcr versions (dry-run by default)
   ci idempotence PLAYBOOK [ANSIBLE ARGS] run a playbook twice; fail unless the second changes nothing
   ci deploy [STACK ...] --plan          print the resolved deploy order; deploy nothing
-  ci check-deps [REPO_ROOT]             the x-homelab dependency declarations resolve, and are complete
+  ci check-deps [REPO_ROOT]             the x-homelab declarations resolve, and are complete
+
+Handlers take their collaborators by injection, so tests drive them through the
+container with fakes instead of touching the filesystem or spawning processes.
 """
 
 from __future__ import annotations
 
 import argparse
 import json
-import os
-import subprocess
 import sys
 
-from ci import affected, apptests, gc, idempotence, stackgraph
+from dependency_injector.wiring import Provide, inject
+
+from ci.adapters import CommandRunner, Console
+from ci.affected import UnitCatalog
+from ci.apptests import TestSuites, select_projects, tiers_to_run
+from ci.containers import Container
+from ci.gc import RegistryGc
+from ci.idempotence import IdempotenceCheck
+from ci.stackgraph import DependencyGraph, UnresolvedGraph
 
 
-def _cmd_affected(args: argparse.Namespace) -> int:
+@inject
+def _cmd_affected(
+    args: argparse.Namespace,
+    catalog: UnitCatalog = Provide[Container.catalog],
+    console: Console = Provide[Container.console],
+) -> int:
     changed = args.files or [line.strip() for line in sys.stdin if line.strip()]
-    print(json.dumps(affected.compute_matrix(args.repo_root, changed)))
+    console.out(json.dumps(catalog.matrix(changed)))
     return 0
 
 
-def _cmd_test(args: argparse.Namespace) -> int:
+@inject
+def _cmd_test(
+    args: argparse.Namespace,
+    suites: TestSuites = Provide[Container.suites],
+    catalog: UnitCatalog = Provide[Container.catalog],
+    commands: CommandRunner = Provide[Container.commands],
+    console: Console = Provide[Container.console],
+) -> int:
     if args.affected:
         # Test only the projects under the contexts a change vs the base touched.
-        diff = subprocess.run(
+        diff = commands.run(
             ["git", "-C", args.repo_root, "diff", "--name-only", f"{args.base}...HEAD"],
-            capture_output=True, text=True, check=True,
+            capture=True, check=True,
         ).stdout.split()
-        contexts = {entry["context"] for entry in affected.compute_matrix(args.repo_root, diff)}
-        pick = lambda ps: sorted({p for c in contexts for p in apptests.select_projects(ps, c)})  # noqa: E731
+        contexts = {entry["context"] for entry in catalog.matrix(diff)}
+        pick = lambda ps: sorted({p for c in contexts for p in select_projects(ps, c)})  # noqa: E731
     else:
-        pick = lambda ps: apptests.select_projects(ps, args.selector)  # noqa: E731
+        pick = lambda ps: select_projects(ps, args.selector)  # noqa: E731
 
     # No --tier → the gated default suite (unit+integration, combined coverage).
-    py_rc, py_ran = apptests.run_tests(
-        args.repo_root, pick(apptests.discover_test_projects(args.repo_root)),
-        apptests.tiers_to_run(args.tier), gated=args.tier is None,
+    py_rc, py_ran = suites.run_python(
+        pick(suites.python_projects()), tiers_to_run(args.tier), gated=args.tier is None
     )
-    js_rc, js_ran = apptests.run_js_tests(
-        args.repo_root, pick(apptests.discover_js_projects(args.repo_root)), args.tier,
-    )
+    js_rc, js_ran = suites.run_js(pick(suites.js_projects()), args.tier)
     if not (py_ran or js_ran):
-        print("No matching test suites.")
+        console.out("No matching test suites.")
     return py_rc or js_rc
 
 
-def _cmd_images(args: argparse.Namespace) -> int:
-    for image in affected.list_images(args.repo_root):
-        print(image)
+@inject
+def _cmd_images(
+    args: argparse.Namespace,
+    catalog: UnitCatalog = Provide[Container.catalog],
+    console: Console = Provide[Container.console],
+) -> int:
+    for image in catalog.image_names():
+        console.out(image)
     return 0
 
 
-def _cmd_gc(args: argparse.Namespace) -> int:
-    gc.prune(args.repo_root, cutoff_days=args.cutoff_days, apply=args.apply)
+@inject
+def _cmd_gc(
+    args: argparse.Namespace,
+    registry_gc: RegistryGc = Provide[Container.registry_gc],
+) -> int:
+    registry_gc.prune(cutoff_days=args.cutoff_days, apply=args.apply)
     return 0
 
 
-def _cmd_idempotence(args: argparse.Namespace) -> int:
+@inject
+def _cmd_idempotence(
+    args: argparse.Namespace,
+    idempotence: IdempotenceCheck = Provide[Container.idempotence],
+) -> int:
     return idempotence.verify(args.playbook, args.ansible_args)
 
 
-def _cmd_deploy(args: argparse.Namespace) -> int:
-    env = stackgraph.environment(args.repo_root, dict(os.environ))
-    disabled = sorted(stackgraph.disabled_by_capability(env))
+@inject
+def _cmd_deploy(
+    args: argparse.Namespace,
+    graph: DependencyGraph = Provide[Container.graph],
+    console: Console = Provide[Container.console],
+) -> int:
     try:
-        order = stackgraph.resolve(stackgraph.load_graph(args.repo_root), args.stacks or None, disabled)
-    except stackgraph.UnresolvedGraph as exc:
-        print(f"✗ {exc}", file=sys.stderr)
+        order = graph.resolve(args.stacks or None)
+    except UnresolvedGraph as exc:
+        console.err(f"✗ {exc}")
         return 1
-    print("\n".join(order))
-    print(f"\n{len(order)} stack(s) — plan only, nothing deployed.", file=sys.stderr)
+    for stack in order:
+        console.out(stack)
+    console.err(f"\n{len(order)} stack(s) — plan only, nothing deployed.")
     return 0
 
 
-def _cmd_check_deps(args: argparse.Namespace) -> int:
+@inject
+def _cmd_check_deps(
+    args: argparse.Namespace,
+    graph: DependencyGraph = Provide[Container.graph],
+    console: Console = Provide[Container.console],
+) -> int:
     try:
-        stacks = stackgraph.load_stacks(args.repo_root)
-        stackgraph.resolve({n: list(s.requires) for n, s in stacks.items()})
-    except stackgraph.UnresolvedGraph as exc:
-        print(f"✗ {exc}")
+        stacks = graph.stacks()
+        graph.resolve()
+    except UnresolvedGraph as exc:
+        console.out(f"✗ {exc}")
         return 1
-    if missing := {n: s.undeclared for n, s in stacks.items() if s.undeclared}:
-        print("✗ dependencies visible in the compose file but not declared in x-homelab.requires:")
+    if missing := graph.undeclared():
+        console.out("✗ dependencies visible in the compose file but not declared in x-homelab.requires:")
         for stack, requires in sorted(missing.items()):
-            print(f"    {stack}: {', '.join(sorted(requires))}")
+            console.out(f"    {stack}: {', '.join(sorted(requires))}")
         return 1
-    print(f"✓ {len(stacks)} stacks resolve, with every dependency they reveal declared")
+    console.out(f"✓ {len(stacks)} stacks resolve, with every dependency they reveal declared")
     return 0
 
 
@@ -146,8 +186,17 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
+def build_container(args: argparse.Namespace) -> Container:
+    """Wire the container for one invocation, with this run's repo root."""
+    container = Container()
+    container.config.repo_root.from_value(getattr(args, "repo_root", ".") or ".")
+    container.wire(modules=[__name__])
+    return container
+
+
 def main() -> None:
     args = build_parser().parse_args()
+    build_container(args)
     raise SystemExit(args.func(args))
 
 

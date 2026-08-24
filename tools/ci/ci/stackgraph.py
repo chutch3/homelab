@@ -1,8 +1,8 @@
 """The stack dependency graph declared by ``x-homelab: {requires: [...]}``.
 
 Deploy order was the output of ``find``. It is now a topological sort of the
-declarations. :func:`resolve` and :func:`inferred_requires` are pure and
-unit-tested; reading the tree is glue.
+declarations. :class:`StackTree` owns the filesystem; :class:`DependencyGraph`
+holds the logic and takes the tree, so its tests never touch disk.
 
 Nothing here deploys — it only decides what order a deploy would use.
 """
@@ -15,13 +15,15 @@ from pathlib import Path
 
 import yaml
 
+from ci.adapters import Environment, FileSystem
+
 # Stacks live one directory deep in each of these, alongside a docker-compose.yml.
 STACK_ROOTS = ("stacks", "stacks/apps")
 
 # Edges a compose file gives away on its own, so a missing declaration is a
 # check failure rather than a surprise at deploy time. Text patterns, not
 # parsed YAML: the labels these match are free-form strings either way.
-_INFERENCE = (
+INFERENCE = (
     ("reverse-proxy", re.compile(r"traefik\.enable=true")),
     ("authentik", re.compile(r"middlewares=[^\"]*authentik@|auth\.\$\{BASE_DOMAIN\}")),
 )
@@ -32,7 +34,6 @@ _INFERENCE = (
 CAPABILITY_GATES = {"dns": "PRIMARY_DNS_MANAGED"}
 
 _FALSEY = ("false", "no", "0", "")
-_DOTENV_LINE = re.compile(r"^\s*(?:export\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*?)\s*$")
 
 
 class UnresolvedGraph(Exception):
@@ -41,7 +42,7 @@ class UnresolvedGraph(Exception):
 
 @dataclass(frozen=True)
 class Stack:
-    """One stack, read once: its compose text and what it declares."""
+    """One stack: its compose text and the dependencies it declares."""
 
     name: str
     path: Path
@@ -49,101 +50,108 @@ class Stack:
     requires: tuple[str, ...]
 
     @property
+    def inferred(self) -> set[str]:
+        """Dependencies the compose file reveals, whatever it declares."""
+        return {p for p, pattern in INFERENCE if pattern.search(self.text)} - {self.name}
+
+    @property
     def undeclared(self) -> set[str]:
         """Dependencies its compose reveals but it does not declare."""
-        return inferred_requires(self.name, self.text) - set(self.requires)
+        return self.inferred - set(self.requires)
 
 
-def inferred_requires(stack: str, compose_text: str) -> set[str]:
-    """Dependencies the compose file itself reveals, whatever it declares."""
-    return {p for p, pattern in _INFERENCE if pattern.search(compose_text)} - {stack}
+class StackTree:
+    """Reads the stacks out of the working tree, each compose file parsed once."""
+
+    def __init__(self, filesystem: FileSystem, repo_root: str | Path = ".") -> None:
+        self._fs = filesystem
+        self._root = Path(repo_root)
+
+    def stacks(self) -> dict[str, Stack]:
+        stacks: dict[str, Stack] = {}
+        for stack_root in STACK_ROOTS:
+            for path in self._fs.glob(self._root / stack_root, "*/docker-compose.yml"):
+                name = path.parent.name
+                if name in stacks:
+                    raise UnresolvedGraph(
+                        f"two stacks named {name}: {stacks[name].path} and {path}"
+                    )
+                text = self._fs.read_text(path)
+                stacks[name] = Stack(name, path, text, self._declared(name, text))
+        return stacks
+
+    def _declared(self, name: str, compose_text: str) -> tuple[str, ...]:
+        """The validated ``x-homelab.requires``, or empty when none is declared.
+
+        The shape is also enforced by schemas/stack-manifest.schema.json at
+        commit time; repeating it keeps a hand-run check from resolving garbage.
+        """
+        try:
+            document = yaml.safe_load(compose_text) or {}
+        except yaml.YAMLError as exc:
+            raise UnresolvedGraph(f"{name}: compose file is not valid YAML: {exc}") from exc
+        if not isinstance(document, dict):
+            raise UnresolvedGraph(f"{name}: compose file is not a mapping")
+
+        manifest = document.get("x-homelab")
+        if manifest is None:
+            return ()
+        if not isinstance(manifest, dict):
+            raise UnresolvedGraph(
+                f"{name}: x-homelab must be a mapping, got {type(manifest).__name__}"
+            )
+        requires = manifest.get("requires", [])
+        if not isinstance(requires, list):
+            raise UnresolvedGraph(
+                f"{name}: x-homelab.requires must be a list of stack names, "
+                f"got {type(requires).__name__}"
+            )
+        if bad := [r for r in requires if not isinstance(r, str)]:
+            raise UnresolvedGraph(f"{name}: x-homelab.requires entries must be stack names: {bad}")
+        return tuple(requires)
 
 
-def _declared(name: str, compose_text: str) -> tuple[str, ...]:
-    """The validated ``x-homelab.requires``, or empty when none is declared.
+class DependencyGraph:
+    """Deploy order over the declarations, and what the declarations are missing."""
 
-    The shape is also enforced by schemas/stack-manifest.schema.json at commit
-    time; repeating it here keeps a hand-run check from resolving garbage.
-    """
-    try:
-        document = yaml.safe_load(compose_text) or {}
-    except yaml.YAMLError as exc:
-        raise UnresolvedGraph(f"{name}: compose file is not valid YAML: {exc}") from exc
-    if not isinstance(document, dict):
-        raise UnresolvedGraph(f"{name}: compose file is not a mapping")
+    def __init__(
+        self,
+        tree: StackTree,
+        environment: Environment,
+        repo_root: str | Path = ".",
+        gates: dict[str, str] | None = None,
+    ) -> None:
+        self._tree = tree
+        self._environment = environment
+        self._repo_root = repo_root
+        self._gates = CAPABILITY_GATES if gates is None else gates
 
-    manifest = document.get("x-homelab")
-    if manifest is None:
-        return ()
-    if not isinstance(manifest, dict):
-        raise UnresolvedGraph(f"{name}: x-homelab must be a mapping, got {type(manifest).__name__}")
+    def stacks(self) -> dict[str, Stack]:
+        return self._tree.stacks()
 
-    requires = manifest.get("requires", [])
-    if not isinstance(requires, list):
-        raise UnresolvedGraph(
-            f"{name}: x-homelab.requires must be a list of stack names, "
-            f"got {type(requires).__name__}"
-        )
-    if bad := [r for r in requires if not isinstance(r, str)]:
-        raise UnresolvedGraph(f"{name}: x-homelab.requires entries must be stack names: {bad}")
-    return tuple(requires)
+    def edges(self) -> dict[str, list[str]]:
+        """Stack name -> declared requires."""
+        return {name: list(stack.requires) for name, stack in self.stacks().items()}
 
+    def undeclared(self) -> dict[str, set[str]]:
+        """Stacks whose compose reveals a dependency they do not declare."""
+        return {n: s.undeclared for n, s in self.stacks().items() if s.undeclared}
 
-def load_stacks(repo_root: str | Path) -> dict[str, Stack]:
-    """Every stack in the tree, name -> :class:`Stack`, each file read once."""
-    root = Path(repo_root)
-    stacks: dict[str, Stack] = {}
-    for stack_root in STACK_ROOTS:
-        for path in sorted((root / stack_root).glob("*/docker-compose.yml")):
-            name = path.parent.name
-            if name in stacks:
-                raise UnresolvedGraph(f"two stacks named {name}: {stacks[name].path} and {path}")
-            text = path.read_text()
-            stacks[name] = Stack(name, path, text, _declared(name, text))
-    return stacks
+    def disabled(self) -> set[str]:
+        """Provider stacks this environment has switched off."""
+        env = self._environment.values(self._repo_root)
+        return {
+            stack
+            for stack, var in self._gates.items()
+            if env.get(var, "true").strip().lower() in _FALSEY
+        }
+
+    def resolve(self, targets: list[str] | None = None) -> list[str]:
+        """Deploy order: every stack after all of its dependencies."""
+        return resolve(self.edges(), targets, sorted(self.disabled()))
 
 
-def load_graph(repo_root: str | Path) -> dict[str, list[str]]:
-    """Stack name -> declared requires, read from the tree."""
-    return {name: list(stack.requires) for name, stack in load_stacks(repo_root).items()}
-
-
-def undeclared(repo_root: str | Path) -> dict[str, set[str]]:
-    """Stacks whose compose reveals a dependency they do not declare."""
-    found = {n: s.undeclared for n, s in load_stacks(repo_root).items()}
-    return {name: missing for name, missing in found.items() if missing}
-
-
-def environment(repo_root: str | Path, process_env: dict[str, str]) -> dict[str, str]:
-    """``.env`` overlaid with the process environment, which wins.
-
-    `task deploy:plan` is handed .env by the Taskfile's ``dotenv:``; running the
-    CLI directly is not, and the two must not disagree about what is switched on.
-    """
-    merged: dict[str, str] = {}
-    dotenv = Path(repo_root) / ".env"
-    if dotenv.exists():
-        for line in dotenv.read_text().splitlines():
-            if line.lstrip().startswith("#") or not (match := _DOTENV_LINE.match(line)):
-                continue
-            key, value = match.groups()
-            if len(value) >= 2 and value[0] == value[-1] and value[0] in "\"'":
-                value = value[1:-1]
-            merged[key] = value
-    merged.update(process_env)
-    return merged
-
-
-def disabled_by_capability(env: dict[str, str]) -> set[str]:
-    """Provider stacks this environment has switched off."""
-    return {
-        stack
-        for stack, var in CAPABILITY_GATES.items()
-        if env.get(var, "true").strip().lower() in _FALSEY
-    }
-
-
-def _cycle(edges: dict[str, list[str]], stuck: list[str]) -> list[str]:
+def cycle_members(edges: dict[str, list[str]], stuck: list[str]) -> list[str]:
     """The stacks actually in a cycle, dropping those merely blocked behind one."""
     members = set(stuck)
     while shed := {s for s in members if not any(s in edges[o] for o in members)}:
@@ -156,7 +164,7 @@ def resolve(
     targets: list[str] | None = None,
     disabled: list[str] | None = None,
 ) -> list[str]:
-    """Deploy order: every stack after all of its dependencies.
+    """Deploy order over a plain {stack: requires} mapping.
 
     ``targets`` narrows the result to those stacks and what they need.
     ``disabled`` names providers this environment does without — they are
@@ -183,13 +191,14 @@ def resolve(
                 wanted.add(stack)
                 frontier.extend(edges[stack])
 
-    order, placed = [], set()
+    order: list[str] = []
+    placed: set[str] = set()
     # Alphabetical among stacks whose dependencies are all placed, so the same
     # graph always yields the same order.
     while remaining := sorted(wanted - placed):
         ready = [s for s in remaining if not set(edges[s]) - placed]
         if not ready:
-            raise UnresolvedGraph(f"dependency cycle among: {', '.join(_cycle(edges, remaining))}")
+            raise UnresolvedGraph(f"dependency cycle among: {', '.join(cycle_members(edges, remaining))}")
         order.extend(ready)
         placed.update(ready)
     return order

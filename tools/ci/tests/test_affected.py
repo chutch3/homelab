@@ -1,22 +1,24 @@
 """Unit tests for the monorepo change-detection logic.
 
 The pure functions (``affected_units``, ``dedupe_by_image``, ``tooling_changed``)
-are exercised with hand-built ``Unit`` lists; ``discover_units`` is exercised
-against compose files written into a tmp repo.
+are exercised with hand-built ``Unit`` lists; :class:`UnitCatalog` reads through
+a fake filesystem, so discovery is asserted without writing any files.
 """
 
 from __future__ import annotations
 
 import textwrap
-from pathlib import Path
+
+import pytest
 
 from ci.affected import (
     Unit,
+    UnitCatalog,
     affected_units,
     dedupe_by_image,
-    discover_units,
     tooling_changed,
 )
+from conftest import ROOT, FakeFileSystem
 
 
 def _unit(service, image, stack_dir, watch):
@@ -89,21 +91,6 @@ def test_registry_port_is_not_mistaken_for_a_tag():
     assert u.image_key == "registry:5000/ns/x"
 
 
-def test_list_images_dedupes_and_sorts(tmp_path):
-    from ci.affected import list_images
-
-    for name, img in [("warden", "warden"), ("code-server", "homelab-devbox"),
-                      ("claudecodeui", "homelab-devbox")]:
-        d = tmp_path / "stacks/apps" / name
-        d.mkdir(parents=True)
-        (d / "docker-compose.yml").write_text(
-            f"services:\n  {name}:\n    image: ghcr.io/ns/{img}:latest\n"
-            f"    build: {{ context: ., dockerfile: Dockerfile }}\n"
-        )
-    # homelab-devbox appears twice (two consumers) -> deduped to one entry.
-    assert list_images(tmp_path) == ["homelab-devbox", "warden"]
-
-
 def test_image_name_is_bare_last_segment():
     assert WARDEN.image_name == "warden"
     assert CODE.image_name == "homelab-devbox"
@@ -135,97 +122,142 @@ def test_tooling_change_flags_everything():
     assert tooling_changed(["stacks/apps/warden/app/main.py"]) is False
 
 
-# --- discovery against a tmp repo -------------------------------------------------
+class TestUnitCatalog:
+    """`UnitCatalog` — discovery, the build matrix and the image list, over a fake tree."""
+
+    @pytest.fixture
+    def subject(self, container):
+        return container.catalog()
+
+    def _seed(self, filesystem, path: str, compose: str) -> None:
+        filesystem.files[path] = textwrap.dedent(compose)
+
+    def test_reads_build_and_defaults_watch_to_the_stack_dir(self, subject, filesystem):
+        self._seed(filesystem, "stacks/apps/warden/docker-compose.yml", """
+            services:
+              warden:
+                image: ghcr.io/ns/warden:1.4.0
+                build:
+                  context: .
+                  dockerfile: app/Dockerfile
+            """)
+        units = subject.units()
+        assert len(units) == 1
+        assert units[0].service == "warden"
+        assert units[0].context == "stacks/apps/warden"
+        assert units[0].dockerfile == "app/Dockerfile"
+        assert units[0].watch == ("stacks/apps/warden/**",)
+
+    def test_honours_explicit_watch_and_skips_services_without_build(self, subject, filesystem):
+        self._seed(filesystem, "stacks/apps/code-server/docker-compose.yml", """
+            services:
+              code-server:
+                image: ghcr.io/ns/homelab-devbox:1.2.0
+                build:
+                  context: ../../../images/devbox
+                  dockerfile: Dockerfile
+                x-homelab:
+                  watch:
+                    - stacks/apps/code-server/**
+                    - images/devbox/**
+              sidecar:
+                image: redis:7
+            """)
+        units = subject.units()
+        assert [u.service for u in units] == ["code-server"]  # sidecar has no build:
+        assert units[0].context == "images/devbox"  # ../../../ resolved repo-relative
+        assert set(units[0].watch) == {"stacks/apps/code-server/**", "images/devbox/**"}
+
+    def test_finds_nested_non_apps_compose(self, subject, filesystem):
+        # The monitoring stack lives at stacks/monitoring/docker-compose.yml.
+        self._seed(filesystem, "stacks/monitoring/docker-compose.yml", """
+            services:
+              prometheus:
+                image: prom/prometheus:v2.55.0
+              iperf3-exporter:
+                image: ghcr.io/ns/iperf3-exporter:latest
+                build: { context: custom-exporter, dockerfile: custom-exporter/Dockerfile }
+                x-homelab:
+                  watch: [stacks/monitoring/custom-exporter/**]
+            """)
+        units = subject.units()
+        assert [u.service for u in units] == ["iperf3-exporter"]
+        assert units[0].context == "stacks/monitoring/custom-exporter"
+
+    def test_multiple_images_per_app(self, subject, filesystem):
+        self._seed(filesystem, "stacks/apps/takeout-manager/docker-compose.yml", """
+            services:
+              manager:
+                image: ghcr.io/ns/takeout-manager:2.0.0
+                build: { context: manager, dockerfile: manager/Dockerfile }
+              worker:
+                image: ghcr.io/ns/takeout-worker:2.0.0
+                build: { context: worker, dockerfile: worker/Dockerfile }
+            """)
+        assert sorted(u.service for u in subject.units()) == ["manager", "worker"]
+        assert {u.context for u in subject.units()} == {
+            "stacks/apps/takeout-manager/manager",
+            "stacks/apps/takeout-manager/worker",
+        }
+
+    def test_unparseable_compose_is_skipped_not_fatal(self, subject, filesystem):
+        self._seed(filesystem, "stacks/apps/broken/docker-compose.yml", "services: [\n unclosed\n")
+        self._seed(filesystem, "stacks/apps/warden/docker-compose.yml", """
+            services:
+              warden:
+                image: ghcr.io/ns/warden:1.4.0
+                build: { context: ., dockerfile: Dockerfile }
+            """)
+        assert [u.service for u in subject.units()] == ["warden"]
+
+    def test_image_names_dedupe_and_sort(self, subject, filesystem):
+        for name, img in [("warden", "warden"), ("code-server", "homelab-devbox"),
+                          ("claudecodeui", "homelab-devbox")]:
+            self._seed(filesystem, f"stacks/apps/{name}/docker-compose.yml", f"""
+                services:
+                  {name}:
+                    image: ghcr.io/ns/{img}:latest
+                    build: {{ context: ., dockerfile: Dockerfile }}
+                """)
+        # homelab-devbox appears twice (two consumers) -> deduped to one entry.
+        assert subject.image_names() == ["homelab-devbox", "warden"]
+
+    def test_matrix_selects_only_the_affected_unit(self, subject, filesystem):
+        for name in ("warden", "fiber"):
+            self._seed(filesystem, f"stacks/apps/{name}/docker-compose.yml", f"""
+                services:
+                  {name}:
+                    image: ghcr.io/ns/{name}:1.0.0
+                    build: {{ context: ., dockerfile: Dockerfile }}
+                """)
+        matrix = subject.matrix(["stacks/apps/warden/app/main.py"])
+        assert [e["image_name"] for e in matrix] == ["warden"]
+
+    def test_a_tooling_change_puts_every_unit_in_the_matrix(self, subject, filesystem):
+        for name in ("warden", "fiber"):
+            self._seed(filesystem, f"stacks/apps/{name}/docker-compose.yml", f"""
+                services:
+                  {name}:
+                    image: ghcr.io/ns/{name}:1.0.0
+                    build: {{ context: ., dockerfile: Dockerfile }}
+                """)
+        matrix = subject.matrix(["tools/ci/ci/affected.py"])
+        assert sorted(e["image_name"] for e in matrix) == ["fiber", "warden"]
 
 
-def _write(path: Path, content: str):
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(textwrap.dedent(content))
+class TestFakeFileSystemFidelity:
+    """The fake must glob the way the real one does, or every test above lies."""
 
+    def test_discovery_globs_agree_with_the_real_filesystem_on_this_repo(
+        self, repo_container, filesystem
+    ):
+        from ci.adapters import FileSystem
+        from ci.affected import DISCOVERY_GLOBS
+        from conftest import REPO_ROOT
 
-def test_discover_reads_build_and_defaults_watch_to_stack_dir(tmp_path):
-    _write(
-        tmp_path / "stacks/apps/warden/docker-compose.yml",
-        """
-        services:
-          warden:
-            image: ghcr.io/ns/warden:1.4.0
-            build:
-              context: .
-              dockerfile: app/Dockerfile
-        """,
-    )
-    units = discover_units(tmp_path)
-    assert len(units) == 1
-    u = units[0]
-    assert u.service == "warden"
-    assert u.context == "stacks/apps/warden"
-    assert u.dockerfile == "app/Dockerfile"
-    assert u.watch == ("stacks/apps/warden/**",)  # default
-
-
-def test_discover_honours_explicit_watch_and_skips_services_without_build(tmp_path):
-    _write(
-        tmp_path / "stacks/apps/code-server/docker-compose.yml",
-        """
-        services:
-          code-server:
-            image: ghcr.io/ns/homelab-devbox:1.2.0
-            build:
-              context: ../../../images/devbox
-              dockerfile: Dockerfile
-            x-homelab:
-              watch:
-                - stacks/apps/code-server/**
-                - images/devbox/**
-          sidecar:
-            image: redis:7
-        """,
-    )
-    units = discover_units(tmp_path)
-    assert [u.service for u in units] == ["code-server"]  # sidecar has no build:
-    u = units[0]
-    assert u.context == "images/devbox"  # ../../../ resolved repo-relative
-    assert set(u.watch) == {"stacks/apps/code-server/**", "images/devbox/**"}
-
-
-def test_discover_finds_nested_non_apps_compose(tmp_path):
-    # The monitoring stack lives at stacks/monitoring/docker-compose.yml (not under
-    # stacks/apps), and only its build: services should become units.
-    _write(
-        tmp_path / "stacks/monitoring/docker-compose.yml",
-        """
-        services:
-          prometheus:
-            image: prom/prometheus:v2.55.0
-          iperf3-exporter:
-            image: ghcr.io/ns/iperf3-exporter:latest
-            build: { context: custom-exporter, dockerfile: custom-exporter/Dockerfile }
-            x-homelab:
-              watch: [stacks/monitoring/custom-exporter/**]
-        """,
-    )
-    units = discover_units(tmp_path)
-    assert [u.service for u in units] == ["iperf3-exporter"]
-    assert units[0].context == "stacks/monitoring/custom-exporter"
-
-
-def test_discover_multiple_images_per_app(tmp_path):
-    _write(
-        tmp_path / "stacks/apps/takeout-manager/docker-compose.yml",
-        """
-        services:
-          manager:
-            image: ghcr.io/ns/takeout-manager:2.0.0
-            build: { context: manager, dockerfile: manager/Dockerfile }
-          worker:
-            image: ghcr.io/ns/takeout-worker:2.0.0
-            build: { context: worker, dockerfile: worker/Dockerfile }
-        """,
-    )
-    units = discover_units(tmp_path)
-    assert sorted(u.service for u in units) == ["manager", "worker"]
-    assert {u.context for u in units} == {
-        "stacks/apps/takeout-manager/manager",
-        "stacks/apps/takeout-manager/worker",
-    }
+        real = FileSystem()
+        for pattern in DISCOVERY_GLOBS:
+            found = real.glob(REPO_ROOT, pattern)
+            rels = {p.relative_to(REPO_ROOT).as_posix() for p in found}
+            fake = FakeFileSystem({r: "" for r in rels}, root=REPO_ROOT)
+            assert {p.relative_to(REPO_ROOT).as_posix() for p in fake.glob(REPO_ROOT, pattern)} == rels

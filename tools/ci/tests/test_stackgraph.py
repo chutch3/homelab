@@ -1,31 +1,38 @@
-"""Tests for the stack dependency graph (the `ci deploy --plan` / `ci check-deps` logic).
+"""Tests for the stack dependency graph (`ci deploy --plan` / `ci check-deps`).
 
-Ordering, cycle and unknown-dependency detection are pure functions over a
-{stack: requires} mapping; reading the tree is glue. The dangerous case is a
-false pass — an order that puts a stack before something it needs, or a
-declaration the tree does not actually satisfy.
+The dangerous case is a false pass: an order that puts a stack before something
+it needs, or a declaration the tree does not actually satisfy. Ordering and
+cycle detection are exercised on plain mappings; everything that would read the
+tree goes through a fake filesystem instead.
 """
 
 from __future__ import annotations
 
-import pathlib
-
 import pytest
+from dependency_injector import providers
 
-from ci.stackgraph import (
-    UnresolvedGraph,
-    disabled_by_capability,
-    environment,
-    inferred_requires,
-    load_graph,
-    resolve,
-    undeclared,
-)
+from ci.adapters import Environment
+from ci.stackgraph import DependencyGraph, Stack, StackTree, UnresolvedGraph, cycle_members, resolve
+from conftest import ROOT, FakeFileSystem
 
-ROUTED = {"reverse-proxy": [], "authentik": ["reverse-proxy"], "paperless": ["reverse-proxy", "authentik"]}
+ROUTED = {
+    "reverse-proxy": [],
+    "authentik": ["reverse-proxy"],
+    "paperless": ["reverse-proxy", "authentik"],
+}
+
+TRAEFIK_LABEL = 'services:\n    a:\n        deploy:\n            labels: ["traefik.enable=true"]\n'
+DECLARED = "x-homelab:\n    requires: [reverse-proxy]\n" + TRAEFIK_LABEL
+
+
+def compose(**stacks: str) -> dict[str, str]:
+    """Seed a fake tree: stack name -> compose text, all under stacks/apps/."""
+    return {f"stacks/apps/{name}/docker-compose.yml": text for name, text in stacks.items()}
 
 
 class TestResolve:
+    """`resolve` — deploy order over a plain {stack: requires} mapping."""
+
     def test_orders_every_stack_after_its_dependencies(self):
         order = resolve(ROUTED)
         assert order.index("reverse-proxy") < order.index("authentik") < order.index("paperless")
@@ -43,166 +50,220 @@ class TestResolve:
         graph = {"d": ["a"], "c": ["a"], "b": ["c", "d"], "a": []}
         assert resolve(graph) == resolve(graph)
 
-    def test_a_cycle_fails_naming_its_members(self):
+    def test_a_dependency_on_a_stack_that_does_not_exist_fails_naming_both_ends(self):
         with pytest.raises(UnresolvedGraph) as exc:
-            resolve({"a": ["b"], "b": ["a"]})
-        assert "a" in str(exc.value) and "b" in str(exc.value)
-
-    def test_a_dependency_on_a_stack_that_does_not_exist_fails_naming_it(self):
-        with pytest.raises(UnresolvedGraph) as exc:
-            resolve({"paperless": ["ghost"]})
-        assert "ghost" in str(exc.value)
-        assert "paperless" in str(exc.value)
+            resolve({"paperless": ["ghost-stack"]})
+        assert "paperless requires ghost-stack" in str(exc.value)
 
     def test_a_target_that_does_not_exist_fails_naming_it(self):
-        with pytest.raises(UnresolvedGraph) as exc:
-            resolve(ROUTED, targets=["ghost"])
-        assert "ghost" in str(exc.value)
+        with pytest.raises(UnresolvedGraph, match="no such stack: ghost-stack"):
+            resolve(ROUTED, targets=["ghost-stack"])
 
     def test_a_disabled_stack_is_dropped_from_the_order(self):
-        assert "dns" not in resolve({"dns": [], "paperless": ["dns"]}, disabled=["dns"])
-
-    def test_an_edge_to_a_disabled_stack_is_dropped_rather_than_failing(self):
         assert resolve({"dns": [], "paperless": ["dns"]}, disabled=["dns"]) == ["paperless"]
 
     def test_a_disabled_stack_named_as_a_target_is_still_dropped(self):
-        assert resolve({"dns": [], "paperless": ["dns"]}, targets=["dns", "paperless"], disabled=["dns"]) == [
-            "paperless"
-        ]
+        order = resolve(
+            {"dns": [], "paperless": ["dns"]}, targets=["dns", "paperless"], disabled=["dns"]
+        )
+        assert order == ["paperless"]
 
 
-class TestInferredRequires:
-    def test_a_traefik_router_implies_the_reverse_proxy(self):
-        assert "reverse-proxy" in inferred_requires("paperless", '- "traefik.enable=true"')
+class TestCycleMembers:
+    """`cycle_members` — which stacks a cycle report should actually name."""
 
-    def test_no_traefik_router_implies_nothing(self):
-        assert inferred_requires("kopia", "image: kopia/kopia") == set()
-
-    def test_a_forward_auth_middleware_implies_authentik(self):
-        compose = '- "traefik.http.routers.tor.middlewares=authentik@swarm"'
-        assert "authentik" in inferred_requires("tor-browser", compose)
-
-    def test_an_oidc_issuer_on_the_auth_host_implies_authentik(self):
-        assert "authentik" in inferred_requires("mealie", "- OIDC_CONFIGURATION_URL=https://auth.${BASE_DOMAIN}/x")
-
-    def test_a_stack_never_requires_itself(self):
-        compose = '- "traefik.enable=true"\n- AUTHENTIK_HOST=https://auth.${BASE_DOMAIN}'
-        assert "authentik" not in inferred_requires("authentik", compose)
-
-    def test_the_reverse_proxy_does_not_require_itself(self):
-        assert inferred_requires("reverse-proxy", '- "traefik.enable=true"') == set()
-
-
-def _tree(root, stacks):
-    for name, body in stacks.items():
-        stack = root / "stacks" / "apps" / name
-        stack.mkdir(parents=True)
-        (stack / "docker-compose.yml").write_text(body)
-    return root
-
-
-class TestUndeclared:
-    ROUTED_UNDECLARED = 'services:\n    a:\n        deploy:\n            labels: ["traefik.enable=true"]\n'
-    ROUTED_DECLARED = "x-homelab:\n    requires: [reverse-proxy]\n" + ROUTED_UNDECLARED
-
-    def test_names_the_dependency_the_compose_reveals_but_does_not_declare(self, tmp_path):
-        _tree(tmp_path, {"paperless": self.ROUTED_UNDECLARED})
-        assert undeclared(tmp_path) == {"paperless": {"reverse-proxy"}}
-
-    def test_a_declared_dependency_is_not_a_violation(self, tmp_path):
-        _tree(tmp_path, {"paperless": self.ROUTED_DECLARED})
-        assert undeclared(tmp_path) == {}
-
-    def test_a_declaration_the_compose_cannot_reveal_is_not_a_violation(self, tmp_path):
-        _tree(tmp_path, {"beholder": "x-homelab:\n    requires: [postal]\nservices:\n    a:\n        image: x\n"})
-        assert undeclared(tmp_path) == {}
-
-
-class TestDisabledByCapability:
-    def test_an_unset_gate_leaves_its_provider_enabled(self):
-        assert disabled_by_capability({}) == set()
-
-    @pytest.mark.parametrize("value", ["false", "FALSE", "no", "0", ""])
-    def test_a_falsey_gate_disables_its_provider(self, value):
-        assert disabled_by_capability({"PRIMARY_DNS_MANAGED": value}) == {"dns"}
-
-    def test_a_truthy_gate_leaves_its_provider_enabled(self):
-        assert disabled_by_capability({"PRIMARY_DNS_MANAGED": "true"}) == set()
-
-
-class TestCycleReporting:
     def test_names_only_the_cycle_not_the_stacks_it_blocks(self):
-        graph = {"a": ["b"], "b": ["a"], "blocked": ["a"], "also-blocked": ["blocked"]}
+        edges = {"authentik": ["paperless"], "paperless": ["authentik"], "komga": ["authentik"]}
+        assert cycle_members(edges, sorted(edges)) == ["authentik", "paperless"]
+
+    def test_a_cycle_report_names_its_members_and_nothing_else(self):
+        graph = {"authentik": ["paperless"], "paperless": ["authentik"], "komga": ["authentik"]}
         with pytest.raises(UnresolvedGraph) as exc:
             resolve(graph)
-        message = str(exc.value)
-        assert "a" in message and "b" in message
-        assert "blocked" not in message
+        assert str(exc.value) == "dependency cycle among: authentik, paperless"
 
     def test_a_stack_that_requires_itself_is_a_cycle(self):
-        with pytest.raises(UnresolvedGraph, match="loop"):
+        with pytest.raises(UnresolvedGraph) as exc:
             resolve({"loop": ["loop"]})
+        assert str(exc.value) == "dependency cycle among: loop"
 
 
-class TestMalformedDeclarations:
-    """A bad declaration must say what is wrong with it, not resolve into nonsense."""
+class TestStack:
+    """`Stack` — what a compose file gives away about its own dependencies."""
 
-    def test_a_requires_that_is_not_a_list_fails_naming_the_stack(self, tmp_path):
-        _tree(tmp_path, {"paperless": "x-homelab:\n    requires: reverse-proxy\nservices: {}\n"})
-        with pytest.raises(UnresolvedGraph, match="paperless"):
-            load_graph(tmp_path)
+    def _stack(self, name: str, text: str, requires: tuple[str, ...] = ()) -> Stack:
+        return Stack(name, ROOT / name / "docker-compose.yml", text, requires)
 
-    def test_a_requires_entry_that_is_not_a_string_fails_naming_the_stack(self, tmp_path):
-        _tree(tmp_path, {"paperless": "x-homelab:\n    requires: [{a: b}]\nservices: {}\n"})
-        with pytest.raises(UnresolvedGraph, match="paperless"):
-            load_graph(tmp_path)
+    def test_a_traefik_router_implies_the_reverse_proxy(self):
+        assert self._stack("paperless", TRAEFIK_LABEL).inferred == {"reverse-proxy"}
 
-    def test_an_x_homelab_that_is_not_a_mapping_fails_naming_the_stack(self, tmp_path):
-        _tree(tmp_path, {"paperless": "x-homelab: [reverse-proxy]\nservices: {}\n"})
-        with pytest.raises(UnresolvedGraph, match="paperless"):
-            load_graph(tmp_path)
+    def test_no_traefik_router_implies_nothing(self):
+        assert self._stack("kopia", "image: kopia/kopia").inferred == set()
 
-    def test_unparseable_yaml_fails_naming_the_stack(self, tmp_path):
-        _tree(tmp_path, {"paperless": "services: [\n  unclosed\n"})
-        with pytest.raises(UnresolvedGraph, match="paperless"):
-            load_graph(tmp_path)
+    def test_a_forward_auth_middleware_implies_authentik(self):
+        text = '- "traefik.http.routers.tor.middlewares=authentik@swarm"'
+        assert self._stack("tor-browser", text).inferred == {"authentik"}
 
-    def test_a_stack_declaring_nothing_is_fine(self, tmp_path):
-        _tree(tmp_path, {"flaresolverr": "services:\n    a:\n        image: x\n"})
-        assert load_graph(tmp_path) == {"flaresolverr": []}
+    def test_an_oidc_issuer_on_the_auth_host_implies_authentik(self):
+        text = "- OIDC_CONFIGURATION_URL=https://auth.${BASE_DOMAIN}/x"
+        assert self._stack("mealie", text).inferred == {"authentik"}
+
+    def test_a_stack_never_infers_a_dependency_on_itself(self):
+        text = TRAEFIK_LABEL + "\n- AUTHENTIK_HOST=https://auth.${BASE_DOMAIN}"
+        assert self._stack("authentik", text).inferred == {"reverse-proxy"}
+        assert self._stack("reverse-proxy", text).inferred == {"authentik"}
+
+    def test_undeclared_is_what_it_reveals_minus_what_it_declares(self):
+        stack = self._stack("paperless", TRAEFIK_LABEL, requires=("reverse-proxy",))
+        assert stack.undeclared == set()
+
+    def test_undeclared_names_the_gap(self):
+        text = TRAEFIK_LABEL + '\n- "traefik.http.routers.p.middlewares=authentik@swarm"'
+        stack = self._stack("paperless", text, requires=("reverse-proxy",))
+        assert stack.undeclared == {"authentik"}
 
 
-class TestDotenv:
-    """`task deploy:plan` gets .env via Taskfile dotenv; the bare CLI must agree."""
+class TestStackTree:
+    """`StackTree` — reading and validating the declarations off the filesystem."""
 
-    def test_a_gate_set_only_in_dotenv_is_honoured(self, tmp_path):
-        (tmp_path / ".env").write_text("PRIMARY_DNS_MANAGED=false\n")
-        assert disabled_by_capability(environment(tmp_path, {})) == {"dns"}
+    @pytest.fixture
+    def subject(self, filesystem):
+        return StackTree(filesystem, ROOT)
 
-    def test_the_process_environment_wins_over_dotenv(self, tmp_path):
-        (tmp_path / ".env").write_text("PRIMARY_DNS_MANAGED=false\n")
-        env = environment(tmp_path, {"PRIMARY_DNS_MANAGED": "true"})
-        assert disabled_by_capability(env) == set()
+    def _seed(self, filesystem: FakeFileSystem, **stacks: str) -> None:
+        filesystem.files.update(compose(**stacks))
 
-    def test_quotes_comments_and_exports_are_read_the_way_the_shell_reads_them(self, tmp_path):
-        (tmp_path / ".env").write_text(
-            "# a comment\nexport PRIMARY_DNS_MANAGED=\"false\"\nOTHER='x'\n\nBAD LINE\n"
+    def test_reads_the_declared_requires(self, subject, filesystem):
+        self._seed(filesystem, paperless=DECLARED)
+        assert subject.stacks()["paperless"].requires == ("reverse-proxy",)
+
+    def test_a_stack_declaring_nothing_has_no_requires(self, subject, filesystem):
+        self._seed(filesystem, flaresolverr="services:\n    a:\n        image: x\n")
+        assert subject.stacks()["flaresolverr"].requires == ()
+
+    def test_reads_both_stack_roots(self, subject, filesystem):
+        filesystem.files.update(
+            {
+                "stacks/monitoring/docker-compose.yml": DECLARED,
+                "stacks/apps/paperless/docker-compose.yml": DECLARED,
+            }
         )
-        env = environment(tmp_path, {})
-        assert env["PRIMARY_DNS_MANAGED"] == "false"
-        assert env["OTHER"] == "x"
+        assert set(subject.stacks()) == {"monitoring", "paperless"}
 
-    def test_a_missing_dotenv_is_not_an_error(self, tmp_path):
-        assert environment(tmp_path, {}) == {}
+    def test_each_compose_file_is_read_exactly_once(self, subject, filesystem):
+        self._seed(filesystem, paperless=DECLARED, komga=DECLARED, kopia=DECLARED)
+        subject.stacks()
+        assert sorted(filesystem.reads) == sorted(set(filesystem.reads))
+        assert len(filesystem.reads) == 3
+
+    def test_a_name_used_in_both_roots_fails_rather_than_shadowing(self, subject, filesystem):
+        filesystem.files.update(
+            {
+                "stacks/dns/docker-compose.yml": DECLARED,
+                "stacks/apps/dns/docker-compose.yml": DECLARED,
+            }
+        )
+        with pytest.raises(UnresolvedGraph, match="two stacks named dns"):
+            subject.stacks()
+
+    @pytest.mark.parametrize(
+        "text, expected",
+        [
+            ("x-homelab:\n    requires: reverse-proxy\nservices: {}\n", "must be a list"),
+            ("x-homelab:\n    requires: [{a: b}]\nservices: {}\n", "must be stack names"),
+            ("x-homelab: [reverse-proxy]\nservices: {}\n", "must be a mapping"),
+            ("services: [\n  unclosed\n", "not valid YAML"),
+            ("- just\n- a list\n", "not a mapping"),
+        ],
+    )
+    def test_a_malformed_declaration_fails_naming_the_stack_and_the_problem(
+        self, subject, filesystem, text, expected
+    ):
+        self._seed(filesystem, paperless=text)
+        with pytest.raises(UnresolvedGraph) as exc:
+            subject.stacks()
+        assert str(exc.value).startswith("paperless: ")
+        assert expected in str(exc.value)
+
+
+class TestDependencyGraph:
+    """`DependencyGraph` — the graph over the tree, and the capability gates."""
+
+    @pytest.fixture
+    def subject(self, container):
+        return container.graph()
+
+    def _seed(self, filesystem: FakeFileSystem, **stacks: str) -> None:
+        filesystem.files.update(compose(**stacks))
+
+    def test_edges_are_the_declarations(self, subject, filesystem):
+        self._seed(filesystem, paperless=DECLARED, **{"reverse-proxy": TRAEFIK_LABEL})
+        assert subject.edges() == {"paperless": ["reverse-proxy"], "reverse-proxy": []}
+
+    def test_undeclared_reports_only_the_stacks_with_a_gap(self, subject, filesystem):
+        self._seed(filesystem, paperless=DECLARED, komga=TRAEFIK_LABEL)
+        assert subject.undeclared() == {"komga": {"reverse-proxy"}}
+
+    def test_resolves_in_dependency_order(self, subject, filesystem):
+        self._seed(filesystem, paperless=DECLARED, **{"reverse-proxy": "services: {}\n"})
+        assert subject.resolve() == ["reverse-proxy", "paperless"]
+
+    def test_a_target_pulls_in_its_dependencies(self, subject, filesystem):
+        self._seed(filesystem, paperless=DECLARED, komga=DECLARED,
+                   **{"reverse-proxy": "services: {}\n"})
+        assert subject.resolve(["paperless"]) == ["reverse-proxy", "paperless"]
+
+    def test_no_gate_set_leaves_every_provider_enabled(self, subject, filesystem):
+        self._seed(filesystem, dns="services: {}\n")
+        assert subject.disabled() == set()
+        assert subject.resolve() == ["dns"]
+
+    @pytest.mark.parametrize("value", ["false", "FALSE", "no", "0", ""])
+    def test_a_falsey_gate_drops_its_provider_and_the_edges_into_it(
+        self, container, filesystem, value
+    ):
+        self._seed(filesystem, dns="services: {}\n",
+                   paperless="x-homelab:\n    requires: [dns]\nservices: {}\n")
+        container.environment.override(
+            providers.Object(Environment(filesystem, {"PRIMARY_DNS_MANAGED": value}))
+        )
+        subject = container.graph()
+        assert subject.disabled() == {"dns"}
+        assert subject.resolve() == ["paperless"]
+
+    def test_a_gate_set_only_in_dotenv_is_honoured(self, container, filesystem):
+        self._seed(filesystem, dns="services: {}\n")
+        filesystem.files[".env"] = "# a comment\nPRIMARY_DNS_MANAGED=false\n"
+        container.environment.override(
+            providers.Object(Environment(filesystem, {}))
+        )
+        assert container.graph().disabled() == {"dns"}
+
+    def test_the_process_environment_wins_over_dotenv(self, container, filesystem):
+        self._seed(filesystem, dns="services: {}\n")
+        filesystem.files[".env"] = "PRIMARY_DNS_MANAGED=false\n"
+        container.environment.override(
+            providers.Object(Environment(filesystem, {"PRIMARY_DNS_MANAGED": "true"}))
+        )
+        assert container.graph().disabled() == set()
 
 
 class TestThisRepo:
-    """The declarations in the tree itself, so `uv run pytest` catches a bad one."""
+    """The declarations in the tree itself, against the real filesystem."""
 
-    ROOT = pathlib.Path(__file__).resolve().parents[3]
+    @pytest.fixture
+    def subject(self, repo_container):
+        return repo_container.graph()
 
-    def test_every_stack_in_the_tree_resolves(self):
-        assert resolve(load_graph(self.ROOT))
+    def test_every_stack_in_the_tree_resolves_in_dependency_order(self, subject):
+        order = subject.resolve()
+        assert len(order) == len(subject.stacks()) - len(subject.disabled())
+        for stack, requires in subject.edges().items():
+            if stack in subject.disabled():
+                continue
+            for dependency in requires:
+                if dependency not in subject.disabled():
+                    assert order.index(dependency) < order.index(stack)
 
-    def test_every_dependency_the_tree_reveals_is_declared(self):
-        assert undeclared(self.ROOT) == {}
+    def test_every_dependency_the_tree_reveals_is_declared(self, subject):
+        assert subject.undeclared() == {}
