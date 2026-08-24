@@ -9,8 +9,8 @@ Nothing here deploys — it only decides what order a deploy would use.
 
 from __future__ import annotations
 
-import os
 import re
+from dataclasses import dataclass
 from pathlib import Path
 
 import yaml
@@ -31,14 +31,27 @@ _INFERENCE = (
 # has to drop the edges into it too, or every routed stack becomes unresolvable.
 CAPABILITY_GATES = {"dns": "PRIMARY_DNS_MANAGED"}
 
+_FALSEY = ("false", "no", "0", "")
+_DOTENV_LINE = re.compile(r"^\s*(?:export\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*?)\s*$")
+
 
 class UnresolvedGraph(Exception):
     """The declarations do not describe a deployable order."""
 
 
-def declared_requires(compose: dict) -> list[str]:
-    """The ``x-homelab.requires`` list, or empty when the stack declares none."""
-    return list((compose.get("x-homelab") or {}).get("requires") or [])
+@dataclass(frozen=True)
+class Stack:
+    """One stack, read once: its compose text and what it declares."""
+
+    name: str
+    path: Path
+    text: str
+    requires: tuple[str, ...]
+
+    @property
+    def undeclared(self) -> set[str]:
+        """Dependencies its compose reveals but it does not declare."""
+        return inferred_requires(self.name, self.text) - set(self.requires)
 
 
 def inferred_requires(stack: str, compose_text: str) -> set[str]:
@@ -46,49 +59,87 @@ def inferred_requires(stack: str, compose_text: str) -> set[str]:
     return {p for p, pattern in _INFERENCE if pattern.search(compose_text)} - {stack}
 
 
-def compose_paths(repo_root: str | Path) -> dict[str, Path]:
-    """Stack name -> its docker-compose.yml, across both stack roots."""
+def _declared(name: str, compose_text: str) -> tuple[str, ...]:
+    """The validated ``x-homelab.requires``, or empty when none is declared.
+
+    The shape is also enforced by schemas/stack-manifest.schema.json at commit
+    time; repeating it here keeps a hand-run check from resolving garbage.
+    """
+    try:
+        document = yaml.safe_load(compose_text) or {}
+    except yaml.YAMLError as exc:
+        raise UnresolvedGraph(f"{name}: compose file is not valid YAML: {exc}") from exc
+    if not isinstance(document, dict):
+        raise UnresolvedGraph(f"{name}: compose file is not a mapping")
+
+    manifest = document.get("x-homelab")
+    if manifest is None:
+        return ()
+    if not isinstance(manifest, dict):
+        raise UnresolvedGraph(f"{name}: x-homelab must be a mapping, got {type(manifest).__name__}")
+
+    requires = manifest.get("requires", [])
+    if not isinstance(requires, list):
+        raise UnresolvedGraph(
+            f"{name}: x-homelab.requires must be a list of stack names, "
+            f"got {type(requires).__name__}"
+        )
+    if bad := [r for r in requires if not isinstance(r, str)]:
+        raise UnresolvedGraph(f"{name}: x-homelab.requires entries must be stack names: {bad}")
+    return tuple(requires)
+
+
+def load_stacks(repo_root: str | Path) -> dict[str, Stack]:
+    """Every stack in the tree, name -> :class:`Stack`, each file read once."""
     root = Path(repo_root)
-    return {
-        path.parent.name: path
-        for stack_root in STACK_ROOTS
-        for path in sorted((root / stack_root).glob("*/docker-compose.yml"))
-    }
+    stacks: dict[str, Stack] = {}
+    for stack_root in STACK_ROOTS:
+        for path in sorted((root / stack_root).glob("*/docker-compose.yml")):
+            name = path.parent.name
+            if name in stacks:
+                raise UnresolvedGraph(f"two stacks named {name}: {stacks[name].path} and {path}")
+            text = path.read_text()
+            stacks[name] = Stack(name, path, text, _declared(name, text))
+    return stacks
 
 
 def load_graph(repo_root: str | Path) -> dict[str, list[str]]:
     """Stack name -> declared requires, read from the tree."""
-    return {
-        name: declared_requires(yaml.safe_load(path.read_text()) or {})
-        for name, path in compose_paths(repo_root).items()
-    }
+    return {name: list(stack.requires) for name, stack in load_stacks(repo_root).items()}
 
 
-def undeclared(repo_root: str | Path, paths: list[str] | None = None) -> dict[str, set[str]]:
-    """Stacks whose compose reveals a dependency they do not declare.
+def undeclared(repo_root: str | Path) -> dict[str, set[str]]:
+    """Stacks whose compose reveals a dependency they do not declare."""
+    found = {n: s.undeclared for n, s in load_stacks(repo_root).items()}
+    return {name: missing for name, missing in found.items() if missing}
 
-    ``paths`` narrows the scan to those compose files, so pre-commit can scope
-    the check to a diff and carry its baseline as an ordinary ``exclude:``.
+
+def environment(repo_root: str | Path, process_env: dict[str, str]) -> dict[str, str]:
+    """``.env`` overlaid with the process environment, which wins.
+
+    `task deploy:plan` is handed .env by the Taskfile's ``dotenv:``; running the
+    CLI directly is not, and the two must not disagree about what is switched on.
     """
-    only = {Path(p).resolve() for p in paths} if paths is not None else None
-    found = {}
-    for name, path in compose_paths(repo_root).items():
-        if only is not None and path.resolve() not in only:
-            continue
-        text = path.read_text()
-        missing = inferred_requires(name, text) - set(declared_requires(yaml.safe_load(text) or {}))
-        if missing:
-            found[name] = missing
-    return found
+    merged: dict[str, str] = {}
+    dotenv = Path(repo_root) / ".env"
+    if dotenv.exists():
+        for line in dotenv.read_text().splitlines():
+            if line.lstrip().startswith("#") or not (match := _DOTENV_LINE.match(line)):
+                continue
+            key, value = match.groups()
+            if len(value) >= 2 and value[0] == value[-1] and value[0] in "\"'":
+                value = value[1:-1]
+            merged[key] = value
+    merged.update(process_env)
+    return merged
 
 
-def disabled_by_capability(env: dict[str, str] | None = None) -> set[str]:
+def disabled_by_capability(env: dict[str, str]) -> set[str]:
     """Provider stacks this environment has switched off."""
-    env = os.environ if env is None else env
     return {
         stack
         for stack, var in CAPABILITY_GATES.items()
-        if env.get(var, "true").strip().lower() in ("false", "no", "0", "")
+        if env.get(var, "true").strip().lower() in _FALSEY
     }
 
 

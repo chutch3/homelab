@@ -8,12 +8,16 @@ declaration the tree does not actually satisfy.
 
 from __future__ import annotations
 
+import pathlib
+
 import pytest
 
 from ci.stackgraph import (
     UnresolvedGraph,
     disabled_by_capability,
+    environment,
     inferred_requires,
+    load_graph,
     resolve,
     undeclared,
 )
@@ -113,11 +117,6 @@ class TestUndeclared:
         _tree(tmp_path, {"beholder": "x-homelab:\n    requires: [postal]\nservices:\n    a:\n        image: x\n"})
         assert undeclared(tmp_path) == {}
 
-    def test_scoping_to_files_ignores_violations_elsewhere(self, tmp_path):
-        _tree(tmp_path, {"kopia": self.ROUTED_UNDECLARED, "mealie": self.ROUTED_UNDECLARED})
-        scoped = [str(tmp_path / "stacks/apps/mealie/docker-compose.yml")]
-        assert set(undeclared(tmp_path, paths=scoped)) == {"mealie"}
-
 
 class TestDisabledByCapability:
     def test_an_unset_gate_leaves_its_provider_enabled(self):
@@ -143,3 +142,67 @@ class TestCycleReporting:
     def test_a_stack_that_requires_itself_is_a_cycle(self):
         with pytest.raises(UnresolvedGraph, match="loop"):
             resolve({"loop": ["loop"]})
+
+
+class TestMalformedDeclarations:
+    """A bad declaration must say what is wrong with it, not resolve into nonsense."""
+
+    def test_a_requires_that_is_not_a_list_fails_naming_the_stack(self, tmp_path):
+        _tree(tmp_path, {"paperless": "x-homelab:\n    requires: reverse-proxy\nservices: {}\n"})
+        with pytest.raises(UnresolvedGraph, match="paperless"):
+            load_graph(tmp_path)
+
+    def test_a_requires_entry_that_is_not_a_string_fails_naming_the_stack(self, tmp_path):
+        _tree(tmp_path, {"paperless": "x-homelab:\n    requires: [{a: b}]\nservices: {}\n"})
+        with pytest.raises(UnresolvedGraph, match="paperless"):
+            load_graph(tmp_path)
+
+    def test_an_x_homelab_that_is_not_a_mapping_fails_naming_the_stack(self, tmp_path):
+        _tree(tmp_path, {"paperless": "x-homelab: [reverse-proxy]\nservices: {}\n"})
+        with pytest.raises(UnresolvedGraph, match="paperless"):
+            load_graph(tmp_path)
+
+    def test_unparseable_yaml_fails_naming_the_stack(self, tmp_path):
+        _tree(tmp_path, {"paperless": "services: [\n  unclosed\n"})
+        with pytest.raises(UnresolvedGraph, match="paperless"):
+            load_graph(tmp_path)
+
+    def test_a_stack_declaring_nothing_is_fine(self, tmp_path):
+        _tree(tmp_path, {"flaresolverr": "services:\n    a:\n        image: x\n"})
+        assert load_graph(tmp_path) == {"flaresolverr": []}
+
+
+class TestDotenv:
+    """`task deploy:plan` gets .env via Taskfile dotenv; the bare CLI must agree."""
+
+    def test_a_gate_set_only_in_dotenv_is_honoured(self, tmp_path):
+        (tmp_path / ".env").write_text("PRIMARY_DNS_MANAGED=false\n")
+        assert disabled_by_capability(environment(tmp_path, {})) == {"dns"}
+
+    def test_the_process_environment_wins_over_dotenv(self, tmp_path):
+        (tmp_path / ".env").write_text("PRIMARY_DNS_MANAGED=false\n")
+        env = environment(tmp_path, {"PRIMARY_DNS_MANAGED": "true"})
+        assert disabled_by_capability(env) == set()
+
+    def test_quotes_comments_and_exports_are_read_the_way_the_shell_reads_them(self, tmp_path):
+        (tmp_path / ".env").write_text(
+            "# a comment\nexport PRIMARY_DNS_MANAGED=\"false\"\nOTHER='x'\n\nBAD LINE\n"
+        )
+        env = environment(tmp_path, {})
+        assert env["PRIMARY_DNS_MANAGED"] == "false"
+        assert env["OTHER"] == "x"
+
+    def test_a_missing_dotenv_is_not_an_error(self, tmp_path):
+        assert environment(tmp_path, {}) == {}
+
+
+class TestThisRepo:
+    """The declarations in the tree itself, so `uv run pytest` catches a bad one."""
+
+    ROOT = pathlib.Path(__file__).resolve().parents[3]
+
+    def test_every_stack_in_the_tree_resolves(self):
+        assert resolve(load_graph(self.ROOT))
+
+    def test_every_dependency_the_tree_reveals_is_declared(self):
+        assert undeclared(self.ROOT) == {}

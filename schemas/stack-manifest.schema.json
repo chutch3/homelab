@@ -1,0 +1,27 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://github.com/chutch3/homelab/schemas/stack-manifest.schema.json",
+    "title": "Homelab stack manifest",
+    "description": "The x-homelab extension key in stacks/*/docker-compose.yml. Everything else in the compose file is Docker's to validate.",
+    "type": "object",
+    "properties": {
+        "x-homelab": {
+            "type": "object",
+            "description": "Homelab metadata Swarm ignores.",
+            "additionalProperties": false,
+            "required": ["requires"],
+            "properties": {
+                "requires": {
+                    "type": "array",
+                    "description": "Stack names that must be converged before this one deploys.",
+                    "items": {
+                        "type": "string",
+                        "pattern": "^[a-z0-9][a-z0-9_-]*$"
+                    },
+                    "uniqueItems": true,
+                    "minItems": 1
+                }
+            }
+        }
+    }
+}

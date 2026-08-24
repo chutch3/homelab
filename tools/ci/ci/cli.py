@@ -8,13 +8,14 @@ Subcommands:
   ci gc [--apply] [--cutoff-days N]     prune stale :sha/untagged ghcr versions (dry-run by default)
   ci idempotence PLAYBOOK [ANSIBLE ARGS] run a playbook twice; fail unless the second changes nothing
   ci deploy [STACK ...] --plan          print the resolved deploy order; deploy nothing
-  ci check-deps [COMPOSE ...]           the x-homelab dependency declarations resolve, and are complete
+  ci check-deps [REPO_ROOT]             the x-homelab dependency declarations resolve, and are complete
 """
 
 from __future__ import annotations
 
 import argparse
 import json
+import os
 import subprocess
 import sys
 
@@ -68,32 +69,31 @@ def _cmd_idempotence(args: argparse.Namespace) -> int:
 
 
 def _cmd_deploy(args: argparse.Namespace) -> int:
-    graph = stackgraph.load_graph(args.repo_root)
-    disabled = stackgraph.disabled_by_capability()
+    env = stackgraph.environment(args.repo_root, dict(os.environ))
+    disabled = sorted(stackgraph.disabled_by_capability(env))
     try:
-        order = stackgraph.resolve(graph, args.stacks or None, sorted(disabled))
+        order = stackgraph.resolve(stackgraph.load_graph(args.repo_root), args.stacks or None, disabled)
     except stackgraph.UnresolvedGraph as exc:
         print(f"✗ {exc}", file=sys.stderr)
         return 1
-    for stack in order:
-        print(stack)
+    print("\n".join(order))
     print(f"\n{len(order)} stack(s) — plan only, nothing deployed.", file=sys.stderr)
     return 0
 
 
 def _cmd_check_deps(args: argparse.Namespace) -> int:
-    graph = stackgraph.load_graph(args.repo_root)
     try:
-        stackgraph.resolve(graph)
+        stacks = stackgraph.load_stacks(args.repo_root)
+        stackgraph.resolve({n: list(s.requires) for n, s in stacks.items()})
     except stackgraph.UnresolvedGraph as exc:
         print(f"✗ {exc}")
         return 1
-    if missing := stackgraph.undeclared(args.repo_root, args.compose or None):
+    if missing := {n: s.undeclared for n, s in stacks.items() if s.undeclared}:
         print("✗ dependencies visible in the compose file but not declared in x-homelab.requires:")
         for stack, requires in sorted(missing.items()):
             print(f"    {stack}: {', '.join(sorted(requires))}")
         return 1
-    print(f"✓ {len(graph)} stacks resolve; every dependency visible in the checked files is declared")
+    print(f"✓ {len(stacks)} stacks resolve, with every dependency they reveal declared")
     return 0
 
 
@@ -141,8 +141,7 @@ def build_parser() -> argparse.ArgumentParser:
     dep.set_defaults(func=_cmd_deploy)
 
     deps = sub.add_parser("check-deps", help="the x-homelab declarations resolve, and are complete")
-    deps.add_argument("compose", nargs="*", help="compose files to check; omit for every stack")
-    deps.add_argument("--repo-root", default=".")
+    deps.add_argument("repo_root", nargs="?", default=".")
     deps.set_defaults(func=_cmd_check_deps)
     return parser
 
