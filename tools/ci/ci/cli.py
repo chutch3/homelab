@@ -7,6 +7,8 @@ Subcommands:
   ci images [REPO_ROOT]                 list every buildable image name (one per line)
   ci gc [--apply] [--cutoff-days N]     prune stale :sha/untagged ghcr versions (dry-run by default)
   ci idempotence PLAYBOOK [ANSIBLE ARGS] run a playbook twice; fail unless the second changes nothing
+  ci deploy [STACK ...] --plan          print the resolved deploy order; deploy nothing
+  ci check-deps [COMPOSE ...]           the x-homelab dependency declarations resolve, and are complete
 """
 
 from __future__ import annotations
@@ -16,7 +18,7 @@ import json
 import subprocess
 import sys
 
-from ci import affected, apptests, gc, idempotence
+from ci import affected, apptests, gc, idempotence, stackgraph
 
 
 def _cmd_affected(args: argparse.Namespace) -> int:
@@ -65,6 +67,36 @@ def _cmd_idempotence(args: argparse.Namespace) -> int:
     return idempotence.verify(args.playbook, args.ansible_args)
 
 
+def _cmd_deploy(args: argparse.Namespace) -> int:
+    graph = stackgraph.load_graph(args.repo_root)
+    disabled = stackgraph.disabled_by_capability()
+    try:
+        order = stackgraph.resolve(graph, args.stacks or None, sorted(disabled))
+    except stackgraph.UnresolvedGraph as exc:
+        print(f"✗ {exc}", file=sys.stderr)
+        return 1
+    for stack in order:
+        print(stack)
+    print(f"\n{len(order)} stack(s) — plan only, nothing deployed.", file=sys.stderr)
+    return 0
+
+
+def _cmd_check_deps(args: argparse.Namespace) -> int:
+    graph = stackgraph.load_graph(args.repo_root)
+    try:
+        stackgraph.resolve(graph)
+    except stackgraph.UnresolvedGraph as exc:
+        print(f"✗ {exc}")
+        return 1
+    if missing := stackgraph.undeclared(args.repo_root, args.compose or None):
+        print("✗ dependencies visible in the compose file but not declared in x-homelab.requires:")
+        for stack, requires in sorted(missing.items()):
+            print(f"    {stack}: {', '.join(sorted(requires))}")
+        return 1
+    print(f"✓ {len(graph)} stacks resolve; every dependency visible in the checked files is declared")
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="ci")
     sub = parser.add_subparsers(dest="cmd", required=True)
@@ -98,6 +130,20 @@ def build_parser() -> argparse.ArgumentParser:
     idem.add_argument("ansible_args", nargs=argparse.REMAINDER,
                       help="passed through to ansible-playbook")
     idem.set_defaults(func=_cmd_idempotence)
+
+    dep = sub.add_parser("deploy", help="print the resolved deploy order (--plan is the only mode)")
+    dep.add_argument("stacks", nargs="*", help="deploy targets; omit for every stack")
+    # Required until 1.3 gives `ci deploy` something to execute — refusing here
+    # beats a flag that silently means nothing.
+    dep.add_argument("--plan", action="store_true", required=True,
+                     help="print the order and deploy nothing")
+    dep.add_argument("--repo-root", default=".")
+    dep.set_defaults(func=_cmd_deploy)
+
+    deps = sub.add_parser("check-deps", help="the x-homelab declarations resolve, and are complete")
+    deps.add_argument("compose", nargs="*", help="compose files to check; omit for every stack")
+    deps.add_argument("--repo-root", default=".")
+    deps.set_defaults(func=_cmd_check_deps)
     return parser
 
 

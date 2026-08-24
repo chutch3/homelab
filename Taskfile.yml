@@ -243,6 +243,11 @@ tasks:
         cmds:
             - task --list
 
+    deploy:plan:
+        desc: "Print the resolved deploy order — task deploy:plan -- paperless (omit for every stack)"
+        cmds:
+            - uv run ci deploy --plan {{.CLI_ARGS}}
+
     # Combined: Full deployment
     deploy:full:
         desc: Full deployment (bootstrap + deploy apps)

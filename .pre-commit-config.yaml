@@ -94,6 +94,23 @@ repos:
             language: system
             pass_filenames: false
 
+          - id: stack-deps-declared
+            name: Stack dependencies declared in x-homelab.requires
+            entry: uv run ci check-deps
+            language: system
+            files: ^stacks/(apps/)?[^/]+/docker-compose\.yml$
+            # The exclusions are the ratchet: they only ever shrink. Every stack
+            # here has a dependency its compose reveals but does not declare.
+            exclude: |
+                (?x)^stacks/(apps/)?(
+                  actual_server|archivebox|authentik|claudecodeui|code-server|cryptpad|dns|
+                  downloads|drawio|emby|excalidraw|fiber|forgejo|freshrss|gamarr|
+                  homeassistant|homepage|immich|kiwix|kolibri|komga|kopia|librechat|librenms|
+                  llama-cpp|mealie|mermaid|mlflow|monitoring|nextcloud|node-red|open-webui|
+                  paperless|postal|prefect|profilarr|prowlarr|radarr|romm|rstudio|searxng|
+                  sonarr|takeout-manager|tor-browser|uptime-kuma|vaultwarden|warden|whisparr
+                )/docker-compose\.yml$
+
           - id: no-unconditional-changed-when
             name: No unconditional changed_when in Ansible tasks
             language: pygrep
