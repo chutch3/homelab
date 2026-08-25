@@ -1,0 +1,8 @@
+# Never converges: the constraint matches no node, so it sits at 0/1.
+services:
+    stuck:
+        image: alpine:3
+        command: ["sleep", "600"]
+        deploy:
+            placement:
+                constraints: ["node.labels.homelab-probe == yes"]

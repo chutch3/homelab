@@ -1,0 +1,5 @@
+# A dependency that converges.
+services:
+    ready:
+        image: alpine:3
+        command: ["sleep", "600"]

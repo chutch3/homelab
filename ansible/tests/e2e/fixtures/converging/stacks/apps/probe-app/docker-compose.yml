@@ -1,0 +1,8 @@
+# Requires probe-base, so deploying this alone must ensure that first.
+x-homelab:
+    requires: [probe-base]
+
+services:
+    ready:
+        image: alpine:3
+        command: ["sleep", "600"]

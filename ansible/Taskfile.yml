@@ -168,31 +168,12 @@ tasks:
         cmds:
             - "{{.VENV_ANSIBLE_PLAYBOOK}} --become -i ansible/inventory/ ansible/playbooks/ops/repair-network.yml {{.CLI_ARGS}}"
 
-    # Ansible Application Deployment
-    deploy:
-        desc: "Full idempotent cluster deploy: init swarm → join workers → labels → storage → stacks"
+    # Bringing the cluster up. Deploying stacks onto it is `task deploy`.
+    cluster:up:
+        desc: "Bring the cluster up: init swarm → join workers → labels → storage → activate nodes"
         dir: "{{.ROOT_DIR}}"
         cmds:
             - "{{.VENV_ANSIBLE_PLAYBOOK}} -i ansible/inventory/ ansible/playbooks/cluster.yml {{.CLI_ARGS}}"
-
-    deploy:services:
-        desc: "Redeploy all Swarm stacks (cluster must already be running; use deploy for full setup)"
-        dir: "{{.ROOT_DIR}}"
-        cmds:
-            - "{{.VENV_ANSIBLE_PLAYBOOK}} -i ansible/inventory/ ansible/playbooks/cluster.yml --tags deploy {{.CLI_ARGS}}"
-
-    deploy:service:
-        desc: 'Deploy a single Docker Swarm stack (usage: task ansible:deploy:service -- -e "stack_name=my_app")'
-        dir: "{{.ROOT_DIR}}"
-        cmds:
-            - "{{.VENV_ANSIBLE_PLAYBOOK}} -i ansible/inventory/ ansible/playbooks/deploy/stack.yml {{.CLI_ARGS}}"
-
-    deploy:stack:
-        desc: "Alias for deploy:service"
-        dir: "{{.ROOT_DIR}}"
-        cmds:
-            - task: deploy:service
-              vars: {CLI_ARGS: "{{.CLI_ARGS}}"}
 
     # Ansible Volume Management
     volume:ls:
@@ -581,6 +562,12 @@ tasks:
         dir: "{{.ROOT_DIR}}"
         cmds:
             - "{{.VENV_ANSIBLE_PLAYBOOK}} -i ansible/inventory/ ansible/tests/integration/test-preflight.yml -K {{.CLI_ARGS}}"
+
+    test:deploy:e2e:
+        desc: "E2E for the deploy path — needs a running Swarm; deploys fixture stacks under ansible/tests/e2e and removes them"
+        dir: "{{.ROOT_DIR}}"
+        cmds:
+            - HOMELAB_ANSIBLE_E2E=1 bats ansible/tests/e2e/deploy.bats
 
     test:idempotence:
         desc: "DESTRUCTIVE to the target: run each enrolled playbook twice on THIS machine, requiring changed=0 on the second"

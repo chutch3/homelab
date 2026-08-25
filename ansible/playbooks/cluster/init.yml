@@ -194,4 +194,4 @@
 
           Next Steps:
           1. Run join playbook on worker nodes
-          2. Deploy stacks with: ansible-playbook playbooks/deploy/stacks.yml
+          2. Deploy stacks with: task deploy
