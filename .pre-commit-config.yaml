@@ -72,6 +72,7 @@ repos:
             entry: bash -c 'export ANSIBLE_CONFIG=ansible/ansible.cfg; for file in "$@"; do .venv/bin/ansible-playbook --syntax-check "$file" || exit 1; done' --
             language: system
             files: ^ansible/playbooks/.*\.ya?ml$
+            exclude: ^ansible/playbooks/.*/tasks/
             pass_filenames: true
 
           - id: ansible-preflight-unit

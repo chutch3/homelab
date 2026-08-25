@@ -70,16 +70,10 @@
     # Each stack converges before the next starts, so a dependency that never
     # comes up fails the run instead of its dependents deploying against it.
     - name: Deploy each stack the plan calls for
-      ansible.builtin.include_role:
-        name: swarm
-        tasks_from: deploy-one-stack
+      ansible.builtin.include_tasks: tasks/stack.yml
       vars:
-        swarm_deploy_stack: "{{ item.stack }}"
-        swarm_deploy_is_new: "{{ item.state == 'absent' }}"
-        swarm_stacks_root: "{{ stacks_root }}"
-        swarm_repo_root: "{{ repo_root }}"
-        swarm_converge_retries: "{{ converge_retries }}"
-        swarm_converge_delay: "{{ converge_delay }}"
+        deploy_stack: "{{ item.stack }}"
+        deploy_is_new: "{{ item.state == 'absent' }}"
       loop: "{{ deploy_rows | selectattr('action', 'equalto', 'deploy') | list }}"
       loop_control:
         label: "{{ item.stack }}"
@@ -94,7 +88,7 @@
               else (deployed if register_uptime | bool else []))
              | rejectattr('stack', 'in', uptime_kuma_unmonitored) | list }}
       vars:
-        deployed: "{{ swarm_deployed_stacks | default([]) }}"
+        deployed: "{{ deployed_stacks | default([]) }}"
         # Kuma cannot usefully watch what routes to it, resolves for it, or is it.
         uptime_kuma_unmonitored: [reverse-proxy, dns, uptime-kuma]
 
