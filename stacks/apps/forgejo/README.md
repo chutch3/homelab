@@ -52,7 +52,7 @@ FORGEJO_DB_NAME=forgejo
 ### 1. Deploy the Stack
 
 ```bash
-task ansible:deploy:stack -- -e "stack_name=forgejo"
+task deploy -- forgejo
 ```
 
 ### 2. Configure DNS Records
@@ -153,7 +153,7 @@ FORGEJO_OAUTH_CLIENT_SECRET=<client-secret-from-step-2>
 ### 6. Redeploy Forgejo
 
 ```bash
-task ansible:deploy:stack -- -e "stack_name=forgejo"
+task deploy -- forgejo
 ```
 
 ### 7. Configure OAuth in Forgejo
@@ -218,7 +218,7 @@ docker service logs forgejo_forgejo-db -f
 1. Update the `FORGEJO_VERSION` in your `.env` file
 2. Redeploy the stack:
    ```bash
-   task ansible:deploy:stack -- -e "stack_name=forgejo"
+   task deploy -- forgejo
    ```
 
 ### Database Backup

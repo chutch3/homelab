@@ -13,7 +13,7 @@ task ansible:ssh:generate   # Create SSH key pair
 task ansible:ssh:distribute # Push to all nodes
 task ansible:ping           # Verify connectivity
 task ansible:bootstrap      # Install Docker, harden nodes
-task ansible:deploy         # Init swarm, deploy all stacks
+task deploy:full            # Bootstrap, init swarm, deploy all stacks
 ```
 
 ## What Deploys
@@ -45,7 +45,7 @@ workers:
         storage: true
 ```
 
-Workers join the swarm automatically on `task ansible:deploy`.
+Workers join the swarm automatically on `task ansible:cluster:up`.
 
 ## Teardown
 

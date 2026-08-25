@@ -39,7 +39,7 @@ task ansible:iscsi:login
 task ansible:ocfs2:mount
 
 # 5. Deploy
-task ansible:deploy
+task deploy:full
 ```
 
 OCFS2 mount requires UUIDs defined in `inventory/group_vars/all/main.yml`:

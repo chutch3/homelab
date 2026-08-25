@@ -361,7 +361,7 @@ dig @<server-ip> yourdomain.com
 
 4. **Restart DNS service:**
    ```bash
-   task ansible:deploy:stack -- -e "stack_name=dns"
+   task deploy -- dns
    ```
 
 **Prevention:**
@@ -1158,7 +1158,7 @@ docker service ps immich_postgres
 
 2. **Redeploy service:**
    ```bash
-   task ansible:deploy:stack -- -e "stack_name=immich"
+   task deploy -- immich
    ```
 
 **Critical Note:** For services like Immich and LibreChat with PostgreSQL or MongoDB databases, local storage is **mandatory** for acceptable performance. Network storage (CIFS/SMB) will result in extremely slow performance, connection timeouts, and health check failures.
@@ -1225,7 +1225,7 @@ If the cluster has already self-recovered, no immediate action is required. The 
    ```bash
    # In .env
    SECONDARY_DNS_ENABLED=true
-   task ansible:deploy:stack -- -e "stack_name=dns"
+   task deploy -- dns
    ```
 
 3. If crashes are frequent, run the health check regularly to track the pattern:
@@ -1325,7 +1325,7 @@ ports:
 Then redeploy the DNS stack:
 
 ```bash
-task ansible:deploy:stack -- -e "stack_name=dns"
+task deploy -- dns
 ```
 
 Swarm will remove the DNAT rules from all worker nodes. After the redeploy, confirm the DNAT rules are gone:
@@ -1383,7 +1383,7 @@ docker service inspect <service-name> --format '{{.Spec.TaskTemplate.Placement}}
 docker service update --force <service-name>
 
 # Redeploy entire stack
-task ansible:deploy:stack -- -e "stack_name=myapp"
+task deploy -- myapp
 ```
 
 ### Check System Resources

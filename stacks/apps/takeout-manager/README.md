@@ -162,7 +162,7 @@ From the homelab root directory:
 
 ```bash
 # Deploy the stack
-task ansible:deploy:stack -- -e "stack_name=takeout-manager"
+task deploy -- takeout-manager
 
 # Verify deployment
 docker stack ps takeout-manager

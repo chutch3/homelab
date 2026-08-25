@@ -42,7 +42,7 @@ This is required because OMV 7 stores the engine socket in a root-only directory
 ## Setup & Deployment
 
 ```bash
-task ansible:deploy:service -- -e "stack_name=cert-sync-nas" -K
+task deploy -- cert-sync-nas -K
 ```
 
 The deploy pipeline reads `pre-flight.yml`, creates the `cert_sync_ssh_key` Docker secret from the key at `$SSH_KEY_FILE`, and validates that `CLOUDFLARE_DNS_API_TOKEN` and `SSH_KEY_FILE` are set in `.env` before deploying.
@@ -102,7 +102,7 @@ docker service update --secret-rm cert_sync_ssh_key cert-sync-nas_nas-cert
 docker secret rm cert_sync_ssh_key
 
 # 4. Redeploy — pre-flight recreates the secret automatically
-task ansible:deploy:service -- -e "stack_name=cert-sync-nas" -K
+task deploy -- cert-sync-nas -K
 ```
 
 Also ensure the new public key is in `root@nas.<your-domain>:~/.ssh/authorized_keys`:

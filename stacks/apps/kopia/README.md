@@ -36,7 +36,7 @@ Connects to a remote storage backend (Backblaze B2, S3, etc.) for offsite backup
 ### Deploy Stack
 
 ```bash
-task ansible:deploy:stack -- -e "stack_name=kopia"
+task deploy -- kopia
 ```
 
 ### Connect to Repository

@@ -92,7 +92,7 @@ var lines = [
   {type:'blank'},
   {type:'section', text:'DEPLOY'},
   {type:'blank'},
-  {type:'cmd', text:'task ansible:deploy'},
+  {type:'cmd', text:'task deploy:full'},
   {type:'out', text:'PLAY [Deploy homelab cluster] **********************************'},
   {type:'out', text:'TASK [Initialize Docker Swarm] — ok'},
   {type:'out', text:'TASK [Deploy: reverse-proxy] — traefik + SSL'},

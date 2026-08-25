@@ -3,11 +3,19 @@
 ## Deploy
 
 ```bash
-task ansible:deploy                                          # Everything
-task ansible:deploy:services                                 # Stacks only (skip cluster init)
-task ansible:deploy:service -- -e "stack_name=homepage"        # Single service
-task ansible:deploy:services -- -e "only_apps=cicd,forgejo"  # Subset only
-task ansible:deploy:services -- -e "skip_apps=sonarr,radarr" # Exclude specific
+task deploy                        # Every stack
+task deploy -- homepage            # One stack
+task deploy -- cicd forgejo        # A subset
+task deploy:plan -- homepage       # What a deploy would change, without doing it
+```
+
+A named stack always deploys. Anything it needs, and anything swept in by a bare
+`task deploy`, is *ensured*: deployed only if it has not already converged. That is
+also the resume — a run killed partway is finished by running the same command again.
+
+```bash
+task ansible:cluster:up            # bring the cluster up (swarm, labels, storage)
+task deploy:full                   # bootstrap + cluster:up + deploy
 ```
 
 ## Status
@@ -62,7 +70,7 @@ volumes:
 ```
 
 ```bash
-task ansible:deploy:service -- -e "stack_name=myservice"
+task deploy -- myservice
 ```
 
 ---

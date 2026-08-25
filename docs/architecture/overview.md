@@ -43,7 +43,7 @@ graph LR
 
 ## Deployment Process
 
-When you run `task ansible:deploy`:
+When you run `task deploy:full`:
 
 1.  **Bootstrap Nodes**: Prepares all nodes with Docker, dependencies, and security.
 2.  **Swarm Setup**: Sets up Docker Swarm cluster across your machines.
@@ -83,7 +83,7 @@ To add a new service:
 
 1. Create `stacks/apps/myservice/docker-compose.yml`
 2. Include Traefik labels for routing
-3. Run `task ansible:deploy:service -- -e "stack_name=myservice"` to deploy it
+3. Run `task deploy -- myservice` to deploy it
 
 ## Removing Services
 

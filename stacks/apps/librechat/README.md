@@ -17,7 +17,7 @@ Without the bump, the swarm keeps serving the old config and your edit silently
 never reaches the container. Then redeploy:
 
 ```
-USER=coder LOGNAME=coder task ansible:deploy:service -- -e "stack_name=librechat"
+USER=coder LOGNAME=coder task deploy -- librechat
 ```
 
 (The `USER=coder LOGNAME=coder` prefix works around stale root env in dev shells.)
