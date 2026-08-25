@@ -1,16 +1,16 @@
 name: E2E tests
 
 # Heavier, orchestration-based end-to-end tests (the `e2e` tier), kept OUT of the
-# per-build gate in build.yml. Runs nightly, on demand, on main, and on PRs that
-# touch an e2e suite — so it stays non-blocking for normal app PRs.
+# per-build gate in build.yml. Runs on demand, on main, and on PRs that touch an
+# e2e suite or the code one covers — so it stays non-blocking for normal app PRs.
 
 on:
     workflow_dispatch:
-    schedule:
-        - cron: "0 6 * * *" # nightly 06:00 UTC
     pull_request:
         paths:
             - "stacks/apps/*/**/tests/e2e/**"
+            - "tools/ci/tests/e2e/**"
+            - "tools/ci/ci/**"
             - "ansible/**"
             - "tests/ansible/idempotence/**"
             - ".github/workflows/e2e.yml"
@@ -18,6 +18,8 @@ on:
         branches: [main]
         paths:
             - "stacks/apps/*/**/tests/e2e/**"
+            - "tools/ci/tests/e2e/**"
+            - "tools/ci/ci/**"
             - "ansible/**"
             - "tests/ansible/idempotence/**"
             - ".github/workflows/e2e.yml"

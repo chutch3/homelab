@@ -21,3 +21,7 @@ packages = ["ci"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+# The e2e tier builds a throwaway swarm, so it is opt-in: `ci test --tier e2e`
+# clears addopts (a single tier is never coverage-gated), which re-selects it.
+addopts = "-m 'not e2e'"
+markers = ["e2e: needs a real docker swarm on the local daemon"]

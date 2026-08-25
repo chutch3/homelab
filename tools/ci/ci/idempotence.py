@@ -7,9 +7,13 @@ runner, so its tests drive both runs without invoking ansible.
 
 from __future__ import annotations
 
+import logging
 import re
+import sys
 
-from ci.ports import CommandRunner, Console
+from ci.ports import CommandRunner
+
+log = logging.getLogger(__name__)
 
 _ANSI = re.compile(r"\x1b\[[0-9;]*m")
 _HOST_LINE = re.compile(r"^(?P<host>\S+)\s*:\s+(?P<counters>(?:\w+=\d+\s*)+)$")
@@ -59,22 +63,21 @@ def violations(recap: dict[str, dict[str, int]]) -> dict[str, str]:
 class IdempotenceCheck:
     """Runs a playbook twice; the second run must report no change."""
 
-    def __init__(self, commands: CommandRunner, console: Console) -> None:
+    def __init__(self, commands: CommandRunner) -> None:
         self._commands = commands
-        self._console = console
 
     def verify(self, playbook: str, ansible_args: list[str] | None = None) -> int:
         cmd = ["ansible-playbook", playbook, *(ansible_args or [])]
         for run in (1, 2):
-            self._console.out(f"\n=== idempotence: run {run}/2 — {' '.join(cmd)}\n")
+            log.info("=== idempotence: run %d/2 — %s", run, " ".join(cmd))
             result = self._commands.run(cmd, capture=True)
-            self._console.write(result.stdout)
-            self._console.err(result.stderr.rstrip("\n"))
+            sys.stdout.write(result.stdout)
+            sys.stderr.write(result.stderr)
 
             if run == 1:
                 if not result.ok:
-                    self._console.out(
-                        f"\n✗ first run failed (rc={result.returncode}) — nothing to compare"
+                    log.error(
+                        "✗ first run failed (rc=%d) — nothing to compare", result.returncode
                     )
                     return result.returncode
                 continue
@@ -82,12 +85,12 @@ class IdempotenceCheck:
             try:
                 recap = parse_recap(result.stdout)
             except ValueError as exc:
-                self._console.out(f"\n✗ {exc}")
+                log.error("✗ %s", exc)
                 return 1
             if bad := violations(recap):
-                self._console.out("\n✗ second run was not a no-op:")
+                log.error("✗ second run was not a no-op:")
                 for host, why in sorted(bad.items()):
-                    self._console.out(f"    {host}: {why}")
+                    log.error("    %s: %s", host, why)
                 return 1
-            self._console.out(f"\n✓ second run reported no change on {len(recap)} host(s)")
+            log.info("✓ second run reported no change on %d host(s)", len(recap))
         return 0

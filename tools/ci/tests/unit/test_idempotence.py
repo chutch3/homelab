@@ -90,10 +90,19 @@ class TestIdempotenceCheck:
     def subject(self, container):
         return container.idempotence()
 
-    def test_a_converged_second_run_passes(self, subject, commands, console):
+    def test_a_converged_second_run_passes(self, subject, commands, caplog):
         responds(commands, CommandResult(0, CONVERGED), CommandResult(0, CONVERGED))
         assert subject.verify(self.PLAYBOOK) == 0
-        assert "✓ second run reported no change on 2 host(s)" in console.text
+        assert "✓ second run reported no change on 2 host(s)" in caplog.text
+
+    def test_both_runs_stream_ansibles_own_output_through_untouched(
+        self, subject, commands, capsys
+    ):
+        responds(commands, CommandResult(0, CONVERGED, "warn\n"), CommandResult(0, CONVERGED))
+        subject.verify(self.PLAYBOOK)
+        streams = capsys.readouterr()
+        assert streams.out == CONVERGED + CONVERGED
+        assert streams.err == "warn\n"
 
     def test_the_playbook_runs_exactly_twice_with_the_same_argv(self, subject, commands):
         responds(commands, CommandResult(0, CONVERGED), CommandResult(0, CONVERGED))
@@ -101,18 +110,18 @@ class TestIdempotenceCheck:
         expected = ["ansible-playbook", self.PLAYBOOK, "-i", "inventory/"]
         assert argvs(commands) == [expected, expected]
 
-    def test_a_changed_second_run_fails_naming_the_host(self, subject, commands, console):
+    def test_a_changed_second_run_fails_naming_the_host(self, subject, commands, caplog):
         responds(commands, CommandResult(0, CONVERGED), CommandResult(0, DRIFTED))
         assert subject.verify(self.PLAYBOOK) == 1
-        assert "manager-01: changed=3" in console.text
+        assert "manager-01: changed=3" in caplog.text
 
-    def test_a_failed_first_run_never_reaches_the_second(self, subject, commands, console):
+    def test_a_failed_first_run_never_reaches_the_second(self, subject, commands, caplog):
         responds(commands, CommandResult(2, "boom"))
         assert subject.verify(self.PLAYBOOK) == 2
         assert len(argvs(commands)) == 1
-        assert "nothing to compare" in console.text
+        assert "nothing to compare" in caplog.text
 
-    def test_a_second_run_with_no_recap_is_a_failure_not_a_pass(self, subject, commands, console):
+    def test_a_second_run_with_no_recap_is_a_failure_not_a_pass(self, subject, commands, caplog):
         responds(commands, CommandResult(0, CONVERGED), CommandResult(0, "died early"))
         assert subject.verify(self.PLAYBOOK) == 1
-        assert "did not complete" in console.text
+        assert "did not complete" in caplog.text

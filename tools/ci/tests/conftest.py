@@ -1,7 +1,9 @@
 """Fakes for the outer ring, and the container fixtures that inject them.
 
 These stand in for :mod:`ci.ports` — interfaces we own — so no test patches a
-stdlib or third-party name. The command boundary is a ``Mock(spec=CommandRunner)``
+stdlib or third-party name. Process output is not among them: diagnostics go
+through :mod:`logging` (read with ``caplog``) and payload goes to stdout (read
+with ``capsys``) — both already have a seam, so owning one would add nothing. The command boundary is a ``Mock(spec=CommandRunner)``
 so ``assert_called_with`` validates it; the filesystem is a hand fake because it
 is stateful and a Mock would say nothing useful about a tree.
 
@@ -10,6 +12,7 @@ is stateful and a Mock would say nothing useful about a tree.
 
 from __future__ import annotations
 
+import logging
 import re
 from pathlib import Path
 from unittest.mock import Mock
@@ -18,6 +21,7 @@ import pytest
 from dependency_injector import providers
 
 from ci.adapters import CommandResult
+from ci.config import load_env
 from ci.containers import Container
 from ci.ports import CommandRunner
 
@@ -72,26 +76,6 @@ class FixedClock:
         return self.timestamp
 
 
-class RecordingConsole:
-    def __init__(self) -> None:
-        self.stdout: list[str] = []
-        self.stderr: list[str] = []
-        self.written: list[str] = []
-
-    def out(self, message: str = "") -> None:
-        self.stdout.append(message)
-
-    def err(self, message: str = "") -> None:
-        self.stderr.append(message)
-
-    def write(self, text: str) -> None:
-        self.written.append(text)
-
-    @property
-    def text(self) -> str:
-        return "\n".join(self.stdout)
-
-
 def responds(commands: Mock, *results: CommandResult) -> None:
     """Queue results for the next calls; anything after them succeeds silently."""
     queued = list(results)
@@ -99,7 +83,12 @@ def responds(commands: Mock, *results: CommandResult) -> None:
 
 
 def argvs(commands: Mock) -> list[list[str]]:
-    """The argv of every command the runner was asked to run, in order."""
+    """The argv of every command the runner was asked to run, in order.
+
+    Preferred over ``assert_called_with`` at this boundary: what matters is the
+    whole sequence a subcommand issues, and a list of argvs shows an unexpected
+    extra call — which a per-call assertion silently ignores.
+    """
     return [call.args[0] for call in commands.run.call_args_list]
 
 
@@ -121,9 +110,11 @@ def clock() -> FixedClock:
     return FixedClock()
 
 
-@pytest.fixture
-def console() -> RecordingConsole:
-    return RecordingConsole()
+
+@pytest.fixture(autouse=True)
+def _diagnostics(caplog):
+    """Diagnostics are logged, so every test captures them at INFO by default."""
+    caplog.set_level(logging.INFO)
 
 
 @pytest.fixture
@@ -133,24 +124,21 @@ def env() -> dict[str, str]:
 
 
 @pytest.fixture
-def container(filesystem, commands, clock, console, env) -> Container:
+def container(filesystem, commands, clock, env) -> Container:
     """A container with every outer-ring provider overridden by a fake."""
     c = Container()
-    c.config.repo_root.from_value(str(ROOT))
-    c.config.env.from_value(env)
+    c.repo_root.override(providers.Object(str(ROOT)))
+    c.env.override(providers.Object(env))
     c.filesystem.override(providers.Object(filesystem))
     c.commands.override(providers.Object(commands))
     c.clock.override(providers.Object(clock))
-    c.console.override(providers.Object(console))
     return c
 
 
 @pytest.fixture
 def repo_container() -> Container:
     """A real container pointed at this repository — the integration seam."""
-    from ci.config import load_env
-
     c = Container()
-    c.config.repo_root.from_value(str(REPO_ROOT))
-    c.config.env.from_value(load_env(c.filesystem(), REPO_ROOT, {}))
+    c.repo_root.override(providers.Object(str(REPO_ROOT)))
+    c.env.override(providers.Object(load_env(c.filesystem(), REPO_ROOT, {})))
     return c

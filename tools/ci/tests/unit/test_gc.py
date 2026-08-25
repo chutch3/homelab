@@ -80,23 +80,23 @@ class TestRegistryGc:
             "gh", "api", "--paginate", "/user/packages/container/warden/versions"
         ]
 
-    def test_a_dry_run_deletes_nothing_and_says_so(self, subject, commands, console):
+    def test_a_dry_run_deletes_nothing_and_says_so(self, subject, commands, caplog):
         responds(commands, self._listing([_v(4, 30, ["oldsha"])]))
         assert subject.prune() == 1
         assert argvs(commands) == [
             ["gh", "api", "--paginate", "/user/packages/container/warden/versions"]
         ]
-        assert console.stdout[-1] == "Would prune 1 version(s)."
-        assert "[dry-run] would delete version 4" in console.text
+        assert caplog.messages[-1] == "Would prune 1 version(s)."
+        assert "[dry-run] would delete version 4" in caplog.text
 
-    def test_apply_issues_a_delete_per_stale_version(self, subject, commands, console):
+    def test_apply_issues_a_delete_per_stale_version(self, subject, commands, caplog):
         responds(commands, self._listing([_v(4, 30, ["oldsha"]), _v(6, 30, [])]))
         assert subject.prune(apply=True) == 2
         assert argvs(commands)[1:] == [
             ["gh", "api", "-X", "DELETE", "/user/packages/container/warden/versions/4"],
             ["gh", "api", "-X", "DELETE", "/user/packages/container/warden/versions/6"],
         ]
-        assert console.stdout[-1] == "Pruned 2 version(s)."
+        assert caplog.messages[-1] == "Pruned 2 version(s)."
 
     def test_a_release_version_is_never_deleted(self, subject, commands):
         responds(commands, self._listing([_v(1, 900, ["1.2.0"])]))

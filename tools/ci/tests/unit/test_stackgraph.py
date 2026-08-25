@@ -9,8 +9,17 @@ everything that would read the tree goes through a fake filesystem.
 from __future__ import annotations
 
 import pytest
+from dependency_injector import providers
 
-from ci.stackgraph import Stack, StackTree, UnresolvedGraph, cycle_members, resolve
+from ci.stackgraph import (
+    Stack,
+    StackTree,
+    UnresolvedGraph,
+    check_dependencies,
+    cycle_members,
+    required_by,
+    resolve,
+)
 from conftest import ROOT, FakeFileSystem
 
 ROUTED = {
@@ -81,6 +90,45 @@ def test_resolve_treats_a_stack_requiring_itself_as_a_cycle():
     with pytest.raises(UnresolvedGraph) as exc:
         resolve({"loop": ["loop"]})
     assert str(exc.value) == "dependency cycle among: loop"
+
+
+def test_required_by_attributes_a_dependency_to_the_target_that_named_it():
+    assert required_by(ROUTED, ["paperless"])["authentik"] == ["paperless"]
+
+
+def test_required_by_attributes_a_transitive_dependency_to_the_target_not_the_middle():
+    assert required_by(ROUTED, ["paperless"])["reverse-proxy"] == ["paperless"]
+
+
+def test_required_by_names_every_target_that_reaches_a_shared_dependency():
+    assert required_by(ROUTED, ["paperless", "authentik"])["reverse-proxy"] == [
+        "authentik",
+        "paperless",
+    ]
+
+
+def test_required_by_never_makes_a_target_its_own_dependency():
+    assert "paperless" not in required_by(ROUTED, ["paperless"])
+
+
+def test_required_by_ignores_a_disabled_stack_and_the_edges_into_it():
+    graph = {"dns": [], "reverse-proxy": ["dns"], "paperless": ["reverse-proxy"]}
+    assert required_by(graph, ["paperless"], disabled=["dns"]) == {"reverse-proxy": ["paperless"]}
+
+
+def test_required_by_rejects_a_dangling_edge_exactly_as_resolve_does():
+    """Both walk the same declarations, so both must refuse the same broken ones."""
+    with pytest.raises(UnresolvedGraph, match="paperless requires ghost-stack"):
+        required_by({"paperless": ["ghost-stack"]}, ["paperless"])
+
+
+def test_required_by_rejects_a_target_that_does_not_exist():
+    with pytest.raises(UnresolvedGraph, match="no such stack: ghost-stack"):
+        required_by(ROUTED, ["ghost-stack"])
+
+
+def test_required_by_survives_a_cycle_rather_than_looping_forever():
+    assert required_by(CYCLE, ["komga"]) == {"authentik": ["komga"], "paperless": ["komga"]}
 
 
 def test_cycle_members_names_only_the_cycle_not_the_stacks_it_blocks():
@@ -155,6 +203,14 @@ class TestStackTree:
         assert sorted(filesystem.reads) == sorted(set(filesystem.reads))
         assert len(filesystem.reads) == 3
 
+    def test_stacks_asking_again_does_not_re_read_the_tree(self, subject, filesystem):
+        """Callers ask several questions of one tree; the disk is read for the first."""
+        self._seed(filesystem, paperless=DECLARED, komga=DECLARED, kopia=DECLARED)
+        subject.stacks()
+        subject.stacks()
+        subject.stacks()
+        assert len(filesystem.reads) == 3
+
     def test_a_name_used_in_both_roots_fails_rather_than_shadowing(self, subject, filesystem):
         filesystem.files.update(
             {
@@ -223,14 +279,14 @@ class TestDependencyGraph:
     ):
         self._seed(filesystem, dns="services: {}\n",
                    paperless="x-homelab:\n    requires: [dns]\nservices: {}\n")
-        container.config.env.from_value({"PRIMARY_DNS_MANAGED": value})
+        container.env.override(providers.Object({"PRIMARY_DNS_MANAGED": value}))
         subject = container.graph()
         assert subject.disabled() == {"dns"}
         assert subject.resolve() == ["paperless"]
 
     def test_a_truthy_gate_keeps_its_provider(self, container, filesystem):
         self._seed(filesystem, dns="services: {}\n")
-        container.config.env.from_value({"PRIMARY_DNS_MANAGED": "true"})
+        container.env.override(providers.Object({"PRIMARY_DNS_MANAGED": "true"}))
         assert container.graph().disabled() == set()
 
 
@@ -253,3 +309,47 @@ class TestThisRepo:
 
     def test_every_dependency_the_tree_reveals_is_declared(self, subject):
         assert subject.undeclared() == {}
+
+
+def _tree(filesystem: FakeFileSystem, **stacks: str) -> None:
+    filesystem.files.update(compose(**stacks))
+
+
+def test_check_dependencies_passes_a_tree_that_resolves_and_declares_everything(
+    container, filesystem, caplog
+):
+    _tree(filesystem, paperless=DECLARED, **{"reverse-proxy": "services: {}\n"})
+    assert check_dependencies(container.graph()) == 0
+    assert "✓ 2 stacks resolve" in caplog.text
+
+
+def test_check_dependencies_names_the_stack_hiding_an_undeclared_dependency(
+    container, filesystem, caplog
+):
+    _tree(filesystem, komga=TRAEFIK_LABEL, **{"reverse-proxy": "services: {}\n"})
+    assert check_dependencies(container.graph()) == 1
+    assert "    komga: reverse-proxy" in caplog.text
+
+
+def test_check_dependencies_fails_on_an_unresolvable_graph_before_looking_for_gaps(
+    container, filesystem, caplog
+):
+    _tree(filesystem, gamarr="x-homelab:\n    requires: [romm]\nservices: {}\n")
+    assert check_dependencies(container.graph()) == 1
+    assert "gamarr requires romm" in caplog.text
+
+
+def test_check_dependencies_explains_the_shape_of_a_malformed_declaration(
+    container, filesystem, caplog
+):
+    _tree(filesystem, paperless="x-homelab:\n    requires: reverse-proxy\nservices: {}\n")
+    assert check_dependencies(container.graph()) == 1
+    assert "x-homelab.requires must be a list" in caplog.text
+
+
+def test_check_dependencies_reads_the_tree_once_however_many_questions_it_asks(
+    container, filesystem
+):
+    _tree(filesystem, paperless=DECLARED, **{"reverse-proxy": "services: {}\n"})
+    check_dependencies(container.graph())
+    assert len(filesystem.reads) == 2

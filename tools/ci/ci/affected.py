@@ -16,6 +16,7 @@ import fnmatch
 import os
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import Any
 
 import yaml
 
@@ -56,7 +57,7 @@ class Unit:
         """Bare image name (last path segment), e.g. ``warden`` or ``homelab-devbox``."""
         return self.image_key.rsplit("/", 1)[-1]
 
-    def as_dict(self) -> dict:
+    def as_dict(self) -> dict[str, str | None]:
         """JSON-serializable view shared by the build matrix and release resolution."""
         return {
             "service": self.service,
@@ -137,7 +138,7 @@ class UnitCatalog:
                 units.extend(self._units_in(compose_path, data))
         return units
 
-    def _units_in(self, compose_path: Path, data: dict) -> list[Unit]:
+    def _units_in(self, compose_path: Path, data: dict[str, Any]) -> list[Unit]:
         stack_dir = _norm(str(compose_path.parent.relative_to(self._root)))
         found = []
         for name, svc in (data.get("services") or {}).items():
@@ -163,7 +164,7 @@ class UnitCatalog:
             )
         return found
 
-    def matrix(self, changed_files: list[str]) -> list[dict]:
+    def matrix(self, changed_files: list[str]) -> list[dict[str, str | None]]:
         """The deduped build matrix (one entry per image) for a set of changed files."""
         units = self.units()
         selected = units if tooling_changed(changed_files) else affected_units(changed_files, units)

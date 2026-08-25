@@ -99,6 +99,15 @@ repos:
             language: system
             pass_filenames: false
 
+          - id: ci-types
+            name: Type-check the ci tool (mypy --strict)
+            entry: uv run --project tools/ci --with mypy mypy --strict --ignore-missing-imports
+            language: system
+            # The package only. `--strict` on the suite would demand annotations on
+            # every test function, which says nothing about the code under test.
+            files: ^tools/ci/ci/.*\.py$
+            require_serial: true
+
           - id: stack-deps-declared
             name: Stack dependencies declared in x-homelab.requires
             entry: uv run ci check-deps

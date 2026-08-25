@@ -14,7 +14,7 @@ import pytest
 from conftest import ROOT, argvs, responds
 
 from ci.adapters import CommandResult
-from ci.cli import build_parser
+from ci.cli import build_container, build_parser
 
 TRAEFIK = 'services:\n    a:\n        deploy:\n            labels: ["traefik.enable=true"]\n'
 DECLARED = "x-homelab:\n    requires: [reverse-proxy]\n" + TRAEFIK
@@ -37,6 +37,29 @@ def run(container):
     container.unwire()
 
 
+# Every subcommand's argv must be enough to wire the container — the composition
+# root reads `--repo-root` off it, and nothing else checks that it is there.
+SUBCOMMANDS = [
+    ["affected"],
+    ["projects"],
+    ["images"],
+    ["gc"],
+    ["test"],
+    ["idempotence", "play.yml"],
+    ["deploy", "--plan"],
+    ["check-deps"],
+]
+
+
+@pytest.mark.parametrize("argv", SUBCOMMANDS, ids=lambda argv: argv[0])
+def test_build_container_wires_every_subcommand(argv):
+    container = build_container(build_parser().parse_args(argv), process_env={})
+    try:
+        assert container.repo_root() == "."
+    finally:
+        container.unwire()
+
+
 class TestParser:
     """`build_parser` — the argv contract, before any handler runs."""
 
@@ -47,6 +70,14 @@ class TestParser:
     def test_deploy_accepts_targets_with_plan(self):
         args = build_parser().parse_args(["deploy", "paperless", "komga", "--plan"])
         assert args.stacks == ["paperless", "komga"]
+
+    def test_idempotence_takes_repo_root_only_before_the_playbook(self):
+        """REMAINDER swallows everything after it, the flag included."""
+        before = build_parser().parse_args(["idempotence", "--repo-root", "/tmp", "play.yml"])
+        assert (before.repo_root, before.ansible_args) == ("/tmp", [])
+
+        after = build_parser().parse_args(["idempotence", "play.yml", "--repo-root", "/tmp"])
+        assert (after.repo_root, after.ansible_args) == (".", ["--repo-root", "/tmp"])
 
     def test_an_unknown_subcommand_is_rejected(self):
         with pytest.raises(SystemExit):
@@ -64,127 +95,93 @@ class TestParser:
 
 
 class TestDeployCommand:
-    """`ci deploy --plan` — prints an order, deploys nothing."""
+    """`ci deploy --plan` — that argv reaches the plan and its verdict comes back.
 
-    def test_prints_the_resolved_order_one_stack_per_line(self, run, filesystem, console):
+    What the plan *says* is `test_deploy.py`'s job. These two assert only the
+    wiring: the payload reaches stdout, and a failure's exit code propagates.
+    """
+
+    def test_deploy_prints_the_plan_and_exits_zero(self, run, filesystem, capsys):
         filesystem.files.update({
             "stacks/apps/paperless/docker-compose.yml": DECLARED,
             "stacks/reverse-proxy/docker-compose.yml": "services: {}\n",
         })
         assert run("deploy", "--plan") == 0
-        assert console.stdout == ["reverse-proxy", "paperless"]
+        printed = capsys.readouterr().out
+        assert [line.split()[1] for line in printed.splitlines()] == ["reverse-proxy", "paperless"]
 
-    def test_reports_the_count_on_stderr_so_stdout_stays_pipeable(
-        self, run, filesystem, console
-    ):
-        filesystem.files["stacks/reverse-proxy/docker-compose.yml"] = "services: {}\n"
-        run("deploy", "--plan")
-        assert console.stdout == ["reverse-proxy"]
-        assert "1 stack(s) — plan only, nothing deployed." in "\n".join(console.stderr)
-
-    def test_a_target_narrows_the_plan_to_its_closure(self, run, filesystem, console):
-        filesystem.files.update({
-            "stacks/apps/paperless/docker-compose.yml": DECLARED,
-            "stacks/apps/komga/docker-compose.yml": DECLARED,
-            "stacks/reverse-proxy/docker-compose.yml": "services: {}\n",
-        })
-        assert run("deploy", "paperless", "--plan") == 0
-        assert console.stdout == ["reverse-proxy", "paperless"]
-
-    def test_an_unresolvable_graph_exits_one_and_explains_on_stderr(
-        self, run, filesystem, console
+    def test_deploy_propagates_a_failed_plans_exit_code(
+        self, run, filesystem, capsys
     ):
         filesystem.files["stacks/apps/paperless/docker-compose.yml"] = (
             "x-homelab:\n    requires: [ghost-stack]\nservices: {}\n"
         )
         assert run("deploy", "--plan") == 1
-        assert console.stdout == []
-        assert "paperless requires ghost-stack" in "\n".join(console.stderr)
-
-    def test_it_never_runs_a_command(self, run, filesystem, commands):
-        filesystem.files["stacks/reverse-proxy/docker-compose.yml"] = "services: {}\n"
-        run("deploy", "--plan")
-        assert argvs(commands) == []
+        assert capsys.readouterr().out == ""
 
 
 class TestCheckDepsCommand:
-    """`ci check-deps` — the pre-commit hook's entry point."""
+    """`ci check-deps` — the pre-commit hook's entry point.
 
-    def test_a_clean_tree_passes_and_reports_the_count(self, run, filesystem, console):
+    The verdicts themselves are `test_stackgraph.py::TestDependencyCheck`; these
+    assert that argv reaches it and both exit codes come back.
+    """
+
+    def test_check_deps_exits_zero_for_a_clean_tree(self, run, filesystem):
         filesystem.files.update({
             "stacks/apps/paperless/docker-compose.yml": DECLARED,
             "stacks/reverse-proxy/docker-compose.yml": "services: {}\n",
         })
         assert run("check-deps") == 0
-        assert console.text.startswith("✓ 2 stacks resolve")
 
-    def test_an_undeclared_dependency_exits_one_naming_the_stack(
-        self, run, filesystem, console
-    ):
-        filesystem.files.update({
-            "stacks/apps/komga/docker-compose.yml": TRAEFIK,
-            "stacks/reverse-proxy/docker-compose.yml": "services: {}\n",
-        })
-        assert run("check-deps") == 1
-        assert "    komga: reverse-proxy" in console.text
-
-    def test_a_malformed_declaration_exits_one_explaining_the_shape(
-        self, run, filesystem, console
-    ):
-        filesystem.files["stacks/apps/paperless/docker-compose.yml"] = (
-            "x-homelab:\n    requires: reverse-proxy\nservices: {}\n"
-        )
-        assert run("check-deps") == 1
-        assert "x-homelab.requires must be a list" in console.text
-
-    def test_a_dangling_edge_from_a_deleted_stack_exits_one(self, run, filesystem, console):
+    def test_check_deps_exits_one_for_a_tree_that_does_not_check_out(self, run, filesystem, caplog):
         filesystem.files["stacks/apps/gamarr/docker-compose.yml"] = (
             "x-homelab:\n    requires: [romm]\nservices: {}\n"
         )
         assert run("check-deps") == 1
-        assert "gamarr requires romm" in console.text
+        assert "gamarr requires romm" in caplog.text
 
 
 class TestAffectedCommand:
     """`ci affected` — the build matrix, as JSON on stdout."""
 
-    def test_emits_json_for_the_affected_units(self, run, filesystem, console):
+    def test_emits_json_for_the_affected_units(self, run, filesystem, capsys):
         filesystem.files["stacks/apps/warden/docker-compose.yml"] = BUILDABLE
         assert run("affected", ".", "stacks/apps/warden/app/main.py") == 0
-        assert [e["image_name"] for e in json.loads(console.text)] == ["warden"]
+        assert [e["image_name"] for e in json.loads(capsys.readouterr().out)] == ["warden"]
 
-    def test_an_unrelated_change_emits_an_empty_matrix(self, run, filesystem, console):
+    def test_an_unrelated_change_emits_an_empty_matrix(self, run, filesystem, capsys):
         filesystem.files["stacks/apps/warden/docker-compose.yml"] = BUILDABLE
         assert run("affected", ".", "docs/readme.md") == 0
-        assert json.loads(console.text) == []
+        assert json.loads(capsys.readouterr().out) == []
 
 
 class TestImagesCommand:
     """`ci images` — one buildable image name per line."""
 
-    def test_lists_every_image_once(self, run, filesystem, console):
+    def test_lists_every_image_once(self, run, filesystem, capsys, caplog):
         filesystem.files["stacks/apps/warden/docker-compose.yml"] = BUILDABLE
         assert run("images") == 0
-        assert console.stdout == ["warden"]
+        assert capsys.readouterr().out.splitlines() == ["warden"]
 
 
 class TestGcCommand:
     """`ci gc` — dry-run unless told otherwise."""
 
-    def test_defaults_to_a_dry_run(self, run, filesystem, commands, console):
+    def test_defaults_to_a_dry_run(self, run, filesystem, commands, caplog):
         filesystem.files["stacks/apps/warden/docker-compose.yml"] = BUILDABLE
         responds(commands, *[CommandResult(0, "[]")])
         assert run("gc") == 0
-        assert console.stdout[-1] == "Would prune 0 version(s)."
+        assert caplog.messages[-1] == "Would prune 0 version(s)."
         assert all("DELETE" not in a for argv in argvs(commands) for a in argv)
 
 
 class TestTestCommand:
     """`ci test` — selection and the suites it invokes."""
 
-    def test_no_matching_suite_says_so_and_still_succeeds(self, run, console):
+    def test_no_matching_suite_says_so_and_still_succeeds(self, run, caplog):
         assert run("test") == 0
-        assert "No matching test suites." in console.text
+        assert "No matching test suites." in caplog.text
 
     def test_runs_the_gated_default_suite_for_a_selected_app(self, run, filesystem, commands):
         filesystem.files["stacks/apps/warden/app/pyproject.toml"] = "[project]\n"
@@ -242,27 +239,27 @@ class TestProjectsCommand:
             "tools/ci/tests/unit/test_y.py": "",
         })
 
-    def _projects(self, console) -> list[str]:
-        return [e["project"] for e in json.loads(console.text)]
+    def _projects(self, capsys) -> list[str]:
+        return [e["project"] for e in json.loads(capsys.readouterr().out)]
 
-    def test_a_change_inside_a_project_selects_that_project(self, run, console):
+    def test_a_change_inside_a_project_selects_that_project(self, run, capsys):
         assert run("projects", ".", f"{self.PY}/main.py") == 0
-        assert self._projects(console) == [self.PY]
+        assert self._projects(capsys) == [self.PY]
 
-    def test_a_change_to_the_ci_tooling_selects_the_ci_tooling(self, run, console):
+    def test_a_change_to_the_ci_tooling_selects_the_ci_tooling(self, run, capsys):
         assert run("projects", ".", "tools/ci/ci/stackgraph.py") == 0
-        assert "tools/ci" in self._projects(console)
+        assert "tools/ci" in self._projects(capsys)
 
-    def test_an_unrelated_change_selects_nothing(self, run, console):
+    def test_an_unrelated_change_selects_nothing(self, run, capsys):
         assert run("projects", ".", "docs/index.md") == 0
-        assert self._projects(console) == []
+        assert self._projects(capsys) == []
 
-    def test_the_output_is_a_github_matrix_include_list(self, run, console):
+    def test_the_output_is_a_github_matrix_include_list(self, run, capsys):
         run("projects", ".", f"{self.PY}/main.py")
-        entries = json.loads(console.text)
+        entries = json.loads(capsys.readouterr().out)
         assert entries == [{"project": self.PY}]
 
-    def test_a_project_that_builds_no_image_is_reachable_only_by_path(self, run, console):
+    def test_a_project_that_builds_no_image_is_reachable_only_by_path(self, run, capsys):
         # tools/ci has no compose unit, so nothing but a path edit can select it.
         run("projects", ".", f"{self.PY}/main.py")
-        assert "tools/ci" not in self._projects(console)
+        assert "tools/ci" not in self._projects(capsys)

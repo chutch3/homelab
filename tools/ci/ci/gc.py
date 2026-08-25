@@ -11,11 +11,18 @@ command runner, so its tests fix "now" and assert on the gh calls it would make.
 from __future__ import annotations
 
 import json
+import logging
 import re
 from datetime import datetime
+from typing import Any
 
-from ci.ports import Clock, CommandRunner, Console
 from ci.affected import UnitCatalog
+from ci.ports import Clock, CommandRunner
+
+log = logging.getLogger(__name__)
+
+# One ghcr package version as `gh api` returns it: id, created_at, and metadata.tags.
+Version = dict[str, Any]
 
 _SEMVER = re.compile(r"^\d+\.\d+\.\d+")
 _KEEP_TAGS = {"latest", "main"}
@@ -26,14 +33,14 @@ def _is_release(tags: list[str]) -> bool:
     return any(t in _KEEP_TAGS or _SEMVER.match(t) for t in tags)
 
 
-def _created_ts(version: dict) -> float:
+def _created_ts(version: Version) -> float:
     return datetime.fromisoformat(version["created_at"].replace("Z", "+00:00")).timestamp()
 
 
-def versions_to_prune(versions: list[dict], now_ts: float, cutoff_days: int = 14) -> list:
+def versions_to_prune(versions: list[Version], now_ts: float, cutoff_days: int = 14) -> list[str]:
     """IDs of versions to delete: not a release/moving tag, and older than the cutoff."""
     cutoff = now_ts - cutoff_days * 86400
-    prune = []
+    prune: list[str] = []
     for v in versions:
         tags = (v.get("metadata", {}).get("container", {}) or {}).get("tags") or []
         if _is_release(tags):
@@ -51,12 +58,10 @@ class RegistryGc:
         catalog: UnitCatalog,
         commands: CommandRunner,
         clock: Clock,
-        console: Console,
     ) -> None:
         self._catalog = catalog
         self._commands = commands
         self._clock = clock
-        self._console = console
 
     def prune(self, cutoff_days: int = 14, apply: bool = False) -> int:
         """Dry-run by default. Uses the local ``gh`` CLI auth (read+delete:packages).
@@ -77,12 +82,13 @@ class RegistryGc:
                          f"/user/packages/container/{image}/versions/{vid}"],
                         check=True,
                     )
-                    self._console.out(f"{image}: deleted version {vid}")
+                    log.info("%s: deleted version %s", image, vid)
                 else:
-                    self._console.out(f"{image}: [dry-run] would delete version {vid}")
-        self._console.out(f"{'Pruned' if apply else 'Would prune'} {total} version(s).")
+                    log.info("%s: [dry-run] would delete version %s", image, vid)
+        log.info("%s %d version(s).", "Pruned" if apply else "Would prune", total)
         return total
 
-    def _gh_json(self, args: list[str]) -> list:
+    def _gh_json(self, args: list[str]) -> list[Version]:
         result = self._commands.run(["gh", "api", *args], capture=True, check=True)
-        return json.loads(result.stdout or "[]")
+        parsed: list[Version] = json.loads(result.stdout or "[]")
+        return parsed

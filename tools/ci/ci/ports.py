@@ -54,16 +54,3 @@ class Clock(Protocol):
     """Wall-clock time, so anything with a cutoff can be tested at a fixed instant."""
 
     def now_timestamp(self) -> float: ...
-
-
-@runtime_checkable
-class Console(Protocol):
-    """Process output."""
-
-    def out(self, message: str = "") -> None: ...
-
-    def err(self, message: str = "") -> None: ...
-
-    def write(self, text: str) -> None:
-        """Emit text exactly as given — no trailing newline added."""
-        ...

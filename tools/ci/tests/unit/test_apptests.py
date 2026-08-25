@@ -124,9 +124,9 @@ class TestAppSuitesPythonRuns:
         rc, ran = container.suites().run_python([self.PROJECT], ["unit"])
         assert (rc, ran) == (1, True)
 
-    def test_the_project_is_announced_before_it_runs(self, subject, console):
+    def test_the_project_is_announced_before_it_runs(self, subject, caplog):
         subject.run_python([self.PROJECT], ["unit"])
-        assert console.stdout == [f"==> {self.PROJECT} : unit"]
+        assert caplog.messages == [f"==> {self.PROJECT} : unit"]
 
 
 class TestAppSuitesJsRuns:
@@ -182,11 +182,11 @@ class TestSuiteRunner:
         assert argvs(commands) == [["uv", "run", "pytest", "tests/unit"]]
 
     def test_a_selector_matching_nothing_runs_nothing_and_says_so(
-        self, subject, commands, console
+        self, subject, commands, caplog
     ):
         assert subject.run(selector="nope") == 0
         assert argvs(commands) == []
-        assert "No matching test suites." in console.text
+        assert "No matching test suites." in caplog.text
 
     def test_an_explicit_tier_clears_the_coverage_gate(self, subject, commands):
         subject.run(selector="warden", tier="unit")
