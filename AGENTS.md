@@ -9,8 +9,15 @@ A Docker Swarm homelab platform that deploys 41 self-hosted services across mult
 ## How To Deploy a Service
 
 ```bash
-task ansible:deploy:service -- -e "stack_name=<name>"
+task deploy -- <name>          # one stack; a subset is `task deploy -- a b c`
+task deploy                    # every stack
+task deploy:plan -- <name>     # what that would change, without doing it
 ```
+
+A named stack always deploys. What it declares in `x-homelab.requires`, and
+everything swept in by a bare `task deploy`, is *ensured* — deployed only if it
+has not already converged, so a deploy never restarts a dependency that is
+already up. A run killed partway is resumed by re-running the same command.
 
 Service definitions live in `stacks/apps/<name>/docker-compose.yml`. Every service uses the `traefik-public` external overlay network and gets automatic SSL via Traefik labels.
 
@@ -55,7 +62,7 @@ deploy:
 ```
 
 **Stack dependencies** (`x-homelab.requires`, top-level in the compose file) — what must be
-converged before this stack deploys. `uv run ci deploy --plan [stack ...]` prints the resolved
+converged before this stack deploys. `uv run ci plan [stack ...]` prints the resolved
 order with each stack's live state (`absent`, `present`, `converged`) and which target pulled it
 in; a cycle or a dependency on a stack that does not exist fails the pre-commit check.
 Anything a compose file gives away — a `traefik.enable=true` label, an `authentik@swarm`

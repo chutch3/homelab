@@ -1,0 +1,67 @@
+---
+# ansible/playbooks/deploy/tasks/stack.yml
+# Deploy one stack and wait for it to converge. `ci plan` decides whether it
+# should be deployed; convergence is asked of `ci` too, so there is one answer
+# to "is this stack up?" rather than a second one parsed here.
+
+- name: Resolve the compose file for {{ deploy_stack }}
+  ansible.builtin.set_fact:
+    deploy_compose: "{{ lookup('ansible.builtin.first_found', deploy_candidates) }}"
+  vars:
+    deploy_candidates:
+      - "{{ stacks_root }}/stacks/{{ deploy_stack }}/docker-compose.yml"
+      - "{{ stacks_root }}/stacks/apps/{{ deploy_stack }}/docker-compose.yml"
+
+- name: Run pre-flight checks and setup for {{ deploy_stack }}
+  ansible.builtin.include_role:
+    name: preflight
+  vars:
+    preflight_stack_path: "{{ deploy_compose | dirname }}"
+    preflight_stack_name: "{{ deploy_stack }}"
+
+- name: Deploy {{ deploy_stack }}
+  community.docker.docker_stack:
+    state: present
+    name: "{{ deploy_stack }}"
+    prune: "{{ prune | bool }}"
+    with_registry_auth: true
+    compose:
+      - "{{ deploy_compose }}"
+    cli_context: "{{ swarm_docker_context }}"
+  environment: "{{ swarm_env_vars }}"
+  delegate_to: localhost
+
+- name: Wait for convergence — {{ deploy_stack }}
+  block:
+    - name: Ask ci whether the stack has converged — {{ deploy_stack }}
+      ansible.builtin.command:
+        cmd: >-
+          uv run ci plan --json --repo-root {{ stacks_root }}
+          {{ deploy_stack }}
+        chdir: "{{ repo_root }}"
+      delegate_to: localhost
+      changed_when: false
+      register: converge_probe
+      until: >-
+        (converge_probe.stdout | from_json
+         | selectattr('stack', 'equalto', deploy_stack)
+         | map(attribute='state') | first | default('')) == 'converged'
+      retries: "{{ converge_retries | int }}"
+      delay: "{{ converge_delay | int }}"
+  rescue:
+    - name: Fail naming the stack that never converged
+      ansible.builtin.fail:
+        msg: >-
+          ✗ {{ deploy_stack }} did not converge within
+          {{ converge_retries | int * converge_delay | int }}s —
+          nothing that depends on it was deployed. Fix it and re-run the same
+          command; everything already converged is skipped.
+
+- name: Record the stack as deployed by this run — {{ deploy_stack }}
+  ansible.builtin.set_fact:
+    deployed_stacks: >-
+      {{ deployed_stacks | default([]) + [{
+           'stack': deploy_stack,
+           'compose': deploy_compose,
+           'new': deploy_is_new | bool,
+         }] }}

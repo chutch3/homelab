@@ -27,7 +27,7 @@ Before deploying, ensure the following are in place on the target Swarm node:
 TOR_BROWSER_VNC_PASSWORD=$(openssl rand -base64 16)
 
 # 3. Deploy — iSCSI directory setup runs automatically
-task ansible:deploy:service -- -e 'stack_name=tor-browser' -K
+task deploy -- tor-browser -K
 ```
 
 ## Services

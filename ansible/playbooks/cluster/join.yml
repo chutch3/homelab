@@ -206,5 +206,5 @@
           ✅ Node successfully joined and verified
 
           Next Steps:
-          - Deploy stacks: ansible-playbook playbooks/deploy/stacks.yml
+          - Deploy stacks: task deploy
           - Check status: ansible-playbook playbooks/cluster/status.yml

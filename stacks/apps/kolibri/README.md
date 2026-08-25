@@ -140,10 +140,10 @@ KOLIBRI_OAUTH_CLIENT_SECRET=your_client_secret_from_authentik
 
 ```bash
 # Deploy stack (automatically registers DNS and uptime monitoring for new stacks)
-task ansible:deploy:stack -- -e "stack_name=kolibri"
+task deploy -- kolibri
 
 # To skip DNS/uptime registration (if needed)
-# task ansible:deploy:stack -- -e "stack_name=kolibri" -e "register_dns=false" -e "register_uptime=false"
+# task deploy ARGS='-e register_dns=false -e register_uptime=false' -- kolibri
 ```
 
 **Note:** The deployment automatically:
@@ -548,7 +548,7 @@ docker pull learningequality/kolibri:latest
 docker service update --image learningequality/kolibri:latest kolibri_kolibri
 
 # Or redeploy the stack (won't re-register DNS/uptime since it's an existing stack)
-task ansible:deploy:stack -- -e "stack_name=kolibri"
+task deploy -- kolibri
 ```
 
 ### Remove Kolibri

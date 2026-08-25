@@ -1,4 +1,4 @@
-# tests/ansible/unit/test-preflight.yml
+# ansible/tests/unit/test-preflight.yml
 # Unit tests for the preflight role — no Docker, no cluster required.
 # Uses --check mode and local fixtures to test logic and templates.
 # Run with: task ansible:test:preflight:unit

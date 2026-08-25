@@ -20,7 +20,7 @@ Before deploying, ensure the following are in place on the target Swarm node:
 ## Deployment
 
 ```sh
-task ansible:deploy:service -- -e 'stack_name=downloads'
+task deploy -- downloads
 ```
 
 ## Post-deployment: configure VPN proxy in each download client

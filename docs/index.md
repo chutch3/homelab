@@ -18,7 +18,7 @@ Watch the full deployment play out in a terminal session — from prerequisites 
 - **Automatic SSL** — Traefik + Let's Encrypt via Cloudflare DNS
 - **Single sign-on** — Authentik integrated with 15 services
 - **Hybrid storage** — OCFS2 for databases, CIFS for media
-- **One command** — `task ansible:deploy`
+- **One command** — `task deploy:full`
 
 ---
 

@@ -8,7 +8,7 @@ Subcommands:
   ci images                             list every buildable image name (one per line)
   ci gc [--apply] [--cutoff-days N]     prune stale :sha/untagged ghcr versions (dry-run by default)
   ci idempotence PLAYBOOK [ANSIBLE ARGS] run a playbook twice; fail unless the second changes nothing
-  ci deploy [STACK ...] --plan          print the deploy plan and live state; deploy nothing
+  ci plan [STACK ...] [--json]          print the deploy plan and live state; deploy nothing
   ci check-deps                         the x-homelab declarations resolve, and are complete
 
 Every subcommand takes ``--repo-root`` (default ``.``); nothing takes it
@@ -99,11 +99,11 @@ def _cmd_idempotence(
 
 
 @inject
-def _cmd_deploy(
+def _cmd_plan(
     args: argparse.Namespace,
     planner: DeployPlanner = Provide[Container.planner],
 ) -> int:
-    return planner.report(args.stacks or None)
+    return planner.report(args.stacks or None, as_json=args.json)
 
 
 @inject
@@ -157,14 +157,13 @@ def build_parser() -> argparse.ArgumentParser:
     idem.add_argument("--repo-root", default=".")
     idem.set_defaults(func=_cmd_idempotence)
 
-    dep = sub.add_parser("deploy", help="print the deploy plan and live state (--plan is the only mode)")
-    dep.add_argument("stacks", nargs="*", help="deploy targets; omit for every stack")
-    # Required until 1.3 gives `ci deploy` something to execute — refusing here
-    # beats a flag that silently means nothing.
-    dep.add_argument("--plan", action="store_true", required=True,
-                     help="print the plan and deploy nothing")
-    dep.add_argument("--repo-root", default=".")
-    dep.set_defaults(func=_cmd_deploy)
+    # `ci` plans; ansible/playbooks/deploy/stacks.yml executes.
+    plan = sub.add_parser("plan", help="print the deploy plan and live state; deploy nothing")
+    plan.add_argument("stacks", nargs="*", help="deploy targets; omit for every stack")
+    plan.add_argument("--json", action="store_true",
+                      help="print the plan as JSON, for the deploy playbook to loop over")
+    plan.add_argument("--repo-root", default=".")
+    plan.set_defaults(func=_cmd_plan)
 
     deps = sub.add_parser("check-deps", help="the x-homelab declarations resolve, and are complete")
     deps.add_argument("--repo-root", default=".")

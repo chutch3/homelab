@@ -1,4 +1,4 @@
-# tests/ansible/unit/test-preflight-hooks.yml
+# ansible/tests/unit/test-preflight-hooks.yml
 # Tests that hooks.sh is executed by the preflight role with become: true,
 # that root operations succeed, and that DOCKER_CONFIG/DOCKER_CONTEXT are
 # passed through correctly so Docker is accessible under become.

@@ -11,7 +11,7 @@ Game and ROM manager (Radarr/Sonarr-style). Runs **DDL-only**: it fetches games 
 ## Deployment
 
 ```sh
-task ansible:deploy:service -- -e 'stack_name=gamarr'
+task deploy -- gamarr
 ```
 
 ## Image

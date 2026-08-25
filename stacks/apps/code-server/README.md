@@ -34,10 +34,10 @@ Deploy using the standard Ansible pipeline. The pre-flight system automatically 
 
 ```bash
 # Deploy code-server (Web IDE)
-task ansible:deploy:service -- -e "stack_name=code-server" -K
+task deploy -- code-server -K
 
 # Deploy ClaudeCodeUI (AI Agents)
-task ansible:deploy:service -- -e "stack_name=claudecodeui"
+task deploy -- claudecodeui
 ```
 
 The Ansible playbook will automatically handle registering the Traefik routes (`https://code.${BASE_DOMAIN}` and `https://ai.${BASE_DOMAIN}`) and Homepage dashboard entries.

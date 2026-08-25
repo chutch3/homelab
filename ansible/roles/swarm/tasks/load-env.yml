@@ -1,7 +1,7 @@
 ---
 # ansible/roles/swarm/tasks/load-env.yml
 # Load and parse the root .env file into the env_vars fact.
-# Called by deploy/stacks.yml and deploy/stack.yml.
+# Called by deploy/stacks.yml.
 
 - name: Load and parse .env file
   ansible.builtin.set_fact:

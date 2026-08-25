@@ -65,7 +65,7 @@ task ansible:ssh:generate    # create the homelab SSH key
 task ansible:ssh:distribute  # push the key to your nodes
 task ansible:bootstrap       # install Docker on all nodes
 task ansible:cluster:init    # initialize Docker Swarm
-task ansible:deploy          # deploy all services
+task deploy                  # deploy all services
 ```
 
 Then visit `https://homepage.yourdomain.com`.
@@ -83,7 +83,7 @@ task secrets:pull            # restores .env and ansible config from vault
 
 ```bash
 # Deploy or redeploy a single service
-task ansible:deploy:stack -- -e "stack_name=sonarr"
+task deploy -- sonarr
 
 # Tear down a service (preserves data)
 task ansible:teardown:stack -- -e "stack_name=sonarr"

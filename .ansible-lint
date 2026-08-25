@@ -26,6 +26,7 @@ exclude_paths:
 
 # Only lint actual Ansible content
 kinds:
+  - tasks: "ansible/playbooks/**/tasks/*.yml"
   - playbook: "ansible/playbooks/**/*.yml"
   - playbook: "ansible/playbooks/**/*.yaml"
   - role: "ansible/roles/*/"

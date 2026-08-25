@@ -243,14 +243,24 @@ tasks:
         cmds:
             - task --list
 
+    # Stack names ride CLI_ARGS, ansible flags ride ARGS:
+    #   task deploy ARGS="-e prune=false" -- paperless
+    deploy:
+        desc: "Deploy stacks — task deploy -- paperless (omit for every stack). Named stacks always deploy; what they need is ensured."
+        env:
+            ANSIBLE_CONFIG: ansible/ansible.cfg
+        cmds:
+            - uv run ansible-playbook -i ansible/inventory/ ansible/playbooks/deploy/stacks.yml -e "stacks={{.CLI_ARGS}}" {{.ARGS}}
+
     deploy:plan:
         desc: "Print the deploy plan and live state — task deploy:plan -- paperless (omit for every stack)"
         cmds:
-            - uv run ci deploy --plan {{.CLI_ARGS}}
+            - uv run ci plan {{.CLI_ARGS}}
 
     # Combined: Full deployment
     deploy:full:
-        desc: Full deployment (bootstrap + deploy apps)
+        desc: Full deployment (bootstrap + bring the cluster up + deploy every stack)
         cmds:
             - task: ansible:bootstrap
-            - task: ansible:deploy
+            - task: ansible:cluster:up
+            - task: deploy

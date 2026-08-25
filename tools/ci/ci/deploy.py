@@ -1,16 +1,19 @@
-"""The deploy plan: resolved order, live state, and why each stack is in it.
+"""The deploy plan: resolved order, live state, and what each row will do.
 
-`ci deploy --plan` exists to show what a deploy *would change*, not to list the
-whole tree. That takes two things this module joins — the order the
-declarations imply (:mod:`ci.stackgraph`) and what the cluster already holds
+`ci plan` exists to show what a deploy *would change*, not to list the whole
+tree. That takes two things this module joins — the order the declarations
+imply (:mod:`ci.stackgraph`) and what the cluster already holds
 (:mod:`ci.cluster`).
 
-Nothing here deploys. The verbs are how a row got into the plan: `deploy` for a
-stack that was named, `ensure` for one pulled in behind it.
+Nothing here deploys. It decides, and `ansible/playbooks/deploy/stacks.yml`
+loops over the answer it prints with ``--json``. Only a stack you named is
+deployed unconditionally; anything else is a means to that end, and a means
+that has already converged is left alone.
 """
 
 from __future__ import annotations
 
+import json
 import logging
 from dataclasses import dataclass
 from enum import Enum
@@ -22,15 +25,18 @@ log = logging.getLogger(__name__)
 
 
 class Origin(Enum):
-    """How a stack got into the plan."""
+    """How a stack got into the plan — the cause, never the action."""
 
     TARGET = "target"  # named on the command line
     DEPENDENCY = "dependency"  # pulled in behind a target
     WHOLE_TREE = "whole-tree"  # no targets named, so the plan is everything
 
-    @property
-    def verb(self) -> str:
-        return "ensure" if self is Origin.DEPENDENCY else "deploy"
+
+class Action(Enum):
+    """What the run will do with a row."""
+
+    DEPLOY = "deploy"
+    SKIP = "skip"
 
 
 @dataclass(frozen=True)
@@ -46,6 +52,13 @@ class PlanRow:
     origin: Origin
     required_by: tuple[str, ...] = ()
 
+    @property
+    def action(self) -> Action:
+        """Deploy, unless this stack was not named and has already converged."""
+        if self.origin is not Origin.TARGET and self.state is StackState.CONVERGED:
+            return Action.SKIP
+        return Action.DEPLOY
+
 
 class DeployPlanner:
     def __init__(self, graph: DependencyGraph, cluster: SwarmCluster) -> None:
@@ -54,8 +67,8 @@ class DeployPlanner:
 
     def rows(self, targets: list[str] | None = None) -> list[PlanRow]:
         order = self._graph.resolve(targets)
-        # A full plan has no target to attribute anything to: everything in it
-        # was asked for.
+        # A full plan has no target to attribute anything to: nothing in it was
+        # named, so nothing in it is redeployed for having been asked for.
         pulled_in = self._graph.required_by(targets) if targets else {}
         named = set(targets or ())
         rows = []
@@ -71,17 +84,36 @@ class DeployPlanner:
             rows.append(PlanRow(stack, self._cluster.state(stack), origin, requiring))
         return rows
 
-    def report(self, targets: list[str] | None = None) -> int:
+    def report(self, targets: list[str] | None = None, as_json: bool = False) -> int:
         """Print the plan. Reads the cluster, changes nothing, exits 1 on failure."""
         try:
             rows = self.rows(targets)
         except (UnresolvedGraph, ClusterUnreachable) as exc:
             log.error("✗ %s", exc)
             return 1
-        for line in _render(rows):
-            print(line)
-        log.info("%d stack(s) — plan only, nothing deployed.", len(rows))
+        if dropped := sorted(set(targets or ()) & self._graph.disabled()):
+            log.error(
+                "✗ named but switched off in this environment, so nothing was planned "
+                "for %s — check its capability gate before deploying it",
+                ", ".join(dropped),
+            )
+            return 1
+        if as_json:
+            print(json.dumps([_as_dict(r) for r in rows]))
+        else:
+            for line in _render(rows):
+                print(line)
+        log.info(
+            "%d stack(s), %d to deploy — plan only, nothing deployed.",
+            len(rows),
+            sum(r.action is Action.DEPLOY for r in rows),
+        )
         return 0
+
+
+def _as_dict(row: PlanRow) -> dict[str, str]:
+    """The row as the playbook reads it: what to do, to which stack, and from what."""
+    return {"stack": row.stack, "state": row.state.value, "action": row.action.value}
 
 
 def _reason(row: PlanRow) -> str:
@@ -94,12 +126,12 @@ def _reason(row: PlanRow) -> str:
 
 
 def _render(rows: list[PlanRow]) -> list[str]:
-    """Aligned columns, so the states can be scanned down rather than read."""
-    verb = max((len(r.origin.verb) for r in rows), default=0)
+    """Aligned columns, so the actions can be scanned down rather than read."""
+    action = max((len(r.action.value) for r in rows), default=0)
     stack = max((len(r.stack) for r in rows), default=0)
     state = max((len(r.state.value) for r in rows), default=0)
     return [
-        f"  {r.origin.verb:<{verb}}   {r.stack:<{stack}}   {r.state.value:<{state}}"
+        f"  {r.action.value:<{action}}   {r.stack:<{stack}}   {r.state.value:<{state}}"
         + (f"   → {reason}" if (reason := _reason(r)) else "")
         for r in rows
     ]

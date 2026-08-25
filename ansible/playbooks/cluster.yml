@@ -8,11 +8,13 @@
 #   join    — Join worker nodes to swarm, verify Ready from manager (skipped if already joined)
 #   labels  — Apply node labels from inventory
 #   storage — Mount iSCSI/OCFS2 on all nodes (skipped if already mounted)
-#   deploy  — Activate drained nodes, ensure overlay networks, deploy all stacks
+#   activate — Return any drained node to service
+#
+# Deploying stacks is a separate verb: `task deploy` (see deploy/stacks.yml).
 #
 # Usage:
-#   task ansible:deploy               # full idempotent deploy
-#   task ansible:deploy:services      # redeploy stacks only
+#   task ansible:cluster:up           # bring the cluster up
+#   task deploy:full                  # bring it up, then deploy every stack
 
 # PHASE 1: Initialize Docker Swarm on manager if not already active
 - name: Initialize Docker Swarm if needed
@@ -116,21 +118,17 @@
         tasks_from: iscsi-mount
       when: iscsi_enabled | default(false) or iscsi_app_data_enabled | default(false) or iscsi_cache_enabled | default(false)
 
-# PHASE 5: Activate any drained nodes before deploying
+# PHASE 5: Activate any drained nodes
 # Nodes left in 'drain' state (e.g., after a storage repair) won't receive
-# new tasks — this ensures all nodes are active before stack deployment.
+# new tasks — this ensures all nodes are active before stacks are deployed.
 - name: Activate any drained nodes
   hosts: managers
   become: yes
   gather_facts: false
-  tags: [deploy]
+  tags: [activate]
 
   tasks:
     - name: Activate drained nodes
       ansible.builtin.include_role:
         name: swarm
         tasks_from: activate-nodes
-
-# PHASE 6: Deploy all Swarm stacks
-- name: Deploy all Swarm stacks
-  ansible.builtin.import_playbook: deploy/stacks.yml

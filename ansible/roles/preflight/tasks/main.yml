@@ -1,6 +1,6 @@
 # ansible/roles/preflight/tasks/main.yml
 # Runs pre-deployment checks and setup for a single stack.
-# Called by deploy/stacks.yml with preflight_stack_path and preflight_stack_name vars.
+# Called by deploy/tasks/stack.yml with preflight_stack_path and preflight_stack_name vars.
 # Safe no-op when no pre-flight.yml exists in the stack directory.
 ---
 - name: Check for pre-flight manifest

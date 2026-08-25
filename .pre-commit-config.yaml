@@ -72,6 +72,7 @@ repos:
             entry: bash -c 'export ANSIBLE_CONFIG=ansible/ansible.cfg; for file in "$@"; do .venv/bin/ansible-playbook --syntax-check "$file" || exit 1; done' --
             language: system
             files: ^ansible/playbooks/.*\.ya?ml$
+            exclude: ^ansible/playbooks/.*/tasks/
             pass_filenames: true
 
           - id: ansible-preflight-unit
@@ -79,13 +80,13 @@ repos:
             entry: >-
                 bash -c 'ANSIBLE_CONFIG=ansible/ansible.cfg
                 uv run --frozen ansible-playbook --check
-                -i tests/ansible/unit/inventory/
-                tests/ansible/unit/test-preflight.yml'
+                -i ansible/tests/unit/inventory/
+                ansible/tests/unit/test-preflight.yml'
             language: system
             pass_filenames: false
             # Only run when the preflight role, its tests, or a stack manifest it renders changes —
             # not on every commit. --frozen stops uv from rewriting uv.lock during the run.
-            files: '^(ansible/roles/preflight/|tests/ansible/unit/|stacks/.*/pre-flight\.yml$)'
+            files: '^(ansible/roles/preflight/|ansible/tests/unit/|stacks/.*/pre-flight\.yml$)'
 
           - id: ansible-vault-check
             name: Check for unencrypted Ansible secrets
@@ -126,5 +127,6 @@ repos:
             exclude: |
                 (?x)^(
                   ansible/collections/|
-                  ansible/roles/preflight/tasks/main\.yml$
+                  ansible/roles/preflight/tasks/main\.yml$|
+                  ansible/tests/integration/test-preflight\.yml$
                 )

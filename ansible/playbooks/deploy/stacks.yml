@@ -1,20 +1,22 @@
 # ansible/playbooks/deploy/stacks.yml
 ---
-- name: Deploy all Docker Swarm stacks
+- name: Deploy Docker Swarm stacks in dependency order
   hosts: managers
   tags: [deploy]
   vars:
-    # If set, only deploy these specific apps (comma-separated list)
-    only_apps: ""
-    # If set, skip these specific apps (comma-separated list)
-    skip_apps: ""
-    # If true, skip infrastructure stacks (monitoring, reverse-proxy, dns)
-    skip_infrastructure: false
-    # If true, prune services removed from each stack's compose (default true; -e prune=false to keep orphans)
+    # Space- or comma-separated targets; empty means every stack.
+    stacks: ""
+    # Overridden by the e2e suite to point at its fixtures.
+    stacks_root: "{{ repo_root }}"
     prune: true
-    # Path to the base directory containing app stacks
-    stacks_base_path: "stacks"
+    # `auto` registers records for new stacks only.
+    register_dns: "auto"
+    register_uptime: "auto"
+    converge_retries: 60
+    converge_delay: 5
     base_domain: "{{ lookup('env', 'BASE_DOMAIN') }}"
+    repo_root: "{{ (playbook_dir ~ '/../../..') | realpath }}"
+    target_stacks: "{{ stacks | regex_findall('[^,\\s]+') }}"
 
   tasks:
     - name: Verify Docker Swarm is active
@@ -23,62 +25,32 @@
       failed_when: not swarm_info.docker_swarm_active
       run_once: true
 
-    - name: Get list of stack directories
-      ansible.builtin.find:
-        paths: "{{ playbook_dir }}/../../../{{ stacks_base_path }}/apps"
-        file_type: directory
+    # The only source of order and of what is already converged, so a stack the
+    # graph drops (PRIMARY_DNS_MANAGED) needs no filter here.
+    - name: Resolve the deploy plan
+      ansible.builtin.command:
+        cmd: "uv run ci plan --json --repo-root {{ stacks_root }} {{ target_stacks | join(' ') }}"
+        chdir: "{{ repo_root }}"
       delegate_to: localhost
-      register: app_stack_dirs
+      run_once: true
+      changed_when: false
+      register: deploy_plan
 
-    - name: Get list of infrastructure stack directories
-      ansible.builtin.find:
-        paths: "{{ playbook_dir }}/../../../{{ stacks_base_path }}"
-        file_type: directory
-        patterns: ["monitoring", "reverse-proxy", "dns"]
-      delegate_to: localhost
-      register: infra_stack_dirs
-
-    - name: Exclude unmanaged dns stack from infrastructure
+    - name: Read the plan
       ansible.builtin.set_fact:
-        infra_stack_dirs:
-          files: "{{ infra_stack_dirs.files | rejectattr('path', 'search', '/dns$') | list }}"
-      when: not primary_dns_managed | bool
+        deploy_rows: "{{ deploy_plan.stdout | from_json }}"
+      run_once: true
 
-    - name: Prepare list of stacks to deploy
-      ansible.builtin.set_fact:
-        all_stacks: "{{ (infra_stack_dirs.files | map(attribute='path') | list) + (app_stack_dirs.files | map(attribute='path') | list) }}"
-
-    - name: Filter stacks based on only_apps
-      ansible.builtin.set_fact:
-        filtered_stacks: "{{ all_stacks }}"
-      when: only_apps == ''
-
-    - name: Initialize filtered_stacks for only_apps mode
-      ansible.builtin.set_fact:
-        filtered_stacks: []
-      when: only_apps != ''
-
-    - name: Filter to only specified apps
-      ansible.builtin.set_fact:
-        filtered_stacks: "{{ filtered_stacks + (all_stacks | select('match', '.*/' + item.strip() + '$') | list) }}"
-      loop: "{{ only_apps.split(',') }}"
-      when: only_apps != ''
-
-    - name: Exclude skipped apps
-      ansible.builtin.set_fact:
-        filtered_stacks: >-
-          {{ filtered_stacks | reject('match', '.*/' + item.strip() + '$') | list }}
-      loop: "{{ skip_apps.split(',') }}"
-      when: skip_apps != ''
-
-    - name: Exclude infrastructure stacks if requested
-      ansible.builtin.set_fact:
-        filtered_stacks: >-
-          {{ filtered_stacks |
-             reject('match', '.*/monitoring$') |
-             reject('match', '.*/reverse-proxy$') |
-             reject('match', '.*/dns$') | list }}
-      when: skip_infrastructure | default(false) | bool
+    - name: Report what the plan will do
+      ansible.builtin.debug:
+        msg: >-
+          {{ to_deploy | length }} to deploy,
+          {{ converged | length }} already converged
+          ({{ converged | join(', ') or 'none' }})
+      vars:
+        to_deploy: "{{ deploy_rows | selectattr('action', 'equalto', 'deploy') | list }}"
+        converged: "{{ deploy_rows | selectattr('action', 'equalto', 'skip') | map(attribute='stack') | list }}"
+      run_once: true
 
     - name: Load .env file
       ansible.builtin.include_role:
@@ -95,81 +67,87 @@
         name: swarm
         tasks_from: ensure-networks
 
-    - name: Run pre-flight checks and setup
-      ansible.builtin.include_role:
-        name: preflight
+    # Each stack converges before the next starts, so a dependency that never
+    # comes up fails the run instead of its dependents deploying against it.
+    - name: Deploy each stack the plan calls for
+      ansible.builtin.include_tasks: tasks/stack.yml
       vars:
-        preflight_stack_path: "{{ item }}"
-        preflight_stack_name: "{{ item.split('/')[-1] }}"
-      loop: "{{ filtered_stacks }}"
-      ignore_errors: true
-      register: preflight_results
-
-    - name: Build list of stacks that passed preflight
-      ansible.builtin.set_fact:
-        deployable_stacks: >-
-          {{
-            filtered_stacks | difference(
-              preflight_results.results
-              | selectattr('failed', 'defined')
-              | selectattr('failed', 'equalto', true)
-              | map(attribute='item')
-              | list
-            )
-          }}
-      when: preflight_results is defined
-
-    - name: Warn about stacks that failed preflight
-      ansible.builtin.debug:
-        msg: "SKIPPING deploy of '{{ item.item.split('/')[-1] }}' — preflight failed: {{ item.msg | default('see above') }}"
-      loop: "{{ preflight_results.results | selectattr('failed', 'defined') | selectattr('failed', 'equalto', true) | list }}"
+        deploy_stack: "{{ item.stack }}"
+        deploy_is_new: "{{ item.state == 'absent' }}"
+      loop: "{{ deploy_rows | selectattr('action', 'equalto', 'deploy') | list }}"
       loop_control:
-        label: "{{ item.item.split('/')[-1] }}"
-      when: preflight_results is defined
+        label: "{{ item.stack }}"
 
-    - name: Deploy Docker stack
-      community.docker.docker_stack:
-        state: present
-        name: "{{ item.split('/')[-1] }}"
-        prune: "{{ prune | bool }}"
-        with_registry_auth: true
-        compose:
-          - "{{ item }}/docker-compose.yml"
-        cli_context: "{{ swarm_docker_context }}"
-      environment: "{{ swarm_env_vars }}"
-      loop: "{{ deployable_stacks | default(filtered_stacks) }}"
-      register: deploy_results
+    - name: Decide which stacks get their records registered
+      ansible.builtin.set_fact:
+        dns_registrations: >-
+          {{ deployed | selectattr('new') | list if register_dns == 'auto'
+             else (deployed if register_dns | bool else []) }}
+        uptime_registrations: >-
+          {{ (deployed | selectattr('new') | list if register_uptime == 'auto'
+              else (deployed if register_uptime | bool else []))
+             | rejectattr('stack', 'in', uptime_kuma_unmonitored) | list }}
+      vars:
+        deployed: "{{ deployed_stacks | default([]) }}"
+        # Kuma cannot usefully watch what routes to it, resolves for it, or is it.
+        uptime_kuma_unmonitored: [reverse-proxy, dns, uptime-kuma]
+
+    - name: Wait for the DNS API to become available
+      ansible.builtin.uri:
+        url: "{{ dns_primary_api_url }}/user/login"
+        method: POST
+        body_format: form-urlencoded
+        body:
+          user: "admin"
+          pass: "{{ primary_dns_api_key }}"
+        status_code: 200
+      register: dns_api_ready_check
+      until: dns_api_ready_check.status | default(-1) == 200
+      retries: 12
+      delay: 5
       delegate_to: localhost
-
-    - name: Report deployment status
-      ansible.builtin.debug:
-        msg: "Stack {{ item.item.split('/')[-1] }} deployment {{ 'succeeded' if item.changed or not item.failed else 'failed' }}"
-      loop: "{{ deploy_results.results }}"
+      when: "'dns' in (dns_registrations | map(attribute='stack') | list)"
 
     - name: Get DNS API token
       ansible.builtin.include_role:
         name: dns
         tasks_from: get-token
+      when: dns_registrations | length > 0
 
     - name: Get Pi-hole API token
       ansible.builtin.include_role:
         name: dns
         tasks_from: get-pihole-token
-      when: secondary_dns_enabled | default(false) | bool
-      ignore_errors: yes
+      when:
+        - dns_registrations | length > 0
+        - secondary_dns_enabled | default(false) | bool
+      ignore_errors: true
 
-    - name: Register DNS records for all services
+    - name: Register DNS records for each stack the run brought up  # noqa: var-naming[no-role-prefix]
       ansible.builtin.include_role:
         name: dns
         tasks_from: add-service-cnames
+      vars:
+        stack_name: "{{ item.stack }}"
+        compose_file_path: "{{ item.compose }}"
+      loop: "{{ dns_registrations }}"
+      loop_control:
+        label: "{{ item.stack }}"
 
     - name: Get Uptime Kuma API token
       ansible.builtin.include_role:
         name: uptime_kuma
         tasks_from: get-token
+      when: uptime_registrations | length > 0
 
-    - name: Register Uptime Kuma monitors for all services
+    - name: Register Uptime Kuma monitors for each stack the run brought up  # noqa: var-naming[no-role-prefix]
       ansible.builtin.include_role:
         name: uptime_kuma
         tasks_from: add-service-monitors
+      vars:
+        stack_name: "{{ item.stack }}"
+        compose_file_path: "{{ item.compose }}"
+      loop: "{{ uptime_registrations }}"
+      loop_control:
+        label: "{{ item.stack }}"
       when: uptime_kuma_api_token is defined

@@ -11,9 +11,9 @@ from pathlib import Path
 
 from ci.ports import FileSystem
 
-# Providers the cluster can be configured without. Deploy already skips the dns
-# stack on primary_dns_managed (ansible/playbooks/deploy/stacks.yml); the graph
-# has to drop the edges into it too, or every routed stack becomes unresolvable.
+# Providers the cluster can be configured without. The only place that decision
+# is made: the graph drops the stack and the edges into it, and the deploy
+# playbook loops over what the graph returns.
 CAPABILITY_GATES = {"dns": "PRIMARY_DNS_MANAGED"}
 
 FALSEY = ("false", "no", "0", "")
