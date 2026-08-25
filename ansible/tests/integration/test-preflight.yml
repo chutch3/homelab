@@ -1,4 +1,4 @@
-# tests/ansible/integration/test-preflight.yml
+# ansible/tests/integration/test-preflight.yml
 # Integration tests for the preflight role — requires a running Docker Swarm.
 # Creates and cleans up isolated test resources. Cleanup runs even on failure
 # via a block/rescue/always pattern (play-level always: is not valid Ansible).

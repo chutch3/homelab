@@ -12,7 +12,7 @@ on:
             - "tools/ci/tests/e2e/**"
             - "tools/ci/ci/**"
             - "ansible/**"
-            - "tests/ansible/idempotence/**"
+            - "ansible/tests/idempotence/**"
             - ".github/workflows/e2e.yml"
     push:
         branches: [main]
@@ -21,7 +21,7 @@ on:
             - "tools/ci/tests/e2e/**"
             - "tools/ci/ci/**"
             - "ansible/**"
-            - "tests/ansible/idempotence/**"
+            - "ansible/tests/idempotence/**"
             - ".github/workflows/e2e.yml"
 
 concurrency:

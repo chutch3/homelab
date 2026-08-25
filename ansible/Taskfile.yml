@@ -573,14 +573,14 @@ tasks:
         desc: "Unit tests for preflight role — no cluster required (template/logic in --check mode, hook execution with -K for become)"
         dir: "{{.ROOT_DIR}}"
         cmds:
-            - "{{.VENV_ANSIBLE_PLAYBOOK}} --check -i tests/ansible/unit/inventory/ tests/ansible/unit/test-preflight.yml {{.CLI_ARGS}}"
-            - "{{.VENV_ANSIBLE_PLAYBOOK}} -K -i tests/ansible/unit/hooks-inventory/ tests/ansible/unit/test-preflight-hooks.yml {{.CLI_ARGS}}"
+            - "{{.VENV_ANSIBLE_PLAYBOOK}} --check -i ansible/tests/unit/inventory/ ansible/tests/unit/test-preflight.yml {{.CLI_ARGS}}"
+            - "{{.VENV_ANSIBLE_PLAYBOOK}} -K -i ansible/tests/unit/hooks-inventory/ ansible/tests/unit/test-preflight-hooks.yml {{.CLI_ARGS}}"
 
     test:preflight:integration:
         desc: "Integration tests for preflight role — requires running Swarm (creates and cleans up isolated test secrets)"
         dir: "{{.ROOT_DIR}}"
         cmds:
-            - "{{.VENV_ANSIBLE_PLAYBOOK}} -i ansible/inventory/ tests/ansible/integration/test-preflight.yml -K {{.CLI_ARGS}}"
+            - "{{.VENV_ANSIBLE_PLAYBOOK}} -i ansible/inventory/ ansible/tests/integration/test-preflight.yml -K {{.CLI_ARGS}}"
 
     test:idempotence:
         desc: "DESTRUCTIVE to the target: run each enrolled playbook twice on THIS machine, requiring changed=0 on the second"
@@ -595,7 +595,7 @@ tasks:
             - for: {var: PLAYBOOKS}
               cmd: >-
                   uv run ci idempotence {{.ITEM}}
-                  --become -i ansible/inventory/ -i tests/ansible/idempotence/hosts.yml
+                  --become -i ansible/inventory/ -i ansible/tests/idempotence/hosts.yml
                   --limit ci-node --skip-tags ssh,snmp {{.CLI_ARGS}}
 
     secrets:wipe:
