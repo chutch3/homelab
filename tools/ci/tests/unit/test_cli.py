@@ -46,7 +46,7 @@ SUBCOMMANDS = [
     ["gc"],
     ["test"],
     ["idempotence", "play.yml"],
-    ["deploy", "--plan"],
+    ["plan"],
     ["check-deps"],
 ]
 
@@ -63,13 +63,12 @@ def test_build_container_wires_every_subcommand(argv):
 class TestParser:
     """`build_parser` — the argv contract, before any handler runs."""
 
-    def test_deploy_refuses_to_run_without_plan(self):
-        with pytest.raises(SystemExit):
-            build_parser().parse_args(["deploy", "paperless"])
-
-    def test_deploy_accepts_targets_with_plan(self):
-        args = build_parser().parse_args(["deploy", "paperless", "komga", "--plan"])
+    def test_plan_accepts_targets(self):
+        args = build_parser().parse_args(["plan", "paperless", "komga"])
         assert args.stacks == ["paperless", "komga"]
+
+    def test_plan_with_no_targets_means_every_stack(self):
+        assert build_parser().parse_args(["plan"]).stacks == []
 
     def test_idempotence_takes_repo_root_only_before_the_playbook(self):
         """REMAINDER swallows everything after it, the flag included."""
@@ -94,29 +93,40 @@ class TestParser:
         assert args.ansible_args == ["-i", "inv/", "--skip-tags", "ssh"]
 
 
-class TestDeployCommand:
-    """`ci deploy --plan` — that argv reaches the plan and its verdict comes back.
+class TestPlanCommand:
+    """`ci plan` — that argv reaches the plan and its verdict comes back.
 
-    What the plan *says* is `test_deploy.py`'s job. These two assert only the
+    What the plan *says* is `test_deploy.py`'s job. These assert only the
     wiring: the payload reaches stdout, and a failure's exit code propagates.
     """
 
-    def test_deploy_prints_the_plan_and_exits_zero(self, run, filesystem, capsys):
+    def test_plan_prints_the_plan_and_exits_zero(self, run, filesystem, capsys):
         filesystem.files.update({
             "stacks/apps/paperless/docker-compose.yml": DECLARED,
             "stacks/reverse-proxy/docker-compose.yml": "services: {}\n",
         })
-        assert run("deploy", "--plan") == 0
+        assert run("plan") == 0
         printed = capsys.readouterr().out
         assert [line.split()[1] for line in printed.splitlines()] == ["reverse-proxy", "paperless"]
 
-    def test_deploy_propagates_a_failed_plans_exit_code(
+    def test_plan_json_prints_the_plan_the_playbook_parses(self, run, filesystem, capsys):
+        filesystem.files.update({
+            "stacks/apps/paperless/docker-compose.yml": DECLARED,
+            "stacks/reverse-proxy/docker-compose.yml": "services: {}\n",
+        })
+        assert run("plan", "--json") == 0
+        assert [row["stack"] for row in json.loads(capsys.readouterr().out)] == [
+            "reverse-proxy",
+            "paperless",
+        ]
+
+    def test_plan_propagates_a_failed_plans_exit_code(
         self, run, filesystem, capsys
     ):
         filesystem.files["stacks/apps/paperless/docker-compose.yml"] = (
             "x-homelab:\n    requires: [ghost-stack]\nservices: {}\n"
         )
-        assert run("deploy", "--plan") == 1
+        assert run("plan") == 1
         assert capsys.readouterr().out == ""
 
 

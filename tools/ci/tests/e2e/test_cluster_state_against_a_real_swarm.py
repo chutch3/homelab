@@ -1,4 +1,4 @@
-"""`ci deploy --plan` end to end: the real CLI against a real Swarm.
+"""`ci plan` end to end: the real CLI against a real Swarm.
 
 Everything below the command line is exercised for real — argv parsing, the
 composition root, the stack tree, dependency resolution, the cluster read, and
@@ -16,6 +16,7 @@ leaves.
 
 from __future__ import annotations
 
+import json
 import subprocess
 import sys
 import time
@@ -133,22 +134,32 @@ def plan_of(result: subprocess.CompletedProcess[str]) -> list[str]:
 
 @pytest.mark.e2e
 def test_deploy_plans_every_stack_with_the_state_the_cluster_actually_holds(repo):
-    result = ci(repo, "deploy", "--plan")
+    result = ci(repo, "plan")
     assert result.returncode == 0, result.stderr
     assert plan_of(result) == [
         f"deploy {ABSENT} absent",
-        f"deploy {OK} converged",
+        f"skip {OK} converged",
         f"deploy {PROBE} present",
     ]
-    assert "3 stack(s) — plan only, nothing deployed." in result.stderr
+    assert "3 stack(s), 2 to deploy — plan only, nothing deployed." in result.stderr
+
+
+@pytest.mark.e2e
+def test_deploy_leaves_a_converged_stack_out_of_the_work_a_re_run_would_do(repo):
+    """Check I on deploy: what is already converged is not in the work to do."""
+    plan = json.loads(ci(repo, "plan", "--json").stdout)
+    assert [row for row in plan if row["action"] == "deploy"] == [
+        {"stack": ABSENT, "state": "absent", "action": "deploy"},
+        {"stack": PROBE, "state": "present", "action": "deploy"},
+    ]
 
 
 @pytest.mark.e2e
 def test_deploy_names_the_target_that_pulled_in_each_dependency(repo):
-    result = ci(repo, "deploy", PROBE, "--plan")
+    result = ci(repo, "plan", PROBE)
     assert result.returncode == 0, result.stderr
     assert plan_of(result) == [
-        f"ensure {OK} converged → required by {PROBE}",
+        f"skip {OK} converged → required by {PROBE}",
         f"deploy {PROBE} present → explicit target",
     ]
 
@@ -156,5 +167,5 @@ def test_deploy_names_the_target_that_pulled_in_each_dependency(repo):
 @pytest.mark.e2e
 def test_deploy_leaves_the_cluster_exactly_as_it_found_it(repo):
     before = replicas()
-    ci(repo, "deploy", "--plan")
+    ci(repo, "plan")
     assert replicas() == before

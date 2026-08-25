@@ -1,4 +1,4 @@
-"""Tests for the stack dependency graph (`ci deploy --plan` / `ci check-deps`).
+"""Tests for the stack dependency graph (`ci plan` / `ci check-deps`).
 
 The dangerous case is a false pass: an order that puts a stack before something
 it needs, or a declaration the tree does not actually satisfy. `resolve` and

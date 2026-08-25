@@ -7,13 +7,15 @@ the rows: the state each stack is already in, and why it is in the plan at all.
 
 from __future__ import annotations
 
+import json
+
 import pytest
 
 from conftest import argvs, responds
 
 from ci.adapters import CommandResult
 from ci.cluster import StackState
-from ci.deploy import Origin, PlanRow
+from ci.deploy import Action, Origin, PlanRow
 
 LABELS = 'services:\n    a:\n        deploy:\n            labels: [{}]\n'
 TRAEFIK = LABELS.format('"traefik.enable=true"')
@@ -95,15 +97,73 @@ class TestDeployPlanner:
         subject.rows(["paperless"])
         assert len(filesystem.reads) == len(TREE)
 
+    # --- what each row will actually do -------------------------------------
+
+    def test_rows_a_converged_dependency_is_skipped_so_its_spec_is_never_touched(
+        self, subject, live
+    ):
+        """Deploying paperless must not restart authentik."""
+        live(
+            stacks="reverse-proxy\nauthentik\n",
+            services="reverse-proxy_traefik\t1/1\nauthentik_server\t1/1\n",
+        )
+        assert [(r.stack, r.action) for r in subject.rows(["paperless"])] == [
+            ("reverse-proxy", Action.SKIP),
+            ("authentik", Action.SKIP),
+            ("paperless", Action.DEPLOY),
+        ]
+
+    def test_rows_a_dependency_short_of_converged_is_deployed(self, subject, live):
+        live(stacks="authentik\n", services="authentik_server\t0/1\n")
+        assert [(r.stack, r.action) for r in subject.rows(["paperless"])] == [
+            ("reverse-proxy", Action.DEPLOY),
+            ("authentik", Action.DEPLOY),
+            ("paperless", Action.DEPLOY),
+        ]
+
+    def test_rows_an_explicit_target_deploys_even_when_already_converged(
+        self, subject, live
+    ):
+        live(stacks="paperless\n", services="paperless_web\t1/1\n")
+        assert [r for r in subject.rows(["paperless"]) if r.stack == "paperless"][0].action is (
+            Action.DEPLOY
+        )
+
+    def test_rows_a_full_plan_over_a_converged_cluster_has_nothing_to_do(
+        self, subject, live
+    ):
+        """The resume: a re-run from the top redeploys nothing it already converged."""
+        live(
+            stacks="reverse-proxy\nauthentik\npaperless\n",
+            services=(
+                "reverse-proxy_traefik\t1/1\nauthentik_server\t1/1\npaperless_web\t1/1\n"
+            ),
+        )
+        assert [r.action for r in subject.rows(None)] == [Action.SKIP] * 3
+
     # --- the plan it prints --------------------------------------------------
 
-    def test_report_prints_a_row_per_stack_with_verb_state_and_reason(self, subject, live, capsys):
+    def test_report_leads_each_row_with_what_will_happen_to_it(
+        self, subject, live, capsys
+    ):
+        """One column says what the run does, the other why the row is here."""
         live(stacks="reverse-proxy\n", services="reverse-proxy_traefik\t1/1\n")
         assert subject.report(["paperless"]) == 0
         assert [" ".join(line.split()) for line in capsys.readouterr().out.splitlines()] == [
-            "ensure reverse-proxy converged → required by paperless",
-            "ensure authentik absent → required by paperless",
+            "skip reverse-proxy converged → required by paperless",
+            "deploy authentik absent → required by paperless",
             "deploy paperless absent → explicit target",
+        ]
+
+    def test_report_a_full_plan_skips_what_has_converged_and_names_no_cause(
+        self, subject, live, capsys
+    ):
+        live(stacks="reverse-proxy\n", services="reverse-proxy_traefik\t1/1\n")
+        assert subject.report(None) == 0
+        assert [" ".join(line.split()) for line in capsys.readouterr().out.splitlines()] == [
+            "skip reverse-proxy converged",
+            "deploy authentik absent",
+            "deploy paperless absent",
         ]
 
     def test_report_aligns_the_columns_so_the_states_can_be_scanned(self, subject, live, capsys):
@@ -116,8 +176,61 @@ class TestDeployPlanner:
     ):
         live()
         subject.report(["paperless"])
-        assert "3 stack(s) — plan only, nothing deployed." in caplog.text
+        assert "3 stack(s), 3 to deploy — plan only, nothing deployed." in caplog.text
         assert "stack(s)" not in capsys.readouterr().out
+
+    def test_report_a_target_this_environment_switched_off_fails_rather_than_no_ops(
+        self, container, filesystem, env, live, capsys, caplog
+    ):
+        """Exiting 0 would tell a caller its stack was handled, not discarded."""
+        filesystem.files.update({**TREE, "stacks/dns/docker-compose.yml": PROXY})
+        env["PRIMARY_DNS_MANAGED"] = "false"
+        live()
+        assert container.planner().report(["dns"]) == 1
+        assert capsys.readouterr().out == ""
+        assert "dns" in caplog.text and "switched off" in caplog.text
+
+    def test_report_a_switched_off_target_alongside_a_live_one_still_fails(
+        self, container, filesystem, env, live, capsys, caplog
+    ):
+        """The plan is non-empty, so only naming the dropped target catches this."""
+        filesystem.files.update({**TREE, "stacks/dns/docker-compose.yml": PROXY})
+        env["PRIMARY_DNS_MANAGED"] = "false"
+        live()
+        assert container.planner().report(["dns", "paperless"]) == 1
+        assert capsys.readouterr().out == ""
+        assert "dns" in caplog.text and "paperless" not in caplog.text
+
+    def test_report_a_whole_tree_plan_over_an_empty_repo_is_not_an_error(
+        self, subject, filesystem, live, capsys
+    ):
+        """Nothing asked for and nothing found is empty, not wrong."""
+        filesystem.files.clear()
+        live()
+        assert subject.report(None) == 0
+        assert capsys.readouterr().out == ""
+
+    def test_report_as_json_emits_the_deploy_order_the_playbook_loops_over(
+        self, subject, live, capsys
+    ):
+        """Three fields, all of them read: the playbook deploys, skips, and reports."""
+        live(stacks="reverse-proxy\n", services="reverse-proxy_traefik\t1/1\n")
+        assert subject.report(["paperless"], as_json=True) == 0
+        assert json.loads(capsys.readouterr().out) == [
+            {"stack": "reverse-proxy", "state": "converged", "action": "skip"},
+            {"stack": "authentik", "state": "absent", "action": "deploy"},
+            {"stack": "paperless", "state": "absent", "action": "deploy"},
+        ]
+
+    def test_report_as_json_stays_silent_on_stdout_when_the_graph_is_broken(
+        self, subject, filesystem, capsys
+    ):
+        """A parse of half a plan is worse than none, so stdout carries nothing."""
+        filesystem.files["stacks/apps/ghost/docker-compose.yml"] = (
+            "x-homelab:\n    requires: [nope]\nservices: {}\n"
+        )
+        assert subject.report(None, as_json=True) == 1
+        assert capsys.readouterr().out == ""
 
     def test_report_only_ever_lists_the_cluster(self, subject, live, commands):
         live()
