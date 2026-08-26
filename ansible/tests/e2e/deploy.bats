@@ -74,7 +74,7 @@ spec_of() {
     deploy converging probe-app
     assert_success
     assert_output --partial "already converged (probe-base)"
-    refute_output --partial "TASK [swarm : Deploy probe-base]"
+    refute_output --partial "TASK [Deploy probe-base]"
 
     after="$(spec_of probe-base_ready)"
     [[ "$before" == "$after" ]]
@@ -83,7 +83,7 @@ spec_of() {
 @test "an explicit target deploys even when it has already converged" {
     deploy converging probe-base
     assert_success
-    assert_output --partial "TASK [swarm : Deploy probe-base]"
+    assert_output --partial "TASK [Deploy probe-base]"
     assert_output --partial "1 to deploy"
 }
 
