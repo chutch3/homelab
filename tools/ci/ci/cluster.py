@@ -102,20 +102,17 @@ class SwarmCluster:
 
     def _services(self) -> list[Service]:
         """Every service the cluster holds, with the facts both rules need."""
-        rows = [line.partition("\t") for line in self._lines(SERVICE_LS)]
-        updates = self._updates([name for name, _, _ in rows])
-        return [Service.from_row(name, column, updates.get(name, "none")) for name, _, column in rows]
+        replicas = self._rows(SERVICE_LS)
+        names = [name for name, _ in replicas]
+        # `service inspect` with no arguments is an error, not an empty answer.
+        updates = dict(self._rows(SERVICE_INSPECT + names)) if names else {}
+        return [Service.from_row(n, column, updates.get(n, "none")) for n, column in replicas]
 
-    def _updates(self, services: list[str]) -> dict[str, str]:
-        """Service name -> its update state, or `none` where it has never updated."""
-        if not services:
-            return {}
-        return dict(
-            (name, state)
-            for name, _, state in (
-                line.partition("\t") for line in self._lines(SERVICE_INSPECT + services)
-            )
-        )
+    def _rows(self, argv: list[str]) -> list[tuple[str, str]]:
+        """`name<TAB>value` pairs — the shape every read here asks Docker for."""
+        return [(name, value) for name, _, value in (
+            line.partition("\t") for line in self._lines(argv)
+        )]
 
     def _lines(self, argv: list[str]) -> list[str]:
         outcome = self._commands.run(argv, capture=True)
