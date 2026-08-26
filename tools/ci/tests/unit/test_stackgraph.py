@@ -13,6 +13,7 @@ from dependency_injector import providers
 
 from ci.stackgraph import (
     Stack,
+    check_healthchecks,
     StackTree,
     UnresolvedGraph,
     check_dependencies,
@@ -310,6 +311,9 @@ class TestThisRepo:
     def test_every_dependency_the_tree_reveals_is_declared(self, subject):
         assert subject.undeclared() == {}
 
+    def test_every_infra_stack_declares_a_healthcheck(self, subject):
+        assert check_healthchecks(subject) == 0
+
 
 def _tree(filesystem: FakeFileSystem, **stacks: str) -> None:
     filesystem.files.update(compose(**stacks))
@@ -329,6 +333,48 @@ def test_check_dependencies_names_the_stack_hiding_an_undeclared_dependency(
     _tree(filesystem, komga=TRAEFIK_LABEL, **{"reverse-proxy": "services: {}\n"})
     assert check_dependencies(container.graph()) == 1
     assert "    komga: reverse-proxy" in caplog.text
+
+
+class TestHealthchecks:
+    """Infra stacks must say when they are ready, so convergence can mean it.
+
+    Swarm holds a task in `starting` until its healthcheck passes, so a stack
+    without one converges the moment its process is spawned. Everything else
+    waits on these three, which is what a fixed-duration pause used to paper
+    over.
+    """
+
+    HEALTHY = "services:\n    a:\n        healthcheck:\n            test: [\"CMD\", \"true\"]\n"
+    BARE = "services:\n    a:\n        image: alpine\n"
+
+    def _infra(self, filesystem: FakeFileSystem, **stacks: str) -> None:
+        filesystem.files.update(
+            {f"stacks/{name}/docker-compose.yml": text for name, text in stacks.items()}
+        )
+
+    def test_an_infra_stack_with_no_healthcheck_is_reported(self, container, filesystem, caplog):
+        self._infra(filesystem, dns=self.BARE)
+        assert check_healthchecks(container.graph()) == 1
+        assert "dns" in caplog.text
+
+    def test_an_infra_stack_that_declares_one_passes(self, container, filesystem, caplog):
+        self._infra(filesystem, dns=self.HEALTHY)
+        assert check_healthchecks(container.graph()) == 0
+
+    def test_one_healthchecked_service_is_enough(self, container, filesystem):
+        self._infra(filesystem, monitoring=self.HEALTHY + "    b:\n        image: alpine\n")
+        assert check_healthchecks(container.graph()) == 0
+
+    def test_an_app_without_a_healthcheck_is_not_infra_and_is_left_alone(
+        self, container, filesystem
+    ):
+        filesystem.files.update(compose(paperless=self.BARE))
+        assert check_healthchecks(container.graph()) == 0
+
+    def test_every_offender_is_named_not_just_the_first(self, container, filesystem, caplog):
+        self._infra(filesystem, dns=self.BARE, monitoring=self.BARE)
+        assert check_healthchecks(container.graph()) == 1
+        assert "dns" in caplog.text and "monitoring" in caplog.text
 
 
 def test_check_dependencies_fails_on_an_unresolvable_graph_before_looking_for_gaps(

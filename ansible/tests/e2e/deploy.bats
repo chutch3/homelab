@@ -10,7 +10,7 @@ load "${BATS_TEST_DIRNAME}/../../../tests/helpers/bats-assert/load"
 REPO_ROOT="${BATS_TEST_DIRNAME}/../../.."
 FIXTURES="${BATS_TEST_DIRNAME}/fixtures"
 PLAYBOOK="ansible/playbooks/deploy/stacks.yml"
-PROBES=(probe-app probe-base probe-stuck)
+PROBES=(probe-app probe-base probe-stuck probe-unhealthy probe-slow probe-after)
 
 setup_file() {
     if [[ "${HOMELAB_ANSIBLE_E2E:-}" != "1" ]]; then
@@ -48,6 +48,11 @@ deploy() {
 
 line_of() {
     printf '%s\n' "$output" | grep -n -- "$1" | head -1 | cut -d: -f1
+}
+
+# Seconds the named task took, from the profile_tasks summary.
+task_seconds() {
+    printf '%s\n' "$output" | grep -F -- "$1" | grep -oE '[0-9]+\.[0-9]+s$' | tail -1 | tr -d 's'
 }
 
 spec_of() {
@@ -95,6 +100,39 @@ spec_of() {
     assert_success
     assert_output --partial "0 to deploy, 2 already converged"
     assert_output --partial "changed=0"
+}
+
+# Swarm holds a task in `starting` until its healthcheck passes, so a stack
+# that declares one converges only when it is actually serving. This is what
+# the dns stack relies on, and what a fixed-duration pause used to stand in for.
+@test "a running task whose healthcheck fails is never converged" {
+    deploy unhealthy probe-unhealthy -e converge_retries=4 -e converge_delay=2
+    assert_failure
+    assert_output --partial "probe-unhealthy did not converge"
+
+    # The distinction that matters: the service exists and its container runs.
+    run docker service ls --filter name=probe-unhealthy --format '{{.Replicas}}'
+    assert_output --partial "0/1"
+}
+
+@test "a dependent waits for its dependency's healthcheck, not just its start" {
+    deploy health-gated probe-after
+    assert_success
+    assert_output --partial "converged — probe-slow"
+
+    local slow_converged dependent_deployed
+    slow_converged="$(line_of "converged — probe-slow")"
+    dependent_deployed="$(line_of "Deploy probe-after")"
+    [[ -n "$slow_converged" && -n "$dependent_deployed" ]]
+    (( slow_converged < dependent_deployed ))
+
+    # probe-slow reports unhealthy for its first 15s. Time the convergence
+    # probe itself, not the run: Ansible's own setup takes longer than 15s, so
+    # wall-clock here would pass even with the healthcheck removed.
+    local waited
+    waited="$(task_seconds "Ask ci whether the stack has converged — probe-slow")"
+    [[ -n "$waited" ]]
+    (( ${waited%.*} >= 15 ))
 }
 
 @test "a stack that never converges fails naming it" {

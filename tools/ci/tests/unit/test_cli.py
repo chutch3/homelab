@@ -48,6 +48,7 @@ SUBCOMMANDS = [
     ["idempotence", "play.yml"],
     ["plan"],
     ["check-deps"],
+    ["check-health"],
 ]
 
 
@@ -150,6 +151,25 @@ class TestCheckDepsCommand:
         )
         assert run("check-deps") == 1
         assert "gamarr requires romm" in caplog.text
+
+
+class TestCheckHealthCommand:
+    """`ci check-health` — the pre-commit hook's entry point.
+
+    The verdicts are `test_stackgraph.py::TestHealthchecks`; these assert that
+    argv reaches it and both exit codes come back.
+    """
+
+    def test_check_health_exits_zero_when_every_infra_stack_declares_one(self, run, filesystem):
+        filesystem.files["stacks/dns/docker-compose.yml"] = (
+            'services:\n    a:\n        healthcheck:\n            test: ["CMD", "true"]\n'
+        )
+        assert run("check-health") == 0
+
+    def test_check_health_exits_one_naming_the_stack_that_does_not(self, run, filesystem, caplog):
+        filesystem.files["stacks/dns/docker-compose.yml"] = "services:\n    a:\n        image: alpine\n"
+        assert run("check-health") == 1
+        assert "dns" in caplog.text
 
 
 class TestAffectedCommand:

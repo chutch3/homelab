@@ -10,6 +10,7 @@ Subcommands:
   ci idempotence PLAYBOOK [ANSIBLE ARGS] run a playbook twice; fail unless the second changes nothing
   ci plan [STACK ...] [--json]          print the deploy plan and live state; deploy nothing
   ci check-deps                         the x-homelab declarations resolve, and are complete
+  ci check-health                       every infra stack declares a healthcheck
 
 Every subcommand takes ``--repo-root`` (default ``.``); nothing takes it
 positionally, so a positional argument always means the same thing.
@@ -37,7 +38,7 @@ from ci.containers import Container
 from ci.deploy import DeployPlanner
 from ci.gc import RegistryGc
 from ci.idempotence import IdempotenceCheck
-from ci.stackgraph import DependencyGraph, check_dependencies
+from ci.stackgraph import DependencyGraph, check_dependencies, check_healthchecks
 
 
 @inject
@@ -114,6 +115,14 @@ def _cmd_check_deps(
     return check_dependencies(graph)
 
 
+@inject
+def _cmd_check_health(
+    args: argparse.Namespace,
+    graph: DependencyGraph = Provide[Container.graph],
+) -> int:
+    return check_healthchecks(graph)
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="ci")
     sub = parser.add_subparsers(dest="cmd", required=True)
@@ -168,6 +177,10 @@ def build_parser() -> argparse.ArgumentParser:
     deps = sub.add_parser("check-deps", help="the x-homelab declarations resolve, and are complete")
     deps.add_argument("--repo-root", default=".")
     deps.set_defaults(func=_cmd_check_deps)
+
+    health = sub.add_parser("check-health", help="every infra stack declares a healthcheck")
+    health.add_argument("--repo-root", default=".")
+    health.set_defaults(func=_cmd_check_health)
     return parser
 
 

@@ -69,17 +69,16 @@
 # =========================================================================
 # VERIFICATION: dig-based check (type-agnostic)
 # =========================================================================
-- name: "[VERIFY] Wait for DNS propagation"
-  ansible.builtin.pause:
-    seconds: 3
-  when: dns_discovered_domains | length > 0
-
-- name: "[VERIFY] Query DNS to verify records exist"
+# Never raises: a domain that stays unresolved is reported below.
+- name: "[VERIFY] Query DNS until each record resolves"
   ansible.builtin.command: "dig +short {{ item }} @{{ dns_primary_api_url | urlsplit('hostname') }}"
   loop: "{{ dns_discovered_domains }}"
   register: dns_verification
   changed_when: false
   failed_when: false
+  until: dns_verification.stdout | default('') != ''
+  retries: 10
+  delay: 2
   delegate_to: localhost
 
 - name: "[VERIFY] Check DNS resolution results"

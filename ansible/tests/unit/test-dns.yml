@@ -1,0 +1,188 @@
+# ansible/tests/unit/test-dns.yml
+# Unit tests for the dns role's API tasks — no cluster, no Technitium.
+# Each play starts a stub server (fixtures/technitium-stub.py) and asserts on
+# both the outcome and how many requests it took to get there.
+# Run with: task ansible:test:dns:unit
+---
+
+# ── Test 1: a rejected password is not retried ───────────────────────────────
+- name: "TEST 1: A rejected password fails without retrying"
+  hosts: managers
+  gather_facts: false
+  vars:
+    stub_port: 15380
+    stub_counts: /tmp/technitium-stub-reject.json
+    dns_primary_api_url: "http://127.0.0.1:15380/api"
+    dns_api_retries: 4
+    dns_api_delay: 1
+  tasks:
+    - name: Start the stub, rejecting every login
+      ansible.builtin.shell: |
+        nohup {{ playbook_dir }}/fixtures/technitium-stub.py \
+          --port {{ stub_port }} --count-file {{ stub_counts }} --reject-login \
+          >/dev/null 2>&1 &
+        echo $!
+      register: stub
+      changed_when: false
+      delegate_to: localhost
+
+    - name: Run the tests, always stopping the stub
+      block:
+        - name: Wait for the stub to accept connections
+          ansible.builtin.wait_for:
+            host: 127.0.0.1
+            port: "{{ stub_port }}"
+            timeout: 10
+          delegate_to: localhost
+
+        - name: Get a token, expecting failure
+          block:
+            - ansible.builtin.include_role:
+                name: dns
+                tasks_from: get-token
+          rescue:
+            - ansible.builtin.set_fact:
+                token_failed: true
+
+        - name: Read how many times login was called
+          ansible.builtin.slurp:
+            src: "{{ stub_counts }}"
+          register: counts
+          delegate_to: localhost
+
+        - name: Count the login requests
+          ansible.builtin.set_fact:
+            login_calls: "{{ (counts.content | b64decode | from_json)['/api/user/login'] | default(0) }}"
+
+        - name: A rejected password fails, and is asked exactly once
+          ansible.builtin.assert:
+            that:
+              - token_failed | default(false)
+              - login_calls | int == 1
+            fail_msg: >-
+              login called {{ login_calls }} times — a password the server
+              rejected must not be retried
+            success_msg: "✓ rejected password failed after exactly one request"
+      always:
+        - name: Stop the stub
+          ansible.builtin.command: "kill {{ stub.stdout }}"
+          changed_when: false
+          failed_when: false
+          delegate_to: localhost
+
+# ── Test 2: a server still binding is retried until it answers ───────────────
+- name: "TEST 2: A server that is not up yet is retried, then succeeds"
+  hosts: managers
+  gather_facts: false
+  vars:
+    stub_port: 15381
+    stub_counts: /tmp/technitium-stub-slow.json
+    dns_primary_api_url: "http://127.0.0.1:15381/api"
+    dns_api_retries: 6
+    dns_api_delay: 1
+  tasks:
+    - name: Start the stub, refusing the first two logins
+      ansible.builtin.shell: |
+        nohup {{ playbook_dir }}/fixtures/technitium-stub.py \
+          --port {{ stub_port }} --count-file {{ stub_counts }} --refuse-first 2 \
+          >/dev/null 2>&1 &
+        echo $!
+      register: stub
+      changed_when: false
+      delegate_to: localhost
+
+    - name: Run the tests, always stopping the stub
+      block:
+        - name: Wait for the stub to accept connections
+          ansible.builtin.wait_for:
+            host: 127.0.0.1
+            port: "{{ stub_port }}"
+            timeout: 10
+          delegate_to: localhost
+
+        - name: Get a token
+          ansible.builtin.include_role:
+            name: dns
+            tasks_from: get-token
+
+        - name: Read how many times login was called
+          ansible.builtin.slurp:
+            src: "{{ stub_counts }}"
+          register: counts
+          delegate_to: localhost
+
+        - name: Count the login requests
+          ansible.builtin.set_fact:
+            login_calls: "{{ (counts.content | b64decode | from_json)['/api/user/login'] | default(0) }}"
+
+        - name: The token is obtained, after retrying past the refusals
+          ansible.builtin.assert:
+            that:
+              - dns_api_token == 'stub-token'
+              - login_calls | int == 3
+            success_msg: "✓ retried past 2 refusals and got the token on the 3rd"
+      always:
+        - name: Stop the stub
+          ansible.builtin.command: "kill {{ stub.stdout }}"
+          changed_when: false
+          failed_when: false
+          delegate_to: localhost
+
+# ── Test 3: the cache flush is idempotent and reports no work ────────────────
+- name: "TEST 3: Flushing the cache twice reports no change either time"
+  hosts: managers
+  gather_facts: false
+  vars:
+    stub_port: 15382
+    stub_counts: /tmp/technitium-stub-flush.json
+    dns_primary_api_url: "http://127.0.0.1:15382/api"
+    dns_api_token: "stub-token"
+  tasks:
+    - name: Start the stub
+      ansible.builtin.shell: |
+        nohup {{ playbook_dir }}/fixtures/technitium-stub.py \
+          --port {{ stub_port }} --count-file {{ stub_counts }} \
+          >/dev/null 2>&1 &
+        echo $!
+      register: stub
+      changed_when: false
+      delegate_to: localhost
+
+    - name: Run the tests, always stopping the stub
+      block:
+        - name: Wait for the stub to accept connections
+          ansible.builtin.wait_for:
+            host: 127.0.0.1
+            port: "{{ stub_port }}"
+            timeout: 10
+          delegate_to: localhost
+
+        - name: Flush once
+          ansible.builtin.include_role:
+            name: dns
+            tasks_from: flush-cache
+
+        - name: The first flush succeeds and reports no change
+          ansible.builtin.assert:
+            that:
+              - dns_cache_flush_result.json.status == 'ok'
+              - dns_cache_flush_result is not changed
+            fail_msg: "a cache flush leaves the same desired state — it must not report changed"
+
+        - name: Flush again
+          ansible.builtin.include_role:
+            name: dns
+            tasks_from: flush-cache
+
+        - name: The second flush is identical
+          ansible.builtin.assert:
+            that:
+              - dns_cache_flush_result.json.status == 'ok'
+              - dns_cache_flush_result is not changed
+            success_msg: "✓ flushing twice is safe and reports no work"
+      always:
+        - name: Stop the stub
+          ansible.builtin.command: "kill {{ stub.stdout }}"
+          changed_when: false
+          failed_when: false
+          delegate_to: localhost
