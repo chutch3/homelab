@@ -4,8 +4,8 @@ Deploy order was the output of ``find``. It is now a topological sort of the
 declarations. :class:`StackTree` owns the filesystem; :class:`DependencyGraph`
 holds the logic and takes the tree, so its tests never touch disk.
 
-Nothing here deploys — it only decides what order a deploy would use, and
-:class:`DependencyCheck` reports whether the declarations hold up at all.
+Nothing here deploys — it only decides what order a deploy would use. The
+invariants over the tree live in :mod:`ci.stackcheck`.
 """
 
 from __future__ import annotations
@@ -35,7 +35,6 @@ INFERENCE = (
 )
 
 
-
 class UnresolvedGraph(Exception):
     """The declarations do not describe a deployable order."""
 
@@ -55,11 +54,6 @@ class Stack:
         return {p for p, pattern in INFERENCE if pattern.search(self.text)} - {self.name}
 
     @property
-    def infra(self) -> bool:
-        """Shared services, not apps: everything else waits on these."""
-        return self.path.parent.parent.name == "stacks"
-
-    @property
     def healthchecked(self) -> bool:
         """Whether any service says when it is ready, so convergence can mean it."""
         document = yaml.safe_load(self.text) or {}
@@ -76,7 +70,7 @@ class StackTree:
     """Reads the stacks out of the working tree, each compose file parsed once.
 
     Once per *tree*, not once per call: a plan asks for the order and then for
-    what pulled each stack in, and `ci check-deps` asks three questions. Each is
+    what pulled each stack in, and `ci check-stacks` asks three questions. Each is
     a fresh read without this, which is 54 compose files parsed three times.
     The tree is built per invocation, so it never outlives the working copy.
     """
@@ -170,37 +164,6 @@ class DependencyGraph:
     def required_by(self, targets: list[str]) -> dict[str, list[str]]:
         """For each stack a target pulls in, the targets that reach it."""
         return required_by(self.edges(), targets, sorted(self.disabled()))
-
-
-def check_dependencies(graph: DependencyGraph) -> int:
-    """The verdict `ci check-deps` prints: the declarations resolve, and are complete."""
-    try:
-        stacks = graph.stacks()
-        graph.resolve()
-    except UnresolvedGraph as exc:
-        log.error("✗ %s", exc)
-        return 1
-    if missing := graph.undeclared():
-        log.error(
-            "✗ dependencies visible in the compose file but not declared in x-homelab.requires:"
-        )
-        for stack, requires in sorted(missing.items()):
-            log.error("    %s: %s", stack, ", ".join(sorted(requires)))
-        return 1
-    log.info("✓ %d stacks resolve, with every dependency they reveal declared", len(stacks))
-    return 0
-
-
-def check_healthchecks(graph: DependencyGraph) -> int:
-    """The verdict `ci check-health` prints: every infra stack says when it is ready."""
-    infra = {name: s for name, s in graph.stacks().items() if s.infra}
-    if bare := sorted(name for name, s in infra.items() if not s.healthchecked):
-        log.error("✗ infra stacks with no healthcheck — their convergence means nothing:")
-        for name in bare:
-            log.error("    %s", name)
-        return 1
-    log.info("✓ %d infra stacks declare a healthcheck", len(infra))
-    return 0
 
 
 def _declared_edges(

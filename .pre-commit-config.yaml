@@ -109,20 +109,13 @@ repos:
             files: ^tools/ci/ci/.*\.py$
             require_serial: true
 
-          - id: stack-deps-declared
-            name: Stack dependencies declared in x-homelab.requires
-            entry: uv run ci check-deps
+          - id: check-stacks
+            name: Stack tree invariants (declarations, healthchecks)
+            entry: uv run ci check-stacks
             language: system
             pass_filenames: false
             # Whole-tree, every commit: deleting a stack is what dangles an edge,
             # and pre-commit never passes a deleted path to a `files:` hook.
-            always_run: true
-
-          - id: stack-healthchecks
-            name: Infra stacks declare a healthcheck
-            entry: uv run ci check-health
-            language: system
-            pass_filenames: false
             always_run: true
 
           - id: no-unconditional-changed-when
