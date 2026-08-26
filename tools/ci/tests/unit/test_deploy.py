@@ -33,6 +33,11 @@ TREE = {
 }
 
 
+def _json_lines(objects) -> str:
+    """Docker's `--format '{{json .}}'`: one JSON object per line."""
+    return "".join(json.dumps(o) + "\n" for o in objects)
+
+
 class TestDeployPlanner:
     """`DeployPlanner` — the plan it builds, and the plan it prints."""
 
@@ -43,10 +48,21 @@ class TestDeployPlanner:
 
     @pytest.fixture
     def live(self, commands):
-        """Seed what the cluster reports: stack names, then `service<TAB>replicas`."""
+        """Seed what the cluster reports, written as `service<TAB>replicas` for brevity.
+
+        Docker is asked for JSON, so the shorthand is rendered into the object
+        per line that `ci.cluster` actually reads.
+        """
 
         def _live(stacks: str = "", services: str = "") -> None:
-            responds(commands, CommandResult(0, stacks), CommandResult(0, services))
+            rows = [line.partition("\t") for line in services.splitlines() if line.strip()]
+            responds(
+                commands,
+                CommandResult(0, _json_lines({"Name": n} for n in stacks.split())),
+                CommandResult(0, _json_lines(
+                    {"Name": name, "Replicas": replicas} for name, _, replicas in rows
+                )),
+            )
 
         return _live
 

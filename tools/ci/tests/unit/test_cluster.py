@@ -8,6 +8,8 @@ verdict: `--plan` must only ever list.
 
 from __future__ import annotations
 
+import json
+
 import pytest
 
 from conftest import argvs, responds
@@ -21,12 +23,29 @@ from ci.cluster import (
     SwarmCluster,
 )
 
-STACK_LS = ["docker", "stack", "ls", "--format", "{{.Name}}"]
-SERVICE_LS = ["docker", "service", "ls", "--format", "{{.Name}}\t{{.Replicas}}"]
+STACK_LS = ["docker", "stack", "ls", "--format", "{{json .}}"]
+SERVICE_LS = ["docker", "service", "ls", "--format", "{{json .}}"]
 
 
 def inspect_of(*services: str) -> list[str]:
     return ["docker", "service", "inspect", "--format", UPDATE_FORMAT, *services]
+
+
+def _lines(*objects: dict[str, str]) -> str:
+    """Docker's `--format '{{json .}}'`: one JSON object per line."""
+    return "".join(json.dumps(o) + "\n" for o in objects)
+
+
+def stacks_out(*names: str) -> str:
+    return _lines(*({"Name": n} for n in names))
+
+
+def services_out(**replicas: str) -> str:
+    return _lines(*({"Name": n, "Replicas": r} for n, r in replicas.items()))
+
+
+def updates_out(**states: str) -> str:
+    return _lines(*({"Name": n, "Update": u} for n, u in states.items()))
 
 
 # ── Service: one row of `service ls`, and the rules that read it ────────────
@@ -87,45 +106,45 @@ class TestSwarmCluster:
         return _subject
 
     def test_state_a_stack_not_listed_is_absent(self, subject):
-        cluster = subject(stacks="authentik\n", services="authentik_server\t1/1\n")
+        cluster = subject(stacks=stacks_out("authentik"), services=services_out(**{"authentik_server": "1/1"}))
         assert cluster.state("paperless") is StackState.ABSENT
 
     def test_state_every_service_at_its_desired_replicas_is_converged(self, subject):
         cluster = subject(
-            stacks="paperless\n",
-            services="paperless_web\t1/1\npaperless_db\t2/2\n",
+            stacks=stacks_out("paperless"),
+            services=services_out(**{"paperless_web": "1/1", "paperless_db": "2/2"}),
         )
         assert cluster.state("paperless") is StackState.CONVERGED
 
     def test_state_a_single_service_short_of_desired_leaves_the_stack_present(self, subject):
         cluster = subject(
-            stacks="paperless\n",
-            services="paperless_web\t1/1\npaperless_db\t0/1\n",
+            stacks=stacks_out("paperless"),
+            services=services_out(**{"paperless_web": "1/1", "paperless_db": "0/1"}),
         )
         assert cluster.state("paperless") is StackState.PRESENT
 
     def test_state_a_listed_stack_with_no_services_yet_is_present(self, subject):
-        cluster = subject(stacks="paperless\n", services="")
+        cluster = subject(stacks=stacks_out("paperless"), services=services_out())
         assert cluster.state("paperless") is StackState.PRESENT
 
     def test_state_attributes_a_service_to_the_longest_stack_name_prefixing_it(self, subject):
         cluster = subject(
-            stacks="actual\nactual_server\n",
-            services="actual_web\t1/1\nactual_server_actual_mcp\t0/1\n",
+            stacks=stacks_out("actual", "actual_server"),
+            services=services_out(**{"actual_web": "1/1", "actual_server_actual_mcp": "0/1"}),
         )
         assert cluster.state("actual") is StackState.CONVERGED
         assert cluster.state("actual_server") is StackState.PRESENT
 
     def test_state_ignores_a_service_belonging_to_no_listed_stack(self, subject):
-        cluster = subject(stacks="paperless\n", services="orphan_svc\t0/1\n")
+        cluster = subject(stacks=stacks_out("paperless"), services=services_out(**{"orphan_svc": "0/1"}))
         assert cluster.state("paperless") is StackState.PRESENT
 
     def test_states_only_ever_reads(self, subject, commands):
-        subject(stacks="paperless\n", services="paperless_web\t1/1\n").states()
+        subject(stacks=stacks_out("paperless"), services=services_out(**{"paperless_web": "1/1"})).states()
         assert argvs(commands) == [STACK_LS, SERVICE_LS, inspect_of("paperless_web")]
 
     def test_state_reads_the_cluster_once_however_many_stacks_are_asked_about(self, subject, commands):
-        cluster = subject(stacks="a\nb\n", services="a_x\t1/1\nb_y\t1/1\n")
+        cluster = subject(stacks=stacks_out("a", "b"), services=services_out(**{"a_x": "1/1", "b_y": "1/1"}))
         cluster.state("a")
         cluster.state("b")
         cluster.state("c")
@@ -134,25 +153,25 @@ class TestSwarmCluster:
     def test_state_a_service_still_updating_is_not_converged_at_full_replicas(self, subject):
         """The outgoing task still counts toward `Replicas` while the new one starts."""
         cluster = subject(
-            stacks="dns\n",
-            services="dns_dns-server\t1/1\n",
-            updates="dns_dns-server\tupdating\n",
+            stacks=stacks_out("dns"),
+            services=services_out(**{"dns_dns-server": "1/1"}),
+            updates=updates_out(**{"dns_dns-server": "updating"}),
         )
         assert cluster.state("dns") is StackState.PRESENT
 
     def test_state_a_finished_update_is_converged(self, subject):
         cluster = subject(
-            stacks="dns\n",
-            services="dns_dns-server\t1/1\n",
-            updates="dns_dns-server\tcompleted\n",
+            stacks=stacks_out("dns"),
+            services=services_out(**{"dns_dns-server": "1/1"}),
+            updates=updates_out(**{"dns_dns-server": "completed"}),
         )
         assert cluster.state("dns") is StackState.CONVERGED
 
     def test_state_a_service_never_updated_is_converged(self, subject):
         cluster = subject(
-            stacks="dns\n",
-            services="dns_dns-server\t1/1\n",
-            updates="dns_dns-server\tnone\n",
+            stacks=stacks_out("dns"),
+            services=services_out(**{"dns_dns-server": "1/1"}),
+            updates=updates_out(**{"dns_dns-server": "none"}),
         )
         assert cluster.state("dns") is StackState.CONVERGED
 
@@ -160,15 +179,26 @@ class TestSwarmCluster:
     def test_state_an_unfinished_update_holds_the_whole_stack_back(self, subject, state):
         """One service mid-update is enough: its dependents must not proceed."""
         cluster = subject(
-            stacks="paperless\n",
-            services="paperless_web\t1/1\npaperless_db\t1/1\n",
-            updates=f"paperless_web\tcompleted\npaperless_db\t{state}\n",
+            stacks=stacks_out("paperless"),
+            services=services_out(**{"paperless_web": "1/1", "paperless_db": "1/1"}),
+            updates=updates_out(**{"paperless_web": "completed", "paperless_db": state}),
         )
         assert cluster.state("paperless") is StackState.PRESENT
 
     def test_states_asks_nothing_of_a_cluster_with_no_services(self, subject, commands):
-        subject(stacks="paperless\n", services="").states()
+        subject(stacks=stacks_out("paperless"), services=services_out()).states()
         assert argvs(commands) == [STACK_LS, SERVICE_LS]
+
+    def test_states_output_that_is_not_json_fails_rather_than_reading_as_empty(
+        self, subject, commands
+    ):
+        """An empty read would report every stack ABSENT — a false answer, not none."""
+        cluster = subject()
+        responds(commands, CommandResult(0, "not json at all\n"))
+        with pytest.raises(ClusterUnreachable) as exc:
+            cluster.states()
+        assert "docker stack ls" in str(exc.value)
+        assert "unreadable JSON" in str(exc.value)
 
     def test_states_an_unreachable_cluster_fails_naming_the_command_and_its_error(self, subject, commands):
         cluster = subject()

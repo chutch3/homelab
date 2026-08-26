@@ -64,8 +64,8 @@ def docker(*args: str, check: bool = True) -> subprocess.CompletedProcess[str]:
 
 def replicas() -> dict[str, str]:
     """What `docker service ls` reports, read without the code under test."""
-    rows = (line.partition("\t") for line in docker(*SERVICE_LS[1:]).stdout.splitlines())
-    return {name: column for name, _, column in rows if name}
+    rows = (json.loads(line) for line in docker(*SERVICE_LS[1:]).stdout.splitlines() if line.strip())
+    return {row["Name"]: row["Replicas"] for row in rows}
 
 
 def _await_settled() -> None:
