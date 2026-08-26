@@ -1,8 +1,9 @@
 """What the Swarm cluster currently holds, so a plan can say what will change.
 
 Two list commands answer it: `docker stack ls` names what exists, `docker
-service ls` gives each service its `running/desired` column. Nothing here
-writes — a plan that mutated the thing it is describing would be a lie.
+service ls` gives each service its `running/desired` column. Every read asks
+Docker for JSON, so nothing here parses formatted text. Nothing here writes —
+a plan that mutated the thing it is describing would be a lie.
 
 Converged means desired replicas *and* no update in flight; the reasoning for
 both halves is in docs/architecture/overview.md, "What converged means".
@@ -10,6 +11,7 @@ both halves is in docs/architecture/overview.md, "What converged means".
 
 from __future__ import annotations
 
+import json
 import re
 from collections import defaultdict
 from dataclasses import dataclass
@@ -17,10 +19,16 @@ from enum import Enum
 
 from ci.ports import CommandRunner
 
-STACK_LS = ["docker", "stack", "ls", "--format", "{{.Name}}"]
-SERVICE_LS = ["docker", "service", "ls", "--format", "{{.Name}}\t{{.Replicas}}"]
+JSON_LINES = "{{json .}}"
+STACK_LS = ["docker", "stack", "ls", "--format", JSON_LINES]
+SERVICE_LS = ["docker", "service", "ls", "--format", JSON_LINES]
 # `service ls` cannot report UpdateStatus, so every service is inspected at once.
-UPDATE_FORMAT = "{{.Spec.Name}}\t{{if .UpdateStatus}}{{.UpdateStatus.State}}{{else}}none{{end}}"
+# The template builds the object rather than `{{json .}}`, which would return the
+# entire spec of every service — ~900KB on this cluster — to read one field.
+UPDATE_FORMAT = (
+    '{"Name":{{json .Spec.Name}},'
+    '"Update":{{if .UpdateStatus}}{{json .UpdateStatus.State}}{{else}}"none"{{end}}}'
+)
 SERVICE_INSPECT = ["docker", "service", "inspect", "--format", UPDATE_FORMAT]
 
 # Still moving, or stopped needing a human. Anything else is settled.
@@ -88,7 +96,7 @@ class SwarmCluster:
         return self._states
 
     def _read(self) -> dict[str, StackState]:
-        deployed = self._lines(STACK_LS)
+        deployed = [stack["Name"] for stack in self._objects(STACK_LS)]
         owned: dict[str, list[Service]] = defaultdict(list)
         for service in self._services():
             if owner := _owner(service.name, deployed):
@@ -102,23 +110,28 @@ class SwarmCluster:
 
     def _services(self) -> list[Service]:
         """Every service the cluster holds, with the facts both rules need."""
-        replicas = self._rows(SERVICE_LS)
-        names = [name for name, _ in replicas]
+        listed = self._objects(SERVICE_LS)
+        names = [service["Name"] for service in listed]
         # `service inspect` with no arguments is an error, not an empty answer.
-        updates = dict(self._rows(SERVICE_INSPECT + names)) if names else {}
-        return [Service.from_row(n, column, updates.get(n, "none")) for n, column in replicas]
+        updates = (
+            {u["Name"]: u["Update"] for u in self._objects(SERVICE_INSPECT + names)}
+            if names
+            else {}
+        )
+        return [
+            Service.from_row(s["Name"], s["Replicas"], updates.get(s["Name"], "none"))
+            for s in listed
+        ]
 
-    def _rows(self, argv: list[str]) -> list[tuple[str, str]]:
-        """`name<TAB>value` pairs — the shape every read here asks Docker for."""
-        return [(name, value) for name, _, value in (
-            line.partition("\t") for line in self._lines(argv)
-        )]
-
-    def _lines(self, argv: list[str]) -> list[str]:
+    def _objects(self, argv: list[str]) -> list[dict[str, str]]:
+        """One JSON object per line, which is what every read here asks Docker for."""
         outcome = self._commands.run(argv, capture=True)
         if not outcome.ok:
             raise ClusterUnreachable(f"{' '.join(argv[:3])} failed: {outcome.stderr.strip()}")
-        return [line for line in outcome.stdout.splitlines() if line.strip()]
+        try:
+            return [json.loads(line) for line in outcome.stdout.splitlines() if line.strip()]
+        except json.JSONDecodeError as exc:
+            raise ClusterUnreachable(f"{' '.join(argv[:3])} returned unreadable JSON: {exc}")
 
 
 def _owner(service: str, stacks: list[str]) -> str | None:
