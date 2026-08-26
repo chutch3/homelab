@@ -2,6 +2,7 @@
 
 # The dns healthcheck command itself, against the real Technitium image: only
 # this proves the probe tells a live resolver from a dead one.
+# Opt-in: skips unless HOMELAB_STACK_IMAGE_E2E=1.
 
 load "${BATS_TEST_DIRNAME}/../../../tests/helpers/bats-support/load"
 load "${BATS_TEST_DIRNAME}/../../../tests/helpers/bats-assert/load"
@@ -14,8 +15,8 @@ CONTAINER="homelab-dns-healthcheck-test"
 export DOCKER_CONTEXT="${DOCKER_CONTEXT_OVERRIDE:-default}"
 
 setup_file() {
-    if [[ "${HOMELAB_DNS_IMAGE_E2E:-}" != "1" ]]; then
-        skip "set HOMELAB_DNS_IMAGE_E2E=1 to run against the real dns image"
+    if [[ "${HOMELAB_STACK_IMAGE_E2E:-}" != "1" ]]; then
+        skip "not an image test run — use: task test:stacks:e2e"
     fi
     local image
     image="$(grep -oP '(?<=image: )technitium/dns-server:\S+' "$COMPOSE")"
@@ -36,8 +37,8 @@ teardown_file() {
 }
 
 setup() {
-    if [[ "${HOMELAB_DNS_IMAGE_E2E:-}" != "1" ]]; then
-        skip "set HOMELAB_DNS_IMAGE_E2E=1 to run against the real dns image"
+    if [[ "${HOMELAB_STACK_IMAGE_E2E:-}" != "1" ]]; then
+        skip "not an image test run — use: task test:stacks:e2e"
     fi
 }
 

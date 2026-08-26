@@ -122,6 +122,37 @@ def test_check_stacks_still_fails_a_stack_the_ratchet_does_not_name(
     assert "newcomer" in caplog.text and "    legacy" not in caplog.text
 
 
+# ── the ratchet keeps itself honest ─────────────────────────────────────────
+
+def test_check_stacks_fails_a_ratchet_naming_a_stack_that_has_gained_a_healthcheck(
+    container, filesystem, caplog
+):
+    """A name left on the list after the fact hides the next regression."""
+    tree(filesystem, reformed=HEALTHY)
+    ratchet(filesystem, "reformed")
+    assert check(container) == 1
+    assert "reformed" in caplog.text
+
+
+def test_check_stacks_fails_a_ratchet_naming_a_stack_that_no_longer_exists(
+    container, filesystem, caplog
+):
+    tree(filesystem, newcomer=HEALTHY)
+    ratchet(filesystem, "deleted-stack")
+    assert check(container) == 1
+    assert "deleted-stack" in caplog.text
+
+
+def test_check_stacks_says_which_names_to_delete_from_the_ratchet(
+    container, filesystem, caplog
+):
+    tree(filesystem, reformed=HEALTHY)
+    ratchet(filesystem, "reformed", "deleted-stack")
+    assert check(container) == 1
+    assert RATCHET_FILE in caplog.text
+    assert "reformed" in caplog.text and "deleted-stack" in caplog.text
+
+
 # ── the ratchet file ─────────────────────────────────────────────────────────
 
 def test_parse_ratchet_reads_the_names_it_lists():
@@ -137,23 +168,3 @@ def test_parse_ratchet_treats_an_absent_or_empty_file_as_no_exemptions():
 def test_parse_ratchet_refuses_anything_that_is_not_a_list_of_names(text):
     with pytest.raises(ValueError, match="without_healthcheck"):
         parse_ratchet(text)
-
-
-# ── this repo ────────────────────────────────────────────────────────────────
-
-def test_the_real_tree_passes_every_invariant(repo_container):
-    assert check_stacks(
-        repo_container.stack_tree(), repo_container.graph(), repo_container.ratchet()
-    ) == 0
-
-
-def test_the_ratchet_names_no_stack_that_has_since_gained_a_healthcheck(repo_container):
-    """A name left on the list after the fact hides the next regression."""
-    stacks = repo_container.stack_tree().stacks()
-    stale = {n for n in repo_container.ratchet() if n in stacks and stacks[n].has_healthcheck}
-    assert stale == set(), f"remove from {RATCHET_FILE}: {sorted(stale)}"
-
-
-def test_the_ratchet_names_no_stack_that_no_longer_exists(repo_container):
-    gone = repo_container.ratchet() - set(repo_container.stack_tree().stacks())
-    assert gone == set(), f"remove from {RATCHET_FILE}: {sorted(gone)}"
