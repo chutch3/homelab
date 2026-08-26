@@ -118,6 +118,13 @@ repos:
             # and pre-commit never passes a deleted path to a `files:` hook.
             always_run: true
 
+          - id: stack-healthchecks
+            name: Infra stacks declare a healthcheck
+            entry: uv run ci check-health
+            language: system
+            pass_filenames: false
+            always_run: true
+
           - id: no-unconditional-changed-when
             name: No unconditional changed_when in Ansible tasks
             language: pygrep
@@ -129,4 +136,26 @@ repos:
                   ansible/collections/|
                   ansible/roles/preflight/tasks/main\.yml$|
                   ansible/tests/integration/test-preflight\.yml$
+                )
+
+          - id: no-fixed-duration-pause
+            name: No fixed-duration pause in Ansible tasks
+            language: pygrep
+            # `pause: prompt:` is an interactive gate, not a guessed duration.
+            entry: 'pause:\s*\n\s+(seconds|minutes):'
+            args: [--multiline]
+            # The exclusions are the ratchet: they only ever shrink.
+            files: ^ansible/.*\.ya?ml$
+            exclude: |
+                (?x)^(
+                  ansible/collections/|
+                  ansible/playbooks/cluster\.yml$|
+                  ansible/playbooks/cluster/init\.yml$|
+                  ansible/playbooks/cluster/join\.yml$|
+                  ansible/playbooks/cluster/sync\.yml$|
+                  ansible/playbooks/ops/repair-storage\.yml$|
+                  ansible/playbooks/ops/teardown-stack\.yml$|
+                  ansible/playbooks/teardown\.yml$|
+                  ansible/playbooks/volumes/cleanup\.yml$|
+                  ansible/roles/storage/tasks/iscsi-mount\.yml$
                 )

@@ -55,6 +55,18 @@ class Stack:
         return {p for p, pattern in INFERENCE if pattern.search(self.text)} - {self.name}
 
     @property
+    def infra(self) -> bool:
+        """Shared services, not apps: everything else waits on these."""
+        return self.path.parent.parent.name == "stacks"
+
+    @property
+    def healthchecked(self) -> bool:
+        """Whether any service says when it is ready, so convergence can mean it."""
+        document = yaml.safe_load(self.text) or {}
+        services = document.get("services") or {}
+        return any(isinstance(spec, dict) and "healthcheck" in spec for spec in services.values())
+
+    @property
     def undeclared(self) -> set[str]:
         """Dependencies its compose reveals but it does not declare."""
         return self.inferred - set(self.requires)
@@ -176,6 +188,18 @@ def check_dependencies(graph: DependencyGraph) -> int:
             log.error("    %s: %s", stack, ", ".join(sorted(requires)))
         return 1
     log.info("✓ %d stacks resolve, with every dependency they reveal declared", len(stacks))
+    return 0
+
+
+def check_healthchecks(graph: DependencyGraph) -> int:
+    """The verdict `ci check-health` prints: every infra stack says when it is ready."""
+    infra = {name: s for name, s in graph.stacks().items() if s.infra}
+    if bare := sorted(name for name, s in infra.items() if not s.healthchecked):
+        log.error("✗ infra stacks with no healthcheck — their convergence means nothing:")
+        for name in bare:
+            log.error("    %s", name)
+        return 1
+    log.info("✓ %d infra stacks declare a healthcheck", len(infra))
     return 0
 
 

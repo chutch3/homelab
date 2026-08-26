@@ -67,7 +67,7 @@ tasks:
             - echo "🧪 Running shell unit tests with coverage..."
             - mkdir -p coverage
             - rm -rf /tmp/bats-run-* 2>/dev/null || true
-            - kcov --bash-method=DEBUG --include-pattern=lib,stacks --exclude-pattern=/usr,/tmp,/var coverage/unit bats --jobs 1 stacks/apps/*/tests/*.bats tests/unit/lib/*.bats
+            - kcov --bash-method=DEBUG --include-pattern=lib,stacks --exclude-pattern=/usr,/tmp,/var coverage/unit bats --jobs 1 stacks/*/tests/*.bats stacks/apps/*/tests/*.bats tests/unit/lib/*.bats
             - echo "📊 Merging coverage reports..."
             - kcov --merge coverage/merged coverage/unit
             - echo "✅ Shell tests completed [Coverage report](coverage/merged/index.html)"
@@ -76,6 +76,11 @@ tasks:
         desc: Run the CI tooling tests (homelab_ci / tools/ci)
         cmds:
             - uv run pytest
+
+    test:dns:healthcheck:
+        desc: "Run the dns healthcheck probe against the real Technitium image (pulls it; needs Docker)"
+        cmds:
+            - HOMELAB_DNS_IMAGE_E2E=1 bats stacks/dns/tests/healthcheck.bats
 
     # Build images locally via buildx bake (reads compose build: sections).
     # IMAGE_TAG=latest: the compose image: tag is ${IMAGE_TAG:-<pinned version>}, so
@@ -96,7 +101,7 @@ tasks:
         desc: Run core tests with faster execution
         cmds:
             - echo "🧪 Running unit tests..."
-            - bats --tap stacks/apps/*/tests/*.bats tests/unit/lib/*.bats
+            - bats --tap stacks/*/tests/*.bats stacks/apps/*/tests/*.bats tests/unit/lib/*.bats
 
     test-local:
         desc: Run local-only tests (requires Docker)

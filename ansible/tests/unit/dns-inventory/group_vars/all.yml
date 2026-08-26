@@ -1,0 +1,9 @@
+---
+# Stub vars for the dns role. dns_primary_api_url is overridden per-play to
+# point at the stub server the test starts.
+ansible_become: false
+base_domain: "test.example.com"
+primary_dns_type: "technitium"
+primary_dns_host: "127.0.0.1"
+primary_dns_api_key: "test-key"
+secondary_dns_enabled: false
