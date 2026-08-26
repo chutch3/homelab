@@ -1,8 +1,10 @@
 """The invariants every stack in the tree must hold — the `ci check-stacks` verdict.
 
-Two rules today: the ``x-homelab`` declarations resolve and are complete, and
-every stack declares a healthcheck. They share a command because they share a
-question — is this tree deployable — and a tree read once answers both.
+Three rules today: the ``x-homelab`` declarations resolve and are complete,
+every stack declares a healthcheck, and the ratchet exempting the stacks that
+predate that rule names only stacks that still need exempting. They share a
+command because they share a question — is this tree deployable — and a tree
+read once answers all three.
 
 Convergence is what makes the second rule matter: the deploy waits for each
 stack to converge before starting the next, and Swarm calls a task ``running``
@@ -54,7 +56,12 @@ def check_stacks(
         log.error("✗ %s", exc)
         return 1
 
-    if _report_undeclared(graph) | _report_bare(stacks, without_healthcheck):
+    problems = (
+        _report_undeclared(graph)
+        | _report_bare(stacks, without_healthcheck)
+        | _report_stale_ratchet(stacks, without_healthcheck)
+    )
+    if problems:
         return 1
     log.info("✓ %d stacks resolve, declare what they need, and say when they are ready", len(stacks))
     return 0
@@ -75,5 +82,20 @@ def _report_bare(stacks: dict[str, Stack], exempt: frozenset[str]) -> bool:
         return False
     log.error("✗ stacks with no healthcheck — the deploy cannot tell when they are ready:")
     for name in bare:
+        log.error("    %s", name)
+    return True
+
+
+def _report_stale_ratchet(stacks: dict[str, Stack], exempt: frozenset[str]) -> bool:
+    """The ratchet only shrinks, so an entry that no longer earns its place fails.
+
+    Without this the list silently becomes a permanent exemption: a stack that
+    gained a healthcheck, or was deleted, would go on suppressing the rule.
+    """
+    stale = sorted(n for n in exempt if n not in stacks or stacks[n].has_healthcheck)
+    if not stale:
+        return False
+    log.error("✗ %s names stacks that no longer need exempting — delete them:", RATCHET_FILE)
+    for name in stale:
         log.error("    %s", name)
     return True
