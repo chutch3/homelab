@@ -1,8 +1,7 @@
 #!/usr/bin/env bats
 
-# The dns healthcheck command itself, against the real Technitium image.
-# A Swarm-level test proves health gates convergence; only this proves the
-# probe can tell a live resolver from a dead one. Gated on HOMELAB_DNS_IMAGE_E2E=1.
+# The dns healthcheck command itself, against the real Technitium image: only
+# this proves the probe tells a live resolver from a dead one.
 
 load "${BATS_TEST_DIRNAME}/../../../tests/helpers/bats-support/load"
 load "${BATS_TEST_DIRNAME}/../../../tests/helpers/bats-assert/load"
@@ -64,10 +63,8 @@ print(doc["services"]["dns-server"]["healthcheck"]["test"][1])
 }
 
 @test "the probe fails when nothing is listening" {
-    # Same command, aimed at a port no resolver is on. `dig +short` prints
-    # "communications error to 127.0.0.1#5399" on stdout, so a probe that
-    # greps unanchored for the address passes here — which is the bug this
-    # test exists to catch.
+    # An unanchored grep passes here: the error `dig +short` prints on stdout
+    # contains the address. That is the bug this test exists to catch.
     local live dead
     live="$(probe)"
     dead="${live/@127.0.0.1/-p 5399 @127.0.0.1}"
