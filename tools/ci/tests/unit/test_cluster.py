@@ -13,10 +13,20 @@ import pytest
 from conftest import argvs, responds
 
 from ci.adapters import CommandResult
-from ci.cluster import ClusterUnreachable, StackState, SwarmCluster, parse_replicas
+from ci.cluster import (
+    UPDATE_FORMAT,
+    ClusterUnreachable,
+    StackState,
+    SwarmCluster,
+    parse_replicas,
+)
 
 STACK_LS = ["docker", "stack", "ls", "--format", "{{.Name}}"]
 SERVICE_LS = ["docker", "service", "ls", "--format", "{{.Name}}\t{{.Replicas}}"]
+
+
+def inspect_of(*services: str) -> list[str]:
+    return ["docker", "service", "inspect", "--format", UPDATE_FORMAT, *services]
 
 
 def test_parse_replicas_reads_running_over_desired():
@@ -39,8 +49,13 @@ class TestSwarmCluster:
     def subject(self, container, commands):
         """The cluster under test, over what `stack ls` / `service ls` report."""
 
-        def _subject(stacks: str = "", services: str = "") -> SwarmCluster:
-            responds(commands, CommandResult(0, stacks), CommandResult(0, services))
+        def _subject(stacks: str = "", services: str = "", updates: str = "") -> SwarmCluster:
+            responds(
+                commands,
+                CommandResult(0, stacks),
+                CommandResult(0, services),
+                CommandResult(0, updates),
+            )
             return container.cluster()
 
         return _subject
@@ -79,15 +94,54 @@ class TestSwarmCluster:
         cluster = subject(stacks="paperless\n", services="orphan_svc\t0/1\n")
         assert cluster.state("paperless") is StackState.PRESENT
 
-    def test_states_only_ever_lists(self, subject, commands):
+    def test_states_only_ever_reads(self, subject, commands):
         subject(stacks="paperless\n", services="paperless_web\t1/1\n").states()
-        assert argvs(commands) == [STACK_LS, SERVICE_LS]
+        assert argvs(commands) == [STACK_LS, SERVICE_LS, inspect_of("paperless_web")]
 
     def test_state_reads_the_cluster_once_however_many_stacks_are_asked_about(self, subject, commands):
         cluster = subject(stacks="a\nb\n", services="a_x\t1/1\nb_y\t1/1\n")
         cluster.state("a")
         cluster.state("b")
         cluster.state("c")
+        assert argvs(commands) == [STACK_LS, SERVICE_LS, inspect_of("a_x", "b_y")]
+
+    def test_state_a_service_still_updating_is_not_converged_at_full_replicas(self, subject):
+        """The outgoing task still counts toward `Replicas` while the new one starts."""
+        cluster = subject(
+            stacks="dns\n",
+            services="dns_dns-server\t1/1\n",
+            updates="dns_dns-server\tupdating\n",
+        )
+        assert cluster.state("dns") is StackState.PRESENT
+
+    def test_state_a_finished_update_is_converged(self, subject):
+        cluster = subject(
+            stacks="dns\n",
+            services="dns_dns-server\t1/1\n",
+            updates="dns_dns-server\tcompleted\n",
+        )
+        assert cluster.state("dns") is StackState.CONVERGED
+
+    def test_state_a_service_never_updated_is_converged(self, subject):
+        cluster = subject(
+            stacks="dns\n",
+            services="dns_dns-server\t1/1\n",
+            updates="dns_dns-server\tnone\n",
+        )
+        assert cluster.state("dns") is StackState.CONVERGED
+
+    @pytest.mark.parametrize("state", ["updating", "rollback_started", "paused"])
+    def test_state_an_unfinished_update_holds_the_whole_stack_back(self, subject, state):
+        """One service mid-update is enough: its dependents must not proceed."""
+        cluster = subject(
+            stacks="paperless\n",
+            services="paperless_web\t1/1\npaperless_db\t1/1\n",
+            updates=f"paperless_web\tcompleted\npaperless_db\t{state}\n",
+        )
+        assert cluster.state("paperless") is StackState.PRESENT
+
+    def test_states_asks_nothing_of_a_cluster_with_no_services(self, subject, commands):
+        subject(stacks="paperless\n", services="").states()
         assert argvs(commands) == [STACK_LS, SERVICE_LS]
 
     def test_states_an_unreachable_cluster_fails_naming_the_command_and_its_error(self, subject, commands):

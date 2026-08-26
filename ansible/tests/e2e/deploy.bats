@@ -135,6 +135,24 @@ spec_of() {
     (( ${waited%.*} >= 15 ))
 }
 
+# The replica column counts the outgoing task too, so a stack under update
+# reads as 1/1 against the tasks it is replacing. Convergence must wait for the
+# update to finish, not just for the count to look right.
+@test "a redeploy is not converged until the new task is healthy, not the old one" {
+    deploy health-gated probe-slow
+    assert_success
+
+    # Same stack, changed spec: this is an update, not a first deploy.
+    deploy health-gated-v2 probe-slow
+    assert_success
+    assert_output --partial "TASK [Deploy probe-slow]"
+
+    local waited
+    waited="$(task_seconds "Ask ci whether the stack has converged — probe-slow")"
+    [[ -n "$waited" ]]
+    (( ${waited%.*} >= 15 ))
+}
+
 @test "a stack that never converges fails naming it" {
     deploy stuck probe-stuck -e converge_retries=2 -e converge_delay=2
     assert_failure
