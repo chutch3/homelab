@@ -38,7 +38,7 @@ from ci.deploy import DeployPlanner
 from ci.gc import RegistryGc
 from ci.idempotence import IdempotenceCheck
 from ci.stackcheck import check_stacks
-from ci.stackgraph import DependencyGraph
+from ci.stackgraph import DependencyGraph, StackTree
 
 
 @inject
@@ -110,9 +110,11 @@ def _cmd_plan(
 @inject
 def _cmd_check_stacks(
     args: argparse.Namespace,
+    tree: StackTree = Provide[Container.stack_tree],
     graph: DependencyGraph = Provide[Container.graph],
+    ratchet: frozenset[str] = Provide[Container.ratchet],
 ) -> int:
-    return check_stacks(graph)
+    return check_stacks(tree, graph, ratchet)
 
 
 def build_parser() -> argparse.ArgumentParser:
