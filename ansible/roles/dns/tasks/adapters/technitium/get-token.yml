@@ -12,9 +12,8 @@
     return_content: yes
   register: dns_auth_response
   delegate_to: localhost
-  # From cold, the web service is still binding — and every caller needs this,
-  # not only the run that brought the dns stack up. A rejected password answers
-  # 200 with a body, so it falls straight through to the failure below.
+  # A rejected password answers 200 with a body, so only a request that got no
+  # answer at all — a server still binding — is retried.
   until: dns_auth_response.json is defined
   retries: "{{ dns_api_retries | default(12) | int }}"
   delay: "{{ dns_api_delay | default(5) | int }}"

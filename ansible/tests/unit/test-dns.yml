@@ -1,11 +1,8 @@
 # ansible/tests/unit/test-dns.yml
-# Unit tests for the dns role's API tasks — no cluster, no Technitium.
-# Each play starts a stub server (fixtures/technitium-stub.py) and asserts on
-# both the outcome and how many requests it took to get there.
+# Unit tests for the dns role's API tasks, against fixtures/technitium-stub.py.
 # Run with: task ansible:test:dns:unit
 ---
 
-# ── Test 1: a rejected password is not retried ───────────────────────────────
 - name: "TEST 1: A rejected password fails without retrying"
   hosts: managers
   gather_facts: false
@@ -70,7 +67,6 @@
           failed_when: false
           delegate_to: localhost
 
-# ── Test 2: a server still binding is retried until it answers ───────────────
 - name: "TEST 2: A server that is not up yet is retried, then succeeds"
   hosts: managers
   gather_facts: false
@@ -128,7 +124,6 @@
           failed_when: false
           delegate_to: localhost
 
-# ── Test 3: the cache flush is idempotent and reports no work ────────────────
 - name: "TEST 3: Flushing the cache twice reports no change either time"
   hosts: managers
   gather_facts: false

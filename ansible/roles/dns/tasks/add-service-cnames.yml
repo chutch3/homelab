@@ -69,7 +69,6 @@
 # =========================================================================
 # VERIFICATION: dig-based check (type-agnostic)
 # =========================================================================
-# Never raises: a domain that stays unresolved is reported below.
 - name: "[VERIFY] Query DNS until each record resolves"
   ansible.builtin.command: "dig +short {{ item }} @{{ dns_primary_api_url | urlsplit('hostname') }}"
   loop: "{{ dns_discovered_domains }}"

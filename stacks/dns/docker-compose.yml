@@ -64,9 +64,8 @@ services:
         volumes:
             - dns-config:/etc/dns
             - dns-logs:/etc/dns/logs
-        # `localhost` comes from the built-in zone: no recursion, no auth.
-        # -x is required — `+short` prints "communications error to 127.0.0.1"
-        # on stdout when the server is down, which an unanchored grep matches.
+        # `localhost` comes from the built-in zone: no recursion, no auth. -x is
+        # required: `+short` prints "communications error to 127.0.0.1" on stdout.
         healthcheck:
             test: ["CMD-SHELL", "dig +short +time=2 +tries=1 @127.0.0.1 localhost A 2>/dev/null | grep -qx 127.0.0.1"]
             interval: 10s

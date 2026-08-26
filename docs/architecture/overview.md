@@ -52,6 +52,32 @@ When you run `task deploy:full`:
 5.  **Applications**: Deploys all application services in parallel.
 6.  **SSL/DNS**: Traefik automatically gets SSL certificates from Let's Encrypt and Technitium registers service domains.
 
+### What "converged" means
+
+Each stack must converge before the next one starts, so a dependency that never
+comes up fails the run instead of its dependents deploying against it. A stack is
+converged when every one of its services is at its desired replica count *and* has
+no update still in flight.
+
+Both halves are load-bearing:
+
+- **Replicas alone are not readiness.** Swarm promotes a task to `running` as soon
+  as its process starts, unless the service declares a `healthcheck` — then the
+  task is held in `starting` until the check passes. So convergence is only as
+  meaningful as the healthcheck behind it. This is why `ci check-health` requires
+  every infra stack (`stacks/*`, not `stacks/apps/*`) to declare one: without it,
+  "converged" means "launched", and callers compensate with hardcoded sleeps.
+
+- **Replicas alone are not currency.** During a rolling update the outgoing task is
+  still `running` and still counts toward the replica column, so a service reads
+  `1/1` against the tasks it is being replaced by. `ci plan` therefore also reads
+  `UpdateStatus`, treating `updating`, `paused`, and `rollback_started` as not yet
+  converged.
+
+`ci plan` reports this state per stack and deploys nothing; the deploy playbook
+asks it the same question when waiting, so there is one answer to "is this stack
+up?" rather than a second one parsed elsewhere.
+
 ---
 
 ## Key Components

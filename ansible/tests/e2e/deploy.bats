@@ -50,7 +50,6 @@ line_of() {
     printf '%s\n' "$output" | grep -n -- "$1" | head -1 | cut -d: -f1
 }
 
-# Seconds the named task took, from the profile_tasks summary.
 task_seconds() {
     printf '%s\n' "$output" | grep -F -- "$1" | grep -oE '[0-9]+\.[0-9]+s$' | tail -1 | tr -d 's'
 }
@@ -102,15 +101,12 @@ spec_of() {
     assert_output --partial "changed=0"
 }
 
-# Swarm holds a task in `starting` until its healthcheck passes, so a stack
-# that declares one converges only when it is actually serving. This is what
-# the dns stack relies on, and what a fixed-duration pause used to stand in for.
+# See docs/architecture/overview.md — "What converged means".
 @test "a running task whose healthcheck fails is never converged" {
     deploy unhealthy probe-unhealthy -e converge_retries=4 -e converge_delay=2
     assert_failure
     assert_output --partial "probe-unhealthy did not converge"
 
-    # The distinction that matters: the service exists and its container runs.
     run docker service ls --filter name=probe-unhealthy --format '{{.Replicas}}'
     assert_output --partial "0/1"
 }
@@ -126,18 +122,16 @@ spec_of() {
     [[ -n "$slow_converged" && -n "$dependent_deployed" ]]
     (( slow_converged < dependent_deployed ))
 
-    # probe-slow reports unhealthy for its first 15s. Time the convergence
-    # probe itself, not the run: Ansible's own setup takes longer than 15s, so
-    # wall-clock here would pass even with the healthcheck removed.
+    # Time the probe, not the run: Ansible's own setup exceeds 15s, so
+    # wall-clock would pass even with the healthcheck removed.
     local waited
     waited="$(task_seconds "Ask ci whether the stack has converged — probe-slow")"
     [[ -n "$waited" ]]
     (( ${waited%.*} >= 15 ))
 }
 
-# The replica column counts the outgoing task too, so a stack under update
-# reads as 1/1 against the tasks it is replacing. Convergence must wait for the
-# update to finish, not just for the count to look right.
+# The replica column counts the outgoing task too — see
+# docs/architecture/overview.md, "What converged means".
 @test "a redeploy is not converged until the new task is healthy, not the old one" {
     deploy health-gated probe-slow
     assert_success

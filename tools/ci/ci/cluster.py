@@ -4,12 +4,8 @@ Two list commands answer it: `docker stack ls` names what exists, `docker
 service ls` gives each service its `running/desired` column. Nothing here
 writes — a plan that mutated the thing it is describing would be a lie.
 
-There is deliberately no readiness state. Swarm promotes a task to `running`
-only once its healthcheck passes, so convergence *is* health — but only once
-the update that started the task has finished. Mid-update the outgoing task is
-still `running` and still counts toward `Replicas`, so the replica column alone
-reports a stack converged against the tasks it is replacing. `UpdateStatus` is
-read for exactly that.
+Converged means desired replicas *and* no update in flight; the reasoning for
+both halves is in docs/architecture/overview.md, "What converged means".
 """
 
 from __future__ import annotations
@@ -22,13 +18,11 @@ from ci.ports import CommandRunner
 
 STACK_LS = ["docker", "stack", "ls", "--format", "{{.Name}}"]
 SERVICE_LS = ["docker", "service", "ls", "--format", "{{.Name}}\t{{.Replicas}}"]
-# `service ls` cannot report UpdateStatus, so it is inspected — once, for every
-# service at a time, rather than per stack.
+# `service ls` cannot report UpdateStatus, so every service is inspected at once.
 UPDATE_FORMAT = "{{.Spec.Name}}\t{{if .UpdateStatus}}{{.UpdateStatus.State}}{{else}}none{{end}}"
 SERVICE_INSPECT = ["docker", "service", "inspect", "--format", UPDATE_FORMAT]
 
-# An update that is still moving, or stopped needing a human. Anything else —
-# `completed`, `rollback_completed`, or no update at all — is settled.
+# Still moving, or stopped needing a human. Anything else is settled.
 UNSETTLED = frozenset({"updating", "paused", "rollback_started"})
 
 # Swarm's replicas column: `1/1`, or `1/1 (max 1 per node)` under a placement limit.

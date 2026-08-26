@@ -1,5 +1,4 @@
-# probe-slow again, with one env var changed so redeploying it is a real Swarm
-# update rather than a no-op. Same 15s unready window as the first version.
+# probe-slow with one env var changed, so redeploying it is a real Swarm update.
 services:
     slow:
         image: alpine:3

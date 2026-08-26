@@ -1,9 +1,7 @@
 #!/usr/bin/env python3
 """A stand-in for the Technitium DNS API, so the dns role can be tested without one.
 
-Serves only what the role calls, and records every request to --count-file so a
-test can assert how many times a task tried — which is how "a rejected password
-is not retried" is distinguishable from "it is".
+Requests are counted to --count-file so a test can assert how many times a task tried.
 """
 
 from __future__ import annotations
