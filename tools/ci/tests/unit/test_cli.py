@@ -18,6 +18,8 @@ from ci.cli import build_container, build_parser
 
 TRAEFIK = 'services:\n    a:\n        deploy:\n            labels: ["traefik.enable=true"]\n'
 DECLARED = "x-homelab:\n    requires: [reverse-proxy]\n" + TRAEFIK
+HEALTHCHECK = '        healthcheck:\n            test: ["CMD", "true"]\n'
+HEALTHY = 'services:\n    a:\n' + HEALTHCHECK
 BUILDABLE = (
     "services:\n  warden:\n    image: ghcr.io/ns/warden:1.0.0\n"
     "    build: { context: ., dockerfile: Dockerfile }\n"
@@ -47,8 +49,7 @@ SUBCOMMANDS = [
     ["test"],
     ["idempotence", "play.yml"],
     ["plan"],
-    ["check-deps"],
-    ["check-health"],
+    ["check-stacks"],
 ]
 
 
@@ -131,45 +132,28 @@ class TestPlanCommand:
         assert capsys.readouterr().out == ""
 
 
-class TestCheckDepsCommand:
-    """`ci check-deps` — the pre-commit hook's entry point.
+class TestCheckStacksCommand:
+    """`ci check-stacks` — the pre-commit hook's entry point.
 
-    The verdicts themselves are `test_stackgraph.py::TestDependencyCheck`; these
-    assert that argv reaches it and both exit codes come back.
+    The verdicts are `test_stackcheck.py`; these assert that argv reaches it and
+    both exit codes come back.
     """
 
-    def test_check_deps_exits_zero_for_a_clean_tree(self, run, filesystem):
+    def test_check_stacks_exits_zero_for_a_clean_tree(self, run, filesystem):
         filesystem.files.update({
-            "stacks/apps/paperless/docker-compose.yml": DECLARED,
-            "stacks/reverse-proxy/docker-compose.yml": "services: {}\n",
+            "stacks/apps/paperless/docker-compose.yml": DECLARED + HEALTHCHECK,
+            "stacks/reverse-proxy/docker-compose.yml": HEALTHY,
         })
-        assert run("check-deps") == 0
+        assert run("check-stacks") == 0
 
-    def test_check_deps_exits_one_for_a_tree_that_does_not_check_out(self, run, filesystem, caplog):
+    def test_check_stacks_exits_one_for_a_tree_that_does_not_check_out(
+        self, run, filesystem, caplog
+    ):
         filesystem.files["stacks/apps/gamarr/docker-compose.yml"] = (
             "x-homelab:\n    requires: [romm]\nservices: {}\n"
         )
-        assert run("check-deps") == 1
+        assert run("check-stacks") == 1
         assert "gamarr requires romm" in caplog.text
-
-
-class TestCheckHealthCommand:
-    """`ci check-health` — the pre-commit hook's entry point.
-
-    The verdicts are `test_stackgraph.py::TestHealthchecks`; these assert that
-    argv reaches it and both exit codes come back.
-    """
-
-    def test_check_health_exits_zero_when_every_infra_stack_declares_one(self, run, filesystem):
-        filesystem.files["stacks/dns/docker-compose.yml"] = (
-            'services:\n    a:\n        healthcheck:\n            test: ["CMD", "true"]\n'
-        )
-        assert run("check-health") == 0
-
-    def test_check_health_exits_one_naming_the_stack_that_does_not(self, run, filesystem, caplog):
-        filesystem.files["stacks/dns/docker-compose.yml"] = "services:\n    a:\n        image: alpine\n"
-        assert run("check-health") == 1
-        assert "dns" in caplog.text
 
 
 class TestAffectedCommand:

@@ -64,9 +64,10 @@ Both halves are load-bearing:
 - **Replicas alone are not readiness.** Swarm promotes a task to `running` as soon
   as its process starts, unless the service declares a `healthcheck` — then the
   task is held in `starting` until the check passes. So convergence is only as
-  meaningful as the healthcheck behind it. This is why `ci check-health` requires
-  every infra stack (`stacks/*`, not `stacks/apps/*`) to declare one: without it,
-  "converged" means "launched", and callers compensate with hardcoded sleeps.
+  meaningful as the healthcheck behind it. This is why `ci check-stacks` requires
+  every stack to declare one: without it, "converged" means "launched", and
+  callers compensate with hardcoded sleeps. Stacks predating the rule are listed
+  in `WITHOUT_HEALTHCHECK`, which only ever shrinks.
 
 - **Replicas alone are not currency.** During a rolling update the outgoing task is
   still `running` and still counts toward the replica column, so a service reads
