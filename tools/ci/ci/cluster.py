@@ -60,6 +60,16 @@ class Service:
     update: str = "none"
 
     @classmethod
+    def from_listing(cls, listed: dict[str, str], updates: dict[str, str]) -> "Service":
+        """One `docker service ls` object. Docker's key names stop here.
+
+        A service missing from `updates` was deleted between the two reads, which
+        is indistinguishable from one that has never updated — neither is in flight.
+        """
+        name = listed["Name"]
+        return cls.from_row(name, listed["Replicas"], updates.get(name, "none"))
+
+    @classmethod
     def from_row(cls, name: str, replicas: str, update: str = "none") -> "Service":
         """A `service ls` row. An unreadable replicas column counts as no evidence."""
         if match := REPLICAS.match(replicas):
@@ -111,17 +121,14 @@ class SwarmCluster:
     def _services(self) -> list[Service]:
         """Every service the cluster holds, with the facts both rules need."""
         listed = self._objects(SERVICE_LS)
-        names = [service["Name"] for service in listed]
-        # `service inspect` with no arguments is an error, not an empty answer.
-        updates = (
-            {u["Name"]: u["Update"] for u in self._objects(SERVICE_INSPECT + names)}
-            if names
-            else {}
-        )
-        return [
-            Service.from_row(s["Name"], s["Replicas"], updates.get(s["Name"], "none"))
-            for s in listed
-        ]
+        updates = self._update_states([service["Name"] for service in listed])
+        return [Service.from_listing(service, updates) for service in listed]
+
+    def _update_states(self, names: list[str]) -> dict[str, str]:
+        """Service name -> update state. `inspect` with no arguments is an error."""
+        if not names:
+            return {}
+        return {u["Name"]: u["Update"] for u in self._objects(SERVICE_INSPECT + names)}
 
     def _objects(self, argv: list[str]) -> list[dict[str, str]]:
         """One JSON object per line, which is what every read here asks Docker for."""

@@ -83,6 +83,21 @@ def test_service_at_desired_replicas_with_a_finished_update_is_converged(update)
     assert Service.from_row("a_b", "1/1", update).converged
 
 
+def test_service_from_listing_takes_docker_key_names_and_joins_its_update():
+    service = Service.from_listing(
+        {"Name": "dns_dns-server", "Replicas": "1/1"}, {"dns_dns-server": "updating"}
+    )
+    assert (service.name, service.running, service.update) == ("dns_dns-server", 1, "updating")
+    assert not service.converged
+
+
+def test_service_from_listing_treats_a_service_inspect_never_saw_as_never_updated():
+    """It was deleted between the two reads — either way, no update is in flight."""
+    service = Service.from_listing({"Name": "gone", "Replicas": "1/1"}, {})
+    assert service.update == "none"
+    assert service.converged
+
+
 def test_service_defaults_to_no_update_when_none_is_reported():
     assert Service.from_row("a_b", "1/1").update == "none"
 
