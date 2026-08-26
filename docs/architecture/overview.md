@@ -67,7 +67,7 @@ Both halves are load-bearing:
   meaningful as the healthcheck behind it. This is why `ci check-stacks` requires
   every stack to declare one: without it, "converged" means "launched", and
   callers compensate with hardcoded sleeps. Stacks predating the rule are listed
-  in `WITHOUT_HEALTHCHECK`, which only ever shrinks.
+  in `.stack-checks.yml`, which only ever shrinks.
 
 - **Replicas alone are not currency.** During a rolling update the outgoing task is
   still `running` and still counts toward the replica column, so a service reads

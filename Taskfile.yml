@@ -77,6 +77,9 @@ tasks:
         cmds:
             - uv run pytest
 
+    # HOMELAB_DNS_IMAGE_E2E gates the suite, the way HOMELAB_ANSIBLE_E2E gates the
+    # deploy e2e: `task test:shell` collects the file but skips it, because running
+    # it pulls the ~100MB Technitium image and needs a local Docker daemon.
     test:dns:healthcheck:
         desc: "Run the dns healthcheck probe against the real Technitium image (pulls it; needs Docker)"
         cmds:

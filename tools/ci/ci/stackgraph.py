@@ -54,8 +54,8 @@ class Stack:
         return {p for p, pattern in INFERENCE if pattern.search(self.text)} - {self.name}
 
     @property
-    def healthchecked(self) -> bool:
-        """Whether any service says when it is ready, so convergence can mean it."""
+    def has_healthcheck(self) -> bool:
+        """Whether *any* service declares one — enough for convergence to mean something."""
         document = yaml.safe_load(self.text) or {}
         services = document.get("services") or {}
         return any(isinstance(spec, dict) and "healthcheck" in spec for spec in services.values())

@@ -25,6 +25,7 @@ from ci.cluster import SwarmCluster
 from ci.deploy import DeployPlanner
 from ci.gc import RegistryGc
 from ci.idempotence import IdempotenceCheck
+from ci.stackcheck import load_ratchet
 from ci.stackgraph import DependencyGraph, StackTree
 
 
@@ -55,7 +56,10 @@ class Container(containers.DeclarativeContainer):
     )
     idempotence = providers.Factory(IdempotenceCheck, commands=commands)
 
-    stack_tree = providers.Factory(StackTree, filesystem=filesystem, repo_root=repo_root)
+    # Singleton, not Factory: StackTree promises each compose file is parsed
+    # once, which a second instance would quietly break.
+    stack_tree = providers.Singleton(StackTree, filesystem=filesystem, repo_root=repo_root)
     graph = providers.Factory(DependencyGraph, tree=stack_tree, env=env)
+    ratchet = providers.Factory(load_ratchet, filesystem=filesystem, repo_root=repo_root)
     cluster = providers.Singleton(SwarmCluster, commands=commands)
     planner = providers.Factory(DeployPlanner, graph=graph, cluster=cluster)

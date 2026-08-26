@@ -8,47 +8,59 @@ Convergence is what makes the second rule matter: the deploy waits for each
 stack to converge before starting the next, and Swarm calls a task ``running``
 the moment its process starts unless a healthcheck says otherwise. See
 docs/architecture/overview.md, "What converged means".
+
+:func:`parse_ratchet` is pure — the composition root does the file read.
 """
 
 from __future__ import annotations
 
 import logging
+from pathlib import Path
 
-from ci.stackgraph import DependencyGraph, UnresolvedGraph
+import yaml
+
+from ci.ports import FileSystem
+from ci.stackgraph import DependencyGraph, Stack, StackTree, UnresolvedGraph
 
 log = logging.getLogger(__name__)
 
-# The ratchet: stacks that predate the healthcheck rule. It only ever shrinks —
-# a new stack must declare one, and a name here that has since gained one is a
-# test failure, so the list cannot rot into a permanent exemption.
-WITHOUT_HEALTHCHECK = frozenset({
-    "actual_server", "archivebox", "beholder", "cert-sync-nas", "cicd",
-    "claudecodeui", "code-server", "downloads", "drawio", "emby", "fiber",
-    "flaresolverr", "freshrss", "gamarr", "github-runner", "homepage", "kiwix",
-    "kolibri", "komga", "kopia", "librechat", "llama-cpp", "mealie", "mlflow",
-    "node-red", "open-webui", "profilarr", "prowlarr", "radarr", "rstudio",
-    "searxng", "sonarr", "takeout-manager", "uptime-kuma", "vaultwarden",
-    "warden", "whisparr",
-})
+# Where the baseline lives: data, beside the `exclude:` ratchets in
+# .pre-commit-config.yaml that it mirrors, rather than a literal in this module.
+RATCHET_FILE = ".stack-checks.yml"
 
 
-def check_stacks(graph: DependencyGraph) -> int:
+def parse_ratchet(text: str) -> frozenset[str]:
+    """The stacks exempt from the healthcheck rule. Absent or empty means none."""
+    document = yaml.safe_load(text) or {}
+    names = document.get("without_healthcheck") or []
+    if not isinstance(names, list) or any(not isinstance(n, str) for n in names):
+        raise ValueError(f"{RATCHET_FILE}: without_healthcheck must be a list of stack names")
+    return frozenset(names)
+
+
+def load_ratchet(filesystem: FileSystem, repo_root: str | Path = ".") -> frozenset[str]:
+    path = Path(repo_root) / RATCHET_FILE
+    return parse_ratchet(filesystem.read_text(path) if filesystem.exists(path) else "")
+
+
+def check_stacks(
+    tree: StackTree, graph: DependencyGraph, without_healthcheck: frozenset[str]
+) -> int:
     """Every invariant, over one read of the tree. Non-zero names what failed."""
     try:
-        stacks = graph.stacks()
+        stacks = tree.stacks()
         graph.resolve()
     except UnresolvedGraph as exc:
         log.error("✗ %s", exc)
         return 1
 
-    failed = _check_declarations(graph) | _check_healthchecks(graph)
-    if failed:
+    if _report_undeclared(graph) | _report_bare(stacks, without_healthcheck):
         return 1
     log.info("✓ %d stacks resolve, declare what they need, and say when they are ready", len(stacks))
     return 0
 
 
-def _check_declarations(graph: DependencyGraph) -> bool:
+def _report_undeclared(graph: DependencyGraph) -> bool:
     if not (missing := graph.undeclared()):
         return False
     log.error("✗ dependencies visible in the compose file but not declared in x-homelab.requires:")
@@ -57,12 +69,8 @@ def _check_declarations(graph: DependencyGraph) -> bool:
     return True
 
 
-def _check_healthchecks(graph: DependencyGraph) -> bool:
-    bare = sorted(
-        name
-        for name, stack in graph.stacks().items()
-        if not stack.healthchecked and name not in WITHOUT_HEALTHCHECK
-    )
+def _report_bare(stacks: dict[str, Stack], exempt: frozenset[str]) -> bool:
+    bare = sorted(n for n, s in stacks.items() if not s.has_healthcheck and n not in exempt)
     if not bare:
         return False
     log.error("✗ stacks with no healthcheck — the deploy cannot tell when they are ready:")
