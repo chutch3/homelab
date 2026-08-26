@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import re
 from collections import defaultdict
+from dataclasses import dataclass
 from enum import Enum
 
 from ci.ports import CommandRunner
@@ -39,11 +40,36 @@ class StackState(Enum):
     CONVERGED = "converged"
 
 
-def parse_replicas(column: str) -> tuple[int, int]:
-    """Running and desired replicas. Anything unreadable is never converged."""
-    if match := REPLICAS.match(column):
-        return int(match.group(1)), int(match.group(2))
-    return -1, 0
+@dataclass(frozen=True)
+class Service:
+    """One service as the cluster reports it, and what that means for a deploy."""
+
+    name: str
+    # None when the replicas column could not be read: not zero, not equal —
+    # simply unknown, which no rule may treat as evidence of anything.
+    running: int | None
+    desired: int | None
+    update: str = "none"
+
+    @classmethod
+    def from_row(cls, name: str, replicas: str, update: str = "none") -> "Service":
+        """A `service ls` row. An unreadable replicas column counts as no evidence."""
+        if match := REPLICAS.match(replicas):
+            return cls(name, int(match.group(1)), int(match.group(2)), update)
+        return cls(name, running=None, desired=None, update=update)
+
+    @property
+    def at_desired_replicas(self) -> bool:
+        return self.running is not None and self.running == self.desired
+
+    @property
+    def settled(self) -> bool:
+        """No update still in flight, so the running tasks are the current ones."""
+        return self.update not in UNSETTLED
+
+    @property
+    def converged(self) -> bool:
+        return self.at_desired_replicas and self.settled
 
 
 class SwarmCluster:
@@ -63,22 +89,22 @@ class SwarmCluster:
 
     def _read(self) -> dict[str, StackState]:
         deployed = self._lines(STACK_LS)
-        services = [line.partition("\t") for line in self._lines(SERVICE_LS)]
-        updates = self._updates([name for name, _, _ in services])
-        replicas: dict[str, list[tuple[int, int]]] = defaultdict(list)
-        settled: dict[str, bool] = defaultdict(lambda: True)
-        for name, _, column in services:
-            if owner := _owner(name, deployed):
-                replicas[owner].append(parse_replicas(column))
-                settled[owner] &= updates.get(name, "none") not in UNSETTLED
+        owned: dict[str, list[Service]] = defaultdict(list)
+        for service in self._services():
+            if owner := _owner(service.name, deployed):
+                owned[owner].append(service)
         return {
             stack: StackState.CONVERGED
-            if replicas[stack]
-            and all(run == want for run, want in replicas[stack])
-            and settled[stack]
+            if owned[stack] and all(service.converged for service in owned[stack])
             else StackState.PRESENT
             for stack in deployed
         }
+
+    def _services(self) -> list[Service]:
+        """Every service the cluster holds, with the facts both rules need."""
+        rows = [line.partition("\t") for line in self._lines(SERVICE_LS)]
+        updates = self._updates([name for name, _, _ in rows])
+        return [Service.from_row(name, column, updates.get(name, "none")) for name, _, column in rows]
 
     def _updates(self, services: list[str]) -> dict[str, str]:
         """Service name -> its update state, or `none` where it has never updated."""

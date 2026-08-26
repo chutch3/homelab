@@ -16,9 +16,9 @@ from ci.adapters import CommandResult
 from ci.cluster import (
     UPDATE_FORMAT,
     ClusterUnreachable,
+    Service,
     StackState,
     SwarmCluster,
-    parse_replicas,
 )
 
 STACK_LS = ["docker", "stack", "ls", "--format", "{{.Name}}"]
@@ -29,17 +29,43 @@ def inspect_of(*services: str) -> list[str]:
     return ["docker", "service", "inspect", "--format", UPDATE_FORMAT, *services]
 
 
-def test_parse_replicas_reads_running_over_desired():
-    assert parse_replicas("2/3") == (2, 3)
+# ── Service: one row of `service ls`, and the rules that read it ────────────
+
+def test_service_reads_running_over_desired_from_the_replicas_column():
+    service = Service.from_row("dns_dns-server", "2/3")
+    assert (service.running, service.desired) == (2, 3)
 
 
-def test_parse_replicas_ignores_the_placement_suffix_swarm_appends():
-    assert parse_replicas("1/1 (max 1 per node)") == (1, 1)
+def test_service_ignores_the_placement_suffix_swarm_appends():
+    assert Service.from_row("a_b", "1/1 (max 1 per node)").at_desired_replicas
 
 
-def test_parse_replicas_never_reports_an_unreadable_column_as_converged():
-    running, desired = parse_replicas("?")
-    assert running != desired
+def test_service_never_reports_an_unreadable_replicas_column_as_converged():
+    """`?` is not a count, so it cannot be evidence that anything is running."""
+    assert not Service.from_row("a_b", "?").at_desired_replicas
+    assert not Service.from_row("a_b", "?").converged
+
+
+def test_service_short_of_its_desired_replicas_is_not_converged():
+    assert not Service.from_row("a_b", "0/1").converged
+
+
+@pytest.mark.parametrize("update", ["updating", "paused", "rollback_started"])
+def test_service_under_an_unfinished_update_is_not_settled(update):
+    """The outgoing task still counts toward `Replicas` while the new one starts."""
+    service = Service.from_row("a_b", "1/1", update)
+    assert service.at_desired_replicas
+    assert not service.settled
+    assert not service.converged
+
+
+@pytest.mark.parametrize("update", ["none", "completed", "rollback_completed"])
+def test_service_at_desired_replicas_with_a_finished_update_is_converged(update):
+    assert Service.from_row("a_b", "1/1", update).converged
+
+
+def test_service_defaults_to_no_update_when_none_is_reported():
+    assert Service.from_row("a_b", "1/1").update == "none"
 
 
 class TestSwarmCluster:
