@@ -24,7 +24,7 @@ from pathlib import Path
 
 import pytest
 
-from ci.cluster import SERVICE_LS
+from ci.docker import SERVICE_LS
 
 OK = "ci-plan-ok"  # deployed, converges
 PROBE = "ci-plan-probe"  # deployed, one service can never schedule
