@@ -3,7 +3,7 @@
 `ci plan` exists to show what a deploy *would change*, not to list the whole
 tree. That takes two things this module joins — the order the declarations
 imply (:mod:`ci.stackgraph`) and what the cluster already holds
-(:mod:`ci.cluster`).
+(:mod:`ci.docker`, read as state by :mod:`ci.stackstate`).
 
 Nothing here deploys. It decides, and `ansible/playbooks/deploy/stacks.yml`
 loops over the answer it prints with ``--json``. Only a stack you named is
@@ -18,8 +18,9 @@ import logging
 from dataclasses import dataclass
 from enum import Enum
 
-from ci.cluster import ClusterUnreachable, StackState, SwarmCluster
+from ci.docker import ClusterUnreachable, Docker
 from ci.stackgraph import DependencyGraph, UnresolvedGraph
+from ci.stackstate import StackState, stack_states
 
 log = logging.getLogger(__name__)
 
@@ -61,12 +62,13 @@ class PlanRow:
 
 
 class DeployPlanner:
-    def __init__(self, graph: DependencyGraph, cluster: SwarmCluster) -> None:
+    def __init__(self, graph: DependencyGraph, docker: Docker) -> None:
         self._graph = graph
-        self._cluster = cluster
+        self._docker = docker
 
     def rows(self, targets: list[str] | None = None) -> list[PlanRow]:
         order = self._graph.resolve(targets)
+        states = stack_states(self._docker.services())
         # A full plan has no target to attribute anything to: nothing in it was
         # named, so nothing in it is redeployed for having been asked for.
         pulled_in = self._graph.required_by(targets) if targets else {}
@@ -81,7 +83,8 @@ class DeployPlanner:
             else:
                 origin = Origin.DEPENDENCY
                 requiring = tuple(pulled_in.get(stack, []))
-            rows.append(PlanRow(stack, self._cluster.state(stack), origin, requiring))
+            state = states.get(stack, StackState.ABSENT)
+            rows.append(PlanRow(stack, state, origin, requiring))
         return rows
 
     def report(self, targets: list[str] | None = None, as_json: bool = False) -> int:
