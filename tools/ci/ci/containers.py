@@ -1,7 +1,7 @@
 """The composition root.
 
 Adapters are singletons — they hold no state worth rebuilding, and so is
-:class:`SwarmCluster`, whose whole contract is reading the cluster once per
+:class:`Docker`, whose whole contract is reading the cluster once per
 invocation. Services are factories because they close over configuration the
 CLI sets from its arguments.
 
@@ -18,11 +18,11 @@ from __future__ import annotations
 
 from dependency_injector import containers, providers
 
-from ci.adapters import LocalFileSystem, Subprocess, SystemClock
+from ci.adapters import CommandRunner, LocalFileSystem, SystemClock
 from ci.affected import UnitCatalog
 from ci.apptests import AppSuites, SuiteRunner
-from ci.cluster import SwarmCluster
 from ci.deploy import DeployPlanner
+from ci.docker import Docker
 from ci.gc import RegistryGc
 from ci.idempotence import IdempotenceCheck
 from ci.stackcheck import load_ratchet
@@ -34,7 +34,7 @@ class Container(containers.DeclarativeContainer):
     env = providers.Dependency(instance_of=dict)
 
     filesystem = providers.Singleton(LocalFileSystem)
-    commands = providers.Singleton(Subprocess)
+    commands = providers.Singleton(CommandRunner)
     clock = providers.Singleton(SystemClock)
 
     catalog = providers.Factory(UnitCatalog, filesystem=filesystem, repo_root=repo_root)
@@ -51,9 +51,7 @@ class Container(containers.DeclarativeContainer):
         commands=commands,
         repo_root=repo_root,
     )
-    registry_gc = providers.Factory(
-        RegistryGc, catalog=catalog, commands=commands, clock=clock
-    )
+    registry_gc = providers.Factory(RegistryGc, catalog=catalog, commands=commands, clock=clock)
     idempotence = providers.Factory(IdempotenceCheck, commands=commands)
 
     # Singleton, not Factory: StackTree promises each compose file is parsed
@@ -61,5 +59,5 @@ class Container(containers.DeclarativeContainer):
     stack_tree = providers.Singleton(StackTree, filesystem=filesystem, repo_root=repo_root)
     graph = providers.Factory(DependencyGraph, tree=stack_tree, env=env)
     ratchet = providers.Factory(load_ratchet, filesystem=filesystem, repo_root=repo_root)
-    cluster = providers.Singleton(SwarmCluster, commands=commands)
-    planner = providers.Factory(DeployPlanner, graph=graph, cluster=cluster)
+    docker = providers.Singleton(Docker, commands=commands)
+    planner = providers.Factory(DeployPlanner, graph=graph, docker=docker)

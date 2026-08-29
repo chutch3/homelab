@@ -14,7 +14,7 @@ import pytest
 from conftest import argvs, responds
 
 from ci.adapters import CommandResult
-from ci.cluster import StackState
+from ci.stackstate import StackState
 from ci.deploy import Action, Origin, PlanRow
 
 LABELS = 'services:\n    a:\n        deploy:\n            labels: [{}]\n'
@@ -31,6 +31,12 @@ TREE = {
     "stacks/apps/authentik/docker-compose.yml": NEEDS_PROXY,
     "stacks/apps/paperless/docker-compose.yml": NEEDS_AUTH,
 }
+
+
+def _stack_of(service: str, stacks: list[str]) -> str:
+    """The namespace label docker would have stamped on the service."""
+    owners = [s for s in stacks if service.startswith(f"{s}_")]
+    return max(owners, key=len) if owners else ""
 
 
 def _json_lines(objects) -> str:
@@ -50,17 +56,21 @@ class TestDeployPlanner:
     def live(self, commands):
         """Seed what the cluster reports, written as `service<TAB>replicas` for brevity.
 
-        Docker is asked for JSON, so the shorthand is rendered into the object
-        per line that `ci.cluster` actually reads.
+        Rendered into the two JSON reads `ci.docker` makes, with each service
+        labelled for the stack whose name prefixes it.
         """
 
         def _live(stacks: str = "", services: str = "") -> None:
             rows = [line.partition("\t") for line in services.splitlines() if line.strip()]
+            deployed = stacks.split()
             responds(
                 commands,
-                CommandResult(0, _json_lines({"Name": n} for n in stacks.split())),
                 CommandResult(0, _json_lines(
                     {"Name": name, "Replicas": replicas} for name, _, replicas in rows
+                )),
+                CommandResult(0, _json_lines(
+                    {"Name": name, "Stack": _stack_of(name, deployed), "Update": "none"}
+                    for name, _, _ in rows
                 )),
             )
 
@@ -248,12 +258,18 @@ class TestDeployPlanner:
         assert subject.report(None, as_json=True) == 1
         assert capsys.readouterr().out == ""
 
-    def test_report_only_ever_lists_the_cluster(self, subject, live, commands):
+    def test_report_only_ever_reads_the_cluster(self, subject, live, commands):
+        """One listing, and the inspect only when there is something to inspect."""
         live()
         subject.report(None)
+        assert [argv[:3] for argv in argvs(commands)] == [["docker", "service", "ls"]]
+
+    def test_report_inspects_the_services_the_listing_named(self, subject, live, commands):
+        live(stacks="reverse-proxy", services="reverse-proxy_traefik\t1/1\n")
+        subject.report(None)
         assert [argv[:3] for argv in argvs(commands)] == [
-            ["docker", "stack", "ls"],
             ["docker", "service", "ls"],
+            ["docker", "service", "inspect"],
         ]
 
     def test_report_an_unresolvable_graph_exits_one_before_touching_the_cluster(
