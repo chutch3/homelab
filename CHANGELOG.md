@@ -2,6 +2,20 @@
 
 <!-- version list -->
 
+## v3.30.0 (2026-08-31)
+
+### Features
+
+- Declare stack dependencies and print the resolved deploy order (closes #110)
+  ([`7e7d428`](https://github.com/chutch3/homelab/commit/7e7d4286012b778cc7bf784c6ff842f773f848fc))
+
+- Deploy stacks through one path in dependency order
+  ([`f135f3f`](https://github.com/chutch3/homelab/commit/f135f3fa6516a6b5e7ab322687ea725752cf8f44))
+
+- Report each stack's live cluster state in the deploy plan (closes #111)
+  ([`ebdf622`](https://github.com/chutch3/homelab/commit/ebdf622bd672717bc37e9c0c8c12384cd87b8000))
+
+
 ## v3.29.0 (2026-08-24)
 
 ### Bug Fixes
