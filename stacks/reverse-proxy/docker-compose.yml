@@ -49,6 +49,12 @@ services:
             # Health check endpoint
             - "--ping=true"
 
+            # Extend responding timeouts to 10 minutes
+            - "--entrypoints.websecure.transport.respondingtimeouts.readtimeout=600s"
+            - "--entrypoints.websecure.transport.respondingtimeouts.writetimeout=600s"
+            - "--entrypoints.websecure.transport.respondingtimeouts.idletimeout=600s"
+
+
         environment:
             # Cloudflare API token (Zone → DNS → Edit)
             - CF_DNS_API_TOKEN=${CLOUDFLARE_DNS_API_TOKEN}
