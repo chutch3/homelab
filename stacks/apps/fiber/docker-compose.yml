@@ -24,9 +24,6 @@ services:
             - backups
             - traefik-public
         secrets:
-            # Each DB stack creates its own <db>_db_password secret (preflight, from its .env);
-            # Fiber is granted them here and reads /run/secrets/<name> at dump time (spec §8).
-            # M3 rollout: this list grows one DB at a time as each stack is wired.
             - excalidraw_db_password
             - downloads_kenku_db_password
             - prefect_db_password
@@ -37,6 +34,8 @@ services:
             - librenms_db_password
             - postal_db_password
             - romm_db_password
+            - nextcloud_db_password
+            - paperless_db_password
         deploy:
             replicas: 1
             placement:
@@ -73,7 +72,6 @@ networks:
         external: true
 
 secrets:
-    # M3 rollout: grows one DB at a time as each stack's pre-flight creates its secret.
     excalidraw_db_password:
         external: true
     downloads_kenku_db_password:
@@ -93,6 +91,10 @@ secrets:
     postal_db_password:
         external: true
     romm_db_password:
+        external: true
+    nextcloud_db_password:
+        external: true
+    paperless_db_password:
         external: true
 
 volumes:
