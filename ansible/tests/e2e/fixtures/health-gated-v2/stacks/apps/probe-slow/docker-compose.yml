@@ -1,0 +1,13 @@
+# probe-slow with one env var changed, so redeploying it is a real Swarm update.
+services:
+    slow:
+        image: alpine:3
+        command: ["sh", "-c", "sleep 15; touch /tmp/ready; sleep 600"]
+        environment:
+            - PROBE_GENERATION=2
+        healthcheck:
+            test: ["CMD-SHELL", "test -f /tmp/ready"]
+            interval: 2s
+            timeout: 2s
+            retries: 1
+            start_period: 25s

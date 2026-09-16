@@ -1,0 +1,5 @@
+# ansible/roles/dns/tasks/flush-cache.yml
+---
+- name: Flush the primary DNS cache
+  ansible.builtin.include_tasks: "adapters/{{ primary_dns_type }}/flush-cache.yml"
+  when: primary_dns_type == 'technitium'

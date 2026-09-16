@@ -1,0 +1,41 @@
+# Ratchet for `ci check-stacks`. These stacks predate the healthcheck rule.
+# The list only ever shrinks: a new stack must declare one, and a name left
+# here after the fact fails its own test.
+without_healthcheck:
+  - actual_server
+  - archivebox
+  - beholder
+  - cert-sync-nas
+  - cicd
+  - claudecodeui
+  - code-server
+  - downloads
+  - drawio
+  - emby
+  - fiber
+  - flaresolverr
+  - freshrss
+  - gamarr
+  - github-runner
+  - homepage
+  - kiwix
+  - kolibri
+  - komga
+  - kopia
+  - librechat
+  - llama-cpp
+  - mealie
+  - mlflow
+  - node-red
+  - open-webui
+  - profilarr
+  - prowlarr
+  - radarr
+  - rstudio
+  - searxng
+  - sonarr
+  - takeout-manager
+  - uptime-kuma
+  - vaultwarden
+  - warden
+  - whisparr

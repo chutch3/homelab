@@ -29,8 +29,8 @@ class TestContainer:
     def test_filesystem_is_shared_because_it_holds_no_state_worth_rebuilding(self, subject):
         assert subject.filesystem() is subject.filesystem()
 
-    def test_cluster_is_shared_so_one_invocation_reads_the_cluster_once(self, subject):
-        assert subject.cluster() is subject.cluster()
+    def test_docker_is_shared_so_one_invocation_reads_the_cluster_once(self, subject):
+        assert subject.docker() is subject.docker()
 
     def test_graph_is_rebuilt_so_it_closes_over_this_runs_configuration(self, subject):
         assert subject.graph() is not subject.graph()

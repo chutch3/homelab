@@ -1,0 +1,11 @@
+# Runs fine, never reports healthy: proves convergence is health, not liveness.
+services:
+    unhealthy:
+        image: alpine:3
+        command: ["sleep", "600"]
+        healthcheck:
+            test: ["CMD-SHELL", "exit 1"]
+            interval: 2s
+            timeout: 2s
+            retries: 1
+            start_period: 0s

@@ -169,16 +169,10 @@
   loop: "{{ uptime_kuma_add_service_monitor_result.results }}"
 
 # =========================================================================
-# PHASE 2: Wait for Monitors to Initialize
+# PHASE 2: Verify Monitors Exist and Are Active
 # =========================================================================
-- name: "[VERIFY] Wait for monitors to initialize"
-  ansible.builtin.pause:
-    seconds: 30
-  when: uptime_kuma_discovered_domains | length > 0
-
-# =========================================================================
-# PHASE 3: Verify Monitors Exist and Are Active
-# =========================================================================
+# Polled until every discovered monitor appears — one call when Kuma is
+# already current. A monitor that never appears stays a warning below.
 - name: "[VERIFY] Get all monitors from Uptime Kuma"
   lucasheld.uptime_kuma.monitor_info:
     api_url: "{{ uptime_kuma_api_url }}"
@@ -186,9 +180,15 @@
     api_timeout: 30
   register: uptime_kuma_all_monitors
   delegate_to: localhost
-  retries: 3
-  delay: 15
-  until: uptime_kuma_all_monitors is succeeded
+  retries: 10
+  delay: 3
+  until: >-
+    uptime_kuma_all_monitors is succeeded
+    and uptime_kuma_discovered_domains
+        | reject('in', uptime_kuma_all_monitors.monitors
+                       | default([]) | map(attribute='name') | list)
+        | list | length == 0
+  failed_when: uptime_kuma_all_monitors is not succeeded
 
 - name: "[VERIFY] Extract created monitor names"
   ansible.builtin.set_fact:
@@ -217,7 +217,7 @@
   when: uptime_kuma_missing_monitors | length > 0
 
 # =========================================================================
-# PHASE 4: Verify Monitor Configuration
+# PHASE 3: Verify Monitor Configuration
 # =========================================================================
 - name: "[VERIFY-CONFIG] Get detailed monitor info for each service"
   ansible.builtin.set_fact:
@@ -239,7 +239,7 @@
   when: uptime_kuma_inactive_monitors | length > 0
 
 # =========================================================================
-# PHASE 5: Check Monitor Status (if available)
+# PHASE 4: Check Monitor Status (if available)
 # =========================================================================
 - name: "[STATUS] Get monitor heartbeats (latest status)"
   lucasheld.uptime_kuma.monitor_info:
@@ -262,7 +262,7 @@
   when: item.monitor is defined
 
 # =========================================================================
-# PHASE 6: Final Summary
+# PHASE 5: Final Summary
 # =========================================================================
 - name: "[SUMMARY] Calculate summary statistics"
   ansible.builtin.set_fact:
