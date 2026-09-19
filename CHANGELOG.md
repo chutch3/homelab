@@ -2,6 +2,37 @@
 
 <!-- version list -->
 
+## v3.31.0 (2026-09-19)
+
+### Bug Fixes
+
+- Drop redundant codeserver ssh router that shadowed forgejo on 2222
+  ([`408e82d`](https://github.com/chutch3/homelab/commit/408e82d32313f00bd8e286bc7bf6fd7b06fa0b75))
+
+- Emby cifs mounts
+  ([`30381aa`](https://github.com/chutch3/homelab/commit/30381aaeeeac297d7225e44ce488e958cdeaf4c5))
+
+- Install playwright chromium before running beholder tests
+  ([`ea11c76`](https://github.com/chutch3/homelab/commit/ea11c76f9c075d190bdf18d2264b1990aadfa276))
+
+### Features
+
+- Added support for codex
+  ([`b8446da`](https://github.com/chutch3/homelab/commit/b8446daef0e3b44717e10cfaa26f6d6151fb7b6b))
+
+- Beholder improvements
+  ([`5fe356b`](https://github.com/chutch3/homelab/commit/5fe356b6eca219db5a387245f2f5fa2ed563b8c7))
+
+- Bumped actual and actual mcp versions
+  ([`954b7fb`](https://github.com/chutch3/homelab/commit/954b7fbb668bd58005e94da534742aef87bace9a))
+
+- Devbox restructure and improvements
+  ([`3157383`](https://github.com/chutch3/homelab/commit/31573832502073dd46acb95b2ec6ff1b2a5cf3c6))
+
+- Fix missing secrets from fiber and clean up comments
+  ([`a5be34b`](https://github.com/chutch3/homelab/commit/a5be34b2fed59863fb101111342b5e31d6c9f3bf))
+
+
 ## v3.30.1 (2026-09-07)
 
 ### Bug Fixes
