@@ -20,11 +20,12 @@ services:
       - VITE_IS_PLATFORM=true
       - WORKSPACES_ROOT=/home/coder/workspace
       - OPENROUTER_KEY=${OPENROUTER_KEY}
-    command: /bin/bash -c "mkdir -p ~/.claude ~/.config/gemini ~/.cloudcli ~/.forge && cloudcli start"
+    command: /bin/bash -c "mkdir -p ~/.claude ~/.config/gemini ~/.cloudcli ~/.forge ~/.codex && cloudcli start"
     working_dir: /home/coder
     volumes:
       - workspace:/home/coder/workspace
       - claude_config:/home/coder/.claude
+      - codex_config:/home/coder/.codex
       - gemini_config:/home/coder/.config/gemini
       - cloudcli_config:/home/coder/.cloudcli
       - forge_config:/home/coder/.forge
@@ -70,6 +71,12 @@ volumes:
       type: "none"
       o: "bind"
       device: "/mnt/iscsi/app-data/dev-env/ai-configs/claude"
+  codex_config:
+    driver: local
+    driver_opts:
+      type: "none"
+      o: "bind"
+      device: "/mnt/iscsi/app-data/dev-env/ai-configs/codex"
   gemini_config:
     driver: local
     driver_opts:
