@@ -1,7 +1,7 @@
 // A watchdog must not fail silently: a broken run is itself a finding.
-export function createReporter({ metrics, sendMail, config, log = console.error }) {
+export function createReporter({ metrics, sendMail, config, now, log }) {
   return async function reportFailure(error) {
-    metrics.recordFailure({ now: Date.now() / 1000 });
+    metrics.recordFailure({ now: now() });
     log(`[beholder] run failed: ${error.stack || error.message}`);
     try {
       await sendMail({

@@ -18,6 +18,9 @@ function fakeLedger(overrides = {}) {
         ...overrides.balances,
       };
     },
+    async monthlyCategories() {
+      return [];
+    },
     async savingsInflows() {
       return overrides.savingsInflows ?? [];
     },
@@ -26,6 +29,10 @@ function fakeLedger(overrides = {}) {
     },
     async watchedSchedules() {
       return overrides.watchedSchedules ?? [];
+    },
+    async duplicateTransactions(since) {
+      if (overrides.readDuplicate) return overrides.readDuplicate(since);
+      return overrides.duplicates ?? [];
     },
     async uncategorizedTransactions() {
       return overrides.uncategorized ?? [];
@@ -48,27 +55,135 @@ const config = {
   alertFrom: "budget@unit.test",
   alertTo: ["a@unit.test", "b@unit.test"],
   driftThresholdCents: 20000,
+  duplicates: { lookbackDays: 90, windowDays: 3, maxIncreasePercent: 30, holdMaxCents: 100 },
+  budgetUrl: "https://budget.unit.test/",
 };
 
 describe("runOnce", () => {
+  it("reads the configured duplicate lookback and closes on read failure", async () => {
+    const dates = [];
+    const ledger = fakeLedger({
+      readDuplicate: async (since) => {
+        dates.push(since);
+        throw new Error("read failed");
+      },
+    });
+    let closed = false;
+    ledger.close = async () => {
+      closed = true;
+    };
+    const { mailer, sent } = fakeMailer();
+    await expect(
+      runOnce({
+        ledger,
+        config: { ...config, duplicates: { lookbackDays: 30, windowDays: 2 } },
+        state: {},
+        now: new Date("2026-09-18T07:00:00Z"),
+        mailer,
+      }),
+    ).rejects.toThrow("read failed");
+    expect(dates).toEqual(["2026-08-19"]);
+    expect(closed).toBe(true);
+    expect(sent).toEqual([]);
+  });
+
+  it("passes the local calendar month to the ledger", async () => {
+    const months = [];
+    const ledger = fakeLedger();
+    ledger.monthlyCategories = async (month) => {
+      months.push(month);
+      return [];
+    };
+    await runOnce({
+      ledger,
+      config,
+      state: { snapshots: [] },
+      now: new Date(2026, 0, 1, 0, 15),
+      mailer: fakeMailer().mailer,
+    });
+    expect(months).toEqual(["2026-01"]);
+  });
+
+  it("does not send or mark events when reading monthly categories fails", async () => {
+    const ledger = fakeLedger();
+    let closed = false;
+    ledger.monthlyCategories = async () => {
+      throw new Error("budget unavailable");
+    };
+    ledger.close = async () => {
+      closed = true;
+    };
+    const { mailer, sent } = fakeMailer();
+    const state = { snapshots: [], alerted: {} };
+    await expect(
+      runOnce({ ledger, config, state, now: new Date("2026-09-10T07:00:00Z"), mailer }),
+    ).rejects.toThrow("budget unavailable");
+    expect(sent).toEqual([]);
+    expect(state).toEqual({ snapshots: [], alerted: {} });
+    expect(closed).toBe(true);
+  });
+
+  it("does not mark event findings when mail delivery fails", async () => {
+    const ledger = fakeLedger({
+      savingsInflows: [{ id: "raid-1", date: "2026-09-09", amount: 1000, payee: "Savings" }],
+    });
+    const state = { snapshots: [], alerted: {} };
+    await expect(
+      runOnce({
+        ledger,
+        config,
+        state,
+        now: new Date("2026-09-10T07:00:00Z"),
+        mailer: async () => {
+          throw new Error("mail rejected");
+        },
+      }),
+    ).rejects.toThrow("mail rejected");
+    expect(state.alerted).toEqual({});
+  });
+
   it("sends one email listing all findings when checks fail", async () => {
     const { mailer, sent } = fakeMailer();
     const result = await runOnce({
-      ledger: fakeLedger(),
+      ledger: fakeLedger({
+        savingsInflows: [{ id: "raid", date: "2026-07-09", amount: 75000, payee: "Savings" }],
+        watchedSchedules: [{ payeeId: "bill", expectedAmount: -20000, label: "Furniture" }],
+        recentTransactions: [{ date: "2026-07-09", amount: -11900, payeeId: "bill" }],
+        uncategorized: [
+          { id: "uncat", date: "2026-07-09", amount: -4599, payee: "Mystery", account: "Discover" },
+        ],
+      }),
       config,
-      state: { snapshots: [] },
+      state: { snapshots: [{ date: "2026-06-10", cards: { Discover: -50000 } }] },
       now: new Date("2026-07-10T07:00:00Z"),
       mailer,
     });
-    expect(result.findings.map((f) => f.check)).toEqual(["floor"]);
+    expect(result.findings.map((f) => f.check)).toEqual([
+      "floor",
+      "raid",
+      "drift",
+      "schedule",
+      "uncategorized",
+    ]);
     expect(sent.length).toBe(1);
     expect(sent[0].to).toEqual(["a@unit.test", "b@unit.test"]);
     expect(sent[0].from).toBe("budget@unit.test");
-    expect(sent[0].subject).toContain("floor");
-    expect(sent[0].body).toMatch(/below/i);
+    expect(sent[0].subject).toContain("budget");
+    expect(sent[0].body).toContain("Shortfall");
+    for (const body of [sent[0].body, sent[0].html]) {
+      for (const phrase of [
+        "Shortfall",
+        "balance increased",
+        "Savings transactions to review",
+        "Payment differs from schedule",
+        "Transactions to categorize",
+      ]) {
+        expect(body.replace(/<[^>]*>/g, "").split(phrase)).toHaveLength(2);
+      }
+    }
   });
 
-  it("stays quiet when all checks pass", async () => {
+  it("sends a daily update when all checks pass", async () => {
     const { mailer, sent } = fakeMailer();
     const result = await runOnce({
       ledger: fakeLedger({ balances: { checking: 500000 } }),
@@ -78,7 +193,7 @@ describe("runOnce", () => {
       mailer,
     });
     expect(result.findings).toEqual([]);
-    expect(sent.length).toBe(0);
+    expect(sent.length).toBe(1);
   });
 
   it("verifies postings against schedules read from the ledger", async () => {
@@ -122,7 +237,11 @@ describe("runOnce", () => {
   it("uses the snapshot nearest 30 days back for drift", async () => {
     const { mailer, sent } = fakeMailer();
     const state = {
-      snapshots: [{ date: "2026-06-10", checking: 1, cards: { Discover: -50000 } }],
+      snapshots: [
+        { date: "2026-06-01", checking: 1, cards: { Discover: -152795 } },
+        { date: "2026-06-11", checking: 2, cards: { Discover: -50000 } },
+        { date: "2026-06-20", checking: 3, cards: { Discover: -152795 } },
+      ],
     };
     const result = await runOnce({
       ledger: fakeLedger({ balances: { checking: 500000, cards: [{ name: "Discover", balance: -152795 }] } }),
@@ -133,6 +252,7 @@ describe("runOnce", () => {
     });
     expect(result.findings.map((f) => f.check)).toEqual(["drift"]);
     expect(sent.length).toBe(1);
+    expect(sent[0].body).toContain("$1,027.95 since June 11, 2026");
   });
 
   it("does not re-alert a raid transaction it has already reported", async () => {
@@ -158,7 +278,7 @@ describe("runOnce", () => {
       mailer,
     });
     expect(second.findings).toEqual([]);
-    expect(sent.length).toBe(1);
+    expect(sent.length).toBe(2);
   });
 
   it("does not re-alert a schedule anomaly it has already reported", async () => {
@@ -188,10 +308,10 @@ describe("runOnce", () => {
       mailer,
     });
     expect(second.findings).toEqual([]);
-    expect(sent.length).toBe(1);
+    expect(sent.length).toBe(2);
   });
 
-  it("surfaces uncategorized transactions once and not again", async () => {
+  it("counts uncategorized findings once but keeps unresolved context in daily emails", async () => {
     const { mailer, sent } = fakeMailer();
     const state = { snapshots: [] };
     const txn = {
@@ -221,7 +341,8 @@ describe("runOnce", () => {
       mailer,
     });
     expect(second.findings).toEqual([]);
-    expect(sent.length).toBe(1);
+    expect(sent.length).toBe(2);
+    expect(sent[1].body).toContain("Mystery Merchant");
   });
 
   it("closes the ledger even when a check path throws", async () => {

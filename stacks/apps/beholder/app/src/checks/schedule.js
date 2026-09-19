@@ -1,9 +1,4 @@
-import { fmt } from "../money.js";
-
-// Watched schedules come from the budget server (exact-amount schedules on
-// the checking account). A posting by a watched payee at a different amount
-// means an autopay changed underneath us — e.g. the deferred-interest
-// minimum-payment trap.
+// Compare posted outflows with exact amounts in the configured account schedules.
 export function scheduleCheck({ recentTransactions, watched }) {
   const wrong = [];
   for (const w of watched) {
@@ -15,14 +10,16 @@ export function scheduleCheck({ recentTransactions, watched }) {
     for (const t of postings) wrong.push({ w, t });
   }
   if (wrong.length === 0) return null;
+  const comparisons = wrong.map(({ w, t }) => ({
+    label: w.label,
+    date: t.date,
+    expected: Math.abs(w.expectedAmount),
+    recorded: Math.abs(t.amount),
+    difference: Math.abs(t.amount) - Math.abs(w.expectedAmount),
+  }));
   return {
     check: "schedule",
-    summary: wrong
-      .map(
-        ({ w, t }) => `${w.label}: posted ${fmt(t.amount)} on ${t.date}, expected ${fmt(w.expectedAmount)}.`,
-      )
-      .join(" "),
-    detail: "The schedule in Actual and the biller's autopay disagree — check both.",
+    comparisons,
     postings: wrong.map(({ t }) => t),
   };
 }

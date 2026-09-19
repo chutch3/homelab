@@ -14,6 +14,23 @@ includes:
         dir: tools/status-pipeline
 
 tasks:
+    beholder:preview:
+        desc: "Preview the current budget locally; optional OUTPUT=/path/report.html TO=you@example.com"
+        dir: stacks/apps/beholder/app
+        env:
+            BEHOLDER_PREVIEW_OUTPUT: '{{.OUTPUT | default "/tmp/beholder-preview.html"}}'
+            BEHOLDER_PREVIEW_TO: '{{.TO | default ""}}'
+        preconditions:
+            - sh: test -d node_modules/@actual-app/api
+              msg: "Install dependencies first: npm --prefix stacks/apps/beholder/app ci"
+        cmds:
+            - |
+                export ACTUAL_SERVER_URL="${ACTUAL_SERVER_URL:-https://budget.${BASE_DOMAIN}}"
+                export BEHOLDER_BUDGET_URL="${BEHOLDER_BUDGET_URL:-https://budget.${BASE_DOMAIN}}"
+                export BEHOLDER_POSTAL_URL="${BEHOLDER_POSTAL_URL:-https://postal.${BASE_DOMAIN}}"
+                export BEHOLDER_ALERT_FROM="${BEHOLDER_ALERT_FROM:-budget@${BASE_DOMAIN}}"
+                node src/index.js
+
     setup:
         desc: Bootstrap this machine — install all tools and project dependencies
         cmds:

@@ -1,9 +1,10 @@
 import { driftCheck } from "./checks/drift.js";
+import { duplicatesCheck } from "./checks/duplicates.js";
 import { floorCheck } from "./checks/floor.js";
 import { raidCheck } from "./checks/raid.js";
 import { scheduleCheck } from "./checks/schedule.js";
 import { uncategorizedCheck } from "./checks/uncategorized.js";
-import { sendMail as defaultMailer } from "./mailer.js";
+import { renderEmail } from "./mailer.js";
 
 const SNAPSHOT_KEEP_DAYS = 60;
 const DRIFT_LOOKBACK_DAYS = 30;
@@ -30,7 +31,7 @@ function driftBaseline(snapshots, now) {
 
 // Event findings (raid, schedule) are deduped across runs via state so a
 // wide sync-lag-tolerant lookback does not nag daily; condition findings
-// (floor, drift) deliberately repeat until resolved.
+// (floor, drift, duplicates) deliberately repeat until resolved.
 const raidKey = (t) => `raid:${t.id ?? `${t.date}:${t.amount}:${t.payee}`}`;
 const scheduleKey = (t) => `schedule:${t.payeeId}:${t.date}:${t.amount}`;
 const uncategorizedKey = (t) => `uncat:${t.id ?? `${t.date}:${t.amount}:${t.payee}`}`;
@@ -43,14 +44,22 @@ function pruneAlerted(alerted, today) {
   return kept;
 }
 
-export async function runOnce({ ledger, config, state, now = new Date(), mailer = defaultMailer }) {
+export async function runOnce({ ledger, config, state, now, mailer }) {
   await ledger.open();
   try {
     const { checking, cards } = await ledger.accountBalances();
+    const reportDate = [
+      now.getFullYear(),
+      String(now.getMonth() + 1).padStart(2, "0"),
+      String(now.getDate()).padStart(2, "0"),
+    ].join("-");
+    const categories = await ledger.monthlyCategories(reportDate.slice(0, 7));
     const savingsInflows = await ledger.savingsInflows();
     const recentTransactions = await ledger.recentTransactions();
     const watchedSchedules = await ledger.watchedSchedules();
     const uncategorized = await ledger.uncategorizedTransactions();
+    const duplicateSince = new Date(now.getTime() - config.duplicates.lookbackDays * 86400000);
+    const duplicateTransactions = await ledger.duplicateTransactions(isoDate(duplicateSince));
 
     state.alerted = pruneAlerted(state.alerted, isoDate(now));
     const freshInflows = savingsInflows.filter((t) => !state.alerted[raidKey(t)]);
@@ -66,6 +75,12 @@ export async function runOnce({ ledger, config, state, now = new Date(), mailer 
         : null,
       scheduleCheck({ recentTransactions: freshTransactions, watched: watchedSchedules }),
       uncategorizedCheck({ uncategorized: freshUncategorized }),
+      duplicatesCheck({
+        transactions: duplicateTransactions,
+        windowDays: config.duplicates.windowDays,
+        maxIncreasePercent: config.duplicates.maxIncreasePercent,
+        holdMaxCents: config.duplicates.holdMaxCents,
+      }),
     ].filter(Boolean);
 
     // Record today's snapshot, prune old ones.
@@ -75,32 +90,38 @@ export async function runOnce({ ledger, config, state, now = new Date(), mailer 
       .concat([{ date: today, checking, cards: Object.fromEntries(cards.map((c) => [c.name, c.balance])) }])
       .sort((a, b) => a.date.localeCompare(b.date));
 
-    if (findings.length > 0) {
-      const body =
-        `beholder saw ${findings.length} thing${findings.length > 1 ? "s" : ""} worth your attention:\n\n` +
-        findings.map((f) => `* [${f.check}] ${f.summary}\n${f.detail}`).join("\n\n") +
-        `\n\n(quiet by default: no email means all checks passed)`;
-      await mailer({
-        postalUrl: config.postalUrl,
-        postalApiKey: config.postalApiKey,
-        from: config.alertFrom,
-        to: config.alertTo,
-        subject: `beholder: ${findings.map((f) => f.check).join(", ")}`,
-        body,
-      });
+    const report = renderEmail({
+      date: reportDate,
+      categories,
+      checking,
+      cards,
+      baseline,
+      findings,
+      uncategorized,
+      budgetUrl: config.budgetUrl,
+      driftThresholdCents: config.driftThresholdCents,
+    });
+    await mailer({
+      postalUrl: config.postalUrl,
+      postalApiKey: config.postalApiKey,
+      from: config.alertFrom,
+      to: config.alertTo,
+      subject: report.subject,
+      body: report.text,
+      html: report.html,
+    });
 
-      // Record event findings only after the alert went out, so a failed
-      // send retries naturally on the next run.
-      if (findings.some((f) => f.check === "raid")) {
-        for (const t of freshInflows) state.alerted[raidKey(t)] = today;
+    // Record event findings only after the alert went out, so a failed
+    // send retries naturally on the next run.
+    if (findings.some((f) => f.check === "raid")) {
+      for (const t of freshInflows) state.alerted[raidKey(t)] = today;
+    }
+    for (const f of findings) {
+      if (f.check === "schedule") {
+        for (const t of f.postings) state.alerted[scheduleKey(t)] = today;
       }
-      for (const f of findings) {
-        if (f.check === "schedule") {
-          for (const t of f.postings) state.alerted[scheduleKey(t)] = today;
-        }
-        if (f.check === "uncategorized") {
-          for (const t of f.transactions) state.alerted[uncategorizedKey(t)] = today;
-        }
+      if (f.check === "uncategorized") {
+        for (const t of f.transactions) state.alerted[uncategorizedKey(t)] = today;
       }
     }
 
@@ -108,4 +129,29 @@ export async function runOnce({ ledger, config, state, now = new Date(), mailer 
   } finally {
     await ledger.close();
   }
+}
+
+export function msUntilNextRun(runAt, now) {
+  const [h, m] = runAt.split(":").map(Number);
+  const next = new Date(now);
+  next.setHours(h, m, 0, 0);
+  if (next <= now) next.setDate(next.getDate() + 1);
+  return next - now;
+}
+
+export function scheduleDaily({ runAt, now, schedule, execute, onError }) {
+  const loop = () => {
+    schedule(
+      async () => {
+        try {
+          await execute();
+        } catch (error) {
+          await onError(error);
+        }
+        loop();
+      },
+      msUntilNextRun(runAt, now()),
+    );
+  };
+  loop();
 }

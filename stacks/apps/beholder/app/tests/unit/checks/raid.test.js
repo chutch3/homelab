@@ -2,6 +2,22 @@ import { describe, expect, it } from "vitest";
 import { raidCheck } from "../../../src/checks/raid.js";
 
 describe("raidCheck", () => {
+  it("provides structured transactions and their total for the email table", () => {
+    const transactions = [{ date: "2026-09-01", amount: 2609, payee: "Interest" }];
+    const finding = raidCheck({ savingsInflows: transactions });
+    expect(finding.transactions).toEqual(transactions);
+    expect(finding.total).toBe(2609);
+  });
+
+  it("describes category inflows without assuming a savings withdrawal", () => {
+    const finding = raidCheck({ savingsInflows: [{ date: "2026-09-01", amount: 2609, payee: "Interest" }] });
+    expect(finding).toEqual({
+      check: "raid",
+      total: 2609,
+      transactions: [{ date: "2026-09-01", amount: 2609, payee: "Interest" }],
+    });
+  });
+
   it("is silent with no savings inflows", () => {
     expect(raidCheck({ savingsInflows: [] })).toBeNull();
     expect(raidCheck({ savingsInflows: undefined })).toBeNull();
@@ -12,8 +28,8 @@ describe("raidCheck", () => {
       savingsInflows: [{ date: "2026-07-20", amount: 75000, payee: "Wealthfront" }],
     });
     expect(finding.check).toBe("raid");
-    expect(finding.summary).toContain("$750.00");
-    expect(finding.summary).toContain("1 transaction");
+    expect(finding.total).toBe(75000);
+    expect(finding.transactions).toEqual([{ date: "2026-07-20", amount: 75000, payee: "Wealthfront" }]);
   });
 
   it("sums and lists every raid transaction", () => {
@@ -23,9 +39,10 @@ describe("raidCheck", () => {
         { date: "2026-07-22", amount: 50000, payee: "Wealthfront" },
       ],
     });
-    expect(finding.summary).toContain("$1,250.00");
-    expect(finding.summary).toContain("2 transactions");
-    expect(finding.detail).toContain("2026-07-20");
-    expect(finding.detail).toContain("2026-07-22");
+    expect(finding.total).toBe(125000);
+    expect(finding.transactions).toEqual([
+      { date: "2026-07-20", amount: 75000, payee: "Wealthfront" },
+      { date: "2026-07-22", amount: 50000, payee: "Wealthfront" },
+    ]);
   });
 });

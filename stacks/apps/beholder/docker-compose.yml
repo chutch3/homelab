@@ -15,6 +15,8 @@ services:
             - ACTUAL_SERVER_URL=http://actual_server:5006
             - ACTUAL_PASSWORD=${ACTUAL_PASSWORD}
             - ACTUAL_BUDGET_SYNC_ID=${ACTUAL_BUDGET_SYNC_ID}
+            # Public browser URL used by the daily email button
+            - BEHOLDER_BUDGET_URL=https://budget.${BASE_DOMAIN}
             # Postal (house mail API) — beholder's own credential
             # Postal enforces host authorization on POSTAL_WEB_HOSTNAME, so the
             # HTTP API must be reached via the traefik hostname, not the internal
@@ -31,6 +33,10 @@ services:
             # Optional tuning (code defaults shown)
             - BEHOLDER_RUN_AT=${BEHOLDER_RUN_AT:-07:00}
             - BEHOLDER_DRIFT_THRESHOLD_CENTS=${BEHOLDER_DRIFT_THRESHOLD_CENTS:-20000}
+            - BEHOLDER_DUPLICATE_LOOKBACK_DAYS=${BEHOLDER_DUPLICATE_LOOKBACK_DAYS:-90}
+            - BEHOLDER_DUPLICATE_WINDOW_DAYS=${BEHOLDER_DUPLICATE_WINDOW_DAYS:-3}
+            - BEHOLDER_DUPLICATE_MAX_INCREASE_PERCENT=${BEHOLDER_DUPLICATE_MAX_INCREASE_PERCENT:-30}
+            - BEHOLDER_DUPLICATE_HOLD_MAX_CENTS=${BEHOLDER_DUPLICATE_HOLD_MAX_CENTS:-100}
         volumes:
             - beholder_state:/state
         restart: unless-stopped

@@ -7,6 +7,7 @@ import { loadConfig } from "../../src/config.js";
 const VALID = {
   ACTUAL_SERVER_URL: "http://actual.test:5006",
   ACTUAL_PASSWORD: "pw",
+  BEHOLDER_BUDGET_URL: "https://budget.test/",
   ACTUAL_BUDGET_SYNC_ID: "sync-id",
   BEHOLDER_POSTAL_URL: "http://postal.test:5000",
   BEHOLDER_POSTAL_API_KEY: "key",
@@ -27,6 +28,82 @@ function stubEnv(overrides = {}) {
 afterEach(() => vi.unstubAllEnvs());
 
 describe("loadConfig", () => {
+  it.each([
+    [50, 500],
+    [0, 0],
+  ])("reads duplicate amount thresholds %s / %s", (percent, cents) => {
+    stubEnv({
+      BEHOLDER_DUPLICATE_MAX_INCREASE_PERCENT: String(percent),
+      BEHOLDER_DUPLICATE_HOLD_MAX_CENTS: String(cents),
+    });
+    expect(loadConfig().duplicates.maxIncreasePercent).toBe(percent);
+    expect(loadConfig().duplicates.holdMaxCents).toBe(cents);
+  });
+  for (const name of ["BEHOLDER_DUPLICATE_MAX_INCREASE_PERCENT", "BEHOLDER_DUPLICATE_HOLD_MAX_CENTS"]) {
+    it.each(["-1", "1.5", "bad", "9007199254740992"])(`rejects invalid ${name}: %s`, (value) => {
+      stubEnv({ [name]: value });
+      expect(() => loadConfig()).toThrow(name);
+    });
+  }
+
+  it("defaults duplicate review to 90 days and a three-day matching window", () => {
+    stubEnv({ BEHOLDER_DUPLICATE_LOOKBACK_DAYS: "", BEHOLDER_DUPLICATE_WINDOW_DAYS: "" });
+    expect(loadConfig().duplicates).toEqual({
+      lookbackDays: 90,
+      windowDays: 3,
+      maxIncreasePercent: 30,
+      holdMaxCents: 100,
+    });
+  });
+  it("accepts duplicate review window overrides", () => {
+    stubEnv({ BEHOLDER_DUPLICATE_LOOKBACK_DAYS: "30", BEHOLDER_DUPLICATE_WINDOW_DAYS: "2" });
+    expect(loadConfig().duplicates).toEqual({
+      lookbackDays: 30,
+      windowDays: 2,
+      maxIncreasePercent: 30,
+      holdMaxCents: 100,
+    });
+  });
+  it.each(["0", "-1", "1.5", "bad"])("rejects invalid duplicate lookback %s", (value) => {
+    stubEnv({ BEHOLDER_DUPLICATE_LOOKBACK_DAYS: value });
+    expect(() => loadConfig()).toThrow(/BEHOLDER_DUPLICATE_LOOKBACK_DAYS/);
+  });
+  it.each(["0", "-1", "1.5", "bad"])("rejects invalid duplicate matching window %s", (value) => {
+    stubEnv({ BEHOLDER_DUPLICATE_WINDOW_DAYS: value });
+    expect(() => loadConfig()).toThrow(/BEHOLDER_DUPLICATE_WINDOW_DAYS/);
+  });
+
+  it("allows a file preview without mail credentials", () => {
+    stubEnv({ BEHOLDER_POSTAL_URL: "", BEHOLDER_POSTAL_API_KEY: "", BEHOLDER_ALERT_TO: "" });
+    const config = loadConfig({ preview: true });
+    expect(config.alertTo).toEqual([]);
+    expect(config.actual.serverUrl).toBe(VALID.ACTUAL_SERVER_URL);
+  });
+
+  it("requires mail credentials when a preview recipient is selected", () => {
+    stubEnv({ BEHOLDER_POSTAL_API_KEY: "" });
+    expect(() => loadConfig({ preview: true, previewTo: "preview@test.dev" })).toThrow(
+      /BEHOLDER_POSTAL_API_KEY/,
+    );
+  });
+
+  it("uses only the explicit preview recipients", () => {
+    stubEnv();
+    expect(loadConfig({ preview: true, previewTo: " preview@test.dev " }).alertTo).toEqual([
+      "preview@test.dev",
+    ]);
+  });
+
+  it("reads the public budget URL from the environment", () => {
+    stubEnv();
+    expect(loadConfig().budgetUrl).toBe("https://budget.test/");
+  });
+
+  it.each(["", "javascript:alert(1)", "not a URL"])("rejects invalid budget URL %s", (url) => {
+    stubEnv({ BEHOLDER_BUDGET_URL: url });
+    expect(() => loadConfig()).toThrow(/BEHOLDER_BUDGET_URL/);
+  });
+
   it("builds the full config from a valid environment", () => {
     stubEnv();
     const c = loadConfig();

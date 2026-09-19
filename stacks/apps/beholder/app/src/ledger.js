@@ -58,6 +58,15 @@ export function createLedger({ serverUrl, password, syncId, dataDir, names, best
       await api.shutdown();
     },
 
+    async monthlyCategories(month) {
+      const budget = await api.getBudgetMonth(month);
+      return budget.categoryGroups
+        .filter((group) => !group.hidden && !group.is_income)
+        .flatMap((group) => group.categories)
+        .filter((category) => !category.hidden && !category.is_income)
+        .map(({ name, balance, spent }) => ({ name, balance, spent }));
+    },
+
     async accountBalances() {
       const checking = await api.getAccountBalance(checkingId);
       const cards = [];
@@ -98,6 +107,44 @@ export function createLedger({ serverUrl, password, syncId, dataDir, names, best
         amount: t.amount,
         payeeId: t.payee,
         payee: t["payee.name"] ?? "(unknown)",
+      }));
+    },
+
+    async duplicateTransactions(since) {
+      const { data } = await api.runQuery(
+        api
+          .q("transactions")
+          .filter({
+            $and: [
+              { date: { $gte: since } },
+              { amount: { $lt: 0 } },
+              { "account.offbudget": false },
+              { "account.closed": false },
+              { transfer_id: null },
+              { is_parent: false },
+              { is_child: false },
+            ],
+          })
+          .select([
+            "id",
+            "date",
+            "amount",
+            "cleared",
+            "imported_id",
+            "imported_payee",
+            "account",
+            "account.name",
+          ]),
+      );
+      return data.map((t) => ({
+        id: t.id,
+        date: t.date,
+        amount: t.amount,
+        cleared: t.cleared,
+        importedId: t.imported_id,
+        merchant: t.imported_payee,
+        accountId: t.account,
+        account: t["account.name"],
       }));
     },
 

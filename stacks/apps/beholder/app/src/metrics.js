@@ -6,7 +6,7 @@ import http from "node:http";
 
 import { Counter, collectDefaultMetrics, Gauge, Registry } from "prom-client";
 
-const CHECKS = ["floor", "raid", "drift", "schedule", "uncategorized"];
+const CHECKS = ["floor", "raid", "drift", "schedule", "uncategorized", "duplicates"];
 
 export function createMetrics() {
   const registry = new Registry();
@@ -39,28 +39,35 @@ export function createMetrics() {
     labelNames: ["check"],
     registers: [registry],
   });
-  // Emit a zero series per check up front, so the metric exists before the first run.
-  for (const check of CHECKS) findings.set({ check }, 0);
-
-  return {
-    registry,
-
-    recordRun({ findings: runFindings, durationSeconds, now }) {
-      lastRunTimestamp.set(now);
-      lastRunSuccess.set(1);
-      runDuration.set(durationSeconds);
-      runsTotal.inc({ outcome: "success" });
-      const counts = Object.fromEntries(CHECKS.map((c) => [c, 0]));
-      for (const f of runFindings) {
-        if (f.check in counts) counts[f.check] += 1;
-      }
-      for (const check of CHECKS) findings.set({ check }, counts[check]);
+  const instruments = { lastRunTimestamp, lastRunSuccess, runDuration, runsTotal, findings };
+  const recorder = createMetricsRecorder({
+    set(name, value, labels) {
+      if (labels) instruments[name].set(labels, value);
+      else instruments[name].set(value);
     },
+    increment(name, labels) {
+      instruments[name].inc(labels);
+    },
+  });
+  return { registry, ...recorder };
+}
 
+// Owned sink contract keeps recording decisions independent of Prometheus.
+export function createMetricsRecorder(sink) {
+  for (const check of CHECKS) sink.set("findings", 0, { check });
+  return {
+    recordRun({ findings, durationSeconds, now }) {
+      sink.set("lastRunTimestamp", now);
+      sink.set("lastRunSuccess", 1);
+      sink.set("runDuration", durationSeconds);
+      sink.increment("runsTotal", { outcome: "success" });
+      for (const check of CHECKS)
+        sink.set("findings", findings.filter((finding) => finding.check === check).length, { check });
+    },
     recordFailure({ now }) {
-      lastRunTimestamp.set(now);
-      lastRunSuccess.set(0);
-      runsTotal.inc({ outcome: "failure" });
+      sink.set("lastRunTimestamp", now);
+      sink.set("lastRunSuccess", 0);
+      sink.increment("runsTotal", { outcome: "failure" });
     },
   };
 }

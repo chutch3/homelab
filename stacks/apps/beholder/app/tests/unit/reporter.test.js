@@ -13,7 +13,7 @@ function setup({ sendMail } = {}) {
   const metrics = { recordFailure: vi.fn() };
   const mailer = sendMail ?? vi.fn().mockResolvedValue({ message_id: "unit" });
   const log = vi.fn();
-  const reportFailure = createReporter({ metrics, sendMail: mailer, config, log });
+  const reportFailure = createReporter({ metrics, sendMail: mailer, config, log, now: () => 1700000000 });
   return { reportFailure, metrics, mailer, log };
 }
 
@@ -24,7 +24,7 @@ describe("createReporter", () => {
     await reportFailure(new Error("names no longer resolve"));
 
     expect(metrics.recordFailure).toHaveBeenCalledTimes(1);
-    expect(metrics.recordFailure.mock.calls[0][0]).toHaveProperty("now", expect.any(Number));
+    expect(metrics.recordFailure).toHaveBeenCalledWith({ now: 1700000000 });
     expect(mailer).toHaveBeenCalledTimes(1);
     const msg = mailer.mock.calls[0][0];
     expect(msg.to).toEqual(["a@unit.test", "b@unit.test"]);

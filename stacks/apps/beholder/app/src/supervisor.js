@@ -3,7 +3,17 @@
 // the process before reportFailure runs — the watchdog dying silently. Fatal
 // errors are reported then exit nonzero; errors raised inside bestEffort() are
 // tolerated so a flaky bank sync degrades to "check on last-synced data".
-export function createSupervisor({ proc, onFatal, log = () => {}, exit = (code) => proc.exit(code) }) {
+export function waitForBackgroundErrors() {
+  return new Promise((resolve) => setImmediate(resolve));
+}
+
+export function createSupervisor({
+  proc,
+  onFatal,
+  settle = waitForBackgroundErrors,
+  log = () => {},
+  exit = (code) => proc.exit(code),
+}) {
   let suppressed = 0;
   let handled = false;
 
@@ -31,7 +41,7 @@ export function createSupervisor({ proc, onFatal, log = () => {}, exit = (code) 
       try {
         return await fn();
       } finally {
-        await new Promise((r) => setImmediate(r)); // let background rejections surface while still suppressed
+        await settle(); // let background rejections surface while still suppressed
         suppressed--;
       }
     },
