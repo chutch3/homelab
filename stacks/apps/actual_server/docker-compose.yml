@@ -5,7 +5,7 @@ version: "3.9"
 
 services:
     actual_server:
-        image: docker.io/actualbudget/actual-server:26.5.2
+        image: docker.io/actualbudget/actual-server:26.9.0
         environment:
             - ACTUAL_UPLOAD_FILE_SYNC_SIZE_LIMIT_MB=20
             - ACTUAL_UPLOAD_SYNC_ENCRYPTED_FILE_SYNC_SIZE_LIMIT_MB=50
@@ -35,10 +35,7 @@ services:
                 - homepage.description=Budgeting Application
 
     actual_mcp:
-        # Replaced sstefanov/actual-mcp (SSE-only) with agigante80/actual-mcp-server:
-        # native Streamable HTTP support, which Open WebUI's MCP connector requires
-        # (it doesn't speak SSE). Also 74 tools vs. ~20, full write support.
-        image: ghcr.io/agigante80/actual-mcp-server:0.11.6
+        image: ghcr.io/agigante80/actual-mcp-server:0.22.1
         environment:
             - ACTUAL_SERVER_URL=http://actual_server:5006
             - ACTUAL_PASSWORD=${ACTUAL_PASSWORD}
@@ -68,9 +65,6 @@ services:
                 - homepage.icon=mdi-robot-confused
                 - homepage.href=https://actual-mcp.${BASE_DOMAIN}/
                 - homepage.description=Actual Budget MCP Server
-
-                # Unauthenticated health endpoint — no need to guess at status
-                # codes against the auth-gated /http MCP endpoint.
                 - uptime_kuma.path=/health
 
 networks:
@@ -78,8 +72,6 @@ networks:
         external: true
 
 volumes:
-    # Actual Budget's SQLite data. Moved off CIFS onto iSCSI/OCFS2 — SQLite over SMB
-    # risks corruption; this matches every other DB-backed app in the repo. See GH #105.
     budget:
         driver: local
         driver_opts:
@@ -101,8 +93,6 @@ volumes:
             o: "bind"
             device: "/mnt/iscsi/app-data/actual_server/mcp-logs"
 
-    # Shared TLS certs, read-only here (traefik in the reverse-proxy stack owns/writes
-    # them). Moved off CIFS onto the OCFS2 app-data LUN. See GH #105.
     ssl_certs:
         name: ssl_certs
         driver: local
