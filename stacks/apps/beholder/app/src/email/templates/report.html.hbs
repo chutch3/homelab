@@ -1,0 +1,190 @@
+{{#> layout}}
+  <h2 style="font-size:19px;margin:20px 0 10px;">Monthly spending</h2>
+  {{#if categoryTotals}}
+    {{#> progress percent=categoryTotals.barPercent balance=(subtract categoryTotals.budgeted categoryTotals.spent)}}Monthly spending: {{> budget-summary categoryTotals}}{{/progress}}
+    <p style="margin:8px 0;font-size:14px;">{{> budget-summary categoryTotals}}</p>
+    <p style="margin:8px 0;font-size:12px;color:#9fb3c8;">Across visible spending categories. Budgeted this month; excludes carryover.</p>
+  {{else}}
+    <p style="margin:8px 0;font-size:14px;">Monthly spending totals unavailable.</p>
+  {{/if}}
+
+  {{#if uncategorized}}
+    <div style="padding:12px 14px;background:#87540d;border-left:3px solid #e6bb20;border-radius:4px;color:#f5e35d;">
+      <strong>Transactions to categorize</strong>
+      <p style="margin:8px 0;font-size:14px;">{{> notice}}</p>
+    </div>
+  {{/if}}
+  <p style="margin:16px 0;">
+    <a href="{{budgetUrl}}" style="display:inline-block;padding:10px 18px;background:#9446ed;color:#fff;text-decoration:none;font-size:14px;font-weight:bold;border-radius:4px;">Open budget</a>
+  </p>
+
+  <h2 style="font-size:19px;margin:20px 0 10px;">Left to spend</h2>
+  {{#if categories}}
+    <table aria-label="Category balances" style="width:100%;border-collapse:collapse;table-layout:fixed;">
+      <tbody>
+        {{#each (sortByName categories)}}
+          <tr>
+            <td style="padding:12px 0;border-bottom:1px solid #486581;overflow-wrap:anywhere;">
+              <table role="presentation" style="width:100%;table-layout:fixed;border-collapse:collapse;">
+                <tr>
+                  <td style="font-size:15px;font-weight:bold;width:53%;vertical-align:top;">{{name}}</td>
+                  <td style="font-size:17px;font-weight:bold;text-align:right;color:{{#if (negative balance)}}#ff9b9b{{else}}#d9e2ec{{/if}};vertical-align:top;">{{money (abs balance)}} {{#if (negative balance)}}over{{else}}left{{/if}}</td>
+                </tr>
+              </table>
+              {{#if activity}}
+                {{#> progress percent=activity.barPercent}}{{name}}: {{> spending-percent activity}}{{/progress}}
+                <div style="font-size:12px;color:#9fb3c8;">{{> spending-label activity}}</div>
+              {{/if}}
+            </td>
+          </tr>
+        {{/each}}
+      </tbody>
+    </table>
+  {{else}}
+    <p style="margin:8px 0;font-size:14px;">No visible spending categories.</p>
+  {{/if}}
+
+  <h2 style="font-size:19px;margin:20px 0 10px;">Account balances</h2>
+  <p style="margin:8px 0;font-size:14px;">Current checking and credit-card balances.</p>
+  {{#> table label="Account balances"}}
+    <thead>
+      <tr style="background:#334e68;">
+        <th scope="col" style="padding:9px 6px;text-align:left;">Account</th>
+        <th scope="col" style="padding:9px 6px;text-align:left;">Balance</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td style="padding:10px 6px;border-bottom:1px solid #486581;overflow-wrap:anywhere;">Checking</td>
+        <td style="padding:10px 6px;border-bottom:1px solid #486581;overflow-wrap:anywhere;text-align:right;overflow-wrap:normal;">{{money checking}}</td>
+      </tr>
+      {{#each cards}}
+        <tr>
+          <td style="padding:10px 6px;border-bottom:1px solid #486581;overflow-wrap:anywhere;">{{name}}</td>
+          <td style="padding:10px 6px;border-bottom:1px solid #486581;overflow-wrap:anywhere;text-align:right;overflow-wrap:normal;">{{> card-balance}}</td>
+        </tr>
+      {{/each}}
+    </tbody>
+  {{/table}}
+
+  {{#each cardChanges}}
+    <p style="margin:8px 0;font-size:14px;">{{> drift html=true}}</p>
+  {{/each}}
+  {{#if cardChanges}}
+    <p style="margin:8px 0;font-size:14px;">Purchases and payment timing can both affect this change.</p>
+  {{/if}}
+
+  {{#each findings}}
+    {{#if (eq check "duplicates")}}
+      {{#each pairs}}
+        <h2 style="font-size:19px;margin:20px 0 10px;">Possible duplicate charges</h2>
+        <p style="margin:8px 0;font-size:14px;">{{pending.account}} · Check whether the posted charge replaced the pending entry.</p>
+        {{#> table label="Possible duplicate charges"}}
+          <thead>
+            <tr style="background:#334e68;">
+              <th scope="col" style="padding:9px 6px;text-align:left;">Status</th>
+              <th scope="col" style="padding:9px 6px;text-align:left;">Date</th>
+              <th scope="col" style="padding:9px 6px;text-align:left;">Merchant</th>
+              <th scope="col" style="padding:9px 6px;text-align:left;">Amount</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td style="padding:10px 6px;border-bottom:1px solid #486581;overflow-wrap:anywhere;">Pending</td>
+              <td style="padding:10px 6px;border-bottom:1px solid #486581;overflow-wrap:anywhere;">{{date pending.date}}</td>
+              <td style="padding:10px 6px;border-bottom:1px solid #486581;overflow-wrap:anywhere;">{{pending.merchant}}</td>
+              <td style="padding:10px 6px;border-bottom:1px solid #486581;overflow-wrap:anywhere;text-align:right;overflow-wrap:normal;">{{money (abs pending.amount)}}</td>
+            </tr>
+            <tr>
+              <td style="padding:10px 6px;border-bottom:1px solid #486581;overflow-wrap:anywhere;">Posted</td>
+              <td style="padding:10px 6px;border-bottom:1px solid #486581;overflow-wrap:anywhere;">{{date posted.date}}</td>
+              <td style="padding:10px 6px;border-bottom:1px solid #486581;overflow-wrap:anywhere;">{{posted.merchant}}</td>
+              <td style="padding:10px 6px;border-bottom:1px solid #486581;overflow-wrap:anywhere;text-align:right;overflow-wrap:normal;">{{money (abs posted.amount)}}</td>
+            </tr>
+          </tbody>
+        {{/table}}
+      {{/each}}
+    {{/if}}
+    {{#if (eq check "raid")}}
+      <h2 style="font-size:19px;margin:20px 0 10px;">Savings transactions to review</h2>
+      <p style="margin:8px 0;font-size:14px;">Confirm these transactions belong in the savings category.</p>
+      {{#> table label="Savings transactions to review"}}
+        <thead>
+          <tr style="background:#334e68;">
+            <th scope="col" style="padding:9px 6px;text-align:left;">Date</th>
+            <th scope="col" style="padding:9px 6px;text-align:left;">Transaction</th>
+            <th scope="col" style="padding:9px 6px;text-align:left;">Inflow</th>
+          </tr>
+        </thead>
+        <tbody>
+          {{#each transactions}}
+            <tr>
+              <td style="padding:10px 6px;border-bottom:1px solid #486581;overflow-wrap:anywhere;">{{date date}}</td>
+              <td style="padding:10px 6px;border-bottom:1px solid #486581;overflow-wrap:anywhere;">{{payee}}</td>
+              <td style="padding:10px 6px;border-bottom:1px solid #486581;overflow-wrap:anywhere;text-align:right;overflow-wrap:normal;">{{money amount}}</td>
+            </tr>
+          {{/each}}
+          <tr style="font-weight:bold;background:#334e68;">
+            <td style="padding:10px 6px;border-bottom:1px solid #486581;overflow-wrap:anywhere;"></td>
+            <td style="padding:10px 6px;border-bottom:1px solid #486581;overflow-wrap:anywhere;">Total</td>
+            <td style="padding:10px 6px;border-bottom:1px solid #486581;overflow-wrap:anywhere;text-align:right;overflow-wrap:normal;">{{money total}}</td>
+          </tr>
+        </tbody>
+      {{/table}}
+    {{/if}}
+    {{#if (eq check "schedule")}}
+      {{#each comparisons}}
+        <h2 style="font-size:19px;margin:20px 0 10px;">Payment differs from schedule</h2>
+        <p style="margin:8px 0;font-size:14px;">{{label}} · {{date date}}</p>
+        {{#> table label="Payment differs from schedule"}}
+          <thead>
+            <tr style="background:#334e68;">
+              <th scope="col" style="padding:9px 6px;text-align:left;">Comparison</th>
+              <th scope="col" style="padding:9px 6px;text-align:left;">Amount</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td style="padding:10px 6px;border-bottom:1px solid #486581;overflow-wrap:anywhere;">Scheduled</td>
+              <td style="padding:10px 6px;border-bottom:1px solid #486581;overflow-wrap:anywhere;text-align:right;overflow-wrap:normal;">{{money expected}}</td>
+            </tr>
+            <tr>
+              <td style="padding:10px 6px;border-bottom:1px solid #486581;overflow-wrap:anywhere;">Recorded</td>
+              <td style="padding:10px 6px;border-bottom:1px solid #486581;overflow-wrap:anywhere;text-align:right;overflow-wrap:normal;">{{money recorded}}</td>
+            </tr>
+            <tr style="font-weight:bold;background:#334e68;">
+              <td style="padding:10px 6px;border-bottom:1px solid #486581;overflow-wrap:anywhere;">Difference</td>
+              <td style="padding:10px 6px;border-bottom:1px solid #486581;overflow-wrap:anywhere;text-align:right;overflow-wrap:normal;">{{money (abs difference)}} {{#if (positive difference)}}more{{else}}less{{/if}}</td>
+            </tr>
+          </tbody>
+        {{/table}}
+        <p style="margin:8px 0;font-size:12px;color:#9fb3c8;">Check whether the transaction or scheduled amount needs correcting.</p>
+      {{/each}}
+    {{/if}}
+  {{/each}}
+
+  {{#if uncategorized}}
+    <h2 style="font-size:19px;margin:20px 0 10px;">Transactions needing categories · {{uncategorized.length}}</h2>
+    <p style="margin:8px 0;font-size:14px;">Assign a category to these transactions in Actual.</p>
+    {{#> table label="Transactions needing categories"}}
+      <thead>
+        <tr style="background:#334e68;">
+          <th scope="col" style="padding:9px 6px;text-align:left;">Date</th>
+          <th scope="col" style="padding:9px 6px;text-align:left;">Transaction</th>
+          <th scope="col" style="padding:9px 6px;text-align:left;">Account</th>
+          <th scope="col" style="padding:9px 6px;text-align:left;">Amount</th>
+        </tr>
+      </thead>
+      <tbody>
+        {{#each uncategorized}}
+          <tr>
+            <td style="padding:10px 6px;border-bottom:1px solid #486581;overflow-wrap:anywhere;">{{date date}}</td>
+            <td style="padding:10px 6px;border-bottom:1px solid #486581;overflow-wrap:anywhere;">{{payee}}</td>
+            <td style="padding:10px 6px;border-bottom:1px solid #486581;overflow-wrap:anywhere;">{{account}}</td>
+            <td style="padding:10px 6px;border-bottom:1px solid #486581;overflow-wrap:anywhere;text-align:right;overflow-wrap:normal;">{{money (abs amount)}} {{#if (positive amount)}}received{{else}}spent{{/if}}</td>
+          </tr>
+        {{/each}}
+      </tbody>
+    {{/table}}
+  {{/if}}
+{{/layout}}

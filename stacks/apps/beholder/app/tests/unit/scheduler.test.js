@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { msUntilNextRun, scheduleDaily } from "../../src/run.js";
+import { msUntilNextRun, scheduleDaily } from "../../src/scheduler.js";
 
 describe("daily scheduling", () => {
   it.each([

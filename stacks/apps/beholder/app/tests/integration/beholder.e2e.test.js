@@ -431,7 +431,7 @@ describe("beholder end to end", () => {
     }
   }, 120000);
 
-  it("delivers consistent tables explaining cash coverage, savings and payment differences", async () => {
+  it("delivers monthly spending totals and tables explaining savings and payment differences", async () => {
     const before = await sentCount();
     const run = await runBeholder(syncIds.troubled, "beholder-tables-");
     expect(run.code, run.stderr).toBe(0);
@@ -442,8 +442,8 @@ describe("beholder end to end", () => {
       for (const label of [
         "Account balances",
         "Current checking and credit-card balances.",
-        "Can checking cover the cards?",
-        "Shortfall",
+        "Monthly spending",
+        "$119.00 spent of $0.00 budgeted · No monthly budget",
         "Savings transactions to review",
         "Confirm these transactions belong in the savings category.",
         "Payment differs from schedule",
@@ -453,12 +453,16 @@ describe("beholder end to end", () => {
         "$81.00 less",
       ])
         expect(body).toContain(label);
+      expect(body).not.toContain("Can checking cover the cards?");
+      expect(body).not.toContain("Total card debt");
       expect(body).not.toContain("Items to review");
       expect(body).not.toContain("Categorize these transactions in Actual.");
     }
     expect(html).toContain('aria-label="Savings transactions to review"');
     expect(html).toContain('aria-label="Payment differs from schedule"');
-    expect(html).toContain('aria-label="Can checking cover the cards?"');
+    expect(html).toContain(
+      'aria-label="Monthly spending: $119.00 spent of $0.00 budgeted · No monthly budget"',
+    );
   }, 120000);
 
   it("delivers alphabetical category lookup with carryover-aware spending bars before accounts", async () => {
@@ -471,17 +475,23 @@ describe("beholder end to end", () => {
       for (const label of [
         "Open budget",
         "Left to spend",
+        "Monthly spending",
+        "$37.34 spent of $200.00 budgeted · 19% spent",
         "Carry fund",
         "$275.00 left",
         "$25.00 spent of $300.00 available",
         "Account balances",
       ])
         expect(body).toContain(label);
+      expect(body.indexOf("Monthly spending")).toBeLessThan(body.indexOf("Open budget"));
       expect(body.indexOf("Open budget")).toBeLessThan(body.indexOf("Left to spend"));
       expect(body.indexOf("Carry fund")).toBeLessThan(body.indexOf("Over budget"));
       expect(body.indexOf("Zero fund")).toBeLessThan(body.indexOf("Account balances"));
     }
     expect(emails[0].body.html_body).toContain('aria-label="Carry fund: 8% spent"');
+    expect(emails[0].body.html_body).toContain(
+      'aria-label="Monthly spending: $37.34 spent of $200.00 budgeted · 19% spent"',
+    );
   }, 120000);
 
   it("preview download failure exits without sending a report or a failure email", async () => {
@@ -887,7 +897,7 @@ describe("beholder end to end", () => {
     expect(email.apiKey).toBe("e2e-key");
     expect(email.body.to).toEqual(["one@harness.test", "two@harness.test"]);
     expect(email.body.from).toBe("budget@harness.test");
-    expect(email.body.plain_body).toContain("Shortfall");
+    expect(email.body.plain_body).toContain("Monthly spending");
     expect(email.body.plain_body).toContain("Savings transactions to review");
     expect(email.body.plain_body).toContain("Total: $750.00");
     expect(email.body.plain_body).toContain("Mystery Merchant");
@@ -917,7 +927,7 @@ describe("beholder end to end", () => {
     emails = await sentEmails(before);
     expect(emails.length).toBe(2);
     const body = emails[1].body.plain_body;
-    expect(body).toContain("Shortfall"); // conditions repeat
+    expect(body).toContain("Monthly spending");
     expect(body).toContain("Mystery Merchant"); // unresolved context remains
     expect(body).toContain("Transactions to categorize");
     expect(body).not.toContain("Savings transactions to review");
@@ -998,9 +1008,9 @@ describe("delivered email rendering", () => {
               headings.map((h) => ({ text: h.textContent, y: h.getBoundingClientRect().top })),
             );
           expect(positions.map((h) => h.text)).toEqual([
+            "Monthly spending",
             "Left to spend",
             "Account balances",
-            "Can checking cover the cards?",
             "Savings transactions to review",
             "Payment differs from schedule",
             "Transactions needing categories · 1",
@@ -1019,14 +1029,6 @@ describe("delivered email rendering", () => {
               [
                 ["Checking", "$643.51"],
                 ["Discover", "$1,527.95 owed"],
-              ],
-            ],
-            [
-              "Can checking cover the cards?",
-              [
-                ["Checking", "$643.51"],
-                ["Total card debt", "$1,527.95"],
-                ["Shortfall", "$884.44"],
               ],
             ],
             [
@@ -1063,19 +1065,21 @@ describe("delivered email rendering", () => {
           }
           const colors = await page.evaluate(() => ({
             total: getComputedStyle(
-              document.querySelector('table[aria-label="Can checking cover the cards?"] tbody tr:last-child'),
+              document.querySelector(
+                'table[aria-label="Savings transactions to review"] tbody tr:last-child',
+              ),
             ).backgroundColor,
             overspent: getComputedStyle(
               document.querySelector('table[aria-label="Bills: No funds available"] td'),
             ).backgroundColor,
-            coverage: getComputedStyle(document.querySelector('table[aria-label="42% covered"] td'))
+            summary: getComputedStyle(document.querySelector('table[aria-label^="Monthly spending:"] td'))
               .backgroundColor,
             warning: getComputedStyle(document.querySelector("strong").parentElement).color,
           }));
           expect(colors).toEqual({
             total: "rgb(51, 78, 104)",
             overspent: "rgb(255, 155, 155)",
-            coverage: "rgb(101, 214, 173)",
+            summary: "rgb(255, 155, 155)",
             warning: "rgb(245, 227, 93)",
           });
           const amountLines = await page

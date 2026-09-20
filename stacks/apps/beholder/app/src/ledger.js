@@ -64,7 +64,7 @@ export function createLedger({ serverUrl, password, syncId, dataDir, names, best
         .filter((group) => !group.hidden && !group.is_income)
         .flatMap((group) => group.categories)
         .filter((category) => !category.hidden && !category.is_income)
-        .map(({ name, balance, spent }) => ({ name, balance, spent }));
+        .map(({ name, balance, spent, budgeted }) => ({ name, balance, spent, budgeted }));
     },
 
     async accountBalances() {

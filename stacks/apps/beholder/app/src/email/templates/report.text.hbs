@@ -1,0 +1,80 @@
+{{> subject}}
+
+Monthly spending
+{{#if categoryTotals}}
+{{> budget-summary categoryTotals}}
+Across visible spending categories. Budgeted this month; excludes carryover.
+{{else}}
+Monthly spending totals unavailable.
+{{/if}}
+
+{{#if uncategorized}}
+Transactions to categorize
+{{> notice}}
+
+{{/if}}
+Open budget: {{budgetUrl}}
+
+Left to spend
+{{#each (sortByName categories)}}
+{{name}}: {{money (abs balance)}} {{#if (negative balance)}}over{{else}}left{{/if}}{{#if activity}}
+{{> spending-label activity}}{{/if}}
+{{else}}
+No visible spending categories.
+{{/each}}
+
+Account balances
+Current checking and credit-card balances.
+Checking: {{money checking}}
+{{#each cards}}
+{{name}}: {{> card-balance}}
+{{/each}}
+
+{{#each cardChanges}}
+{{> drift html=false}}
+
+{{/each}}
+{{#if cardChanges}}
+Purchases and payment timing can both affect this change.
+
+{{/if}}
+{{#each findings}}
+{{#if (eq check "duplicates")}}
+{{#each pairs}}
+Possible duplicate charges
+{{pending.account}} · Check whether the posted charge replaced the pending entry.
+Pending: {{date pending.date}}: {{pending.merchant}}: {{money (abs pending.amount)}}
+Posted: {{date posted.date}}: {{posted.merchant}}: {{money (abs posted.amount)}}
+
+{{/each}}
+{{/if}}
+{{#if (eq check "raid")}}
+Savings transactions to review
+Confirm these transactions belong in the savings category.
+{{#each transactions}}
+{{date date}}: {{payee}}: {{money amount}}
+{{/each}}
+Total: {{money total}}
+
+{{/if}}
+{{#if (eq check "schedule")}}
+{{#each comparisons}}
+Payment differs from schedule
+{{label}} · {{date date}}
+Scheduled: {{money expected}}
+Recorded: {{money recorded}}
+Difference: {{money (abs difference)}} {{#if (positive difference)}}more{{else}}less{{/if}}
+Check whether the transaction or scheduled amount needs correcting.
+
+{{/each}}
+{{/if}}
+{{/each}}
+{{#if uncategorized}}
+Transactions needing categories · {{uncategorized.length}}
+Assign a category to these transactions in Actual.
+{{#each uncategorized}}
+{{date date}} · {{payee}} · {{account}} · {{money (abs amount)}} {{#if (positive amount)}}received{{else}}spent{{/if}}
+{{/each}}
+
+{{/if}}
+Based on the latest available bank data.

@@ -4,47 +4,20 @@ import { floorCheck } from "./checks/floor.js";
 import { raidCheck } from "./checks/raid.js";
 import { scheduleCheck } from "./checks/schedule.js";
 import { uncategorizedCheck } from "./checks/uncategorized.js";
-import { renderEmail } from "./mailer.js";
-
-const SNAPSHOT_KEEP_DAYS = 60;
-const DRIFT_LOOKBACK_DAYS = 30;
+import {
+  driftBaseline,
+  pruneNotifications,
+  recordNotifications,
+  recordSnapshot,
+  unnotifiedTransactions,
+} from "./history.js";
+import { cardGrowth, categoryActivity, categoryTotals } from "./money.js";
 
 function isoDate(d) {
   return d.toISOString().slice(0, 10);
 }
 
-function daysBetween(a, b) {
-  return Math.abs(new Date(a) - new Date(b)) / 86400000;
-}
-
-// Snapshot nearest to `lookback` days ago (any history counts; drift needs
-// a baseline, not a precise one).
-function driftBaseline(snapshots, now) {
-  if (snapshots.length === 0) return null;
-  const target = new Date(now.getTime() - DRIFT_LOOKBACK_DAYS * 86400000);
-  return snapshots.reduce(
-    (best, s) =>
-      !best || Math.abs(new Date(s.date) - target) < Math.abs(new Date(best.date) - target) ? s : best,
-    null,
-  );
-}
-
-// Event findings (raid, schedule) are deduped across runs via state so a
-// wide sync-lag-tolerant lookback does not nag daily; condition findings
-// (floor, drift, duplicates) deliberately repeat until resolved.
-const raidKey = (t) => `raid:${t.id ?? `${t.date}:${t.amount}:${t.payee}`}`;
-const scheduleKey = (t) => `schedule:${t.payeeId}:${t.date}:${t.amount}`;
-const uncategorizedKey = (t) => `uncat:${t.id ?? `${t.date}:${t.amount}:${t.payee}`}`;
-
-function pruneAlerted(alerted, today) {
-  const kept = {};
-  for (const [key, date] of Object.entries(alerted ?? {})) {
-    if (daysBetween(date, today) <= SNAPSHOT_KEEP_DAYS) kept[key] = date;
-  }
-  return kept;
-}
-
-export async function runOnce({ ledger, config, state, now, mailer }) {
+export async function runOnce({ ledger, config, state, now, mailer, renderEmail }) {
   await ledger.open();
   try {
     const { checking, cards } = await ledger.accountBalances();
@@ -61,10 +34,11 @@ export async function runOnce({ ledger, config, state, now, mailer }) {
     const duplicateSince = new Date(now.getTime() - config.duplicates.lookbackDays * 86400000);
     const duplicateTransactions = await ledger.duplicateTransactions(isoDate(duplicateSince));
 
-    state.alerted = pruneAlerted(state.alerted, isoDate(now));
-    const freshInflows = savingsInflows.filter((t) => !state.alerted[raidKey(t)]);
-    const freshTransactions = recentTransactions.filter((t) => !state.alerted[scheduleKey(t)]);
-    const freshUncategorized = uncategorized.filter((t) => !state.alerted[uncategorizedKey(t)]);
+    const today = isoDate(now);
+    state.alerted = pruneNotifications(state.alerted, today);
+    const freshInflows = unnotifiedTransactions(savingsInflows, "raid", state.alerted);
+    const freshTransactions = unnotifiedTransactions(recentTransactions, "schedule", state.alerted);
+    const freshUncategorized = unnotifiedTransactions(uncategorized, "uncategorized", state.alerted);
 
     const baseline = driftBaseline(state.snapshots ?? [], now);
     const findings = [
@@ -83,23 +57,29 @@ export async function runOnce({ ledger, config, state, now, mailer }) {
       }),
     ].filter(Boolean);
 
-    // Record today's snapshot, prune old ones.
-    const today = isoDate(now);
-    state.snapshots = (state.snapshots ?? [])
-      .filter((s) => s.date !== today && daysBetween(s.date, today) <= SNAPSHOT_KEEP_DAYS)
-      .concat([{ date: today, checking, cards: Object.fromEntries(cards.map((c) => [c.name, c.balance])) }])
-      .sort((a, b) => a.date.localeCompare(b.date));
+    state.snapshots = recordSnapshot(state.snapshots, { date: today, checking, cards });
 
-    const report = renderEmail({
+    const report = await renderEmail({
       date: reportDate,
-      categories,
+      categories: categories.map((category) => ({ ...category, activity: categoryActivity(category) })),
       checking,
       cards,
       baseline,
       findings,
       uncategorized,
       budgetUrl: config.budgetUrl,
-      driftThresholdCents: config.driftThresholdCents,
+      categoryTotals: categoryTotals(categories),
+      cardChanges:
+        baseline && findings.some((finding) => finding.check === "drift")
+          ? cardGrowth(cards, baseline.cards, config.driftThresholdCents)
+          : [],
+      uncategorizedTotals: uncategorized.reduce(
+        (totals, transaction) => ({
+          spending: totals.spending - Math.min(transaction.amount, 0),
+          inflows: totals.inflows + Math.max(transaction.amount, 0),
+        }),
+        { spending: 0, inflows: 0 },
+      ),
     });
     await mailer({
       postalUrl: config.postalUrl,
@@ -111,47 +91,11 @@ export async function runOnce({ ledger, config, state, now, mailer }) {
       html: report.html,
     });
 
-    // Record event findings only after the alert went out, so a failed
-    // send retries naturally on the next run.
-    if (findings.some((f) => f.check === "raid")) {
-      for (const t of freshInflows) state.alerted[raidKey(t)] = today;
-    }
-    for (const f of findings) {
-      if (f.check === "schedule") {
-        for (const t of f.postings) state.alerted[scheduleKey(t)] = today;
-      }
-      if (f.check === "uncategorized") {
-        for (const t of f.transactions) state.alerted[uncategorizedKey(t)] = today;
-      }
-    }
+    // A failed send must leave event findings eligible for the next run.
+    state.alerted = recordNotifications(state.alerted, findings, today);
 
     return { findings };
   } finally {
     await ledger.close();
   }
-}
-
-export function msUntilNextRun(runAt, now) {
-  const [h, m] = runAt.split(":").map(Number);
-  const next = new Date(now);
-  next.setHours(h, m, 0, 0);
-  if (next <= now) next.setDate(next.getDate() + 1);
-  return next - now;
-}
-
-export function scheduleDaily({ runAt, now, schedule, execute, onError }) {
-  const loop = () => {
-    schedule(
-      async () => {
-        try {
-          await execute();
-        } catch (error) {
-          await onError(error);
-        }
-        loop();
-      },
-      msUntilNextRun(runAt, now()),
-    );
-  };
-  loop();
 }

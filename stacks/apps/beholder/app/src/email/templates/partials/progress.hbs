@@ -1,0 +1,11 @@
+{{#*inline "barColor"}}{{#if (negative balance)}}#ff9b9b{{else}}#9446ed{{/if}}{{/inline}}
+<table role="presentation" aria-label="{{> @partial-block}}" width="100%" cellpadding="0" cellspacing="0" style="width:100%;table-layout:fixed;border-collapse:collapse;margin:8px 0;">
+  <tr>
+    {{#if (positive percent)}}
+      <td width="{{percent}}%" height="6" bgcolor="{{> barColor}}" style="height:6px;font-size:0;line-height:0;background:{{> barColor}};">&nbsp;</td>
+    {{/if}}
+    {{#if (positive (subtract 100 percent))}}
+      <td width="{{subtract 100 percent}}%" height="6" bgcolor="#334e68" style="height:6px;font-size:0;line-height:0;background:#334e68;">&nbsp;</td>
+    {{/if}}
+  </tr>
+</table>

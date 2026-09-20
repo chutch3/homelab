@@ -4,13 +4,19 @@ import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { loadConfig } from "./config.js";
+import { createEmailRenderer } from "./email/render.js";
+import { loadEmailTemplates } from "./email/templates.js";
 import { createLedger } from "./ledger.js";
-import { sendMail } from "./mailer.js";
 import { createMetrics, startMetricsServer } from "./metrics.js";
+import { sendMail as deliverMail, postalRequest } from "./postal.js";
 import { createReporter } from "./reporter.js";
-import { runOnce, scheduleDaily } from "./run.js";
+import { runOnce } from "./run.js";
+import { scheduleDaily } from "./scheduler.js";
 import { loadState, saveState } from "./state.js";
 import { createSupervisor } from "./supervisor.js";
+
+const renderEmail = createEmailRenderer({ loadTemplates: loadEmailTemplates });
+const sendMail = (message) => deliverMail(message, postalRequest);
 
 const previewOutput = process.env.BEHOLDER_PREVIEW_OUTPUT;
 const config = loadConfig({
@@ -31,7 +37,14 @@ async function execute() {
   const startedAt = Date.now();
   const ledger = createLedger({ ...config.actual, names: config.names, bestEffort: supervisor.bestEffort });
   const state = await loadState(config.statePath);
-  const { findings } = await runOnce({ ledger, config, state, now: new Date(), mailer: sendMail });
+  const { findings } = await runOnce({
+    ledger,
+    config,
+    state,
+    now: new Date(),
+    mailer: sendMail,
+    renderEmail,
+  });
   await saveState(config.statePath, state);
   metrics.recordRun({
     findings,
@@ -69,6 +82,7 @@ if (previewOutput) {
       config,
       state,
       now: new Date(),
+      renderEmail,
       mailer: async (message) => {
         await writeFile(previewOutput, message.html, { mode: 0o600 });
         console.log(`[beholder] preview saved: ${resolve(previewOutput)}`);

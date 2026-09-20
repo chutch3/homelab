@@ -29,9 +29,9 @@ lookback, not the entire backlog. Unresolved transactions remain visible in
 subsequent daily updates within that window, even after their finding has
 already been reported.
 
-The Open budget link appears above categories. Account balances follow, with a
-separate cash-coverage section showing checking, total card debt, and the shortfall
-or remaining cash. Savings transactions and payment differences each have a purpose
+A monthly spending summary at the top compares total spending with the sum of
+this month’s configured budgets for visible spending categories, excluding carryover.
+The Open budget link appears above categories. Account balances follow. Savings transactions and payment differences each have a purpose
 statement and a table, with totals/differences emphasized. Zero-balance cards show
 $0.00 without an owed label. The categorization notice appears only at the top;
 there is no generic Items to review section. Dated card-debt changes remain visible. The full current card balance is not the next payment due; payment timing
@@ -166,6 +166,35 @@ file to include its baseline and deduplication context; the file is read only.
 Without Task, set `BEHOLDER_PREVIEW_OUTPUT` to the output filename and run
 `node src/index.js` from `app/` with the required environment loaded. Set
 `BEHOLDER_PREVIEW_TO` only when sending is desired.
+
+### Editing the email
+
+Email content lives in `app/src/email/templates/`:
+
+- `report.html.hbs`: section order, HTML layout, table columns, and styles.
+- `report.text.hbs`: the plain-text version of the report.
+- `partials/layout.hbs`: the shared page frame, header, and footer.
+- Other partials share the subject, notices, balance labels, and progress bars.
+
+Templates receive numeric balances, calculated activity, accounts, and findings
+from `run.js`. They own wording, formatting, sorting, and simple display
+conditions. For example:
+
+```handlebars
+{{#each (sortByName categories)}}
+  <p>{{name}}: {{money (abs balance)}} {{#if (negative balance)}}over{{else}}left{{/if}}</p>
+{{/each}}
+```
+
+Formatting helpers live in `app/src/email/helpers.js`; financial calculations
+remain in `app/src/money.js`. HTML expressions escape values automatically.
+Use normal `{{expressions}}` for report data, without raw HTML expressions.
+
+Run `task beholder:preview` again after editing and refresh the generated file.
+Compiled templates are reused within a running process; a new preview process
+loads the edited files. Deployed template changes require rebuilding and
+redeploying the application. Update both report templates for wording that
+is not already in a shared partial.
 
 ### Actual version compatibility
 
