@@ -2,6 +2,17 @@
 
 <!-- version list -->
 
+## v3.32.0 (2026-09-21)
+
+### Features
+
+- Switched email to templates and updated report
+  ([`906f51e`](https://github.com/chutch3/homelab/commit/906f51ee6e712db5270cff9840af820460447db4))
+
+- Updated to the latest version of beholder
+  ([`00aaca9`](https://github.com/chutch3/homelab/commit/00aaca96187a522379da18d5df81354f11f4ac79))
+
+
 ## v3.31.0 (2026-09-19)
 
 ### Bug Fixes
