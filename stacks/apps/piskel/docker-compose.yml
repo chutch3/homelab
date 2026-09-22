@@ -1,0 +1,38 @@
+x-homelab:
+    requires: [authentik, reverse-proxy]
+
+version: "3.9"
+
+services:
+    piskel:
+        image: ${REGISTRY:-ghcr.io}/${REGISTRY_NAMESPACE:-chutch3}/piskel:${IMAGE_TAG:-latest}
+        build:
+            context: .
+            dockerfile: Dockerfile
+        networks:
+            - traefik-public
+        healthcheck:
+            test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8080"]
+            interval: 30s
+        deploy:
+            replicas: 1
+            labels:
+                - "traefik.enable=true"
+                - "traefik.http.routers.piskel.rule=Host(`piskel.${BASE_DOMAIN}`)"
+                - "traefik.http.routers.piskel.entrypoints=websecure"
+                - "traefik.http.routers.piskel.tls.certresolver=dns"
+                - "traefik.http.routers.piskel.middlewares=authentik@swarm"
+                - "traefik.http.services.piskel.loadbalancer.server.port=8080"
+                - "traefik.swarm.network=traefik-public"
+                - "homepage.group=Tools"
+                - "homepage.name=Piskel"
+                - "homepage.icon=mdi-grid"
+                - "homepage.href=https://piskel.${BASE_DOMAIN}/"
+                - "homepage.description=Pixel art and sprite editor"
+            restart_policy:
+                condition: any
+                delay: 5s
+
+networks:
+    traefik-public:
+        external: true
