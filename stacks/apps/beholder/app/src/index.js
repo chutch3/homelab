@@ -3,12 +3,13 @@
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
+import { setTimeout as sleep } from "node:timers/promises";
 import { loadConfig } from "./config.js";
 import { createEmailRenderer } from "./email/render.js";
 import { loadEmailTemplates } from "./email/templates.js";
 import { createLedger } from "./ledger.js";
 import { createMetrics, startMetricsServer } from "./metrics.js";
-import { sendMail as deliverMail, postalRequest } from "./postal.js";
+import { sendMail as deliverMail, postalRequest, retryTransport } from "./postal.js";
 import { createReporter } from "./reporter.js";
 import { runOnce } from "./run.js";
 import { scheduleDaily } from "./scheduler.js";
@@ -16,7 +17,15 @@ import { loadState, saveState } from "./state.js";
 import { createSupervisor } from "./supervisor.js";
 
 const renderEmail = createEmailRenderer({ loadTemplates: loadEmailTemplates });
-const sendMail = (message) => deliverMail(message, postalRequest);
+const sendMail = (message) =>
+  deliverMail(
+    message,
+    retryTransport(postalRequest, {
+      attempts: 3,
+      delayMs: 2000,
+      wait: sleep,
+    }),
+  );
 
 const previewOutput = process.env.BEHOLDER_PREVIEW_OUTPUT;
 const config = loadConfig({

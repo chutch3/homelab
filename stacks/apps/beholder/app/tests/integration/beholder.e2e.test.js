@@ -885,6 +885,27 @@ describe("beholder end to end", () => {
     }
   }, 120000);
 
+  it("retries the daily email after Postal drops the connection", async () => {
+    const flakyPostal = mockttp.getLocal();
+    await flakyPostal.start();
+    await flakyPostal.forPost("/api/v1/send/message").once().thenCloseConnection();
+    const delivered = await flakyPostal
+      .forPost("/api/v1/send/message")
+      .thenJson(200, { status: "success", data: { message_id: "retried" } });
+    try {
+      const run = await runBeholder(syncIds.healthy, "beholder-e2e-flaky-", {
+        BEHOLDER_POSTAL_URL: flakyPostal.url,
+      });
+      expect(run.code).toBe(0);
+      expect(run.stdout).toContain("run complete");
+      const requests = await delivered.getSeenRequests();
+      expect(requests).toHaveLength(1);
+      expect((await requests[0].body.getJson()).subject).toContain("budget");
+    } finally {
+      await flakyPostal.stop();
+    }
+  }, 120000);
+
   it("alerts by email when the budget is in trouble", async () => {
     const before = await sentCount();
     const run = await runBeholder(syncIds.troubled, "beholder-e2e-troubled-");

@@ -8,6 +8,20 @@ export async function postalRequest({ url, apiKey, payload }) {
   return { ok: response.ok, status: response.status, body: await response.text() };
 }
 
+// A request that never reached Postal is safe to repeat; one Postal answered is not.
+export function retryTransport(request, { attempts, delayMs, wait }) {
+  return async (value) => {
+    for (let attempt = 1; ; attempt++) {
+      try {
+        return await request(value);
+      } catch (error) {
+        if (attempt >= attempts) throw error;
+        await wait(delayMs);
+      }
+    }
+  };
+}
+
 // Failure reports may supply plain text only.
 export async function sendMail({ postalUrl, postalApiKey, from, to, subject, body, html }, request) {
   const response = await request({

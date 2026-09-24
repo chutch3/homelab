@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { sendMail } from "../../src/postal.js";
+import { retryTransport, sendMail } from "../../src/postal.js";
 
 describe("sendMail", () => {
   const message = {
@@ -66,5 +66,59 @@ describe("sendMail", () => {
         throw error;
       }),
     ).rejects.toBe(error);
+  });
+});
+
+describe("retryTransport", () => {
+  const request = { url: "invalid:/api/v1/send/message", apiKey: "key", payload: {} };
+  const delivered = { ok: true, status: 200, body: "{}" };
+
+  function setup(outcomes) {
+    const calls = [];
+    const waits = [];
+    const transport = async (value) => {
+      calls.push(value);
+      const outcome = outcomes[calls.length - 1];
+      if (outcome instanceof Error) throw outcome;
+      return outcome;
+    };
+    const subject = retryTransport(transport, {
+      attempts: 3,
+      delayMs: 2000,
+      wait: async (ms) => {
+        waits.push(ms);
+      },
+    });
+    return { subject, calls, waits };
+  }
+
+  it("returns the first response without waiting", async () => {
+    const { subject, calls, waits } = setup([delivered]);
+    expect(await subject(request)).toBe(delivered);
+    expect(calls).toEqual([request]);
+    expect(waits).toEqual([]);
+  });
+
+  it("repeats the same request after a transport failure", async () => {
+    const { subject, calls, waits } = setup([new TypeError("fetch failed"), delivered]);
+    expect(await subject(request)).toBe(delivered);
+    expect(calls).toEqual([request, request]);
+    expect(waits).toEqual([2000]);
+  });
+
+  it("rethrows the last transport failure once attempts run out", async () => {
+    const last = new TypeError("third");
+    const { subject, calls, waits } = setup([new TypeError("first"), new TypeError("second"), last]);
+    await expect(subject(request)).rejects.toBe(last);
+    expect(calls).toHaveLength(3);
+    expect(waits).toEqual([2000, 2000]);
+  });
+
+  it("does not repeat a request Postal answered, even with an error status", async () => {
+    const rejected = { ok: false, status: 503, body: '{"status":"error"}' };
+    const { subject, calls, waits } = setup([rejected, delivered]);
+    expect(await subject(request)).toBe(rejected);
+    expect(calls).toHaveLength(1);
+    expect(waits).toEqual([]);
   });
 });
