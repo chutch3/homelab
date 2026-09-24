@@ -906,6 +906,18 @@ describe("beholder end to end", () => {
     }
   }, 120000);
 
+  it("logs why Postal could not be reached, not just that fetch failed", async () => {
+    const run = await runBeholder(syncIds.healthy, "beholder-e2e-unreachable-", {
+      BEHOLDER_POSTAL_URL: `http://127.0.0.1:${await freePort()}`,
+    });
+    expect(run.code).toBe(1);
+    const failures = run.stderr.split("\n").filter((line) => line.startsWith("[beholder]"));
+    expect(failures).toEqual([
+      expect.stringMatching(/^\[beholder\] run failed: .*fetch failed.*ECONNREFUSED/),
+      expect.stringMatching(/^\[beholder\] failure email also failed: fetch failed.*ECONNREFUSED/),
+    ]);
+  }, 120000);
+
   it("alerts by email when the budget is in trouble", async () => {
     const before = await sentCount();
     const run = await runBeholder(syncIds.troubled, "beholder-e2e-troubled-");
