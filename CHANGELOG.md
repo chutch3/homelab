@@ -2,6 +2,25 @@
 
 <!-- version list -->
 
+## v3.33.0 (2026-09-26)
+
+### Bug Fixes
+
+- Connect postal to its database directly to avoid swarm idle drops
+  ([`f7fa76a`](https://github.com/chutch3/homelab/commit/f7fa76a13b41a313f612a18984c0205323ffd0ed))
+
+- Log the underlying cause of beholder failures
+  ([`d5f7825`](https://github.com/chutch3/homelab/commit/d5f7825ba3cb5ca6bcac719b31a6844456d6f171))
+
+- Retry postal sends after connection failures
+  ([`22e90ee`](https://github.com/chutch3/homelab/commit/22e90ee47f1743b3780652493aff49cc66d4550f))
+
+### Features
+
+- Added piskel for pixel art design
+  ([`f887260`](https://github.com/chutch3/homelab/commit/f887260489293532cf8b6caa44ba8b57c9e45168))
+
+
 ## v3.32.0 (2026-09-21)
 
 ### Features
