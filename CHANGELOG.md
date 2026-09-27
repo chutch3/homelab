@@ -2,6 +2,14 @@
 
 <!-- version list -->
 
+## v3.33.1 (2026-09-27)
+
+### Bug Fixes
+
+- Recover beholder when actual drops a reused connection
+  ([`3ccfb0a`](https://github.com/chutch3/homelab/commit/3ccfb0a4273d94bc716871919d6607eb4759d539))
+
+
 ## v3.33.0 (2026-09-26)
 
 ### Bug Fixes
