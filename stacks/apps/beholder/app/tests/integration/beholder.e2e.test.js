@@ -6,6 +6,7 @@ import * as mockttp from "mockttp";
 import { chromium } from "playwright";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { startProcess } from "./fixtures/process.mjs";
+import { startSingleUseProxy } from "./fixtures/single-use-proxy.mjs";
 
 // Integration per the house harness pattern: beholder runs as a REAL
 // subprocess (the Dockerfile CMD) against a REAL sync-server seeded with
@@ -979,6 +980,73 @@ describe("beholder end to end", () => {
     expect(emails[0].body.subject).toMatch(/beholder.*(failed|broken)/i);
     expect(emails[0].body.plain_body).toContain("Renamed Category That Does Not Exist");
     expect(emails[0].body.to).toEqual(["one@harness.test", "two@harness.test"]);
+  }, 120000);
+
+  it("never reuses a connection the Actual server may have closed as idle", async () => {
+    const before = await sentCount();
+    const actual = await startSingleUseProxy(serverBase);
+    try {
+      const run = await runBeholder(syncIds.healthy, "beholder-e2e-single-use-", {
+        ACTUAL_SERVER_URL: actual.url,
+      });
+      expect(run.stderr).toBe("");
+      expect(run.code).toBe(0);
+      expect(await sentCount()).toBe(before + 1);
+    } finally {
+      await actual.stop();
+    }
+  }, 120000);
+
+  it("reopens the budget after the Actual server drops the sync once", async () => {
+    const stateDir = mkdtempSync(join(tmpdir(), "beholder-e2e-sync-flaky-"));
+    const cached = { BEHOLDER_DATA_DIR: join(stateDir, "actual-data") };
+    expect((await runBeholder(syncIds.healthy, "beholder-e2e-sync-warm-", cached)).code).toBe(0);
+    const before = await sentCount();
+    const actual = mockttp.getLocal();
+    await actual.start();
+    await actual.forPost("/sync/sync").once().thenCloseConnection();
+    await actual.forAnyRequest().thenForwardTo(serverBase);
+    try {
+      const run = await runBeholder(syncIds.healthy, "beholder-e2e-sync-flaky-", {
+        ...cached,
+        ACTUAL_SERVER_URL: actual.url,
+      });
+      expect(run.code).toBe(0);
+      expect(run.stdout).toContain("daily update sent");
+      const emails = await sentEmails(before);
+      expect(emails).toHaveLength(1);
+      expect(emails[0].body.plain_body).toContain("Carry fund: $275.00 left");
+    } finally {
+      await actual.stop();
+    }
+  }, 120000);
+
+  it("closes the budget when the Actual server keeps dropping the sync", async () => {
+    // warm the cache, as in production
+    const stateDir = mkdtempSync(join(tmpdir(), "beholder-e2e-sync-dropped-"));
+    const cached = { BEHOLDER_DATA_DIR: join(stateDir, "actual-data") };
+    expect((await runBeholder(syncIds.healthy, "beholder-e2e-sync-warm-", cached)).code).toBe(0);
+    const before = await sentCount();
+    const actual = mockttp.getLocal();
+    await actual.start();
+    await actual.forPost("/sync/sync").always().thenCloseConnection();
+    await actual.forAnyRequest().thenForwardTo(serverBase);
+    try {
+      const run = await runBeholder(syncIds.healthy, "beholder-e2e-sync-dropped-", {
+        ...cached,
+        ACTUAL_SERVER_URL: actual.url,
+      });
+      expect(run.code).toBe(1);
+      expect(run.stderr).toMatch(/run failed: .*unknown problem opening/);
+      const loaded = run.stdout.match(/Loading budget/g) ?? [];
+      expect(loaded.length).toBeGreaterThan(1);
+      expect(run.stdout.match(/Closing budget/g) ?? []).toHaveLength(loaded.length);
+      const emails = await sentEmails(before);
+      expect(emails).toHaveLength(1);
+      expect(emails[0].body.subject).toMatch(/beholder: run failed/);
+    } finally {
+      await actual.stop();
+    }
   }, 120000);
 
   it("sends a daily update and records a snapshot when the budget is healthy", async () => {

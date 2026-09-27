@@ -18,8 +18,8 @@ function isoDate(d) {
 }
 
 export async function runOnce({ ledger, config, state, now, mailer, renderEmail }) {
-  await ledger.open();
   try {
+    await ledger.open();
     const { checking, cards } = await ledger.accountBalances();
     const reportDate = [
       now.getFullYear(),

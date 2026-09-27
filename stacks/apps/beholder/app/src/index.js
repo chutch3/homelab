@@ -4,17 +4,22 @@ import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { setTimeout as sleep } from "node:timers/promises";
+import { Agent, setGlobalDispatcher } from "undici";
 import { loadConfig } from "./config.js";
 import { createEmailRenderer } from "./email/render.js";
 import { loadEmailTemplates } from "./email/templates.js";
 import { createLedger } from "./ledger.js";
 import { createMetrics, startMetricsServer } from "./metrics.js";
 import { sendMail as deliverMail, postalRequest, retryTransport } from "./postal.js";
+import { reopening } from "./reopen.js";
 import { createReporter } from "./reporter.js";
 import { runOnce } from "./run.js";
 import { scheduleDaily } from "./scheduler.js";
 import { loadState, saveState } from "./state.js";
 import { createSupervisor } from "./supervisor.js";
+
+// Actual's server drops idle sockets the client may still reuse.
+setGlobalDispatcher(new Agent({ pipelining: 0 }));
 
 const renderEmail = createEmailRenderer({ loadTemplates: loadEmailTemplates });
 const sendMail = (message) =>
@@ -44,7 +49,10 @@ const supervisor = createSupervisor({ proc: process, onFatal: reportFailure, log
 
 async function execute() {
   const startedAt = Date.now();
-  const ledger = createLedger({ ...config.actual, names: config.names, bestEffort: supervisor.bestEffort });
+  const ledger = reopening(
+    createLedger({ ...config.actual, names: config.names, bestEffort: supervisor.bestEffort }),
+    { attempts: 3, delayMs: 2000, wait: sleep },
+  );
   const state = await loadState(config.statePath);
   const { findings } = await runOnce({
     ledger,

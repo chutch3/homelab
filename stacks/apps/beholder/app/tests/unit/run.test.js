@@ -510,4 +510,19 @@ describe("runOnce", () => {
     ).rejects.toThrow("boom");
     expect(closed).toBe(true);
   });
+
+  it("closes the ledger when opening it fails", async () => {
+    let closed = false;
+    const ledger = fakeLedger();
+    ledger.open = async () => {
+      throw new Error("unknown problem opening");
+    };
+    ledger.close = async () => {
+      closed = true;
+    };
+    await expect(
+      runOnce({ ledger, config, state: { snapshots: [] }, mailer: fakeMailer().mailer }),
+    ).rejects.toThrow("unknown problem opening");
+    expect(closed).toBe(true);
+  });
 });
