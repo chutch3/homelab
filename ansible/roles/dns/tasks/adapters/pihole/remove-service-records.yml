@@ -22,3 +22,13 @@
   ignore_errors: yes
   delegate_to: localhost
   when: stack_name is defined and stack_name == 'dns'
+
+- name: "[PIHOLE] Reload DNS resolver to drop the removed records"
+  ansible.builtin.uri:
+    url: "{{ dns_secondary_api_url }}/action/restartdns"
+    method: POST
+    headers:
+      sid: "{{ dns_pihole_session_id }}"
+    status_code: [200, 204]
+  changed_when: false
+  delegate_to: localhost
