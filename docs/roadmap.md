@@ -32,7 +32,7 @@ Operations hardening and platform expansion.
 | CI/CD Runners | Forgejo runner + GitHub runner on homelab hardware |
 | Prefect | Python workflow orchestration for data/ML pipelines |
 | Kolibri | Offline K-12 education (Khan Academy, CK-12) |
-| Ollama | Local LLM inference integrated with LibreChat |
+| Ollama | Local LLM inference |
 | Excalidraw | Collaborative whiteboard with real-time rooms |
 | FreshRSS | RSS aggregator with Authentik SSO |
 | Komga + Kenku | Manga library with automated MangaDex downloads |

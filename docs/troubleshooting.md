@@ -981,7 +981,7 @@ docker service logs myapp
 
 ## Database Performance Issues
 
-**Issue:** Slow queries, connection timeouts, or performance degradation for database-heavy services (Immich, LibreChat).
+**Issue:** Slow queries, connection timeouts, or performance degradation for database-heavy services (Immich).
 
 ### Slow Queries or Timeouts
 
@@ -1027,7 +1027,6 @@ docker service logs myapp
 3. **Check database logs:**
    ```bash
    docker service logs immich_postgres --tail 100 --follow
-   docker service logs librechat_mongodb --tail 100 --follow
    ```
 
 4. **Monitor database resource usage:**
@@ -1096,9 +1095,6 @@ could not connect to server: Connection refused
    ```bash
    # PostgreSQL
    docker exec -it $(docker ps -q -f name=postgres) psql -U postgres -d immich -c "SELECT pg_size_pretty(pg_database_size('immich'));"
-
-   # MongoDB
-   docker exec -it $(docker ps -q -f name=mongodb) mongo librechat --eval "db.stats()"
    ```
 
 2. **Optimize PostgreSQL:**
@@ -1161,7 +1157,7 @@ docker service ps immich_postgres
    task deploy -- immich
    ```
 
-**Critical Note:** For services like Immich and LibreChat with PostgreSQL or MongoDB databases, local storage is **mandatory** for acceptable performance. Network storage (CIFS/SMB) will result in extremely slow performance, connection timeouts, and health check failures.
+**Critical Note:** For services like Immich with PostgreSQL databases, local storage is **mandatory** for acceptable performance. Network storage (CIFS/SMB) will result in extremely slow performance, connection timeouts, and health check failures.
 
 ---
 

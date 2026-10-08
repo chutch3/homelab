@@ -22,7 +22,7 @@ A Docker Swarm platform for self-hosted services. Deploys 37+ pre-configured ser
 - Immich, Emby, Komga (comics/manga)
 - Sonarr, Radarr, Prowlarr, Profilarr, qBittorrent, Deluge, SABnzbd, NZBGet
 - Forgejo (Git + CI/CD), GitHub Actions Runner, Code-server (VS Code in browser)
-- Vaultwarden, LibreChat, Kiwix (offline Wikipedia + Stack Overflow)
+- Vaultwarden, Open WebUI, Kiwix (offline Wikipedia + Stack Overflow)
 
 ---
 
