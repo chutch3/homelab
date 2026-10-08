@@ -1,0 +1,15 @@
+<!doctype html>
+<!-- Minimal KasmVNC 1.4 sidebar contract, not a copy of the full desktop client. -->
+<html lang="en" class="noVNC_connected">
+<head><meta charset="utf-8"><title>Sidebar integration fixture</title></head>
+<body>
+<div id="noVNC_control_bar"><div class="noVNC_scroll">
+  <div class="noVNC_button_div"><button id="noVNC_disconnect_button">Disconnect desktop</button></div>
+</div></div>
+<script>
+document.querySelector('#noVNC_disconnect_button').onclick = () => {
+  document.documentElement.classList.remove('noVNC_connected');
+};
+</script>
+</body>
+</html>
