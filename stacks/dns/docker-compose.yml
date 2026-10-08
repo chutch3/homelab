@@ -3,7 +3,7 @@ x-homelab:
 
 services:
     dns-server:
-        image: technitium/dns-server:15.2.0
+        image: technitium/dns-server:15.6.0
         hostname: "dns-server"
         ports:
             # host mode: only binds on the node running the container, preventing
