@@ -123,6 +123,7 @@ services:
 
         environment:
             - TEMPLATE_NAME=${ERROR_PAGES_THEME:-shuffle}
+            - SEND_SAME_HTTP_CODE=true
 
         deploy:
             replicas: 1
