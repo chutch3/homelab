@@ -1,6 +1,5 @@
 FROM python:3.12-alpine
 
-# Install iperf3, verify version and create non-root user.
 # iperf3 is intentionally unpinned to track the base image's current version.
 # hadolint ignore=DL3018
 RUN apk add --no-cache iperf3 && \
@@ -10,5 +9,4 @@ USER iperf3user
 
 EXPOSE 5201
 
-# Run iperf3 in server mode
 CMD ["iperf3", "-s"]

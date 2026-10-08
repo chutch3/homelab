@@ -13,7 +13,7 @@ A lightweight Python-based Prometheus exporter for iperf3 network performance me
 ## Project Structure
 
 ```
-custom-exporter/
+iperf3-exporter/
 ├── src/
 │   └── iperf3_exporter/
 │       ├── __init__.py

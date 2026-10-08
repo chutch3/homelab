@@ -1,8 +1,0 @@
-[
-  {
-    "targets": ["nas.${BASE_DOMAIN}:9000"],
-    "labels": {
-      "instance": "minio-nas"
-    }
-  }
-]

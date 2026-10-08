@@ -13,7 +13,7 @@ Dashboards are stored in two locations:
    - Can be edited via Grafana UI
 
 2. **Local Dashboards** (`/etc/grafana/provisioning/dashboards/local` inside Grafana container)
-   - Mounted from `./dashboards/local` directory
+   - Mounted from `./grafana/dashboards/local` directory
    - Pre-configured dashboards for homelab monitoring
    - Read-only (cannot be edited via UI)
    - Version controlled with the repository
@@ -31,7 +31,7 @@ Dashboards are stored in two locations:
 3. Grafana will auto-discover and load it within 30 seconds
 
 ### Method 3: Add to Repository (For Built-in Dashboards)
-1. Place JSON file in `./dashboards/local/`
+1. Place JSON file in `./grafana/dashboards/local/`
 2. Commit to repository
 3. Redeploy monitoring stack
 
@@ -56,7 +56,7 @@ To create custom dashboards:
 1. Use Grafana UI to design dashboard
 2. Test with live Prometheus data
 3. Export as JSON
-4. (Optional) Add to `./dashboards/local/` for version control
+4. (Optional) Add to `./grafana/dashboards/local/` for version control
 
 ## Troubleshooting
 

@@ -1,0 +1,44 @@
+# "fake" is Loki's tenant name when auth is off.
+groups:
+  - name: storage-kernel
+    interval: 1m
+    rules:
+      - alert: OCFS2MetadataError
+        expr: |
+          sum by (hostname) (count_over_time({job="system_journal", syslog_identifier="kernel"} |~ `ocfs2\S*:\d+ ERROR|OCFS2: ERROR|On-disk corruption discovered` [1h])) > 0
+        labels:
+          severity: critical
+          component: storage
+        annotations:
+          summary: "OCFS2 errors in the kernel log on {{ $labels.hostname }}"
+          description: "{{ $value | printf \"%.0f\" }} OCFS2 error lines in the last hour. Repeated 'Invalid dinode' or 'status = -117' is on-disk corruption — schedule task ansible:storage:recover before it stalls the cluster. Look: journalctl -k | grep -i ocfs2"
+
+      - alert: KernelTaskHung
+        expr: |
+          sum by (hostname) (count_over_time({job="system_journal", syslog_identifier="kernel"} |~ `blocked for more than \d+ seconds` [15m])) > 0
+        labels:
+          severity: critical
+          component: storage
+        annotations:
+          summary: "Kernel reports hung tasks on {{ $labels.hostname }}"
+          description: "{{ $value | printf \"%.0f\" }} 'blocked for more than N seconds' lines in 15m — processes are stuck in the kernel, usually on a stalled OCFS2/iSCSI mount."
+
+      - alert: IscsiSessionError
+        expr: |
+          sum by (hostname) (count_over_time({job="system_journal", syslog_identifier="kernel"} |~ `connection\d+:\d+: (detected conn error|ping timeout)|session recovery timed out` [15m])) > 0
+        labels:
+          severity: warning
+          component: storage
+        annotations:
+          summary: "iSCSI session errors on {{ $labels.hostname }}"
+          description: "{{ $value | printf \"%.0f\" }} iSCSI connection errors in 15m — the node lost contact with the NAS target. A node that keeps writing after this can corrupt OCFS2."
+
+      - alert: OCFS2NodeDisconnected
+        expr: |
+          sum by (hostname) (count_over_time({job="system_journal", syslog_identifier="kernel"} |~ `o2dlm has evicted node|is the Recovery Master for the dead node|o2net: Connection to node .* has been idle` [15m])) > 0
+        labels:
+          severity: warning
+          component: storage
+        annotations:
+          summary: "OCFS2 cluster lost a node, seen from {{ $labels.hostname }}"
+          description: "A node went silent or was evicted from the OCFS2 cluster outside a clean unmount. Check that node's network and iSCSI session."

@@ -9,7 +9,6 @@ clients:
   - url: http://loki:3100/loki/api/v1/push
 
 scrape_configs:
-  # Scrape journalctl logs
   - job_name: system_journal
     journal:
       max_age: 12h
@@ -22,11 +21,10 @@ scrape_configs:
       - source_labels: ['__journal__hostname']
         target_label: 'hostname'
       - source_labels: ['__journal__hostname']
-        target_label: 'instance' # Match Prometheus instance label
+        target_label: 'instance'
       - source_labels: ['__journal_syslog_identifier']
         target_label: 'syslog_identifier'
 
-  # Scrape Docker container logs (filter for Traefik only)
   - job_name: traefik
     docker_sd_configs:
       - host: unix:///var/run/docker.sock
@@ -45,11 +43,9 @@ scrape_configs:
       - source_labels: ['__meta_docker_container_label_com_docker_stack_namespace']
         target_label: 'stack'
     pipeline_stages:
-      # Only process JSON logs (access logs), skip debug logs
       - match:
           selector: '{service="reverse-proxy_traefik"}'
           stages:
-            # Parse JSON access logs from Traefik
             - json:
                 expressions:
                   ClientAddr: ClientAddr
@@ -68,21 +64,17 @@ scrape_configs:
                   level: level
                   msg: msg
                   time: time
-            # Only keep logs that have RequestMethod (i.e., access logs)
             - match:
                 selector: '{service="reverse-proxy_traefik"}'
                 pipeline_name: "access_logs"
                 stages:
-                  # Drop logs without RequestMethod (debug logs)
                   - drop:
                       source: "RequestMethod"
                       expression: "^$"
-                  # Add labels from parsed JSON
                   - labels:
                       RequestMethod:
                       RequestHost:
                       DownstreamStatus:
-                  # Parse timestamp
                   - timestamp:
                       source: time
                       format: RFC3339

@@ -70,9 +70,7 @@ task status-pipeline:verify
 
 ## Monitoring (Optional)
 
-A Grafana dashboard (`stacks/monitoring/dashboards/local/status-pipeline.json`) tracks MinIO request rate, bandwidth, and errors for the `public-status` bucket.
-
-To enable Prometheus scraping, update `stacks/monitoring/prometheus.yml` and replace `REPLACE_WITH_NAS_SERVER` with your NAS hostname in the `minio` scrape job.
+To enable Prometheus scraping, set `STATUS_PIPELINE_MINIO_ENABLED=true`, `STATUS_PIPELINE_MINIO_HOST` and `STATUS_PIPELINE_MINIO_METRICS_TOKEN` in `.env` and redeploy the monitoring stack. Alerts on that traffic live in `stacks/monitoring/prometheus/alert-rules.yml`.
 
 ## Security
 

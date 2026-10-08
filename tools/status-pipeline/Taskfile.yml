@@ -76,9 +76,8 @@ tasks:
                 SSH_TIMEOUT=30 ssh_execute --login "{{.NAS_ROOT}}" "tail -50 /var/log/status-pipeline.log"
 
     prometheus:disable:
-        desc: Remove MinIO scrape target and secret
+        desc: Remove the MinIO metrics secret
         cmds:
             - |
-                rm -f ../../stacks/monitoring/minio-targets.json
                 docker secret rm status_pipeline_minio_token 2>/dev/null || true
-                echo "Removed. Redeploy monitoring stack to apply."
+                echo "Removed. Set STATUS_PIPELINE_MINIO_ENABLED=false and redeploy the monitoring stack."

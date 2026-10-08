@@ -1,0 +1,37 @@
+# Template: *_PLACEHOLDER values are filled in at container start.
+global:
+  resolve_timeout: 5m
+  smtp_smarthost: 'postal_smtp:2525'
+  smtp_from: 'alerts@BASE_DOMAIN_PLACEHOLDER'
+  smtp_auth_username: 'SMTP_USERNAME_PLACEHOLDER'
+  smtp_auth_password: 'SMTP_PASSWORD_PLACEHOLDER'
+  smtp_require_tls: false
+
+route:
+  receiver: house-email
+  group_by: ['alertname', 'component']
+  group_wait: 30s
+  group_interval: 5m
+  repeat_interval: 6h
+
+  routes:
+    # Bypass Postal: its DB is on app-data.
+    - matchers: ['component=~"storage|alerting"']
+      receiver: storage-email
+
+receivers:
+  - name: house-email
+    email_configs:
+      - to: 'ALERT_TO_PLACEHOLDER'
+        # CRAM-MD5: Postal has no STARTTLS. Per receiver so smtp2go doesn't inherit it.
+        auth_secret: 'SMTP_PASSWORD_PLACEHOLDER'
+        send_resolved: true
+  - name: storage-email
+    email_configs:
+      - to: 'ALERT_TO_PLACEHOLDER'
+        smarthost: 'mail.smtp2go.com:587'
+        auth_username: 'SMTP2GO_USERNAME_PLACEHOLDER'
+        auth_password: 'SMTP2GO_PASSWORD_PLACEHOLDER'
+        require_tls: true
+        # Kernel-log alerts come in bursts; a "resolved" mail per burst is noise.
+        send_resolved: false

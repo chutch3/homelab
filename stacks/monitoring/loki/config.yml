@@ -35,29 +35,29 @@ schema_config:
         period: 24h
 
 ruler:
-  alertmanager_url: http://localhost:9093
+  alertmanager_url: http://alertmanager:9093
+  enable_alertmanager_v2: true
+  enable_api: true
+  rule_path: /loki/rules-temp
+  storage:
+    type: local
+    local:
+      directory: /etc/loki/rules
 
-# Increase limits to handle more log volume
 limits_config:
-  # Ingestion rate limits (per user/tenant)
-  ingestion_rate_mb: 16  # Increased from default 4MB
-  ingestion_burst_size_mb: 32  # Increased from default 6MB
+  ingestion_rate_mb: 16
+  ingestion_burst_size_mb: 32
 
-  # Per-stream rate limits
-  per_stream_rate_limit: 10MB  # Increased from default 3MB
-  per_stream_rate_limit_burst: 20MB  # Increased from default 15MB
+  per_stream_rate_limit: 10MB
+  per_stream_rate_limit_burst: 20MB
 
-  # Query limits
   max_query_series: 5000
   max_query_parallelism: 32
 
-  # Retention
-  retention_period: 168h  # Keep logs for 7 days
+  retention_period: 168h
 
-  # Accept slightly older logs (1 hour window)
   reject_old_samples: true
   reject_old_samples_max_age: 1h
 
-  # Cardinality limits
   max_streams_per_user: 10000
   max_global_streams_per_user: 50000

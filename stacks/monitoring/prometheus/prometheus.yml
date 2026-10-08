@@ -11,128 +11,102 @@ alerting:
         - targets: ["alertmanager:9093"]
 
 scrape_configs:
-  # Prometheus itself
   - job_name: "prometheus"
     static_configs:
       - targets: ["localhost:9090"]
 
-  # Docker daemon metrics
+  - job_name: "alertmanager"
+    static_configs:
+      - targets: ["alertmanager:9093"]
+
   - job_name: "docker"
     dockerswarm_sd_configs:
       - host: unix:///var/run/docker.sock
         role: nodes
     relabel_configs:
-      # Use node address with Docker metrics port
       - source_labels: [__meta_dockerswarm_node_address]
         target_label: __address__
         replacement: $1:9323
-      # Use node hostname as instance label
       - source_labels: [__meta_dockerswarm_node_hostname]
         target_label: instance
-      # Add node ID label
       - source_labels: [__meta_dockerswarm_node_id]
         target_label: node_id
-      # Add node role label
       - source_labels: [__meta_dockerswarm_node_role]
         target_label: node_role
 
-  # Node Exporter (host metrics)
   - job_name: "node-exporter"
     dockerswarm_sd_configs:
       - host: unix:///var/run/docker.sock
         role: nodes
     relabel_configs:
-      # Use node address with Node Exporter port
       - source_labels: [__meta_dockerswarm_node_address]
         target_label: __address__
         replacement: $1:9100
-      # Use node hostname as instance label
       - source_labels: [__meta_dockerswarm_node_hostname]
         target_label: instance
-      # Add node ID label
       - source_labels: [__meta_dockerswarm_node_id]
         target_label: node_id
 
-  # cAdvisor (container metrics)
   - job_name: "cadvisor"
     dockerswarm_sd_configs:
       - host: unix:///var/run/docker.sock
         role: nodes
     relabel_configs:
-      # Use node address with cAdvisor port
       - source_labels: [__meta_dockerswarm_node_address]
         target_label: __address__
         replacement: $1:8080
-      # Use node hostname as instance label
       - source_labels: [__meta_dockerswarm_node_hostname]
         target_label: instance
-      # Add node ID label
       - source_labels: [__meta_dockerswarm_node_id]
         target_label: node_id
 
-  # Docker Swarm tasks (containers)
-  # Only scrapes services with deploy label: prometheus.scrape=true
   - job_name: "swarm-tasks"
     dockerswarm_sd_configs:
       - host: unix:///var/run/docker.sock
         role: tasks
     relabel_configs:
-      # Only keep running tasks
       - source_labels: [__meta_dockerswarm_task_desired_state]
         regex: running
         action: keep
-      # Only keep services that opt in with prometheus.scrape=true
       - source_labels: [__meta_dockerswarm_service_label_prometheus_scrape]
         regex: "true"
         action: keep
-      # Use custom metrics port if set, otherwise use published port
       - source_labels: [__meta_dockerswarm_service_label_prometheus_port]
         regex: (.+)
         target_label: __address__
         replacement: $1
-      # Use custom metrics path if set
       - source_labels: [__meta_dockerswarm_service_label_prometheus_path]
         regex: (.+)
         target_label: __metrics_path__
         replacement: $1
-      # Set instance from service name and task slot
       - source_labels: [__meta_dockerswarm_service_name, __meta_dockerswarm_task_slot]
         separator: "_"
         target_label: instance
-      # Add service name label
       - source_labels: [__meta_dockerswarm_service_name]
         target_label: service
-      # Add node hostname label
       - source_labels: [__meta_dockerswarm_node_hostname]
         target_label: node
 
-  # Traefik metrics
   - job_name: "traefik"
     static_configs:
       - targets: ["traefik:9100"]
 
-  # NVIDIA GPU metrics
   - job_name: "nvidia-gpu"
     dockerswarm_sd_configs:
       - host: unix:///var/run/docker.sock
         role: nodes
     relabel_configs:
-      # Use node address with GPU exporter port
       - source_labels: [__meta_dockerswarm_node_address]
         target_label: __address__
         replacement: $1:9400
-      # Use node hostname as instance label
       - source_labels: [__meta_dockerswarm_node_hostname]
         target_label: instance
-      # Add node ID label
       - source_labels: [__meta_dockerswarm_node_id]
         target_label: node_id
-      # Only keep nodes with GPU label
       - source_labels: [__meta_dockerswarm_node_label_gpu]
         regex: "(true|True)"
         action: keep
 
-  # Speedtest Exporter (internet bandwidth monitoring)
   - job_name: "speedtest"
     scrape_interval: 30m
     scrape_timeout: 2m
@@ -140,30 +114,24 @@ scrape_configs:
       - host: unix:///var/run/docker.sock
         role: nodes
     relabel_configs:
-      # Use node address with Speedtest Exporter port
       - source_labels: [__meta_dockerswarm_node_address]
         target_label: __address__
         replacement: $1:9798
-      # Use node hostname as instance label
       - source_labels: [__meta_dockerswarm_node_hostname]
         target_label: instance
-      # Add node ID label
       - source_labels: [__meta_dockerswarm_node_id]
         target_label: node_id
-      # Only scrape manager node (where speedtest-exporter runs)
       - source_labels: [__meta_dockerswarm_node_role]
         regex: manager
         action: keep
 
-  # MinIO metrics (status pipeline — optional)
-  # Enable with: task status-pipeline:prometheus:enable
   - job_name: "minio-cluster"
     metrics_path: /minio/v2/metrics/cluster
     bearer_token_file: /run/secrets/status_pipeline_minio_token
     scheme: https
     file_sd_configs:
       - files:
-          - /etc/prometheus/targets/minio-targets.json
+          - /tmp/targets/minio.json
 
   - job_name: "minio-bucket"
     metrics_path: /minio/v2/metrics/bucket
@@ -171,9 +139,8 @@ scrape_configs:
     scheme: https
     file_sd_configs:
       - files:
-          - /etc/prometheus/targets/minio-targets.json
+          - /tmp/targets/minio.json
 
-  # iperf3 Exporter (inter-node bandwidth testing)
   - job_name: "iperf3-bandwidth"
     metrics_path: /probe
     scrape_interval: 30m
@@ -182,19 +149,14 @@ scrape_configs:
       - host: unix:///var/run/docker.sock
         role: nodes
     relabel_configs:
-      # Set target to Docker gateway IP (same on all nodes: 172.17.0.1)
       - target_label: __param_target
         replacement: 172.17.0.1:5201
-      # Use node hostname as instance label
       - source_labels: [__meta_dockerswarm_node_hostname]
         target_label: instance
-      # Add node ID label
       - source_labels: [__meta_dockerswarm_node_id]
         target_label: node_id
-      # Add node label for better identification
       - source_labels: [__meta_dockerswarm_node_hostname]
         target_label: node
-      # Scrape each node's exporter at node_address:9579
       - source_labels: [__meta_dockerswarm_node_address]
         target_label: __address__
         replacement: $1:9579

@@ -1,8 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-STACK_DIR="${BASH_SOURCE[0]%/*}"
-
 hook_mode() {
     case "$1" in
         pre_deploy) echo "user" ;;
@@ -23,12 +21,6 @@ pre_deploy() {
         echo "ERROR: STATUS_PIPELINE_MINIO_ENABLED=true but STATUS_PIPELINE_MINIO_HOST is not set in .env" >&2
         exit 1
     fi
-
-    # Write the actual scrape target so Prometheus knows where to reach MinIO
-    printf '[{"targets":["%s"],"labels":{"instance":"nas"}}]\n' \
-        "$STATUS_PIPELINE_MINIO_HOST" > "$STACK_DIR/minio-targets.json"
-    echo "Updated minio-targets.json → $STATUS_PIPELINE_MINIO_HOST"
-    # The real secret is created by pre-flight.yml via create-secrets.yml
 }
 
 post_deploy() { :; }

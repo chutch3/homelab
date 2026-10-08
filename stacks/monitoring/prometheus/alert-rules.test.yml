@@ -1,0 +1,119 @@
+# promtool test rules alert-rules.test.yml
+rule_files:
+  - alert-rules.yml
+
+evaluation_interval: 1m
+
+tests:
+  - name: storage
+    interval: 1m
+    input_series:
+      - series: 'up{job="node-exporter", instance="mini"}'
+        values: "1 1 0x20"
+      - series: 'up{job="node-exporter", instance="giant"}'
+        values: "1x22"
+      - series: 'node_procs_blocked{instance="mini"}'
+        values: "0 2 226x20"
+      - series: 'node_procs_blocked{instance="giant"}'
+        values: "0 15 1x20"
+      - series: 'node_filesystem_device_error{instance="mini", mountpoint="/mnt/iscsi/app-data"}'
+        values: "0 0 1x20"
+      - series: 'node_filesystem_device_error{instance="mini", mountpoint="/mnt/iscsi/cache"}'
+        values: "0x22"
+      - series: 'node_filesystem_device_error{instance="mini", mountpoint="/boot/efi"}'
+        values: "1x22"
+    alert_rule_test:
+      - alertname: NodeExporterDown
+        eval_time: 4m
+      - alertname: NodeExporterDown
+        eval_time: 10m
+        exp_alerts:
+          - exp_labels:
+              severity: critical
+              component: storage
+              job: node-exporter
+              instance: mini
+            exp_annotations:
+              summary: "node-exporter on mini is down or not answering"
+              description: "No scrape from mini for 5m. node-exporter blocks when a mount hangs, so check /mnt/iscsi on that node before assuming the node is off."
+
+      - alertname: StorageProcessesBlocked
+        eval_time: 10m
+      - alertname: StorageProcessesBlocked
+        eval_time: 15m
+        exp_alerts:
+          - exp_labels:
+              severity: critical
+              component: storage
+              instance: mini
+            exp_annotations:
+              summary: "226 processes blocked on I/O on mini"
+              description: "More than 10 processes have been stuck waiting on I/O for 10m — the usual sign of a stalled OCFS2/iSCSI mount. Check: ps -eo state,pid,etimes,comm | awk '$1==\"D\"'"
+
+      - alertname: IscsiFilesystemDeviceError
+        eval_time: 10m
+        exp_alerts:
+          - exp_labels:
+              severity: critical
+              component: storage
+              instance: mini
+              mountpoint: /mnt/iscsi/app-data
+            exp_annotations:
+              summary: "/mnt/iscsi/app-data on mini is not answering statfs"
+              description: "node-exporter could not stat /mnt/iscsi/app-data for 5m — the mount is hung or erroring."
+
+  - name: monitoring-health
+    interval: 1m
+    input_series:
+      - series: 'up{job="minio-bucket", instance="minio-nas"}'
+        values: "0x30"
+      - series: 'up{job="traefik", instance="traefik:9100"}'
+        values: "1x30"
+      - series: 'up{job="node-exporter", instance="mini"}'
+        values: "0x30"
+      - series: 'alertmanager_notification_requests_failed_total{integration="email"}'
+        values: "0 0 0 0 0 1+1x25"
+      - series: 'fiber_last_success_timestamp{db="immich"}'
+        values: "1x30"
+    alert_rule_test:
+      - alertname: TargetDown
+        eval_time: 9m
+      - alertname: TargetDown
+        eval_time: 12m
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+              component: monitoring
+              job: minio-bucket
+              instance: minio-nas
+            exp_annotations:
+              summary: "Scrape target minio-nas (minio-bucket) is down"
+              description: "Prometheus has not been able to scrape minio-nas for 10m, so every alert built on its metrics is blind."
+
+      - alertname: AlertDeliveryFailing
+        eval_time: 4m
+      - alertname: AlertDeliveryFailing
+        eval_time: 20m
+        exp_alerts:
+          - exp_labels:
+              severity: critical
+              component: alerting
+              integration: email
+            exp_annotations:
+              summary: "Alertmanager is failing to send email notifications"
+              description: "15 failed send attempts in the last 15m. Other alerts may not be reaching you. Check: docker service logs monitoring_alertmanager"
+
+      - alertname: BeholderMetricsMissing
+        eval_time: 29m
+      - alertname: BeholderMetricsMissing
+        eval_time: 30m
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+              component: beholder
+            exp_annotations:
+              summary: "Beholder is not reporting metrics"
+              description: "beholder_last_run_timestamp_seconds has been absent for 30m, so BeholderStale and BeholderRunFailed cannot fire. The service is probably down."
+
+      - alertname: FiberMetricsMissing
+        eval_time: 30m
