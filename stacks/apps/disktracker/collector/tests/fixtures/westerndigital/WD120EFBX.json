@@ -1,0 +1,93 @@
+{
+  "code": "WD120EFBX",
+  "name": "WD Red™ Plus - 12TB",
+  "price": {
+    "currencyIso": "USD",
+    "formattedValue": "$564.99",
+    "priceType": "BUY",
+    "value": 564.99
+  },
+  "stock": {
+    "stockLevel": 0,
+    "stockLevelStatus": "outOfStock"
+  },
+  "purchasable": true,
+  "baseProduct": "wd-red-plus-sata-3-5-hdd",
+  "classifications": [
+    {
+      "code": "cc_hdd",
+      "features": [
+        {
+          "codeShort": "transferRate",
+          "featureValues": [
+            {
+              "value": "up to 196"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "code": "cc_shipping",
+      "features": [
+        {
+          "codeShort": "weight",
+          "featureValues": [
+            {
+              "value": "660"
+            }
+          ]
+        },
+        {
+          "codeShort": "modelNumber",
+          "featureValues": [
+            {
+              "value": "WD120EFBX"
+            }
+          ]
+        },
+        {
+          "codeShort": "ean",
+          "featureValues": [
+            {
+              "value": "718037886190"
+            }
+          ]
+        },
+        {
+          "codeShort": "upc",
+          "featureValues": [
+            {
+              "value": "718037886190"
+            }
+          ]
+        },
+        {
+          "codeShort": "retailPkgweight",
+          "featureValues": [
+            {
+              "value": "7.5"
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "categories": [
+    {
+      "code": "vvc-capacity-12_TB",
+      "codePath": "variant-category/vc-capacity/vvc-capacity-12_TB",
+      "name": "12 TB"
+    },
+    {
+      "code": "vvc-cache_size-256_MB",
+      "codePath": "variant-category/vc-cache_size/vvc-cache_size-256_MB",
+      "name": "256 MB"
+    }
+  ],
+  "url": "/content/store/en-us/products/internal-drives/wd-red-plus-sata-3-5-hdd",
+  "brand": {
+    "code": "WDC",
+    "name": "Western Digital"
+  }
+}

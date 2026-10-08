@@ -1,0 +1,281 @@
+{
+  "sap_commerce": {
+    "groups": [],
+    "label": "SAP Commerce",
+    "page_test": false,
+    "settings": [
+      {
+        "capturing": false,
+        "description": "",
+        "group": "",
+        "label": "API URL",
+        "name": "api_url",
+        "needs": "",
+        "pattern": "^https?://[^\\s/]+\\S*$",
+        "pattern_message": "Enter the API's address, starting http:// or https://.",
+        "placeholder": "https://api.example.com/occ/v2",
+        "regex": false,
+        "required": true,
+        "type": "text"
+      },
+      {
+        "capturing": false,
+        "description": "",
+        "group": "",
+        "label": "Site",
+        "name": "site",
+        "needs": "",
+        "pattern": "",
+        "pattern_message": "",
+        "placeholder": "us",
+        "regex": false,
+        "required": true,
+        "type": "text"
+      },
+      {
+        "capturing": false,
+        "description": "Blank: the sitemap robots.txt names, or /sitemap.xml",
+        "group": "",
+        "label": "Sitemap path",
+        "name": "sitemap_path",
+        "needs": "",
+        "pattern": "^(/\\S*)?$",
+        "pattern_message": "Start it with /.",
+        "placeholder": "/sitemap.xml",
+        "regex": false,
+        "required": false,
+        "type": "text"
+      },
+      {
+        "capturing": false,
+        "description": "A regular expression the product pages to read match; blank reads every page",
+        "group": "",
+        "label": "Product path pattern",
+        "name": "product_path_pattern",
+        "needs": "",
+        "pattern": "",
+        "pattern_message": "",
+        "placeholder": "^/products/",
+        "regex": true,
+        "required": false,
+        "type": "text"
+      },
+      {
+        "capturing": false,
+        "description": "Put before a recertified product's SKU",
+        "group": "",
+        "label": "Recertified SKU prefix",
+        "name": "recertified_sku_prefix",
+        "needs": "",
+        "pattern": "",
+        "pattern_message": "",
+        "placeholder": "R",
+        "regex": false,
+        "required": false,
+        "type": "text"
+      }
+    ]
+  },
+  "shopify": {
+    "groups": [],
+    "label": "Shopify",
+    "page_test": false,
+    "settings": [
+      {
+        "capturing": false,
+        "description": "Comma-separated collection handles",
+        "group": "",
+        "label": "Collections",
+        "name": "collections",
+        "needs": "",
+        "pattern": "",
+        "pattern_message": "",
+        "placeholder": "hard-drives, solid-state-drives",
+        "regex": false,
+        "required": true,
+        "type": "list"
+      },
+      {
+        "capturing": false,
+        "description": "",
+        "group": "",
+        "label": "Every order ships free",
+        "name": "free_shipping",
+        "needs": "",
+        "pattern": "",
+        "pattern_message": "",
+        "placeholder": "",
+        "regex": false,
+        "required": false,
+        "type": "flag"
+      }
+    ]
+  },
+  "sitemap": {
+    "groups": [
+      {
+        "help": "For a store whose page covers a whole family of drives and carries them as JSON inside a script. Left blank, each page is one product, read from its own price markup.",
+        "label": "Pages that list several products",
+        "name": "data"
+      }
+    ],
+    "label": "Sitemap + product page",
+    "page_test": true,
+    "settings": [
+      {
+        "capturing": false,
+        "description": "Blank: the sitemap robots.txt names, or /sitemap.xml",
+        "group": "",
+        "label": "Sitemap path",
+        "name": "sitemap_path",
+        "needs": "",
+        "pattern": "^(/\\S*)?$",
+        "pattern_message": "Start it with /.",
+        "placeholder": "/sitemap.xml",
+        "regex": false,
+        "required": false,
+        "type": "text"
+      },
+      {
+        "capturing": false,
+        "description": "A regular expression product page paths match; blank reads every page",
+        "group": "",
+        "label": "Product path pattern",
+        "name": "product_path_pattern",
+        "needs": "",
+        "pattern": "",
+        "pattern_message": "",
+        "placeholder": "-p/",
+        "regex": true,
+        "required": false,
+        "type": "text"
+      },
+      {
+        "capturing": false,
+        "description": "Text on a page whose item ships free",
+        "group": "",
+        "label": "Free-shipping marker",
+        "name": "free_shipping_marker",
+        "needs": "",
+        "pattern": "",
+        "pattern_message": "",
+        "placeholder": "",
+        "regex": false,
+        "required": false,
+        "type": "text"
+      },
+      {
+        "capturing": true,
+        "description": "A regular expression whose ( ) holds the JSON the page carries its products in",
+        "group": "data",
+        "label": "Data pattern",
+        "name": "data_pattern",
+        "needs": "",
+        "pattern": "",
+        "pattern_message": "",
+        "placeholder": "product_models = JSON\\.parse\\('(.*?)'\\);",
+        "regex": true,
+        "required": false,
+        "type": "text"
+      },
+      {
+        "capturing": false,
+        "description": "Where the products are in that JSON: names apart by dots, * for every entry of a list; blank when it is one product",
+        "group": "data",
+        "label": "Products path",
+        "name": "data_items",
+        "needs": "",
+        "pattern": "^\\S{0,200}$",
+        "pattern_message": "A path has no spaces in it.",
+        "placeholder": "*.skus.*",
+        "regex": false,
+        "required": false,
+        "type": "text"
+      },
+      {
+        "capturing": false,
+        "description": "",
+        "group": "data",
+        "label": "Model number field",
+        "name": "data_model_field",
+        "needs": "data_pattern",
+        "pattern": "^\\S{0,200}$",
+        "pattern_message": "A path has no spaces in it.",
+        "placeholder": "modelNo",
+        "regex": false,
+        "required": false,
+        "type": "text"
+      },
+      {
+        "capturing": false,
+        "description": "The capacity and condition are read from the name",
+        "group": "data",
+        "label": "Name field",
+        "name": "data_name_field",
+        "needs": "data_pattern",
+        "pattern": "^\\S{0,200}$",
+        "pattern_message": "A path has no spaces in it.",
+        "placeholder": "name",
+        "regex": false,
+        "required": false,
+        "type": "text"
+      },
+      {
+        "capturing": false,
+        "description": "A product without a price is not an offer",
+        "group": "data",
+        "label": "Price field",
+        "name": "data_price_field",
+        "needs": "data_pattern",
+        "pattern": "^\\S{0,200}$",
+        "pattern_message": "A path has no spaces in it.",
+        "placeholder": "final_price",
+        "regex": false,
+        "required": false,
+        "type": "text"
+      },
+      {
+        "capturing": false,
+        "description": "Who made it, for names that do not say",
+        "group": "data",
+        "label": "Brand field",
+        "name": "data_brand_field",
+        "needs": "",
+        "pattern": "^\\S{0,200}$",
+        "pattern_message": "A path has no spaces in it.",
+        "placeholder": "brand",
+        "regex": false,
+        "required": false,
+        "type": "text"
+      },
+      {
+        "capturing": false,
+        "description": "Blank: in stock whenever it has a price",
+        "group": "data",
+        "label": "Stock field",
+        "name": "data_stock_field",
+        "needs": "",
+        "pattern": "^\\S{0,200}$",
+        "pattern_message": "A path has no spaces in it.",
+        "placeholder": "stock_status",
+        "regex": false,
+        "required": false,
+        "type": "text"
+      },
+      {
+        "capturing": false,
+        "description": "",
+        "group": "data",
+        "label": "In-stock value",
+        "name": "data_in_stock_value",
+        "needs": "",
+        "pattern": "",
+        "pattern_message": "",
+        "placeholder": "IN_STOCK",
+        "regex": false,
+        "required": false,
+        "type": "text"
+      }
+    ]
+  }
+}

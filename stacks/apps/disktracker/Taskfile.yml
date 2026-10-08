@@ -1,0 +1,79 @@
+version: "3"
+
+# Local server orchestration, invoked from the repository root by task dev -- disktracker.
+vars:
+    API_PORT: '{{.API_PORT | default "8000"}}'
+    UI_PORT: '{{.UI_PORT | default "5173"}}'
+    UI_HOST: '{{.UI_HOST | default "127.0.0.1"}}'
+    COLLECTOR_PORT: '{{.COLLECTOR_PORT | default "8100"}}'
+
+tasks:
+    migrate:
+        internal: true
+        dir: '{{.TASKFILE_DIR}}/backend'
+        cmds:
+            - |
+                env_file="../.local/env-$(hostname).sh"
+                if [ -f "$env_file" ]; then . "$env_file"; fi
+                : "${DISKTRACKER_DATABASE_URL:?Set DISKTRACKER_DATABASE_URL or run scripts/setup-postgres.sh}"
+                uv run --frozen alembic upgrade head
+
+    api-client:
+        desc: Regenerate the collector's disktracker API client from the backend's OpenAPI spec
+        dir: '{{.TASKFILE_DIR}}'
+        cmds:
+            - scripts/generate-api-client.sh
+
+    source-kinds:
+        desc: Regenerate the backend's description of the kinds of source from the collector's readers
+        dir: '{{.TASKFILE_DIR}}'
+        cmds:
+            - scripts/generate-source-kinds.sh
+
+    dev:
+        desc: Start the local frontend and backend (and, with COLLECTOR=1, the collector); Ctrl-C stops them
+        deps: [dev:backend, dev:frontend, dev:collector]
+
+    dev:backend:
+        internal: true
+        dir: '{{.TASKFILE_DIR}}/backend'
+        cmds:
+            - task: migrate
+            - |
+                env_file="../.local/env-$(hostname).sh"
+                if [ -f "$env_file" ]; then . "$env_file"; fi
+                : "${DISKTRACKER_DATABASE_URL:?Set DISKTRACKER_DATABASE_URL or run scripts/setup-postgres.sh}"
+                # With the collector running, sources can be tested from the Admin page.
+                if [ "${COLLECTOR:-}" = "1" ]; then
+                    export DISKTRACKER_COLLECTOR_URL='http://127.0.0.1:{{.COLLECTOR_PORT}}'
+                fi
+                exec uv run --frozen uvicorn disktracker.main:app --host 127.0.0.1 --port '{{.API_PORT}}'
+
+    dev:collector:
+        internal: true
+        dir: '{{.TASKFILE_DIR}}/collector'
+        cmds:
+            - |
+                # Off unless asked for: once started it collects every source that is due, from
+                # the live stores. Switch off on the Admin page the sources it should leave alone.
+                if [ "${COLLECTOR:-}" != "1" ]; then exit 0; fi
+                backend='http://127.0.0.1:{{.API_PORT}}'
+                tries=0
+                until curl -sf "$backend/api/sources/due" >/dev/null; do
+                    tries=$((tries + 1))
+                    if [ "$tries" -ge 60 ]; then
+                        echo "The backend at $backend never answered; not starting the collector." >&2
+                        exit 1
+                    fi
+                    sleep 1
+                done
+                exec env DISKTRACKER_URL="$backend" COLLECTOR_API_PORT='{{.COLLECTOR_PORT}}' \
+                    uv run --frozen python -m collector
+
+    dev:frontend:
+        internal: true
+        dir: '{{.TASKFILE_DIR}}/frontend'
+        env:
+            DISKTRACKER_API_ORIGIN: 'http://127.0.0.1:{{.API_PORT}}'
+        cmds:
+            - npm run dev -- --host '{{.UI_HOST}}' --port '{{.UI_PORT}}' --strictPort

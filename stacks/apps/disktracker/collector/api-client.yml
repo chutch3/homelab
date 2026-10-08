@@ -1,0 +1,6 @@
+# openapi-python-client settings for collector/disktracker_api (see scripts/generate-api-client.sh).
+package_name_override: disktracker_api
+project_name_override: disktracker-api
+literal_enums: true
+# No formatter pass: the output must be byte-identical wherever it is generated.
+post_hooks: []

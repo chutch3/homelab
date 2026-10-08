@@ -1,0 +1,44 @@
+{
+  "code": "ULTRASTAR-DC-HC650-20-TB",
+  "name": "Ultrastar DC HC650 - 20TB",
+  "stock": {
+    "stockLevel": 0,
+    "stockLevelStatus": "outOfStock"
+  },
+  "purchasable": false,
+  "baseProduct": "ultrastar-dc-hc650-hdd",
+  "classifications": [
+    {
+      "code": "cc_hdd",
+      "features": [
+        {
+          "codeShort": "interface",
+          "featureValues": [
+            {
+              "value": "SAS"
+            }
+          ]
+        },
+        {
+          "codeShort": "modelNumber",
+          "featureValues": [
+            {
+              "value": "ultrastar-dc-hc650-20-tb"
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "categories": [
+    {
+      "code": "vvc-capacity-20_TB",
+      "codePath": "variant-category/vc-capacity/vvc-capacity-20_TB",
+      "name": "20 TB"
+    }
+  ],
+  "brand": {
+    "code": "WDC",
+    "name": "Western Digital"
+  }
+}

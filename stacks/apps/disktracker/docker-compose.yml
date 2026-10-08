@@ -1,0 +1,140 @@
+x-homelab:
+    # flaresolverr: the collector fetches sources set to "through a browser" with it.
+    requires: [authentik, flaresolverr, reverse-proxy]
+
+version: "3.9"
+
+services:
+    # The web service: the API, which also serves the built frontend.
+    disktracker:
+        # Pin a version here once a release has promoted this image (the others pin one).
+        image: ${REGISTRY:-ghcr.io}/${REGISTRY_NAMESPACE:-chutch3}/disktracker:${IMAGE_TAG:-latest}
+        build:
+            context: .
+            dockerfile: backend/Dockerfile
+        environment:
+            - TZ=${TZ}
+            # The password goes into a URL as written, so keep it to letters and digits.
+            - DISKTRACKER_DATABASE_URL=postgresql+psycopg://disktracker:${DISKTRACKER_DB_PASSWORD}@disktracker-db:5432/disktracker
+            # Where the collector's API is, for the Test button on the Admin page.
+            - DISKTRACKER_COLLECTOR_URL=http://disktracker-collector:8100
+        networks:
+            - disktracker-internal
+            - traefik-public
+        healthcheck:
+            test:
+                - "CMD"
+                - "python"
+                - "-c"
+                - "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/condition-rules', timeout=5)"
+            interval: 30s
+            timeout: 10s
+            retries: 5
+            start_period: 60s
+        deploy:
+            replicas: 1
+            resources:
+                limits:
+                    memory: 512M
+            labels:
+                # The app has no login of its own: Authentik is the only gate.
+                - "traefik.enable=true"
+                - "traefik.swarm.network=traefik-public"
+                - "traefik.http.routers.disktracker.rule=Host(`disktracker.${BASE_DOMAIN}`)"
+                - "traefik.http.routers.disktracker.entrypoints=websecure"
+                - "traefik.http.routers.disktracker.tls.certresolver=dns"
+                - "traefik.http.routers.disktracker.middlewares=authentik@swarm"
+                - "traefik.http.services.disktracker.loadbalancer.server.port=8000"
+                - homepage.group=Productivity
+                - homepage.name=DiskTracker
+                - homepage.icon=mdi-harddisk
+                - homepage.href=https://disktracker.${BASE_DOMAIN}
+                - homepage.description=Drive price tracker
+
+    # The collector: reads the stores that are due, and previews sources for the Test button.
+    # Not routed through Traefik: only the web service talks to its API, on the internal network.
+    disktracker-collector:
+        image: ${REGISTRY:-ghcr.io}/${REGISTRY_NAMESPACE:-chutch3}/disktracker-collector:${IMAGE_TAG:-latest}
+        build:
+            context: .
+            dockerfile: collector/Dockerfile
+        environment:
+            - TZ=${TZ}
+            - DISKTRACKER_URL=http://disktracker:8000
+            - COLLECTOR_API_PORT=8100
+            # The standalone flaresolverr stack, by service name on traefik-public; not the
+            # one in the downloads stack, which goes out through the VPN.
+            - FLARESOLVERR_URL=${DISKTRACKER_FLARESOLVERR_URL:-http://flaresolverr:8191}
+            # Optional: an HTTP proxy (the downloads stack's VPN, say) every store is fetched
+            # through. Unset, stores are fetched directly.
+            - COLLECTOR_PROXY_URL=${DISKTRACKER_PROXY_URL:-}
+            - COLLECTOR_MIN_DELAY_SECONDS=${DISKTRACKER_MIN_DELAY_SECONDS:-2}
+            - LOG_LEVEL=${DISKTRACKER_LOG_LEVEL:-INFO}
+        networks:
+            - disktracker-internal
+            # To reach flaresolverr.
+            - traefik-public
+        healthcheck:
+            test:
+                - "CMD"
+                - "python"
+                - "-c"
+                - "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8100/health', timeout=5)"
+            interval: 30s
+            timeout: 10s
+            retries: 5
+            start_period: 30s
+        deploy:
+            # One collector: a second would read every store twice.
+            replicas: 1
+            resources:
+                limits:
+                    memory: 512M
+
+    disktracker-db:
+        image: postgres:16-alpine
+        environment:
+            - POSTGRES_USER=disktracker
+            - POSTGRES_PASSWORD=${DISKTRACKER_DB_PASSWORD}
+            - POSTGRES_DB=disktracker
+        volumes:
+            - disktracker_pgdata:/var/lib/postgresql/data
+        networks:
+            - disktracker-internal
+            # Shared with Fiber so it can reach this DB for label-driven dumps.
+            - backups
+        healthcheck:
+            test: ["CMD", "pg_isready", "-U", "disktracker"]
+            interval: 10s
+        deploy:
+            replicas: 1
+            placement:
+                constraints:
+                    - node.labels.database == true
+            labels:
+                # Fiber discovery (Traefik-style). Password is read from the
+                # disktracker_db_password swarm secret (created in pre-flight).
+                - "fiber.enable=true"
+                - "fiber.provider=swarm"
+                - "fiber.engine=postgres"
+                - "fiber.dbname=disktracker"
+                - "fiber.user=disktracker"
+                - "fiber.secret=disktracker_db_password"
+                - "fiber.schedule=0 3 * * *"
+
+networks:
+    disktracker-internal:
+        driver: overlay
+        attachable: true
+    traefik-public:
+        external: true
+    backups:
+        external: true
+
+volumes:
+    disktracker_pgdata:
+        driver: local
+        driver_opts:
+            type: "none"
+            o: "bind"
+            device: "/mnt/iscsi/app-data/disktracker/postgres"

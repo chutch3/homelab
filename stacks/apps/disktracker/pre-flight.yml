@@ -1,0 +1,16 @@
+# Create the swarm secret Fiber reads to dump this DB. The value is the same
+# password disktracker-db already uses (DISKTRACKER_DB_PASSWORD from .env).
+secrets:
+  - name: disktracker_db_password
+    from_env: DISKTRACKER_DB_PASSWORD
+
+# Postgres manages its own ownership, but Docker's local volume driver still needs
+# the bind-mount source directory to exist before it will mount it.
+directories:
+  - { path: "disktracker/postgres", base: app_data }
+
+validate:
+  env:
+    - DISKTRACKER_DB_PASSWORD
+  labels:
+    - database: "true"

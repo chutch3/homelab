@@ -1,0 +1,98 @@
+{
+  "code": "0F38352",
+  "name": "Ultrastar® DC HC550 - 18TB",
+  "price": {
+    "currencyIso": "USD",
+    "formattedValue": "$984.99",
+    "priceType": "BUY",
+    "value": 984.99
+  },
+  "stock": {
+    "stockLevel": 147,
+    "stockLevelStatus": "inStock"
+  },
+  "purchasable": true,
+  "baseProduct": "ultrastar-dc-hc550-hdd",
+  "classifications": [
+    {
+      "code": "cc_hdd",
+      "features": [
+        {
+          "codeShort": "interface",
+          "featureValues": [
+            {
+              "value": "SAS"
+            }
+          ]
+        },
+        {
+          "codeShort": "transferRate",
+          "featureValues": [
+            {
+              "value": "up to 269"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "code": "cc_shipping",
+      "features": [
+        {
+          "codeShort": "modelNumber",
+          "featureValues": [
+            {
+              "value": "WUH721818AL5201"
+            }
+          ]
+        },
+        {
+          "codeShort": "ean",
+          "featureValues": [
+            {
+              "value": "829686006782"
+            }
+          ]
+        },
+        {
+          "codeShort": "upc",
+          "featureValues": [
+            {
+              "value": "829686006782"
+            }
+          ]
+        },
+        {
+          "codeShort": "retailPkgweight",
+          "featureValues": [
+            {
+              "value": "7.5"
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "categories": [
+    {
+      "code": "vvc-capacity-18_TB",
+      "codePath": "variant-category/vc-capacity/vvc-capacity-18_TB",
+      "name": "18 TB"
+    },
+    {
+      "code": "vvc-interface-sas",
+      "codePath": "variant-category/vc-interface/vvc-interface-sas",
+      "name": "SAS"
+    },
+    {
+      "code": "vvc-security_TCG",
+      "codePath": "variant-category/vc-security/vvc-security_TCG",
+      "name": "TCG"
+    }
+  ],
+  "url": "/content/store/en-us/products/internal-drives/data-center-drives/ultrastar-dc-hc550-hdd",
+  "brand": {
+    "code": "WDC",
+    "name": "Western Digital"
+  }
+}

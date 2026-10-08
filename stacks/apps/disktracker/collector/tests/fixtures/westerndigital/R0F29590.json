@@ -1,0 +1,122 @@
+{
+  "code": "R0F29590",
+  "name": "Ultrastar® DC HC520 - 12TB",
+  "price": {
+    "currencyIso": "USD",
+    "formattedValue": "$654.99",
+    "priceType": "BUY",
+    "value": 654.99
+  },
+  "stock": {
+    "stockLevel": 51,
+    "stockLevelStatus": "inStock"
+  },
+  "purchasable": true,
+  "baseProduct": "ultrastar-dc-hc520-hdd-recertified",
+  "classifications": [
+    {
+      "code": "cc_hdd",
+      "features": [
+        {
+          "codeShort": "interface",
+          "featureValues": [
+            {
+              "value": "SATA"
+            }
+          ]
+        },
+        {
+          "codeShort": "transferRate",
+          "featureValues": [
+            {
+              "value": "up to 255"
+            }
+          ]
+        },
+        {
+          "codeShort": "diskSpeed",
+          "featureValues": [
+            {
+              "value": "7200"
+            }
+          ]
+        },
+        {
+          "codeShort": "cacheSize",
+          "featureValues": [
+            {
+              "value": "256"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "code": "cc_shipping",
+      "features": [
+        {
+          "codeShort": "height",
+          "featureValues": [
+            {
+              "value": "1.03"
+            }
+          ]
+        },
+        {
+          "codeShort": "length",
+          "featureValues": [
+            {
+              "value": "5.79"
+            }
+          ]
+        },
+        {
+          "codeShort": "width",
+          "featureValues": [
+            {
+              "value": "4"
+            }
+          ]
+        },
+        {
+          "codeShort": "weight",
+          "featureValues": [
+            {
+              "value": "660"
+            }
+          ]
+        },
+        {
+          "codeShort": "modelNumber",
+          "featureValues": [
+            {
+              "value": "R0F29590"
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "categories": [
+    {
+      "code": "vvc-capacity-12_TB",
+      "codePath": "variant-category/vc-capacity/vvc-capacity-12_TB",
+      "name": "12 TB"
+    },
+    {
+      "code": "vvc-security_ise",
+      "codePath": "variant-category/vc-security/vvc-security_ise",
+      "name": "ISE"
+    },
+    {
+      "code": "vvc-interface-sata",
+      "codePath": "variant-category/vc-interface/vvc-interface-sata",
+      "name": "SATA"
+    }
+  ],
+  "url": "/content/store/en-us/products/recertified/internal-drives/data-center-drives/ultrastar-dc-hc520-hdd-recertified",
+  "brand": {
+    "code": "WDC",
+    "name": "Western Digital"
+  }
+}
