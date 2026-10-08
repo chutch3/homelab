@@ -40,6 +40,11 @@ services:
         volumes:
             - beholder_state:/state
         restart: unless-stopped
+        # LAN DNS answers NXDOMAIN to AAAA for *.${BASE_DOMAIN} service names, and
+        # musl (Alpine) then fails the whole lookup. With IPv6 off in the container
+        # only the A question is asked. Remove once DNS is fixed (see #125).
+        sysctls:
+            net.ipv6.conf.all.disable_ipv6: 1
         networks:
             - traefik-public
         deploy:
