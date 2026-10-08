@@ -19,6 +19,7 @@ dev = [
     "playwright>=1.49,<2",
     "ruff>=0.9,<1",
     "pytest-cov>=6,<8",
+    "testcontainers[postgres]>=4.15,<5",
 ]
 
 [tool.uv]
@@ -29,7 +30,7 @@ disktracker-listing-text = { path = "../listing_text", editable = true }
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-pythonpath = [".", "../tests"]
+pythonpath = ["."]
 addopts = "--strict-markers --cov=disktracker --cov-report=term-missing --cov-fail-under=90"
 
 [tool.coverage.run]

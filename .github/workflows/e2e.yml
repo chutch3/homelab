@@ -8,6 +8,7 @@ on:
     workflow_dispatch:
     pull_request:
         paths:
+            - "stacks/apps/disktracker/**"
             - "stacks/apps/*/**/tests/e2e/**"
             - "tools/ci/tests/e2e/**"
             - "tools/ci/ci/**"
@@ -17,6 +18,7 @@ on:
     push:
         branches: [main]
         paths:
+            - "stacks/apps/disktracker/**"
             - "stacks/apps/*/**/tests/e2e/**"
             - "tools/ci/tests/e2e/**"
             - "tools/ci/ci/**"
@@ -39,6 +41,18 @@ jobs:
               uses: astral-sh/setup-uv@v5
               with:
                   enable-cache: true
+
+            - name: Set up Node
+              uses: actions/setup-node@v4
+              with:
+                  node-version: "22"
+
+            - name: Install DiskTracker browser-test dependencies
+              if: hashFiles('stacks/apps/disktracker/backend/pyproject.toml') != ''
+              run: |
+                  uv sync --frozen --project stacks/apps/disktracker/backend
+                  uv run --frozen --project stacks/apps/disktracker/backend playwright install --with-deps chromium
+                  npm ci --prefix stacks/apps/disktracker/frontend
 
             # The runner provides Docker + Compose; the e2e tier drives real
             # containers (e.g. fiber builds an image, dumps a seeded Postgres,

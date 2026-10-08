@@ -11,11 +11,11 @@ This is a development slice, not the complete planned application. Comparison se
 - `collector/`: the collectors (ServerPartDeals, goHardDrive, Western Digital), a separate service that posts scraped offers to the API (see [Collector](#collector)).
 - `listing_text/`: the readers that find an MPN, capacity, condition, maker and specifications in listing text, shared by the collector and the backend (which uses them to read pasted listings). Both depend on it by local path; `ci projects` re-tests both when it changes.
 - `tests/e2e/`: full-application browser tests. These start the frontend and backend against disposable PostgreSQL databases.
-- `tests/db_fixture.py`: shared test-database setup. It creates a unique database per test and drops only that database afterward.
+- `backend/tests/conftest.py` and `tests/e2e/conftest.py`: independent backend and E2E database fixtures. Each owns its environment override check and Testcontainers lifecycle, creates a unique database per test, and drops only that database afterward.
 
 ## Local prerequisites
 
-Use Python 3.12+, Node 22.12+, uv, and PostgreSQL 16. PostgreSQL must be available locally; tests do not require Docker. Install dependencies from their lockfiles:
+Use Python 3.12+, Node 22.12+, and uv. Database tests start PostgreSQL 16 through Testcontainers by default, so they need an accessible Docker daemon. Alternatively, supply a dedicated test PostgreSQL instance through `DISKTRACKER_TEST_ADMIN_URL` to run without Docker. The development app still needs its own PostgreSQL instance. Install dependencies from their lockfiles:
 
 ```bash
 cd stacks/apps/disktracker/backend
@@ -25,7 +25,9 @@ uv run playwright install chromium
 
 In `frontend/`, run `npm ci`. Playwright's test dependencies currently use the backend virtual environment, but full-application tests and their server/browser fixtures live at the application root.
 
-Set `DISKTRACKER_DATABASE_URL` to a SQLAlchemy PostgreSQL URL (`postgresql+psycopg://...`) for the development database. Set `DISKTRACKER_TEST_ADMIN_URL` to a Psycopg URL (`postgresql://...`) for a dedicated local PostgreSQL instance whose role can create/drop test databases. Never point the test admin URL at a production database. Credentials are supplied through environment variables and are not committed.
+Set `DISKTRACKER_DATABASE_URL` to a SQLAlchemy PostgreSQL URL (`postgresql+psycopg://...`) for the development database. Optionally set `DISKTRACKER_TEST_ADMIN_URL` to a Psycopg URL (`postgresql://...`) for a dedicated PostgreSQL instance whose role can create/drop test databases. A non-empty value bypasses Testcontainers entirely; a bad connection fails rather than falling back to Docker. Never point the test admin URL at a production database. Credentials are supplied through environment variables and are not committed.
+
+With the test admin URL unset or blank, each suite's own fixture starts one `postgres:16-alpine` container per pytest session, only when a database test requests it, and stops it afterward. Backend and E2E tests do not share their database fixtures or containers. Both modes create, migrate, and drop a unique database per test; neither migrates nor clears an existing database. Tests that do not request the database fixture need no Docker or PostgreSQL. CI uses this automatic mode; its E2E workflow also installs frontend dependencies and Playwright Chromium.
 
 PostgreSQL runs locally per container, one private cluster each. Its data lives on the container's own disk at `${XDG_STATE_HOME:-~/.local/state}/disktracker/postgres`, never on the workspace: the workspace is a cluster filesystem on shared iSCSI storage, where a single write can stall for many seconds (enough to time out browser tests). Credentials are in `stacks/apps/disktracker/.local/env-<hostname>.sh` (mode `0600`); keying them by hostname keeps containers sharing the workspace from reading each other's. `.local/` is ignored and contains only local development state; it is not a deployment configuration.
 
