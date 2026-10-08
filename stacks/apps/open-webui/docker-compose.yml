@@ -39,6 +39,9 @@ services:
         networks:
             - traefik-public
         deploy:
+            placement:
+                constraints:
+                    - node.labels.old != true
             labels:
                 - "traefik.enable=true"
                 - "traefik.swarm.network=traefik-public"
