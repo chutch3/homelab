@@ -20,7 +20,7 @@ Before deploying, ensure the following are in place on the target Swarm node:
 
 ```sh
 # 1. Fetch NordVPN WireGuard credentials and write to .env
-./nordvpn-setup.sh --token <nordvpn_access_token>
+./stacks/apps/tor-browser/scripts/nordvpn-setup.sh --token <nordvpn_access_token>
 # Other providers: populate TOR_WIREGUARD_PRIVATE_KEY and TOR_WIREGUARD_ADDRESSES in .env manually
 
 # 2. Set remaining env vars in .env
@@ -109,7 +109,7 @@ In the Tor Browser:
 
 - **iptables-legacy** — `nf_tables` (the nftables backend) requires kernel netlink access that Docker blocks even with `NET_ADMIN` on some kernels. The prestart script explicitly selects `iptables-legacy` when present, falling back to `iptables`. `/run/xtables.lock` is not writable in the container; `XTABLES_LOCKFILE=/tmp/xtables.lock` redirects it.
 
-- **Docker config naming** — Docker configs are immutable once created. Updating `browser-prestart.sh` or `ip-check.py` requires renaming the config (e.g. `tor_browser_prestart_v3`) and updating both the `configs:` block and the service reference, otherwise the old config will continue to be used.
+- **Docker config naming** — Docker configs are immutable once created. Updating `browser-prestart.sh` or `ip-check/server.py` requires renaming the config (e.g. `tor_browser_prestart_v3`) and updating both the `configs:` block and the service reference, otherwise the old config will continue to be used.
 
 - **All services pinned to `node.labels.tor == true`** — the iSCSI bind mount and the `tor-internal` overlay network routing both depend on co-location. Node labels are managed in `ansible/inventory/02-hosts.yml` and synced with `task ansible:cluster:update-labels`.
 
@@ -131,9 +131,19 @@ All stack-specific variables are prefixed `TOR_` in the root `.env`. Shared vari
 docker-compose.yml
 pre-flight.yml         validates env vars + node labels, and provisions the iSCSI
                        data dir (directories:) cluster-side before deploy
-nordvpn-setup.sh       fetch NordVPN NordLynx credentials and write to .env
-ip-check.py            VPN exit IP check HTTP server (pure Python, no runtime deps)
+config/
+  gluetun-auth.toml    gluetun control API access configuration
 scripts/
+  nordvpn-setup.sh     fetch NordVPN NordLynx credentials and write to .env
   init-vpn.sh          gluetun entrypoint: inject port-1080 iptables INPUT rule
   browser-prestart.sh  tor-browser entrypoint: kill switch, torrc, desktop, privilege drop
+ip-check/
+  server.py           VPN status web application and rotation controls (Python stdlib)
+audio/                Kasm sidebar audio extension, vendored decoder, and tests
 ```
+
+The `ip-check/` application runs as its own service within this stack. Its single
+Python file includes the web UI and needs no package installation or build step.
+
+See [Kasm sidebar audio](audio/README.md) for the extension's source layout,
+installation contract, and test commands.

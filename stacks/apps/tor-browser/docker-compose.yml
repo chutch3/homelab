@@ -134,11 +134,11 @@ configs:
     tor_vpn_init_script_v2:
         file: ./scripts/init-vpn.sh
     tor_vpn_auth_config_v1:
-        file: ./gluetun-auth.toml
+        file: ./config/gluetun-auth.toml
     tor_browser_prestart_v10:
         file: ./scripts/browser-prestart.sh
     tor_ip_check_server_v3:
-        file: ./ip-check.py
+        file: ./ip-check/server.py
 
 networks:
     traefik-public:

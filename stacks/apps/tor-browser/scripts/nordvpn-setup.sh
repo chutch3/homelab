@@ -7,10 +7,10 @@
 # in .env manually per https://github.com/qdm12/gluetun-wiki/tree/main/setup/providers
 #
 # Usage:
-#   ./nordvpn-setup.sh                              # prompts for access token
-#   ./nordvpn-setup.sh --token <access_token>
-#   ./nordvpn-setup.sh --token <token> --env-file /path/to/.env
-#   ./nordvpn-setup.sh --token <token> --addresses <cidr>  # override WG address
+#   ./scripts/nordvpn-setup.sh                              # prompts for access token
+#   ./scripts/nordvpn-setup.sh --token <access_token>
+#   ./scripts/nordvpn-setup.sh --token <token> --env-file /path/to/.env
+#   ./scripts/nordvpn-setup.sh --token <token> --addresses <cidr>  # override WG address
 #
 # --addresses defaults to 10.5.0.2/32, NordVPN's fixed NordLynx interface address.
 # Override only if NordVPN changes it or your account is assigned a different one.
@@ -19,7 +19,7 @@
 #   my.nordaccount.com/dashboard/nordvpn/manual-configuration/
 set -euo pipefail
 
-REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../../.." && pwd)"
 ENV_FILE="${REPO_ROOT}/.env"
 NORDVPN_TOKEN=""
 WG_ADDRESSES="10.5.0.2/32"
