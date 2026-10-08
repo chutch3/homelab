@@ -1,4 +1,4 @@
-"""Tests for the stack dependency graph (`ci plan` / `ci check-deps`).
+"""Tests for the stack dependency graph (`ci plan`).
 
 The dangerous case is a false pass: an order that puts a stack before something
 it needs, or a declaration the tree does not actually satisfy. `resolve` and
@@ -15,7 +15,6 @@ from ci.stackgraph import (
     Stack,
     StackTree,
     UnresolvedGraph,
-    check_dependencies,
     cycle_members,
     required_by,
     resolve,
@@ -309,47 +308,3 @@ class TestThisRepo:
 
     def test_every_dependency_the_tree_reveals_is_declared(self, subject):
         assert subject.undeclared() == {}
-
-
-def _tree(filesystem: FakeFileSystem, **stacks: str) -> None:
-    filesystem.files.update(compose(**stacks))
-
-
-def test_check_dependencies_passes_a_tree_that_resolves_and_declares_everything(
-    container, filesystem, caplog
-):
-    _tree(filesystem, paperless=DECLARED, **{"reverse-proxy": "services: {}\n"})
-    assert check_dependencies(container.graph()) == 0
-    assert "✓ 2 stacks resolve" in caplog.text
-
-
-def test_check_dependencies_names_the_stack_hiding_an_undeclared_dependency(
-    container, filesystem, caplog
-):
-    _tree(filesystem, komga=TRAEFIK_LABEL, **{"reverse-proxy": "services: {}\n"})
-    assert check_dependencies(container.graph()) == 1
-    assert "    komga: reverse-proxy" in caplog.text
-
-
-def test_check_dependencies_fails_on_an_unresolvable_graph_before_looking_for_gaps(
-    container, filesystem, caplog
-):
-    _tree(filesystem, gamarr="x-homelab:\n    requires: [romm]\nservices: {}\n")
-    assert check_dependencies(container.graph()) == 1
-    assert "gamarr requires romm" in caplog.text
-
-
-def test_check_dependencies_explains_the_shape_of_a_malformed_declaration(
-    container, filesystem, caplog
-):
-    _tree(filesystem, paperless="x-homelab:\n    requires: reverse-proxy\nservices: {}\n")
-    assert check_dependencies(container.graph()) == 1
-    assert "x-homelab.requires must be a list" in caplog.text
-
-
-def test_check_dependencies_reads_the_tree_once_however_many_questions_it_asks(
-    container, filesystem
-):
-    _tree(filesystem, paperless=DECLARED, **{"reverse-proxy": "services: {}\n"})
-    check_dependencies(container.graph())
-    assert len(filesystem.reads) == 2

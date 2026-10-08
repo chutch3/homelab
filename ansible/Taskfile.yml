@@ -557,6 +557,12 @@ tasks:
             - "{{.VENV_ANSIBLE_PLAYBOOK}} --check -i ansible/tests/unit/inventory/ ansible/tests/unit/test-preflight.yml {{.CLI_ARGS}}"
             - "{{.VENV_ANSIBLE_PLAYBOOK}} -K -i ansible/tests/unit/hooks-inventory/ ansible/tests/unit/test-preflight-hooks.yml {{.CLI_ARGS}}"
 
+    test:dns:unit:
+        desc: "Unit tests for the dns role — no cluster, no Technitium (uses a stub API server)"
+        dir: "{{.ROOT_DIR}}"
+        cmds:
+            - "{{.VENV_ANSIBLE_PLAYBOOK}} -i ansible/tests/unit/dns-inventory/ ansible/tests/unit/test-dns.yml {{.CLI_ARGS}}"
+
     test:preflight:integration:
         desc: "Integration tests for preflight role — requires running Swarm (creates and cleans up isolated test secrets)"
         dir: "{{.ROOT_DIR}}"

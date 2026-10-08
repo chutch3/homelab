@@ -109,9 +109,9 @@ repos:
             files: ^tools/ci/ci/.*\.py$
             require_serial: true
 
-          - id: stack-deps-declared
-            name: Stack dependencies declared in x-homelab.requires
-            entry: uv run ci check-deps
+          - id: check-stacks
+            name: Stack tree invariants (declarations, healthchecks)
+            entry: uv run ci check-stacks
             language: system
             pass_filenames: false
             # Whole-tree, every commit: deleting a stack is what dangles an edge,
@@ -129,4 +129,26 @@ repos:
                   ansible/collections/|
                   ansible/roles/preflight/tasks/main\.yml$|
                   ansible/tests/integration/test-preflight\.yml$
+                )
+
+          - id: no-fixed-duration-pause
+            name: No fixed-duration pause in Ansible tasks
+            language: pygrep
+            # `pause: prompt:` is an interactive gate, not a guessed duration.
+            entry: 'pause:\s*\n\s+(seconds|minutes):'
+            args: [--multiline]
+            # The exclusions are the ratchet: they only ever shrink.
+            files: ^ansible/.*\.ya?ml$
+            exclude: |
+                (?x)^(
+                  ansible/collections/|
+                  ansible/playbooks/cluster\.yml$|
+                  ansible/playbooks/cluster/init\.yml$|
+                  ansible/playbooks/cluster/join\.yml$|
+                  ansible/playbooks/cluster/sync\.yml$|
+                  ansible/playbooks/ops/repair-storage\.yml$|
+                  ansible/playbooks/ops/teardown-stack\.yml$|
+                  ansible/playbooks/teardown\.yml$|
+                  ansible/playbooks/volumes/cleanup\.yml$|
+                  ansible/roles/storage/tasks/iscsi-mount\.yml$
                 )

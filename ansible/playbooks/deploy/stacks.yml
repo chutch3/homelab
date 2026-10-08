@@ -92,22 +92,6 @@
         # Kuma cannot usefully watch what routes to it, resolves for it, or is it.
         uptime_kuma_unmonitored: [reverse-proxy, dns, uptime-kuma]
 
-    - name: Wait for the DNS API to become available
-      ansible.builtin.uri:
-        url: "{{ dns_primary_api_url }}/user/login"
-        method: POST
-        body_format: form-urlencoded
-        body:
-          user: "admin"
-          pass: "{{ primary_dns_api_key }}"
-        status_code: 200
-      register: dns_api_ready_check
-      until: dns_api_ready_check.status | default(-1) == 200
-      retries: 12
-      delay: 5
-      delegate_to: localhost
-      when: "'dns' in (dns_registrations | map(attribute='stack') | list)"
-
     - name: Get DNS API token
       ansible.builtin.include_role:
         name: dns
@@ -151,3 +135,11 @@
       loop_control:
         label: "{{ item.stack }}"
       when: uptime_kuma_api_token is defined
+
+    # Last: the names registered above were NXDOMAIN until moments ago, and
+    # anything that asked during the deploy is still holding that answer.
+    - name: Flush the negative DNS cache
+      ansible.builtin.include_role:
+        name: dns
+        tasks_from: flush-cache
+      when: dns_registrations | length > 0
