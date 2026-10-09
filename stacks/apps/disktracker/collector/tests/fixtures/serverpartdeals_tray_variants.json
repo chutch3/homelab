@@ -1,0 +1,32 @@
+{
+  "products": [
+    {
+      "id": 8001,
+      "title": "Dell G14 0HNHWC 16TB 7.2K RPM SAS 12Gb/s 512e 3.5in Refurbished HDD",
+      "handle": "dell-g14-0hnhwc-16tb-refurbished",
+      "tags": ["capacity:16TB", "condition:Refurbished"],
+      "variants": [{"id": 9101, "title": "Default Title", "sku": "0HNHWC_DELLG14_SR", "price": "499.00", "available": true}]
+    },
+    {
+      "id": 8002,
+      "title": "Dell/Western Digital Ultrastar DC HC550 WUH721816AL5205 0F38376 16TB 7.2K RPM SAS 12Gb/s 512e 3.5in Refurbished HDD",
+      "handle": "dell-wd-ultrastar-hc550-wuh721816al5205-refurbished",
+      "tags": ["capacity:16TB", "condition:Refurbished"],
+      "variants": [{"id": 9102, "title": "Default Title", "sku": "0HNHWC_NOTRAY_SR", "price": "499.00", "available": true}]
+    },
+    {
+      "id": 8003,
+      "title": "Dell G13 0HNHWC 16TB 7.2K RPM SAS 12Gb/s 512e 3.5in Refurbished HDD",
+      "handle": "dell-g13-0hnhwc-16tb-refurbished",
+      "tags": ["capacity:16TB", "condition:Refurbished"],
+      "variants": [{"id": 9103, "title": "Default Title", "sku": "0HNHWC_DELLG13_SR_7", "price": "489.00", "available": true}]
+    },
+    {
+      "id": 8004,
+      "title": "Dell G14 0HNHWC 16TB 7.2K RPM SAS 12Gb/s 512e 3.5in Hard Drive",
+      "handle": "dell-g14-0hnhwc-16tb-new",
+      "tags": ["capacity:16TB", "condition:New"],
+      "variants": [{"id": 9104, "title": "Default Title", "sku": "0HNHWC_DELLG14_NB", "price": "879.00", "available": true}]
+    }
+  ]
+}

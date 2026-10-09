@@ -1,0 +1,41 @@
+[project]
+name = "disktracker"
+version = "0.1.0"
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi>=0.115,<1",
+    "uvicorn>=0.32,<1",
+    "sqlalchemy>=2.0,<3",
+    "psycopg[binary]>=3.2,<4",
+    "alembic>=1.14,<2",
+    "disktracker-listing-text",
+    "croniter>=6,<7",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=8,<10",
+    "httpx>=0.27,<1",
+    "playwright>=1.49,<2",
+    "ruff>=0.9,<1",
+    "pytest-cov>=6,<8",
+    "testcontainers[postgres]>=4.15,<5",
+]
+
+[tool.uv]
+package = false
+
+[tool.uv.sources]
+disktracker-listing-text = { path = "../listing_text", editable = true }
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+addopts = "--strict-markers --cov=disktracker --cov-report=term-missing --cov-fail-under=90"
+
+[tool.coverage.run]
+omit = ["*/disktracker/main.py"]
+
+[tool.ruff]
+target-version = "py312"
+line-length = 100

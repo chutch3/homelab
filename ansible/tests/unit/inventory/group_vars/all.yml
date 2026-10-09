@@ -26,6 +26,7 @@ swarm_env_vars:
   STATUS_PIPELINE_MINIO_METRICS_TOKEN: "test-token"
   STATUS_PIPELINE_MINIO_HOST: "nas.test.example.com:9000"
   GRAFANA_ADMIN_PASSWORD: "test-password"
+  DISKTRACKER_DB_PASSWORD: "test-password"
   DOWNLOADS_OPENVPN_PASSWORD: "test-password"
   DOWNLOADS_KENKU_DB_PASSWORD: "test-password"
   DOWNLOADS_KENKU_DB_USER: "kenku"

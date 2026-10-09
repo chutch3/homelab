@@ -1,0 +1,228 @@
+/* A printed price sheet: paper, ink, hairline rules, and figures set in mono so columns line up.
+   Every text colour here reads at 4.5:1 or better on the paper; control borders at 3:1. */
+:root, :root[data-mantine-color-scheme='light'] {
+  --paper: #f8f8f2; --surface: #fffefa; --ink: #273b42; --muted: #5a6b68; --accent: #254c62;
+  --rule: #aab6ab; --rule-soft: #d7dbcf; --control-border: #7d8a84; --hover: #eef0e8; --selected: #e3ebef;
+  --positive: #256440; --positive-tint: #e2efe6; --warning: #7a4e12; --warning-tint: #f6ead6; --critical: #a12c2c;
+  --mono: "IBM Plex Mono", ui-monospace, monospace;
+  /* The smallest comfortable touch target. */
+  --target: 44px;
+  --mantine-color-body: var(--paper); --mantine-color-text: var(--ink); --mantine-color-dimmed: var(--muted);
+  --mantine-color-placeholder: #66736f; --mantine-color-anchor: var(--accent); --mantine-color-error: var(--critical);
+  --mantine-color-default: var(--surface); --mantine-color-default-color: var(--ink);
+  --mantine-color-default-border: var(--control-border); --mantine-color-default-hover: var(--hover);
+}
+body {
+  margin: 0; color: var(--ink);
+  /* Faint ledger lines, so the page is paper rather than a flat fill. */
+  background: var(--paper) repeating-linear-gradient(to bottom, transparent 0 31px, rgb(39 59 66 / 2.2%) 31px 32px);
+}
+.visually-hidden { position: absolute; width: 1px; height: 1px; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+.mono, .numeric, code { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+code { font-size: 13px; }
+
+/* Mantine's controls, brought to the target size and the sheet's borders. */
+.mantine-Button-root { --button-height-md: var(--target); --button-fz: 15px; font-weight: 500; }
+.mantine-Input-wrapper { --input-height-md: var(--target); --input-fz: 15px; --input-bd: var(--control-border); --input-bg: var(--surface); }
+.mantine-InputWrapper-label { font-size: 13px; font-weight: 500; color: var(--muted); margin-bottom: 4px; }
+.mantine-InputWrapper-description { color: var(--muted); }
+.mantine-CloseButton-root { --cb-size: var(--target); }
+.mantine-Checkbox-body, .mantine-Switch-body { min-height: var(--target); align-items: center; }
+.mantine-SegmentedControl-root { background: var(--hover); border: 1px solid var(--control-border); }
+.mantine-SegmentedControl-label { min-height: calc(var(--target) - 10px); display: flex; align-items: center; justify-content: center; }
+.mantine-Combobox-option { min-height: var(--target); display: flex; align-items: center; }
+.mantine-Menu-item { min-height: var(--target); }
+.mantine-Pill-root { --pill-height: 28px; background: var(--selected); color: var(--ink); }
+.mantine-Table-table { --table-border-color: var(--rule-soft); --table-hover-color: var(--hover); }
+.mantine-Table-th { font-size: 12px; font-weight: 500; color: var(--muted); letter-spacing: .02em; white-space: nowrap; }
+.mantine-Modal-content, .mantine-Drawer-content, .mantine-Modal-header, .mantine-Drawer-header { background: var(--paper); }
+.mantine-Modal-title, .mantine-Drawer-title { font-size: 20px; font-weight: 600; letter-spacing: -.01em; }
+.mantine-Drawer-header { border-bottom: 2px solid var(--ink); margin-bottom: 16px; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* Page frame */
+.site-header { display: flex; flex-wrap: wrap; gap: 8px 28px; align-items: center; padding: 14px 32px; border-bottom: 2px solid var(--ink); background: var(--paper); }
+.wordmark { display: flex; align-items: center; gap: 10px; font-size: 24px; font-weight: 600; letter-spacing: -1px; }
+/* Nine platters seen from above; the accent one is the drive being priced. */
+.mark { width: 22px; height: 22px;
+  background: linear-gradient(var(--accent), var(--accent)) right bottom / 6px 6px no-repeat,
+    repeating-linear-gradient(to right, var(--ink) 0 6px, transparent 6px 8px);
+  -webkit-mask: repeating-linear-gradient(to bottom, #000 0 6px, transparent 6px 8px);
+  mask: repeating-linear-gradient(to bottom, #000 0 6px, transparent 6px 8px); }
+.site-nav { display: flex; gap: 4px; align-self: stretch; }
+.site-nav a, .tabs a { display: inline-flex; align-items: center; gap: 8px; min-height: var(--target); padding: 0 12px; color: var(--muted);
+  text-decoration: none; font-size: 15px; font-weight: 500; border-bottom: 3px solid transparent; }
+.site-nav a:hover, .tabs a:hover { color: var(--ink); background: var(--hover); }
+.site-nav a[aria-current="page"], .tabs a[aria-current="page"] { color: var(--ink); font-weight: 600; border-bottom-color: var(--accent); }
+.nav-count { min-width: 22px; padding: 1px 6px; border-radius: 11px; background: var(--warning); color: #fff; font: 600 12px/20px var(--mono); text-align: center; }
+.market { margin-left: auto; font-size: 13px; color: var(--muted); font-family: var(--mono); }
+main { max-width: 1500px; padding: 24px 32px 96px; margin: auto; }
+h1, h2, h3 { margin: 0 0 8px; letter-spacing: -.01em; }
+h1 { font-size: 22px; } h2 { font-size: 18px; } h3 { font-size: 16px; margin-top: 24px; }
+h2 .count { color: var(--muted); font-family: var(--mono); font-weight: 400; }
+
+/* Filters */
+.listing-filters { margin: 0 0 20px; padding-bottom: 16px; border-bottom: 1px solid var(--rule); }
+.filter-grid { display: grid; grid-template-columns: 2.4fr 1fr 1.4fr 1fr; gap: 12px; align-items: start; }
+.filter-grid > *, .more-filter-grid > * { min-width: 0; }
+.condition-filter { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 14px; }
+.condition-filter-label { margin-right: 4px; font-size: 13px; font-weight: 500; color: var(--muted); }
+.condition-filter .chip { min-height: var(--target); }
+.condition-filter .chip::after { content: none; }
+.filter-tools { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 12px; margin-top: 12px; }
+.more-filter-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); align-items: end; gap: 12px 16px; margin-top: 12px;
+  padding: 16px; background: var(--surface); border: 1px solid var(--rule-soft); }
+.chips { display: flex; flex-wrap: wrap; gap: 8px; margin: 0; padding: 0; list-style: none; }
+.chip { position: relative; display: inline-flex; align-items: center; min-height: 36px; padding: 0 12px; border: 1px solid var(--control-border);
+  background: var(--selected); color: var(--ink); font: 500 14px inherit; font-family: inherit; cursor: pointer; }
+/* 36px to look at, 44px to hit. */
+.chip::after { content: ''; position: absolute; inset: -4px 0; }
+.chip:hover { background: var(--hover); }
+.chip.toggle { background: var(--surface); }
+.chip.toggle[aria-pressed="true"] { background: var(--ink); border-color: var(--ink); color: var(--paper); }
+.option-count { color: var(--muted); font-family: var(--mono); }
+.count-option { display: flex; align-items: baseline; gap: 4px; }
+.option-check { width: 14px; }
+
+/* The sheet */
+.results-status { display: flex; justify-content: space-between; align-items: baseline; flex-wrap: wrap; gap: 4px 16px; margin-bottom: 10px; }
+.mobile-sort { display: none; margin-bottom: 12px; }
+.sheet-scroll { overflow-x: auto; }
+.price-sheet { border-top: 2px solid var(--ink); border-bottom: 1px solid var(--rule); background: var(--surface); }
+.numeric { text-align: right; white-space: nowrap; }
+.secondary { color: var(--muted); font-size: 13px; margin-top: 2px; }
+.drive-row { cursor: pointer; }
+.drive-row:hover { background: var(--hover); }
+.drive-link { cursor: pointer; border: 0; padding: 0; background: transparent; color: var(--ink); font: inherit; font-size: 15px; font-weight: 600; text-align: left; }
+.drive-row:hover .drive-link, .drive-link:hover { color: var(--accent); text-decoration: underline; }
+.sort-button { display: inline-flex; align-items: center; min-height: var(--target); margin: -12px 0; cursor: pointer; border: 0; background: transparent;
+  color: inherit; font: inherit; font-weight: 600; padding: 0; text-align: inherit; }
+.sort-button:hover { color: var(--ink); text-decoration: underline; }
+[aria-sort="ascending"] .sort-button, [aria-sort="descending"] .sort-button { color: var(--accent); }
+/* $/TB is what the sheet is sorted and read by, so it is the loudest figure on a row. */
+.also { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; margin-top: 8px; }
+.also-condition { position: relative; min-height: 28px; padding: 0 8px; border: 1px solid var(--rule); background: var(--paper); color: var(--ink);
+  font: 500 13px "IBM Plex Sans", sans-serif; cursor: pointer; }
+/* 28px to look at, 44px to hit. */
+.also-condition::after { content: ''; position: absolute; inset: -8px 0; }
+.also-condition:hover { border-color: var(--accent); color: var(--accent); }
+.unit-price { font-size: 18px; font-weight: 600; }
+.tag { display: inline-block; margin-top: 4px; padding: 1px 7px; border: 1px solid var(--control-border); background: var(--paper); color: var(--ink);
+  font: 500 12px/18px "IBM Plex Sans", sans-serif; white-space: nowrap; }
+.tag.lowest { border-color: var(--positive); background: var(--positive-tint); color: var(--positive); }
+.tag.stale { border-color: var(--warning); background: var(--warning-tint); color: var(--warning); }
+.tag.mono { font-family: var(--mono); }
+.checked { font-size: 13px; color: var(--muted); white-space: nowrap; }
+.empty { padding: 40px 0; border-block: 1px solid var(--rule-soft); color: var(--muted); }
+.empty p { margin: 0 0 12px; }
+.loading { border-top: 2px solid var(--ink); }
+.skeleton-row { height: 64px; border-bottom: 1px solid var(--rule-soft);
+  background: linear-gradient(90deg, transparent 0, var(--hover) 40%, transparent 80%) 0 0 / 200% 100%; animation: sweep 1.4s linear infinite; }
+@keyframes sweep { to { background-position: -200% 0; } }
+/* One reveal as the sheet arrives, row after row. */
+.price-sheet tbody tr { animation: arrive .28s ease-out both; }
+.price-sheet tbody tr:nth-child(2) { animation-delay: 30ms; } .price-sheet tbody tr:nth-child(3) { animation-delay: 60ms; }
+.price-sheet tbody tr:nth-child(4) { animation-delay: 90ms; } .price-sheet tbody tr:nth-child(5) { animation-delay: 120ms; }
+.price-sheet tbody tr:nth-child(n+6) { animation-delay: 150ms; }
+@keyframes arrive { from { opacity: 0; transform: translateY(6px); } }
+@media (prefers-reduced-motion: reduce) { .price-sheet tbody tr, .skeleton-row { animation: none; } }
+.link-inspector { padding-bottom: 12px; border-bottom: 1px solid #c7cdc4; }
+.pager { margin-top: 14px; }
+.pager-range { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+
+/* The drive panel */
+.drive-summary { margin-bottom: 12px; }
+/* The conditions a drive is sold in, each with what it costs now; the one chosen is what the panel shows. */
+.condition-switch { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 16px; }
+.condition-choice { display: flex; flex-direction: column; justify-content: center; gap: 2px; min-height: 52px; min-width: 130px; padding: 6px 14px;
+  background: var(--surface); border: 1px solid var(--control-border); cursor: pointer; }
+.condition-choice:hover { background: var(--hover); }
+.condition-choice:has(input:checked) { background: var(--ink); border-color: var(--ink); color: var(--paper); }
+.condition-choice:has(input:focus-visible) { outline: 2px solid var(--accent); outline-offset: 2px; }
+.condition-name { font-size: 14px; font-weight: 600; }
+.condition-price { font: 13px var(--mono); }
+.offers { border-top: 1px solid var(--rule); }
+.offers td { vertical-align: top; }
+.offer-actions { width: 1%; }
+.seller-link { display: inline-flex; align-items: center; min-height: var(--target); color: var(--accent); font-weight: 500; white-space: nowrap; }
+.check-row > td { background: var(--selected); border-left: 3px solid var(--accent); }
+.price-check-answers { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
+.price-check-new { display: inline-flex; gap: 4px; }
+.field-error { margin-top: 6px; color: var(--critical); font-weight: 500; }
+.lowest-observed { margin-bottom: 8px; font-variant-numeric: tabular-nums; }
+.disclosure { margin-top: 8px; border-top: 1px solid var(--rule-soft); }
+.spec-details { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 1rem; margin: 8px 0 0; }
+.spec-details dt { font-size: 12px; color: var(--muted); }
+.spec-details dd { margin: .25rem 0 0; overflow-wrap: anywhere; }
+
+/* Forms */
+.entry-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; align-items: start; }
+.entry-grid.entry-price { grid-template-columns: 1.3fr 1fr 1fr; }
+.entry-wide { grid-column: 1 / -1; }
+.entry-known { align-self: end; padding-bottom: 12px; }
+.entry-paste { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; padding: 12px; background: var(--surface); border: 1px dashed var(--control-border); }
+.entry-paste > .mantine-Textarea-root { align-self: stretch; }
+.entry-stock { align-self: flex-start; }
+.entry-more > summary, .spec-entry > summary { display: flex; align-items: center; min-height: var(--target); cursor: pointer; font-size: 14px; font-weight: 500; color: var(--accent); }
+
+/* Admin */
+.tabs { display: flex; gap: 4px; margin: 8px 0 4px; border-bottom: 1px solid var(--rule); }
+.admin-section { margin: 28px 0; }
+/* What waits on a person: each kind in its own panel, each item a block with its facts under its
+   name and its answers beside it, so nothing runs off the side. */
+.panel { margin: 20px 0; padding: 20px 24px; background: var(--surface); border: 1px solid var(--rule-soft); }
+.panel > h2 { margin-bottom: 6px; }
+.section-note { max-width: 70ch; margin-bottom: 8px; }
+.all-clear { color: var(--positive); font-weight: 500; }
+.todo-list, .todo-list tbody { display: block; }
+.todo-list thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+.todo-list tbody tr { display: grid; grid-template-columns: repeat(3, max-content) 1fr auto; gap: 8px 32px; align-items: center;
+  padding: 16px 0; border-top: 1px solid var(--rule-soft); }
+.todo-list tbody td { display: block; padding: 0; border: 0; font-size: 14px; }
+.todo-list .todo-title { grid-column: 1 / 5; font-size: 15px; font-weight: 600; overflow-wrap: anywhere; }
+.todo-list .todo-actions { grid-column: 5; grid-row: 1 / 3; }
+.todo-list td[data-label]::before { content: attr(data-label); display: block; font: 500 12px "IBM Plex Sans", sans-serif; color: var(--muted); }
+.offer-link { color: var(--accent); }
+@media (max-width: 1100px) {
+  .todo-list tbody tr { display: flex; flex-wrap: wrap; gap: 8px 24px; }
+  .todo-list .todo-title, .todo-list .todo-actions { flex-basis: 100%; }
+}
+.drive-tools { display: flex; flex-wrap: wrap; align-items: end; gap: 12px; margin-bottom: 12px; }
+.drive-tools .chip { min-height: var(--target); }
+.drive-tools .chip::after { content: none; }
+.failed-runs { margin: 8px 0; padding-left: 18px; }
+.status { font-size: 13px; white-space: nowrap; font-weight: 500; }
+.status.good { color: var(--positive); }
+.status.running { color: var(--accent); font-weight: 600; }
+.running-now { margin-bottom: 4px; }
+.status.critical { color: var(--critical); font-weight: 600; }
+.source-preview { display: grid; gap: 8px; padding: 12px 14px; background: var(--surface); border: 1px solid var(--rule-soft); }
+.source-preview-facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 8px 16px; margin: 0; }
+.source-preview-facts dt { font-size: 12px; color: var(--muted); }
+.source-preview-facts dd { margin: 0; font-family: var(--mono); }
+.source-preview-notes { margin: 0; padding-left: 18px; font-size: 13px; overflow-wrap: anywhere; }
+
+/* What the last change did: said where it is seen whatever is open or scrolled to. */
+.toast { position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); z-index: 400; display: flex; align-items: center; gap: 12px;
+  max-width: min(640px, calc(100vw - 24px)); padding: 6px 6px 6px 18px; background: var(--ink); color: #fff; font-size: 15px;
+  box-shadow: 0 8px 24px rgb(39 59 66 / 30%); animation: arrive .2s ease-out both; }
+.toast [role="status"] { display: flex; flex-direction: column; gap: 2px; padding: 6px 0; }
+.toast .mantine-CloseButton-root:hover { background: rgb(255 255 255 / 15%); }
+
+@media (max-width: 1000px) { .filter-grid { grid-template-columns: 1fr 1fr 1fr; } .filter-grid > :first-child { grid-column: 1 / -1; } }
+@media (max-width: 700px) {
+  .panel { padding: 16px; }
+  main { padding: 16px 16px 96px; } .site-header { padding: 10px 16px; } .market { display: none; }
+  .filter-grid { grid-template-columns: 1fr 1fr; } .entry-grid, .entry-grid.entry-price { grid-template-columns: 1fr; }
+  .mobile-sort { display: block; }
+  /* The sheet as cards: a drive's name across the top, its figures in two columns under it. */
+  .price-sheet thead, .offers thead { display: none; }
+  .price-sheet, .price-sheet tbody, .offers, .offers tbody { display: block; }
+  .price-sheet tbody tr, .offers tbody tr { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 16px; padding: 14px 4px; border-bottom: 1px solid var(--rule-soft); }
+  .price-sheet tbody td, .offers tbody td { display: block; padding: 0; border: 0; text-align: left; }
+  .price-sheet tbody td:first-child, .offers td.offer-actions, .offers .check-row td { grid-column: 1 / -1; width: auto; }
+  .offers .check-row td { padding: 12px; }
+  .offers .offer-actions .mantine-Group-root { justify-content: flex-start; }
+  .price-sheet tbody td:not(:first-child)::before, .offers td[data-label]::before { content: attr(data-label); display: block; font: 500 12px "IBM Plex Sans", sans-serif; color: var(--muted); }
+  .toast { left: 12px; right: 12px; transform: none; }
+}

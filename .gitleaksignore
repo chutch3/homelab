@@ -1,5 +1,2 @@
-# Ignore Ansible secrets files (should be encrypted with ansible-vault)
-ansible/inventory/group_vars/secrets.yml
-
-# Ignore DNS README with example secrets
-ansible/playbooks/dns/README.md
+# Only reviewed finding fingerprints belong here, not file paths.
+# Format: path:rule-id:line or commit:path:rule-id:line.

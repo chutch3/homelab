@@ -1,0 +1,74 @@
+{
+  "products": [
+    {
+      "id": 7001,
+      "title": "Seagate Exos X20 ST18000NM003D 18TB 7.2K RPM SATA 6Gb/s 512e 256MB 3.5in Recertified Hard Drive",
+      "handle": "seagate-exos-x20-st18000nm003d-18tb",
+      "vendor": "Seagate",
+      "product_type": "Hard Drives > 18TB > 3.5 > SATA > 7.2K",
+      "tags": [
+        "brand:Seagate",
+        "capacity:18TB",
+        "condition:Manufacturer Recertified",
+        "warranty:3 Years Seller",
+        "formFactor:3.5",
+        "interface:SATA"
+      ],
+      "variants": [
+        {
+          "id": 9001,
+          "title": "Default Title",
+          "sku": "ST18000NM003D_MR",
+          "price": "519.00",
+          "available": true
+        }
+      ]
+    },
+    {
+      "id": 7002,
+      "title": "WD Ultrastar DC HC550 WUH721818ALE6L4 18TB SATA 3.5in Refurbished HDD",
+      "handle": "wd-ultrastar-hc550-wuh721818ale6l4",
+      "vendor": "Western Digital",
+      "product_type": "Hard Drives > 18TB > 3.5 > SATA > 7.2K",
+      "tags": [
+        "brand:Western Digital",
+        "capacity:18TB",
+        "condition:Refurbished",
+        "formFactor:3.5",
+        "interface:SATA"
+      ],
+      "variants": [
+        {
+          "id": 9002,
+          "title": "Default Title",
+          "sku": "WUH721818ALE6L4_R",
+          "price": "489.00",
+          "available": false
+        }
+      ]
+    },
+    {
+      "id": 7003,
+      "title": "Intel D3-S4510 960GB SATA 2.5in SSD",
+      "handle": "intel-d3-s4510-960gb",
+      "vendor": "Intel",
+      "product_type": "Solid State Drives > 960GB > 2.5 > SATA",
+      "tags": [
+        "brand:Intel",
+        "capacity:960GB",
+        "condition:Open Box",
+        "formFactor:2.5",
+        "interface:SATA"
+      ],
+      "variants": [
+        {
+          "id": 9003,
+          "title": "Bulk",
+          "sku": "",
+          "price": "74.99",
+          "available": true
+        }
+      ]
+    }
+  ]
+}
