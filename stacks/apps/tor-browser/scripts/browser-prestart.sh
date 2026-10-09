@@ -262,6 +262,13 @@ CUSTOM
     chmod +x /dockerstartup/custom_startup.sh
 }
 
+install_sidebar_audio() {
+    # Paths are parameters so the deployment test can use an isolated webroot.
+    if ! python3 "${1:-/opt/homelab-audio/install.py}" "${2:-/usr/share/kasmvnc/www}"; then
+        echo "[PRESTART] WARNING: Sidebar audio installation failed; continuing desktop startup." >&2
+    fi
+}
+
 main() {
     install_dependencies
     wait_for_socks5
@@ -273,6 +280,7 @@ main() {
     write_desktop_icons
     patch_thunar_stub
     patch_custom_startup
+    install_sidebar_audio
 
     chown -R 1000:1000 "${KASM_HOME}" 2>/dev/null || true
 
@@ -280,4 +288,6 @@ main() {
         "exec /dockerstartup/kasm_default_profile.sh /dockerstartup/vnc_startup.sh /dockerstartup/kasm_startup.sh"
 }
 
-main
+if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
+    main
+fi

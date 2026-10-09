@@ -53,9 +53,21 @@ services:
             - NET_ADMIN
         entrypoint: ["/bin/bash", "/scripts/browser-prestart.sh"]
         configs:
-            - source: tor_browser_prestart_v10
+            - source: tor_browser_prestart_b6eb9df204c5
               target: /scripts/browser-prestart.sh
               mode: 493
+            - source: tor_audio_install_7c48ee15ab41
+              target: /opt/homelab-audio/install.py
+              mode: 292
+            - source: tor_audio_sidebar_cec8bfe011f4
+              target: /opt/homelab-audio/src/sidebar.js
+              mode: 292
+            - source: tor_audio_jsmpeg_c0286ac82193
+              target: /opt/homelab-audio/vendor/jsmpeg/jsmpeg.min.js
+              mode: 292
+            - source: tor_audio_license_10a989d94733
+              target: /opt/homelab-audio/vendor/jsmpeg/LICENSE
+              mode: 292
         environment:
             - VNC_PW=${TOR_BROWSER_VNC_PASSWORD}
             - TZ=${TZ}
@@ -84,8 +96,19 @@ services:
                 - "traefik.http.routers.tor-browser.entrypoints=websecure"
                 - "traefik.http.routers.tor-browser.tls.certresolver=dns"
                 - "traefik.http.routers.tor-browser.middlewares=authentik@swarm"
+                - "traefik.http.routers.tor-browser.service=tor-browser"
                 - "traefik.http.services.tor-browser.loadbalancer.server.port=6901"
                 - "traefik.http.services.tor-browser.loadbalancer.server.scheme=https"
+                # Keep audio same-origin and behind the same SSO as the desktop.
+                - >-
+                  traefik.http.routers.tor-browser-audio.rule=Host(`tor.${BASE_DOMAIN}`) && Path(`/kasm-audio`) &&
+                  Header(`Origin`, `https://tor.${BASE_DOMAIN}`)
+                - "traefik.http.routers.tor-browser-audio.entrypoints=websecure"
+                - "traefik.http.routers.tor-browser-audio.tls.certresolver=dns"
+                - "traefik.http.routers.tor-browser-audio.middlewares=authentik@swarm"
+                - "traefik.http.routers.tor-browser-audio.service=tor-browser-audio"
+                - "traefik.http.services.tor-browser-audio.loadbalancer.server.port=4901"
+                - "traefik.http.services.tor-browser-audio.loadbalancer.server.scheme=https"
                 - homepage.group=Privacy
                 - homepage.name=Tor Browser
                 - homepage.icon=tor-browser.png
@@ -135,10 +158,18 @@ configs:
         file: ./scripts/init-vpn.sh
     tor_vpn_auth_config_v1:
         file: ./config/gluetun-auth.toml
-    tor_browser_prestart_v10:
+    tor_browser_prestart_b6eb9df204c5:
         file: ./scripts/browser-prestart.sh
     tor_ip_check_server_v3:
         file: ./ip-check/server.py
+    tor_audio_install_7c48ee15ab41:
+        file: ./audio/install.py
+    tor_audio_sidebar_cec8bfe011f4:
+        file: ./audio/src/sidebar.js
+    tor_audio_jsmpeg_c0286ac82193:
+        file: ./audio/vendor/jsmpeg/jsmpeg.min.js
+    tor_audio_license_10a989d94733:
+        file: ./audio/vendor/jsmpeg/LICENSE
 
 networks:
     traefik-public:

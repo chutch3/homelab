@@ -55,7 +55,8 @@ task deploy -- tor-browser -K
 3. Applies an iptables OUTPUT kill switch: allows loopback and `ESTABLISHED/RELATED` (for KasmVNC responses back to Traefik), allows the tor-internal subnet, drops everything else
 4. Writes `Socks5Proxy tasks.tor-vpn:1080` to `torrc-defaults` using the hostname so Tor re-resolves via Docker DNS on each connection, surviving gluetun task restarts that change the task IP
 5. Seeds the XFCE desktop icon config and creates a desktop shortcut + autostart entry for Tor Browser
-6. Drops to `kasm-user` via `exec su` and hands off to the KasmVNC startup chain
+6. Installs the sidebar audio assets and patches both Kasm HTML entry points
+7. Drops to `kasm-user` via `exec su` and hands off to the KasmVNC startup chain
 
 ### Desktop and browser lifecycle
 
@@ -144,6 +145,12 @@ audio/                Kasm sidebar audio extension, vendored decoder, and tests
 
 The `ip-check/` application runs as its own service within this stack. Its single
 Python file includes the web UI and needs no package installation or build step.
+
+The audio extension is mounted through Docker configs and installed at startup.
+Its `/kasm-audio` WebSocket route shares the Tor hostname and Authentik protection.
+After deployment, reload the desktop page and click **Enable audio** in the sidebar.
+If the button is absent, check startup logs for `[PRESTART] Kasm sidebar audio installed.`
+or the audio installation warning.
 
 See [Kasm sidebar audio](audio/README.md) for the extension's source layout,
 installation contract, and test commands.
