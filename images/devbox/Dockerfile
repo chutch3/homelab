@@ -87,16 +87,23 @@ RUN kver="${KUBECTL_VERSION:-$(curl -fsSL https://dl.k8s.io/release/stable.txt)}
     curl -fsSL "https://github.com/mikefarah/yq/releases/download/${yver}/yq_linux_amd64" \
         -o /usr/local/bin/yq && chmod +x /usr/local/bin/yq
 
-# mc (MinIO client) — the former dl.min.io binary endpoint returns HTTP 410.
-COPY --from=quay.io/minio/mc:RELEASE.2025-08-13T08-35-41Z@sha256:a7fe349ef4bd8521fb8497f55c6042871b2ae640607cf99d9bede5e9bdf11727 /usr/bin/mc /usr/local/bin/mc
+RUN curl -fsSL --retry 3 \
+        https://github.com/pgsty/mc/releases/download/RELEASE.2026-09-16T00-00-00Z/mcli_20260916000000.0.0_linux_amd64.tar.gz \
+        -o /tmp/mcli.tar.gz && \
+    echo '4ba2814fd5507fbe6b4d237c359750b9119d28d7217495fa5b48002fcbd397ef  /tmp/mcli.tar.gz' | sha256sum -c - && \
+    tar -xzf /tmp/mcli.tar.gz -C /usr/local/bin mcli && \
+    mkdir -p /usr/local/share/doc/mcli && \
+    tar -xzf /tmp/mcli.tar.gz -C /usr/local/share/doc/mcli LICENSE NOTICE CREDITS && \
+    ln -s mcli /usr/local/bin/mc && \
+    rm -f /tmp/mcli.tar.gz && \
+    mcli --version && mc --version
 
-# Smoke-check the copied mc binary, then install the R languageserver (needed by
-# the VS Code R extension; its transitive dep 'fs' links against libuv1-dev).
+# Install the R languageserver (needed by the VS Code R extension; its transitive
+# dep 'fs' links against libuv1-dev).
 # The second Rscript makes the build fail loudly — install.packages() returns 0
 # even when a dependency fails to compile, which silently shipped a missing
 # languageserver for a long time.
-RUN mc --version && \
-    Rscript -e "install.packages('languageserver', repos='https://cloud.r-project.org')" && \
+RUN Rscript -e "install.packages('languageserver', repos='https://cloud.r-project.org')" && \
     Rscript -e "if (!requireNamespace('languageserver', quietly = TRUE)) quit(status = 1)"
 
 # SSH server + supervisor configuration (companion files live in the build context).
