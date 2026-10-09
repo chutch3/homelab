@@ -15,6 +15,7 @@ services:
         - images/devbox/**
     environment:
       - TZ=${TZ:-America/New_York}
+      - CLAUDE_CONFIG_DIR=/home/coder/.claude
       - NVIDIA_VISIBLE_DEVICES=all
       - NVIDIA_DRIVER_CAPABILITIES=compute,utility
       - GIT_AUTHOR_NAME=${GIT_AUTHOR_NAME}

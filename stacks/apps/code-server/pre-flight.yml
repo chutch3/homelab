@@ -14,7 +14,6 @@ directories:
   - { path: dev-env/ai-configs/claude, owner: 1000, group: 1000 }
   - { path: dev-env/ai-configs/gemini, owner: 1000, group: 1000 }
   - { path: dev-env/ai-configs/cloudcli, owner: 1000, group: 1000 }
-  - { path: dev-env/ai-configs/forge, owner: 1000, group: 1000 }
 
 # SSH key into the shared-ssh dir the container mounts at ~/.ssh. Optional —
 # skipped if the key isn't on the controller. The key keeps its own basename

@@ -16,11 +16,13 @@ services:
     user: "1000:1000"
     environment:
       - TZ=${TZ:-America/New_York}
+      - CLAUDE_CONFIG_DIR=/home/coder/.claude
       - PORT=3001
+      - DATABASE_PATH=/home/coder/.cloudcli/auth.db
       - VITE_IS_PLATFORM=true
       - WORKSPACES_ROOT=/home/coder/workspace
       - OPENROUTER_KEY=${OPENROUTER_KEY}
-    command: /bin/bash -c "mkdir -p ~/.claude ~/.config/gemini ~/.cloudcli ~/.forge ~/.codex && cloudcli start"
+    command: ["cloudcli", "start"]
     working_dir: /home/coder
     volumes:
       - workspace:/home/coder/workspace
@@ -28,7 +30,6 @@ services:
       - codex_config:/home/coder/.codex
       - gemini_config:/home/coder/.config/gemini
       - cloudcli_config:/home/coder/.cloudcli
-      - forge_config:/home/coder/.forge
       - shared_ssh:/home/coder/.ssh
     networks:
       - traefik-public
@@ -49,7 +50,7 @@ services:
         - "homepage.name=CloudCLI"
         - "homepage.icon=terminal.png"
         - "homepage.href=https://ai.${BASE_DOMAIN}/"
-        - "homepage.description=AI Agents (Claude/Gemini/Forge)"
+        - "homepage.description=AI Agents (Claude/Codex/Gemini)"
       restart_policy:
         condition: any
         delay: 5s
@@ -89,12 +90,6 @@ volumes:
       type: "none"
       o: "bind"
       device: "/mnt/iscsi/app-data/dev-env/ai-configs/cloudcli"
-  forge_config:
-    driver: local
-    driver_opts:
-      type: "none"
-      o: "bind"
-      device: "/mnt/iscsi/app-data/dev-env/ai-configs/forge"
   shared_ssh:
     driver: local
     driver_opts:
