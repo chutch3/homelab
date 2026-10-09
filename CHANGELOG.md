@@ -2,6 +2,51 @@
 
 <!-- version list -->
 
+## v3.34.0 (2026-10-09)
+
+### Bug Fixes
+
+- Disable ipv6 for the whole beholder container
+  ([`fdf9713`](https://github.com/chutch3/homelab/commit/fdf9713421c77df09e5f0a7600e70e08919070c5))
+
+- Error pages not matches the status code with the page sent
+  ([`d2a12e0`](https://github.com/chutch3/homelab/commit/d2a12e03baf1633f87f69ee1c6ce0d0014596d16))
+
+- Openwebui should not be deployed on older gen infra
+  ([`0a16e39`](https://github.com/chutch3/homelab/commit/0a16e39ecc62a76ee72016533a69a744b104fb48))
+
+- Replace devbox MinIO client with pinned mcli ([#126](https://github.com/chutch3/homelab/pull/126),
+  [`cb446f1`](https://github.com/chutch3/homelab/commit/cb446f18bd94b103de0d2b132f113b969a1c6e17))
+
+### Chores
+
+- Restructured the tor-browser app folder
+  ([`2baf89b`](https://github.com/chutch3/homelab/commit/2baf89b55e3287aabc073aecf093f9285bdf054b))
+
+### Features
+
+- Add DiskTracker MVP ([#127](https://github.com/chutch3/homelab/pull/127),
+  [`5bf6c80`](https://github.com/chutch3/homelab/commit/5bf6c8016c218ea01687606d29b0826fc3d8af5a))
+
+- Added an enable audio plugin for the kasm sidebar
+  ([`4620194`](https://github.com/chutch3/homelab/commit/4620194855667dafff5c4b895385a6600fff1262))
+
+- Bump beholder version
+  ([`4070b2f`](https://github.com/chutch3/homelab/commit/4070b2f6ece54bea32641bac1510129264a37d18))
+
+- Bump claudecodeui
+  ([`e3bd0e8`](https://github.com/chutch3/homelab/commit/e3bd0e83f5aed415aef9a0ebc45379bd500a6ef5))
+
+- Bump technitium version
+  ([`2359caa`](https://github.com/chutch3/homelab/commit/2359caaaaa69879eb1b0fb057ac3dd33190f6e76))
+
+- Fix alertmanager, restructure monitoring, cleanup comments
+  ([`63e29db`](https://github.com/chutch3/homelab/commit/63e29db37da8f6d9f879907a5a4f72a69bc8567f))
+
+- Removed librechat in favor of openwebui
+  ([`f045bd9`](https://github.com/chutch3/homelab/commit/f045bd9cd4d3ca97f6adda31950ff524abe62302))
+
+
 ## v3.33.1 (2026-09-27)
 
 ### Bug Fixes
