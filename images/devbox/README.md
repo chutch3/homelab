@@ -25,7 +25,7 @@ change an already-running devbox or migrate an object-storage server.
 Edit version defaults at the top of `Dockerfile`, or pass a Docker build argument.
 Arguments are consumed beside each install step so changing an agent version
 preserves earlier build layers. Empty installer versions and npm `latest` values
-remain floating; apt packages, fnm, Forge, and the R languageserver are also not
+remain floating; apt packages, fnm, and the R languageserver are also not
 fully pinned. This is not a fully reproducible toolchain lockfile.
 
 CloudCLI is pinned to `1.37.3`. Claude is pinned to `2.1.210`, the version verified
@@ -89,10 +89,15 @@ state. CloudCLI 1.37.3 normally already uses the mounted location.
 
 ### Build and rollout
 
-The existing PR workflow builds affected devbox consumers without pushing an
-image. It also runs the migration tests inside the Docker build. After merge,
-the main build publishes `:latest` and the immutable commit-SHA tag. Release
-promotion later adds a semantic-version tag.
+The existing PR workflow discovers `images/devbox` as a test project through its
+`pyproject.toml`. Changes to the shared image or either consuming stack select
+this suite through the existing build-context mapping. Migration integration
+tests run in the test job and must pass before the image build starts. The
+Dockerfile only checks that the installed CLI executables run; test code and
+test dependencies are excluded from its build context.
+
+PR builds do not push images. After merge, the main build publishes `:latest` and
+the immutable commit-SHA tag. Release promotion later adds a semantic-version tag.
 
 After the main build succeeds, set `IMAGE_TAG` in `.env` to that build's commit
 SHA and deploy both consumers together:
@@ -109,7 +114,11 @@ and verify that the setting and authentication persist.
 ### Local regression tests
 
 ```bash
-python3 images/devbox/tests/test_entrypoint.py -v
+task test -- devbox
+# Or run the integration tier directly:
+uv run ci test --tier integration devbox
 ```
 
-The tests use temporary home directories and do not access real credentials.
+The suite follows the repository's `tests/integration/` convention and is shared
+by both stacks. It runs Bash against temporary home directories and exercises
+real file operations, without needing Docker or accessing real credentials.

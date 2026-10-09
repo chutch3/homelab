@@ -7,9 +7,7 @@ import tempfile
 import unittest
 
 
-ENTRYPOINT = Path(os.environ.get(
-    "DEVBOX_ENTRYPOINT", Path(__file__).resolve().parents[1] / "devbox-entrypoint.sh"
-))
+ENTRYPOINT = Path(__file__).resolve().parents[2] / "devbox-entrypoint.sh"
 
 
 class EntrypointTests(unittest.TestCase):
@@ -107,7 +105,3 @@ class EntrypointTests(unittest.TestCase):
         result = self.start(command=("bash", "-c", 'printf "%s" "$1"; exit 7', "--", "two words"), check=False)
         self.assertEqual(result.stdout, "two words")
         self.assertEqual(result.returncode, 7)
-
-
-if __name__ == "__main__":
-    unittest.main()

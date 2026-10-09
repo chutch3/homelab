@@ -209,9 +209,6 @@ RUN npm install -g \
         "task-master-ai@${TASK_MASTER_VERSION}" \
         "@openai/codex@${CODEX_VERSION}"
 
-# Forge Code
-RUN curl -fsSL https://forgecode.dev/install.sh | bash
-
 # Claude needs its optional platform package and postinstall script. Install it
 # separately after other tools, then verify all agent launchers as coder.
 ARG CLAUDE_CODE_VERSION
@@ -219,11 +216,8 @@ RUN npm install -g --include=optional --foreground-scripts \
         "@anthropic-ai/claude-code@${CLAUDE_CODE_VERSION}" && \
     claude --version && codex --version && cloudcli --version
 
-# Run persistence regressions in every CI image build.
+# Shared startup initialization for both consuming applications.
 COPY --chmod=0755 devbox-entrypoint.sh /usr/local/bin/devbox-entrypoint.sh
-COPY tests/test_entrypoint.py /tmp/devbox-tests/test_entrypoint.py
-RUN DEVBOX_ENTRYPOINT=/usr/local/bin/devbox-entrypoint.sh \
-    uv run --no-project --python "${PYTHON_VERSION}" python /tmp/devbox-tests/test_entrypoint.py
 
 # Shell configuration — done last so all tools are present
 # hadolint ignore=SC2016
@@ -234,7 +228,7 @@ RUN echo 'export PATH="$HOME/.local/share/fnm/aliases/default/bin:$HOME/.local/s
     echo '[ -f /usr/share/doc/fzf/examples/key-bindings.bash ] && source /usr/share/doc/fzf/examples/key-bindings.bash'                         >> ~/.bashrc
 
 # Pre-create volume mount points with correct ownership
-RUN mkdir -p ~/.claude ~/.config/gemini ~/.cloudcli ~/.forge ~/.ssh ~/.local/share/code-server
+RUN mkdir -p ~/.claude ~/.config/gemini ~/.cloudcli ~/.ssh ~/.local/share/code-server
 
 ENV PORT=3001
 ENV VITE_IS_PLATFORM=true

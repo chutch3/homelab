@@ -1,0 +1,7 @@
+# Test dependencies and suites run on the CI runner, outside the image build.
+.venv/
+.pytest_cache/
+**/__pycache__/
+tests/
+pyproject.toml
+uv.lock

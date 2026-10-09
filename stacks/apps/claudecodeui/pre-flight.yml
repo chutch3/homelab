@@ -5,5 +5,4 @@ directories:
   - { path: dev-env/ai-configs/codex, owner: 1000, group: 1000 }
   - { path: dev-env/ai-configs/gemini, owner: 1000, group: 1000 }
   - { path: dev-env/ai-configs/cloudcli, owner: 1000, group: 1000 }
-  - { path: dev-env/ai-configs/forge, owner: 1000, group: 1000 }
   - { path: dev-env/shared-ssh, owner: 1000, group: 1000, mode: "0700" }
