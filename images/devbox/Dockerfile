@@ -1,4 +1,26 @@
 # syntax=docker/dockerfile:1
+# Version defaults: edit here or override with --build-arg NAME=value.
+# Empty installer versions and npm latest values remain floating.
+# Consume each ARG near its install step to preserve earlier build caches.
+ARG KUBECTL_VERSION=""
+ARG YQ_VERSION=""
+ARG MCLI_RELEASE=RELEASE.2026-09-16T00-00-00Z
+ARG MCLI_VERSION=20260916000000.0.0
+ARG MCLI_SHA256=4ba2814fd5507fbe6b4d237c359750b9119d28d7217495fa5b48002fcbd397ef
+ARG CODE_SERVER_VERSION=""
+ARG NODE_VERSION=22
+ARG UV_VERSION=""
+ARG PYTHON_VERSION=3.12
+ARG GO_TASK_VERSION=""
+ARG RUST_VERSION=stable
+ARG DOTNET_CHANNEL=LTS
+ARG CLAUDE_CODE_VERSION=2.1.210
+ARG GEMINI_CLI_VERSION=latest
+ARG CLOUDCLI_VERSION=1.37.3
+ARG TYPESCRIPT_VERSION=latest
+ARG TASK_MASTER_VERSION=latest
+ARG CODEX_VERSION=latest
+
 FROM ubuntu:24.04
 
 ENV DEBIAN_FRONTEND=noninteractive
@@ -68,6 +90,7 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
         supervisor \
         tmux \
         unzip \
+        util-linux \
         vim \
         wget \
         xz-utils \
@@ -78,8 +101,8 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
 
 # kubectl and yq as static binaries (avoids extra apt sources).
 # Leave *_VERSION empty to track the latest release, or set it to pin one.
-ARG KUBECTL_VERSION=""
-ARG YQ_VERSION=""
+ARG KUBECTL_VERSION
+ARG YQ_VERSION
 RUN kver="${KUBECTL_VERSION:-$(curl -fsSL https://dl.k8s.io/release/stable.txt)}" && \
     curl -fsSL "https://dl.k8s.io/release/${kver}/bin/linux/amd64/kubectl" \
         -o /usr/local/bin/kubectl && chmod +x /usr/local/bin/kubectl && \
@@ -87,10 +110,13 @@ RUN kver="${KUBECTL_VERSION:-$(curl -fsSL https://dl.k8s.io/release/stable.txt)}
     curl -fsSL "https://github.com/mikefarah/yq/releases/download/${yver}/yq_linux_amd64" \
         -o /usr/local/bin/yq && chmod +x /usr/local/bin/yq
 
+ARG MCLI_RELEASE
+ARG MCLI_VERSION
+ARG MCLI_SHA256
 RUN curl -fsSL --retry 3 \
-        https://github.com/pgsty/mc/releases/download/RELEASE.2026-09-16T00-00-00Z/mcli_20260916000000.0.0_linux_amd64.tar.gz \
+        "https://github.com/pgsty/mc/releases/download/${MCLI_RELEASE}/mcli_${MCLI_VERSION}_linux_amd64.tar.gz" \
         -o /tmp/mcli.tar.gz && \
-    echo '4ba2814fd5507fbe6b4d237c359750b9119d28d7217495fa5b48002fcbd397ef  /tmp/mcli.tar.gz' | sha256sum -c - && \
+    echo "${MCLI_SHA256}  /tmp/mcli.tar.gz" | sha256sum -c - && \
     tar -xzf /tmp/mcli.tar.gz -C /usr/local/bin mcli && \
     mkdir -p /usr/local/share/doc/mcli && \
     tar -xzf /tmp/mcli.tar.gz -C /usr/local/share/doc/mcli LICENSE NOTICE CREDITS && \
@@ -115,7 +141,7 @@ COPY --chmod=0755 devbox-start.sh /usr/local/bin/devbox-start.sh
 
 # Create coder user and install code-server — last root operations before user switch.
 # Leave CODE_SERVER_VERSION empty for the latest release, or set it to pin one.
-ARG CODE_SERVER_VERSION=""
+ARG CODE_SERVER_VERSION
 RUN userdel -r ubuntu && \
     useradd -m -u 1000 -s /bin/bash coder && \
     # Unlock coder so sshd accepts pubkey auth under UsePAM no (password login stays off).
@@ -131,17 +157,21 @@ RUN userdel -r ubuntu && \
 USER coder
 WORKDIR /home/coder
 ENV HOME=/home/coder
+# Keep global state inside the mounted configuration directory.
+ENV CLAUDE_CONFIG_DIR=/home/coder/.claude
+# Upgrade Claude through image builds instead of background container updates.
+ENV DISABLE_AUTOUPDATER=1
 
 # fnm + Node
-ARG NODE_VERSION=22
+ARG NODE_VERSION
 RUN curl -fsSL https://fnm.vercel.app/install | bash -s -- --install-dir "$HOME/.local/share/fnm" --skip-shell
 ENV PATH="$HOME/.local/share/fnm/aliases/default/bin:$HOME/.local/share/fnm:$PATH"
 RUN fnm install "${NODE_VERSION}" && fnm default "${NODE_VERSION}"
 
 # uv (Python package manager) + a managed Python (replaces pyenv).
 # Leave UV_VERSION empty for the latest uv release, or set it to pin one.
-ARG UV_VERSION=""
-ARG PYTHON_VERSION=3.12
+ARG UV_VERSION
+ARG PYTHON_VERSION
 RUN if [ -n "$UV_VERSION" ]; then \
         curl -LsSf "https://astral.sh/uv/${UV_VERSION}/install.sh" | sh; \
     else \
@@ -151,30 +181,28 @@ ENV PATH="$HOME/.local/bin:$PATH"
 RUN uv python install "${PYTHON_VERSION}"
 
 # go-task (empty = latest, or pass a tag like v3.40.0 to pin)
-ARG GO_TASK_VERSION=""
+ARG GO_TASK_VERSION
 RUN sh -c "$(curl --location https://taskfile.dev/install.sh)" -- -d -b ~/.local/bin ${GO_TASK_VERSION}
 
 # Rust (RUST_VERSION accepts a channel like "stable" or an exact version like "1.83.0")
-ARG RUST_VERSION=stable
+ARG RUST_VERSION
 RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --no-modify-path --default-toolchain "${RUST_VERSION}"
 ENV PATH="$HOME/.cargo/bin:$PATH"
 
 # .NET SDK
-ARG DOTNET_CHANNEL=LTS
+ARG DOTNET_CHANNEL
 RUN curl -fsSL https://dot.net/v1/dotnet-install.sh | bash -s -- --channel "${DOTNET_CHANNEL}" --install-dir "$HOME/.dotnet"
 ENV PATH="$HOME/.dotnet:$HOME/.dotnet/tools:$PATH"
 ENV DOTNET_ROOT="$HOME/.dotnet"
 ENV DOTNET_CLI_TELEMETRY_OPTOUT=1
 
-# npm global tools (default latest; pin any of these via build args for reproducible builds)
-ARG CLAUDE_CODE_VERSION=latest
-ARG GEMINI_CLI_VERSION=latest
-ARG CLOUDCLI_VERSION=latest
-ARG TYPESCRIPT_VERSION=latest
-ARG TASK_MASTER_VERSION=latest
-ARG CODEX_VERSION=latest
+# npm global tools (version defaults are at the top of this file).
+ARG GEMINI_CLI_VERSION
+ARG CLOUDCLI_VERSION
+ARG TYPESCRIPT_VERSION
+ARG TASK_MASTER_VERSION
+ARG CODEX_VERSION
 RUN npm install -g \
-        "@anthropic-ai/claude-code@${CLAUDE_CODE_VERSION}" \
         "@google/gemini-cli@${GEMINI_CLI_VERSION}" \
         "@cloudcli-ai/cloudcli@${CLOUDCLI_VERSION}" \
         "typescript@${TYPESCRIPT_VERSION}" \
@@ -183,6 +211,19 @@ RUN npm install -g \
 
 # Forge Code
 RUN curl -fsSL https://forgecode.dev/install.sh | bash
+
+# Claude needs its optional platform package and postinstall script. Install it
+# separately after other tools, then verify all agent launchers as coder.
+ARG CLAUDE_CODE_VERSION
+RUN npm install -g --include=optional --foreground-scripts \
+        "@anthropic-ai/claude-code@${CLAUDE_CODE_VERSION}" && \
+    claude --version && codex --version && cloudcli --version
+
+# Run persistence regressions in every CI image build.
+COPY --chmod=0755 devbox-entrypoint.sh /usr/local/bin/devbox-entrypoint.sh
+COPY tests/test_entrypoint.py /tmp/devbox-tests/test_entrypoint.py
+RUN DEVBOX_ENTRYPOINT=/usr/local/bin/devbox-entrypoint.sh \
+    uv run --no-project --python "${PYTHON_VERSION}" python /tmp/devbox-tests/test_entrypoint.py
 
 # Shell configuration — done last so all tools are present
 # hadolint ignore=SC2016
@@ -198,5 +239,5 @@ RUN mkdir -p ~/.claude ~/.config/gemini ~/.cloudcli ~/.forge ~/.ssh ~/.local/sha
 ENV PORT=3001
 ENV VITE_IS_PLATFORM=true
 
-ENTRYPOINT ["/usr/bin/dumb-init", "--"]
+ENTRYPOINT ["/usr/bin/dumb-init", "--", "/usr/local/bin/devbox-entrypoint.sh"]
 CMD ["sudo", "-E", "/usr/local/bin/devbox-start.sh"]

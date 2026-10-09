@@ -16,11 +16,13 @@ services:
     user: "1000:1000"
     environment:
       - TZ=${TZ:-America/New_York}
+      - CLAUDE_CONFIG_DIR=/home/coder/.claude
       - PORT=3001
+      - DATABASE_PATH=/home/coder/.cloudcli/auth.db
       - VITE_IS_PLATFORM=true
       - WORKSPACES_ROOT=/home/coder/workspace
       - OPENROUTER_KEY=${OPENROUTER_KEY}
-    command: /bin/bash -c "mkdir -p ~/.claude ~/.config/gemini ~/.cloudcli ~/.forge ~/.codex && cloudcli start"
+    command: ["cloudcli", "start"]
     working_dir: /home/coder
     volumes:
       - workspace:/home/coder/workspace
