@@ -2,6 +2,18 @@
 
 <!-- version list -->
 
+## v3.34.1 (2026-10-10)
+
+### Bug Fixes
+
+- Connect the installer for audio to the docker compose
+  ([`0b0ea98`](https://github.com/chutch3/homelab/commit/0b0ea98fe57289592ac7225b5e763db0d70d2847))
+
+- Verify agent installs and persist Claude configuration
+  ([#128](https://github.com/chutch3/homelab/pull/128),
+  [`bf9be41`](https://github.com/chutch3/homelab/commit/bf9be4147c856fb8de952dac5fd6875ab33abd92))
+
+
 ## v3.34.0 (2026-10-09)
 
 ### Bug Fixes
