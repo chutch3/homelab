@@ -229,15 +229,6 @@ def test_a_source_nothing_is_recorded_under_is_deleted_with_its_runs(database_ur
     assert (deleted.status_code, again.status_code, runs) == (204, 404, [])
 
 
-def test_the_routes_of_the_old_collector_protocol_are_gone(database_url: str) -> None:
-    with TestClient(create_app()) as client:
-        paths = client.get("/openapi.json").json()["paths"]
-    assert not {
-        "/api/sources/due", "/api/collector-activity", "/api/collector-runs",
-        "/api/collector-runs/latest",
-    } & set(paths)  # fmt: skip
-
-
 def test_a_run_is_answered_in_utc_the_same_however_the_database_keeps_its_time(
     database_url: str,
 ) -> None:

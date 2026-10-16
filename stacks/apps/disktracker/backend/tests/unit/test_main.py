@@ -22,7 +22,12 @@ def test_the_application_is_configured_from_the_environment_into_the_container_g
         "collector_url": "http://collector.test:8100",
         "static_dir": None,
     }
-    assert {"/api/offers", "/api/sources", "/api/trends"} <= set(app.openapi()["paths"])
+    # Each area's routes are served.
+    assert [app.url_path_for(name) for name in ("list_offers", "list_sources", "price_trends")] == [
+        "/api/offers",
+        "/api/sources",
+        "/api/trends",
+    ]
 
 
 def test_without_a_database_the_application_is_not_made(monkeypatch: pytest.MonkeyPatch) -> None:

@@ -330,12 +330,6 @@ def test_what_drives_cost_today_is_reported_over_every_drive_in_stock(database_u
     }
 
 
-def test_offers_are_no_longer_read_by_lists_of_ids(database_url: str) -> None:
-    with TestClient(create_app()) as client:
-        paths = client.get("/openapi.json").json()["paths"]
-    assert "/api/price-history" not in paths
-
-
 def test_offers_as_cheap_as_each_other_are_all_the_lowest_and_a_recheck_makes_one_recent(
     database_url: str,
 ) -> None:

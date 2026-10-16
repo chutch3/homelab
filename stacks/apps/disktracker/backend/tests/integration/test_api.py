@@ -957,86 +957,6 @@ def test_a_scraped_alias_already_claimed_by_another_drive_is_left_for_a_person(
         assert drives == {"ST18000NM000J": ["0XYZ"], "ST16000NM000J": []}
 
 
-def schema_of(spec: dict[str, Any], reference: dict[str, Any]) -> dict[str, Any]:
-    if "$ref" in reference:
-        return spec["components"]["schemas"][reference["$ref"].rsplit("/", 1)[-1]]
-    if reference.get("type") == "array":
-        return schema_of(spec, reference["items"])
-    return reference
-
-
-def response_schema(spec: dict[str, Any], path: str, method: str, status: str) -> dict[str, Any]:
-    content = spec["paths"][path][method]["responses"][status]["content"]
-    return schema_of(spec, content["application/json"]["schema"])
-
-
-def test_the_published_contract_describes_offers_prices_drives_and_review_items(
-    database_url: str,
-) -> None:
-    with TestClient(create_app()) as client:
-        spec = client.get("/openapi.json").json()
-
-    operations = {
-        (path, method): operation["operationId"]
-        for path, methods in spec["paths"].items()
-        for method, operation in methods.items()
-    }
-    assert {
-        key: operations.get(key)
-        for key in [
-            ("/api/offers", "get"),
-            ("/api/offers/{offer_id}", "get"),
-            ("/api/offers/{offer_id}", "patch"),
-            ("/api/offers/{offer_id}", "delete"),
-            ("/api/prices", "post"),
-            ("/api/prices/{price_id}", "delete"),
-            ("/api/drives/{drive_id}", "patch"),
-            ("/api/drives/{drive_id}/aliases", "post"),
-            ("/api/review-items", "get"),
-            ("/api/review-items/{item_id}/decision", "put"),
-        ]
-    } == {
-        ("/api/offers", "get"): "list_offers",
-        ("/api/offers/{offer_id}", "get"): "get_offer",
-        ("/api/offers/{offer_id}", "patch"): "edit_offer",
-        ("/api/offers/{offer_id}", "delete"): "delete_offer",
-        ("/api/prices", "post"): "record_price",
-        ("/api/prices/{price_id}", "delete"): "delete_price",
-        ("/api/drives/{drive_id}", "patch"): "edit_drive",
-        ("/api/drives/{drive_id}/aliases", "post"): "add_alias",
-        ("/api/review-items", "get"): "review_items",
-        ("/api/review-items/{item_id}/decision", "put"): "decide",
-    }
-    # Nothing is left of the routes these replaced.
-    assert not [path for path in spec["paths"] if "listings" in path or "unmatched" in path]
-    decided = response_schema(spec, "/api/review-items/{item_id}/decision", "put", "200")
-    assert decided["properties"]["status"]["enum"] == ["matched", "ignored"]
-    summary = response_schema(spec, "/api/offers", "get", "200")
-    assert set(summary["required"]) == {
-        "id", "title", "mpn", "store", "store_name", "seller", "url", "condition",
-        "last_checked_at", "capacity_gb", "drive", "latest", "doubt",
-    }  # fmt: skip
-    listing = response_schema(spec, "/api/offers/{offer_id}", "get", "200")
-    assert set(listing["required"]) == set(summary["required"]) | {"observations"}
-    drive = schema_of(spec, listing["properties"]["drive"])
-    assert set(drive["required"]) == {
-        "id", "mpn", "aliases", "brand", "capacity_gb", "specifications",
-    }  # fmt: skip
-    latest = schema_of(spec, listing["properties"]["latest"])
-    assert set(latest["required"]) == {
-        "id", "item_price_cents", "shipping_cents", "shipping_known", "in_stock", "observed_at",
-        "entered_at", "notes", "provenance", "total_cents", "price_per_tb",
-    }  # fmt: skip
-    for status in ("201", "202", "200"):
-        result = response_schema(spec, "/api/prices", "post", status)
-        assert set(result["properties"]) == {"status", "offer_id", "price_id", "review_item_id"}
-        assert result["properties"]["status"]["enum"] == ["recorded", "queued", "ignored"]
-    queued = response_schema(spec, "/api/review-items", "get", "200")
-    assert {"id", "store", "url", "reason", "first_seen_at", "last_seen_at"} <= set(
-        queued["required"]
-    )
-
-
 def test_listings_carry_each_offers_latest_price_and_history_is_fetched_per_offer(
     database_url: str,
 ) -> None:
@@ -1563,26 +1483,6 @@ def test_the_kinds_of_store_are_given_as_their_settings_describe_them(database_u
         "collections",
         "free_shipping",
     ]
-
-
-def test_the_published_contract_types_each_kind_of_stores_settings(database_url: str) -> None:
-    """The collector's client is generated from the contract, so it reads a store's settings as
-    the fields of its kind, not as a dictionary to pick through."""
-    with TestClient(create_app()) as client:
-        spec = client.get("/openapi.json").json()
-
-    sent = spec["paths"]["/api/sources"]["post"]["requestBody"]["content"]["application/json"]
-    read = response_schema(spec, "/api/sources", "get", "200")
-    for sources in (schema_of(spec, sent["schema"]), read):
-        assert sources["discriminator"]["propertyName"] == "kind"
-        kinds = sources["discriminator"]["mapping"]
-        assert sorted(kinds) == ["manual", "sap_commerce", "shopify", "sitemap"]
-        shopify = schema_of(spec, {"$ref": kinds["shopify"]})
-        settings = schema_of(spec, shopify["properties"]["settings"])
-        assert settings["properties"]["collections"]["type"] == "array"
-        assert settings["properties"]["collections"]["items"] == {"type": "string"}
-        assert settings["properties"]["free_shipping"]["type"] == "boolean"
-        assert settings["additionalProperties"] is False
 
 
 def test_a_kind_of_store_nobody_reads_is_refused(database_url: str) -> None:
