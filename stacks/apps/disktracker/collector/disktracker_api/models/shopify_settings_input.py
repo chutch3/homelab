@@ -24,11 +24,11 @@ T = TypeVar("T", bound="ShopifySettingsInput")
 class ShopifySettingsInput:
     """
         Attributes:
-            collections (list[str] | Unset):
+            collections (list[str]):
             free_shipping (bool | Unset):  Default: False.
      """
 
-    collections: list[str] | Unset = UNSET
+    collections: list[str]
     free_shipping: bool | Unset = False
 
 
@@ -36,9 +36,7 @@ class ShopifySettingsInput:
 
 
     def to_dict(self) -> dict[str, Any]:
-        collections: list[str] | Unset = UNSET
-        if not isinstance(self.collections, Unset):
-            collections = self.collections
+        collections = self.collections
 
 
 
@@ -48,9 +46,8 @@ class ShopifySettingsInput:
         field_dict: dict[str, Any] = {}
 
         field_dict.update({
+            "collections": collections,
         })
-        if collections is not UNSET:
-            field_dict["collections"] = collections
         if free_shipping is not UNSET:
             field_dict["free_shipping"] = free_shipping
 
@@ -61,7 +58,7 @@ class ShopifySettingsInput:
     @classmethod
     def from_dict(cls: type[T], src_dict: Mapping[str, Any]) -> T:
         d = dict(src_dict)
-        collections = cast(list[str], d.pop("collections", UNSET))
+        collections = cast(list[str], d.pop("collections"))
 
 
         free_shipping = d.pop("free_shipping", UNSET)

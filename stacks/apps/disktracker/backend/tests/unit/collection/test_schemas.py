@@ -13,7 +13,7 @@ from disktracker.collection.schemas import (
     SourceInput,
     SourcePreviewInput,
 )
-from disktracker.collection.settings import KINDS
+from disktracker.collection.settings import KINDS, ShopifySettings
 
 COUNTS = dict.fromkeys(("seen", "recorded", "queued", "ignored", "failed"), 0)
 
@@ -90,6 +90,16 @@ class TestSourceInput:
         self, fields: dict[str, Any], field: str, message: str
     ) -> None:
         assert refused(SourceInput, a_source(**fields)) == [(("shopify", field), message)]
+
+    def test_a_collected_source_is_refused_without_its_address_however_it_is_left_out(
+        self,
+    ) -> None:
+        left_out = {k: v for k, v in a_source().items() if k != "base_url"}
+
+        assert [loc for loc, _ in refused(SourceInput, left_out)] == [("shopify", "base_url")]
+        assert [loc for loc, _ in refused(SourceInput, a_source(base_url=""))] == [
+            ("shopify", "base_url")
+        ]
 
     def test_a_store_entered_by_hand_may_still_be_given_an_address_but_only_a_real_one(
         self,
@@ -171,22 +181,38 @@ class TestSettings:
         }
 
     @pytest.mark.parametrize(
+        ("kind", "settings", "field", "error"),
+        [
+            ("shopify", {"collections": "hard-drives"}, "collections", "list_type"),
+            ("shopify", {}, "collections", "missing"),
+            ("shopify", {"collections": []}, "collections", "too_short"),
+            # Blank entries are no entries.
+            ("shopify", {"collections": [""]}, "collections", "too_short"),
+            ("shopify", {"collections": ["all"], "free_shipping": "maybe"}, "free_shipping",
+             "bool_parsing"),
+            ("sitemap", {"sitemap_path": 5}, "sitemap_path", "string_type"),
+            ("sap_commerce", {"api_url": "https://api.wd.test", "site": ""}, "site",
+             "string_too_short"),
+            ("sap_commerce", {"site": "us"}, "api_url", "missing"),
+        ],
+    )  # fmt: skip
+    def test_a_setting_of_the_wrong_shape_or_left_out_is_refused_on_the_setting(
+        self, kind: str, settings: dict[str, Any], field: str, error: str
+    ) -> None:
+        with pytest.raises(ValidationError) as raised:
+            TypeAdapter(SourceInput).validate_python(a_source(kind=kind, settings=settings))
+        assert [(e["loc"], e["type"]) for e in raised.value.errors()] == [
+            ((kind, "settings", field), error)
+        ]
+
+    @pytest.mark.parametrize(
         ("kind", "settings", "field", "message"),
         [
-            ("shopify", {"collections": "hard-drives"}, "collections", "Enter a list."),
-            ("shopify", {"collections": []}, "collections", "Enter at least one."),
-            ("shopify", {"collections": [""]}, "collections", "Enter at least one."),
-            (
-                "shopify",
-                {"collections": ["all"], "free_shipping": "yes"},
-                "free_shipping",
-                "Choose yes or no.",
-            ),
-            ("sitemap", {"sitemap_path": 5}, "sitemap_path", "Enter text."),
             ("sitemap", {"sitemap_path": "sitemap.xml"}, "sitemap_path", "Start it with /."),
-            ("sap_commerce", {"api_url": "https://api.wd.test", "site": ""}, "site", "Enter this."),
-            ("sap_commerce", {"site": "us", "product_path_pattern": "/p/"}, "api_url",
-             "Enter this."),
+            ("sap_commerce", {"api_url": "api.wd.test", "site": "us"}, "api_url",
+             "Enter the API's address, starting http:// or https://."),
+            ("sitemap", {**EMBEDDED_DATA, "data_items": "*.skus .*"}, "data_items",
+             "A path has no spaces in it."),
             (
                 "sitemap",
                 {"product_path_pattern": "(unclosed"},
@@ -223,8 +249,15 @@ class TestSettings:
     ) -> None:
         """What each complaint says, since it is shown on the setting as it is."""
         assert refused(SourceInput, a_source(kind=kind, settings=settings)) == [
-            ((kind, "settings", field), message)
+            ((kind, "settings", field), f"Value error, {message}")
         ]
+
+    def test_a_kinds_settings_hold_to_their_rules_however_they_are_read(self) -> None:
+        """The same rules whether a store is entered or its settings are read alone."""
+        for settings in ({}, {"collections": []}, {"collections": [" "]}):
+            with pytest.raises(ValidationError):
+                ShopifySettings.model_validate(settings)
+        assert ShopifySettings.model_validate({"collections": ["all"]}).collections == ["all"]
 
     @pytest.mark.parametrize(
         ("kind", "settings", "field"),
@@ -252,13 +285,10 @@ class TestSettings:
         self, kind: str, settings: dict[str, Any], field: str
     ) -> None:
         source = a_source(kind=kind, settings=settings)
-        assert refused(SourceInput, source) == [
-            ((kind, "settings", field), "This kind of store has no such setting.")
-        ]
-
-    def test_settings_that_are_not_settings_are_refused_whole(self) -> None:
-        assert refused(SourceInput, a_source(settings=["hard-drives"])) == [
-            (("shopify", "settings"), "Enter the settings.")
+        with pytest.raises(ValidationError) as raised:
+            TypeAdapter(SourceInput).validate_python(source)
+        assert [(e["loc"], e["type"]) for e in raised.value.errors()] == [
+            ((kind, "settings", field), "extra_forbidden")
         ]
 
     def test_a_kinds_saved_settings_are_given_without_any_it_has_since_dropped(self) -> None:

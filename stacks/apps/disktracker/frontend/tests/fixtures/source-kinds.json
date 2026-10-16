@@ -13,12 +13,7 @@
         "required": true,
         "description": "",
         "placeholder": "https://api.example.com/occ/v2",
-        "group": "",
-        "pattern": "^https?://[^\\s/]+\\S*$",
-        "pattern_message": "Enter the API's address, starting http:// or https://.",
-        "regex": false,
-        "capturing": false,
-        "needs": ""
+        "group": ""
       },
       {
         "name": "site",
@@ -27,12 +22,7 @@
         "required": true,
         "description": "",
         "placeholder": "us",
-        "group": "",
-        "pattern": "",
-        "pattern_message": "",
-        "regex": false,
-        "capturing": false,
-        "needs": ""
+        "group": ""
       },
       {
         "name": "sitemap_path",
@@ -41,12 +31,7 @@
         "required": false,
         "description": "Blank: the sitemap robots.txt names, or /sitemap.xml",
         "placeholder": "/sitemap.xml",
-        "group": "",
-        "pattern": "^(/\\S*)?$",
-        "pattern_message": "Start it with /.",
-        "regex": false,
-        "capturing": false,
-        "needs": ""
+        "group": ""
       },
       {
         "name": "product_path_pattern",
@@ -55,12 +40,7 @@
         "required": false,
         "description": "A regular expression the product pages to read match; blank reads every page",
         "placeholder": "^/products/",
-        "group": "",
-        "pattern": "",
-        "pattern_message": "",
-        "regex": true,
-        "capturing": false,
-        "needs": ""
+        "group": ""
       },
       {
         "name": "recertified_sku_prefix",
@@ -69,12 +49,7 @@
         "required": false,
         "description": "Put before a recertified product's SKU",
         "placeholder": "R",
-        "group": "",
-        "pattern": "",
-        "pattern_message": "",
-        "regex": false,
-        "capturing": false,
-        "needs": ""
+        "group": ""
       }
     ]
   },
@@ -92,12 +67,7 @@
         "required": true,
         "description": "Comma-separated collection handles",
         "placeholder": "hard-drives, solid-state-drives",
-        "group": "",
-        "pattern": "",
-        "pattern_message": "",
-        "regex": false,
-        "capturing": false,
-        "needs": ""
+        "group": ""
       },
       {
         "name": "free_shipping",
@@ -106,12 +76,7 @@
         "required": false,
         "description": "",
         "placeholder": "",
-        "group": "",
-        "pattern": "",
-        "pattern_message": "",
-        "regex": false,
-        "capturing": false,
-        "needs": ""
+        "group": ""
       }
     ]
   },
@@ -135,12 +100,7 @@
         "required": false,
         "description": "Blank: the sitemap robots.txt names, or /sitemap.xml",
         "placeholder": "/sitemap.xml",
-        "group": "",
-        "pattern": "^(/\\S*)?$",
-        "pattern_message": "Start it with /.",
-        "regex": false,
-        "capturing": false,
-        "needs": ""
+        "group": ""
       },
       {
         "name": "product_path_pattern",
@@ -149,12 +109,7 @@
         "required": false,
         "description": "A regular expression product page paths match; blank reads every page",
         "placeholder": "-p/",
-        "group": "",
-        "pattern": "",
-        "pattern_message": "",
-        "regex": true,
-        "capturing": false,
-        "needs": ""
+        "group": ""
       },
       {
         "name": "free_shipping_marker",
@@ -163,12 +118,7 @@
         "required": false,
         "description": "Text on a page whose item ships free",
         "placeholder": "",
-        "group": "",
-        "pattern": "",
-        "pattern_message": "",
-        "regex": false,
-        "capturing": false,
-        "needs": ""
+        "group": ""
       },
       {
         "name": "data_pattern",
@@ -177,12 +127,7 @@
         "required": false,
         "description": "A regular expression whose ( ) holds the JSON the page carries its products in",
         "placeholder": "product_models = JSON\\.parse\\('(.*?)'\\);",
-        "group": "data",
-        "pattern": "",
-        "pattern_message": "",
-        "regex": true,
-        "capturing": true,
-        "needs": ""
+        "group": "data"
       },
       {
         "name": "data_items",
@@ -191,12 +136,7 @@
         "required": false,
         "description": "Where the products are in that JSON: names apart by dots, * for every entry of a list; blank when it is one product",
         "placeholder": "*.skus.*",
-        "group": "data",
-        "pattern": "^\\S{0,200}$",
-        "pattern_message": "A path has no spaces in it.",
-        "regex": false,
-        "capturing": false,
-        "needs": ""
+        "group": "data"
       },
       {
         "name": "data_model_field",
@@ -205,12 +145,7 @@
         "required": false,
         "description": "",
         "placeholder": "modelNo",
-        "group": "data",
-        "pattern": "^\\S{0,200}$",
-        "pattern_message": "A path has no spaces in it.",
-        "regex": false,
-        "capturing": false,
-        "needs": "data_pattern"
+        "group": "data"
       },
       {
         "name": "data_name_field",
@@ -219,12 +154,7 @@
         "required": false,
         "description": "The capacity and condition are read from the name",
         "placeholder": "name",
-        "group": "data",
-        "pattern": "^\\S{0,200}$",
-        "pattern_message": "A path has no spaces in it.",
-        "regex": false,
-        "capturing": false,
-        "needs": "data_pattern"
+        "group": "data"
       },
       {
         "name": "data_price_field",
@@ -233,12 +163,7 @@
         "required": false,
         "description": "A product without a price is not an offer",
         "placeholder": "final_price",
-        "group": "data",
-        "pattern": "^\\S{0,200}$",
-        "pattern_message": "A path has no spaces in it.",
-        "regex": false,
-        "capturing": false,
-        "needs": "data_pattern"
+        "group": "data"
       },
       {
         "name": "data_brand_field",
@@ -247,12 +172,7 @@
         "required": false,
         "description": "Who made it, for names that do not say",
         "placeholder": "brand",
-        "group": "data",
-        "pattern": "^\\S{0,200}$",
-        "pattern_message": "A path has no spaces in it.",
-        "regex": false,
-        "capturing": false,
-        "needs": ""
+        "group": "data"
       },
       {
         "name": "data_stock_field",
@@ -261,12 +181,7 @@
         "required": false,
         "description": "Blank: in stock whenever it has a price",
         "placeholder": "stock_status",
-        "group": "data",
-        "pattern": "^\\S{0,200}$",
-        "pattern_message": "A path has no spaces in it.",
-        "regex": false,
-        "capturing": false,
-        "needs": ""
+        "group": "data"
       },
       {
         "name": "data_in_stock_value",
@@ -275,12 +190,7 @@
         "required": false,
         "description": "",
         "placeholder": "IN_STOCK",
-        "group": "data",
-        "pattern": "",
-        "pattern_message": "",
-        "regex": false,
-        "capturing": false,
-        "needs": ""
+        "group": "data"
       }
     ]
   },

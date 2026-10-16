@@ -22,17 +22,17 @@ T = TypeVar("T", bound="SapCommerceSettingsOutput")
 class SapCommerceSettingsOutput:
     """
         Attributes:
-            api_url (str):  Default: ''.
+            api_url (str):
             product_path_pattern (str):  Default: ''.
             recertified_sku_prefix (str):  Default: ''.
-            site (str):  Default: ''.
+            site (str):
             sitemap_path (str):  Default: ''.
      """
 
-    api_url: str = ''
+    api_url: str
+    site: str
     product_path_pattern: str = ''
     recertified_sku_prefix: str = ''
-    site: str = ''
     sitemap_path: str = ''
 
 

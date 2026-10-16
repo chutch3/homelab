@@ -892,10 +892,7 @@ export interface components {
              * @default 0 *\/8 * * *
              */
             schedule?: string;
-            /**
-             * @description Reader-specific fields, as GET /api/source-kinds describes them.
-             * @default {}
-             */
+            /** @description Reader-specific fields, as GET /api/source-kinds describes them. */
             settings?: components["schemas"]["ManualSettings"];
             /**
              * Transport
@@ -952,10 +949,7 @@ export interface components {
              * @default 0 *\/8 * * *
              */
             schedule?: string;
-            /**
-             * @description Reader-specific fields, as GET /api/source-kinds describes them.
-             * @default {}
-             */
+            /** @description Reader-specific fields, as GET /api/source-kinds describes them. */
             settings?: components["schemas"]["ManualSettings"];
             /**
              * Transport
@@ -1618,11 +1612,8 @@ export interface components {
         };
         /** SapCommerceSettingsInput */
         "SapCommerceSettings-Input": {
-            /**
-             * Api Url
-             * @default
-             */
-            api_url?: string;
+            /** Api Url */
+            api_url: string;
             /**
              * Product Path Pattern
              * @default
@@ -1633,11 +1624,8 @@ export interface components {
              * @default
              */
             recertified_sku_prefix?: string;
-            /**
-             * Site
-             * @default
-             */
-            site?: string;
+            /** Site */
+            site: string;
             /**
              * Sitemap Path
              * @default
@@ -1646,10 +1634,7 @@ export interface components {
         };
         /** SapCommerceSettingsOutput */
         "SapCommerceSettings-Output": {
-            /**
-             * Api Url
-             * @default
-             */
+            /** Api Url */
             api_url: string;
             /**
              * Product Path Pattern
@@ -1661,10 +1646,7 @@ export interface components {
              * @default
              */
             recertified_sku_prefix: string;
-            /**
-             * Site
-             * @default
-             */
+            /** Site */
             site: string;
             /**
              * Sitemap Path
@@ -1676,10 +1658,9 @@ export interface components {
         SapCommerceSourceInput: {
             /**
              * Base Url
-             * @description Store HTTP(S) base URL, required for collected kinds; optional for manual sources.
-             * @default
+             * @description Store HTTP(S) base URL.
              */
-            base_url?: string;
+            base_url: string;
             /**
              * Basis
              * @default unconfirmed
@@ -1715,11 +1696,8 @@ export interface components {
              * @default 0 *\/8 * * *
              */
             schedule?: string;
-            /**
-             * @description Reader-specific fields, as GET /api/source-kinds describes them.
-             * @default {}
-             */
-            settings?: components["schemas"]["SapCommerceSettings-Input"];
+            /** @description Reader-specific fields, as GET /api/source-kinds describes them. */
+            settings: components["schemas"]["SapCommerceSettings-Input"];
             /**
              * Transport
              * @default direct
@@ -1731,10 +1709,9 @@ export interface components {
         SapCommerceSourcePreviewInput: {
             /**
              * Base Url
-             * @description Store HTTP(S) base URL, required for collected kinds; optional for manual sources.
-             * @default
+             * @description Store HTTP(S) base URL.
              */
-            base_url?: string;
+            base_url: string;
             /**
              * Basis
              * @default unconfirmed
@@ -1775,11 +1752,8 @@ export interface components {
              * @default 0 *\/8 * * *
              */
             schedule?: string;
-            /**
-             * @description Reader-specific fields, as GET /api/source-kinds describes them.
-             * @default {}
-             */
-            settings?: components["schemas"]["SapCommerceSettings-Input"];
+            /** @description Reader-specific fields, as GET /api/source-kinds describes them. */
+            settings: components["schemas"]["SapCommerceSettings-Input"];
             /**
              * Transport
              * @default direct
@@ -1841,12 +1815,10 @@ export interface components {
         };
         /**
          * SettingView
-         * @description One thing a kind of store needs to know: how the form asks for it, and how it is
-         *     checked (disktracker.collection.settings).
+         * @description One thing a kind of store needs to know, as the form asks for it. Its rules are checked
+         *     when a source is entered (disktracker.collection.settings).
          */
         SettingView: {
-            /** Capturing */
-            capturing: boolean;
             /** Description */
             description: string;
             /** Group */
@@ -1855,16 +1827,8 @@ export interface components {
             label: string;
             /** Name */
             name: string;
-            /** Needs */
-            needs: string;
-            /** Pattern */
-            pattern: string;
-            /** Pattern Message */
-            pattern_message: string;
             /** Placeholder */
             placeholder: string;
-            /** Regex */
-            regex: boolean;
             /** Required */
             required: boolean;
             /**
@@ -1895,11 +1859,8 @@ export interface components {
         };
         /** ShopifySettingsInput */
         "ShopifySettings-Input": {
-            /**
-             * Collections
-             * @default []
-             */
-            collections?: string[];
+            /** Collections */
+            collections: string[];
             /**
              * Free Shipping
              * @default false
@@ -1908,10 +1869,7 @@ export interface components {
         };
         /** ShopifySettingsOutput */
         "ShopifySettings-Output": {
-            /**
-             * Collections
-             * @default []
-             */
+            /** Collections */
             collections: string[];
             /**
              * Free Shipping
@@ -1923,10 +1881,9 @@ export interface components {
         ShopifySourceInput: {
             /**
              * Base Url
-             * @description Store HTTP(S) base URL, required for collected kinds; optional for manual sources.
-             * @default
+             * @description Store HTTP(S) base URL.
              */
-            base_url?: string;
+            base_url: string;
             /**
              * Basis
              * @default unconfirmed
@@ -1962,11 +1919,8 @@ export interface components {
              * @default 0 *\/8 * * *
              */
             schedule?: string;
-            /**
-             * @description Reader-specific fields, as GET /api/source-kinds describes them.
-             * @default {}
-             */
-            settings?: components["schemas"]["ShopifySettings-Input"];
+            /** @description Reader-specific fields, as GET /api/source-kinds describes them. */
+            settings: components["schemas"]["ShopifySettings-Input"];
             /**
              * Transport
              * @default direct
@@ -1978,10 +1932,9 @@ export interface components {
         ShopifySourcePreviewInput: {
             /**
              * Base Url
-             * @description Store HTTP(S) base URL, required for collected kinds; optional for manual sources.
-             * @default
+             * @description Store HTTP(S) base URL.
              */
-            base_url?: string;
+            base_url: string;
             /**
              * Basis
              * @default unconfirmed
@@ -2022,11 +1975,8 @@ export interface components {
              * @default 0 *\/8 * * *
              */
             schedule?: string;
-            /**
-             * @description Reader-specific fields, as GET /api/source-kinds describes them.
-             * @default {}
-             */
-            settings?: components["schemas"]["ShopifySettings-Input"];
+            /** @description Reader-specific fields, as GET /api/source-kinds describes them. */
+            settings: components["schemas"]["ShopifySettings-Input"];
             /**
              * Transport
              * @default direct
@@ -2217,10 +2167,9 @@ export interface components {
         SitemapSourceInput: {
             /**
              * Base Url
-             * @description Store HTTP(S) base URL, required for collected kinds; optional for manual sources.
-             * @default
+             * @description Store HTTP(S) base URL.
              */
-            base_url?: string;
+            base_url: string;
             /**
              * Basis
              * @default unconfirmed
@@ -2256,10 +2205,7 @@ export interface components {
              * @default 0 *\/8 * * *
              */
             schedule?: string;
-            /**
-             * @description Reader-specific fields, as GET /api/source-kinds describes them.
-             * @default {}
-             */
+            /** @description Reader-specific fields, as GET /api/source-kinds describes them. */
             settings?: components["schemas"]["SitemapSettings-Input"];
             /**
              * Transport
@@ -2272,10 +2218,9 @@ export interface components {
         SitemapSourcePreviewInput: {
             /**
              * Base Url
-             * @description Store HTTP(S) base URL, required for collected kinds; optional for manual sources.
-             * @default
+             * @description Store HTTP(S) base URL.
              */
-            base_url?: string;
+            base_url: string;
             /**
              * Basis
              * @default unconfirmed
@@ -2316,10 +2261,7 @@ export interface components {
              * @default 0 *\/8 * * *
              */
             schedule?: string;
-            /**
-             * @description Reader-specific fields, as GET /api/source-kinds describes them.
-             * @default {}
-             */
+            /** @description Reader-specific fields, as GET /api/source-kinds describes them. */
             settings?: components["schemas"]["SitemapSettings-Input"];
             /**
              * Transport

@@ -93,6 +93,28 @@ def _missing(field: str, message: str) -> JSONResponse:
 TAGS = {*KINDS, "match", "ignore"}
 
 
+# A store's settings are entered in the Admin form, which shows each issue beside its setting:
+# in the form's words, by what was wrong.
+SETTING_ISSUES = {
+    "missing": "Enter this.",
+    "string_too_short": "Enter this.",
+    "too_short": "Enter at least one.",
+    "string_type": "Enter text.",
+    "list_type": "Enter a list.",
+    "bool_parsing": "Choose yes or no.",
+    "bool_type": "Choose yes or no.",
+}
+
+
+def worded(issue: dict[str, Any]) -> dict[str, Any]:
+    """A setting's issue in the form's words: a rule's own sentence, or what was wrong."""
+    if tuple(issue["loc"][:2]) != ("body", "settings"):
+        return issue
+    if issue["type"] == "value_error":
+        return {**issue, "msg": str(issue["ctx"]["error"])}
+    return {**issue, "msg": SETTING_ISSUES.get(issue["type"], issue["msg"])}
+
+
 def located(issue: dict[str, Any]) -> dict[str, Any]:
     """A validation issue, where the form shows it. A body checked as what one of its fields
     chooses is not checked as that choice for where an issue is; a choice there is none of is
@@ -144,7 +166,9 @@ def register_error_handlers(app: FastAPI) -> None:
     async def invalid(request: Request, exc: RequestValidationError) -> JSONResponse:
         return JSONResponse(
             status_code=422,
-            content={"detail": jsonable_encoder([located(issue) for issue in exc.errors()])},
+            content={
+                "detail": jsonable_encoder([worded(located(issue)) for issue in exc.errors()])
+            },
         )
 
     @app.exception_handler(SourceExists)

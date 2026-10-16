@@ -1367,14 +1367,12 @@ def test_a_source_is_always_given_with_the_settings_its_kind_has_now(database_ur
     saved_long_ago = {"product_path_pattern": "-p/", "title_prefix": "Old Store - "}
     with TestClient(create_app()) as client:
         source = client.post("/api/sources", json=source_input(kind="sitemap", settings={})).json()
-        broken = client.post("/api/sources", json=source_input(name="No Collections")).json()
         engine = create_engine(database_url)
         with engine.begin() as connection:
-            for saved, source_id in ((saved_long_ago, source["id"]), ({}, broken["id"])):
-                connection.execute(
-                    text("UPDATE sources SET settings = CAST(:settings AS jsonb) WHERE id = :id"),
-                    {"settings": json.dumps(saved), "id": source_id},
-                )
+            connection.execute(
+                text("UPDATE sources SET settings = CAST(:settings AS jsonb) WHERE id = :id"),
+                {"settings": json.dumps(saved_long_ago), "id": source["id"]},
+            )
         engine.dispose()
         listed = client.get("/api/sources").json()
         due_now = client.get("/api/sources", params={"due": True}).json()
@@ -1391,20 +1389,31 @@ def test_a_source_is_always_given_with_the_settings_its_kind_has_now(database_ur
     }  # fmt: skip
     assert [entry["settings"] for entry in listed if entry["id"] == source["id"]] == [expected]
     assert [entry["settings"] for entry in due_now if entry["id"] == source["id"]] == [expected]
-    # Settings its kind would refuse now are given with its blanks filled, not checked again.
-    blank = {"collections": [], "free_shipping": False}
-    assert [entry["settings"] for entry in listed if entry["id"] == broken["id"]] == [blank]
 
 
 def test_a_setting_that_does_not_fit_is_refused_where_the_form_shows_it(
     database_url: str,
 ) -> None:
+    """In the form's words, not the validator's."""
     with TestClient(create_app()) as client:
         refused = client.post("/api/sources", json=source_input(settings={"collections": []}))
+        unrooted = client.post(
+            "/api/sources",
+            json=source_input(kind="sitemap", settings={"sitemap_path": "sitemap.xml"}),
+        )
+        api_url = client.post(
+            "/api/sources", json=source_input(kind="sap_commerce", settings={"site": "us"})
+        )
 
-    assert refused.status_code == 422
-    assert [(issue["loc"], issue["msg"]) for issue in refused.json()["detail"]] == [
-        (["body", "settings", "collections"], "Enter at least one.")
+    assert [response.status_code for response in (refused, unrooted, api_url)] == [422] * 3
+    assert [
+        (issue["loc"], issue["msg"])
+        for response in (refused, unrooted, api_url)
+        for issue in response.json()["detail"]
+    ] == [
+        (["body", "settings", "collections"], "Enter at least one."),
+        (["body", "settings", "sitemap_path"], "Start it with /."),
+        (["body", "settings", "api_url"], "Enter this."),
     ]
 
 

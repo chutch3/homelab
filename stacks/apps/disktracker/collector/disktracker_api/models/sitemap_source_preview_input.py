@@ -31,10 +31,9 @@ T = TypeVar("T", bound="SitemapSourcePreviewInput")
 class SitemapSourcePreviewInput:
     """
         Attributes:
+            base_url (str): Store HTTP(S) base URL.
             kind (Literal['sitemap']):
             name (str):
-            base_url (str | Unset): Store HTTP(S) base URL, required for collected kinds; optional for manual sources.
-                Default: ''.
             basis (SitemapSourcePreviewInputBasis | Unset):  Default: 'unconfirmed'.
             enabled (bool | Unset):  Default: True.
             notes (str | Unset):  Default: ''.
@@ -47,9 +46,9 @@ class SitemapSourcePreviewInput:
             transport (SitemapSourcePreviewInputTransport | Unset):  Default: 'direct'.
      """
 
+    base_url: str
     kind: Literal['sitemap']
     name: str
-    base_url: str | Unset = ''
     basis: SitemapSourcePreviewInputBasis | Unset = 'unconfirmed'
     enabled: bool | Unset = True
     notes: str | Unset = ''
@@ -65,11 +64,11 @@ class SitemapSourcePreviewInput:
 
     def to_dict(self) -> dict[str, Any]:
         from ..models.sitemap_settings_input import SitemapSettingsInput # noqa: PLC0415
+        base_url = self.base_url
+
         kind = self.kind
 
         name = self.name
-
-        base_url = self.base_url
 
         basis: str | Unset = UNSET
         if not isinstance(self.basis, Unset):
@@ -99,11 +98,10 @@ class SitemapSourcePreviewInput:
         field_dict: dict[str, Any] = {}
 
         field_dict.update({
+            "base_url": base_url,
             "kind": kind,
             "name": name,
         })
-        if base_url is not UNSET:
-            field_dict["base_url"] = base_url
         if basis is not UNSET:
             field_dict["basis"] = basis
         if enabled is not UNSET:
@@ -129,13 +127,13 @@ class SitemapSourcePreviewInput:
     def from_dict(cls: type[T], src_dict: Mapping[str, Any]) -> T:
         from ..models.sitemap_settings_input import SitemapSettingsInput # noqa: PLC0415
         d = dict(src_dict)
+        base_url = d.pop("base_url")
+
         kind = cast(Literal['sitemap'] , d.pop("kind"))
         if kind != 'sitemap':
             raise ValueError(f"kind must match const 'sitemap', got '{kind}'")
 
         name = d.pop("name")
-
-        base_url = d.pop("base_url", UNSET)
 
         _basis = d.pop("basis", UNSET)
         basis: SitemapSourcePreviewInputBasis | Unset
@@ -178,9 +176,9 @@ class SitemapSourcePreviewInput:
 
 
         sitemap_source_preview_input = cls(
+            base_url=base_url,
             kind=kind,
             name=name,
-            base_url=base_url,
             basis=basis,
             enabled=enabled,
             notes=notes,

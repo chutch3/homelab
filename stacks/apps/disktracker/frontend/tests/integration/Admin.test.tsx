@@ -822,9 +822,9 @@ describe('Admin page', () => {
       kind: 'magento', label: 'Magento', collected: true, page_test: true,
       groups: [{ name: 'api', label: 'Storefront API', help: 'Only for stores that publish one.' }],
       settings: [
-        { name: 'store_view', label: 'Store view', type: 'text', required: true, description: 'The code of the view to read', placeholder: 'default', group: '', pattern: '', pattern_message: '', regex: false, capturing: false, needs: '' },
-        { name: 'categories', label: 'Categories', type: 'list', required: false, description: '', placeholder: '', group: '', pattern: '', pattern_message: '', regex: false, capturing: false, needs: '' },
-        { name: 'guest', label: 'Read as a guest', type: 'flag', required: false, description: '', placeholder: '', group: 'api', pattern: '', pattern_message: '', regex: false, capturing: false, needs: '' },
+        { name: 'store_view', label: 'Store view', type: 'text', required: true, description: 'The code of the view to read', placeholder: 'default', group: '' },
+        { name: 'categories', label: 'Categories', type: 'list', required: false, description: '', placeholder: '', group: '' },
+        { name: 'guest', label: 'Read as a guest', type: 'flag', required: false, description: '', placeholder: '', group: 'api' },
       ],
     };
     const addSource = vi.fn<DisktrackerApi['addSource']>(async input => savedSource(input, { id: 'm', key: 'shop' }));

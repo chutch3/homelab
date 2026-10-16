@@ -31,10 +31,10 @@ T = TypeVar("T", bound="SapCommerceSourcePreviewInput")
 class SapCommerceSourcePreviewInput:
     """
         Attributes:
+            base_url (str): Store HTTP(S) base URL.
             kind (Literal['sap_commerce']):
             name (str):
-            base_url (str | Unset): Store HTTP(S) base URL, required for collected kinds; optional for manual sources.
-                Default: ''.
+            settings (SapCommerceSettingsInput):
             basis (SapCommerceSourcePreviewInputBasis | Unset):  Default: 'unconfirmed'.
             enabled (bool | Unset):  Default: True.
             notes (str | Unset):  Default: ''.
@@ -43,20 +43,19 @@ class SapCommerceSourcePreviewInput:
             page_url (str | Unset):  Default: ''.
             schedule (str | Unset): Five-field cron schedule evaluated in UTC; default runs every eight hours. Default: '0
                 */8 * * *'.
-            settings (SapCommerceSettingsInput | Unset):
             transport (SapCommerceSourcePreviewInputTransport | Unset):  Default: 'direct'.
      """
 
+    base_url: str
     kind: Literal['sap_commerce']
     name: str
-    base_url: str | Unset = ''
+    settings: SapCommerceSettingsInput
     basis: SapCommerceSourcePreviewInputBasis | Unset = 'unconfirmed'
     enabled: bool | Unset = True
     notes: str | Unset = ''
     obey_robots: bool | Unset = True
     page_url: str | Unset = ''
     schedule: str | Unset = '0 */8 * * *'
-    settings: SapCommerceSettingsInput | Unset = UNSET
     transport: SapCommerceSourcePreviewInputTransport | Unset = 'direct'
 
 
@@ -65,11 +64,13 @@ class SapCommerceSourcePreviewInput:
 
     def to_dict(self) -> dict[str, Any]:
         from ..models.sap_commerce_settings_input import SapCommerceSettingsInput # noqa: PLC0415
+        base_url = self.base_url
+
         kind = self.kind
 
         name = self.name
 
-        base_url = self.base_url
+        settings = self.settings.to_dict()
 
         basis: str | Unset = UNSET
         if not isinstance(self.basis, Unset):
@@ -86,10 +87,6 @@ class SapCommerceSourcePreviewInput:
 
         schedule = self.schedule
 
-        settings: dict[str, Any] | Unset = UNSET
-        if not isinstance(self.settings, Unset):
-            settings = self.settings.to_dict()
-
         transport: str | Unset = UNSET
         if not isinstance(self.transport, Unset):
             transport = self.transport
@@ -99,11 +96,11 @@ class SapCommerceSourcePreviewInput:
         field_dict: dict[str, Any] = {}
 
         field_dict.update({
+            "base_url": base_url,
             "kind": kind,
             "name": name,
+            "settings": settings,
         })
-        if base_url is not UNSET:
-            field_dict["base_url"] = base_url
         if basis is not UNSET:
             field_dict["basis"] = basis
         if enabled is not UNSET:
@@ -116,8 +113,6 @@ class SapCommerceSourcePreviewInput:
             field_dict["page_url"] = page_url
         if schedule is not UNSET:
             field_dict["schedule"] = schedule
-        if settings is not UNSET:
-            field_dict["settings"] = settings
         if transport is not UNSET:
             field_dict["transport"] = transport
 
@@ -129,13 +124,18 @@ class SapCommerceSourcePreviewInput:
     def from_dict(cls: type[T], src_dict: Mapping[str, Any]) -> T:
         from ..models.sap_commerce_settings_input import SapCommerceSettingsInput # noqa: PLC0415
         d = dict(src_dict)
+        base_url = d.pop("base_url")
+
         kind = cast(Literal['sap_commerce'] , d.pop("kind"))
         if kind != 'sap_commerce':
             raise ValueError(f"kind must match const 'sap_commerce', got '{kind}'")
 
         name = d.pop("name")
 
-        base_url = d.pop("base_url", UNSET)
+        settings = SapCommerceSettingsInput.from_dict(d.pop("settings"))
+
+
+
 
         _basis = d.pop("basis", UNSET)
         basis: SapCommerceSourcePreviewInputBasis | Unset
@@ -157,16 +157,6 @@ class SapCommerceSourcePreviewInput:
 
         schedule = d.pop("schedule", UNSET)
 
-        _settings = d.pop("settings", UNSET)
-        settings: SapCommerceSettingsInput | Unset
-        if isinstance(_settings,  Unset):
-            settings = UNSET
-        else:
-            settings = SapCommerceSettingsInput.from_dict(_settings)
-
-
-
-
         _transport = d.pop("transport", UNSET)
         transport: SapCommerceSourcePreviewInputTransport | Unset
         if isinstance(_transport,  Unset):
@@ -178,16 +168,16 @@ class SapCommerceSourcePreviewInput:
 
 
         sap_commerce_source_preview_input = cls(
+            base_url=base_url,
             kind=kind,
             name=name,
-            base_url=base_url,
+            settings=settings,
             basis=basis,
             enabled=enabled,
             notes=notes,
             obey_robots=obey_robots,
             page_url=page_url,
             schedule=schedule,
-            settings=settings,
             transport=transport,
         )
 

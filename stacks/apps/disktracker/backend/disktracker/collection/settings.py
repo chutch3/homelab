@@ -1,42 +1,35 @@
 """The kinds of store disktracker knows, and what each needs to know about a store: its settings,
-written once, as the fields of a model. Each field says how the Admin form asks for it and how it
-is checked; the collector's client is generated from these models, so it reads a store's settings
-as they are written here."""
+written once, as the fields of a model. Each model holds its own rules, as Pydantic fields and
+validators; each field's Setting says only how the Admin form asks for it. The collector's client
+is generated from these models, so it reads a store's settings as they are written here."""
 
 import re
 from dataclasses import asdict, dataclass
 from typing import Annotated, Any, ClassVar, Literal
 
-from pydantic import ConfigDict, ValidationError
-from pydantic_core import InitErrorDetails, PydanticCustomError
+from pydantic import (
+    AfterValidator,
+    BeforeValidator,
+    ConfigDict,
+    Field,
+    ValidationInfo,
+    field_validator,
+)
 
 from disktracker.contract import Contract
 
 SettingType = Literal["text", "list", "flag"]
-# What a setting is when nothing is entered for it.
-BLANK: dict[SettingType, Any] = {"text": "", "list": [], "flag": False}
 
 
 @dataclass(frozen=True)
 class Setting:
-    """How the Admin form asks for a setting and how it is checked. A text left blank is "", a
-    list is empty, a flag is off; required means it cannot be left so."""
+    """How the Admin form asks for a setting: what it is called and what helps fill it in, and
+    the group of settings it is asked for among ("" for none). Its rules are its field's."""
 
     label: str
-    required: bool = False
     description: str = ""
     placeholder: str = ""
-    # The group of settings it is asked for among; "" for none.
     group: str = ""
-    # What a text must look like, and what to say when it does not. Every setting with a
-    # pattern says how it should look.
-    pattern: str = ""
-    pattern_message: str = ""
-    # The text is itself a regular expression; capturing, one with a group.
-    regex: bool = False
-    capturing: bool = False
-    # Another setting that, once given, makes this one required.
-    needs: str = ""
 
 
 @dataclass(frozen=True)
@@ -48,115 +41,84 @@ class Group:
     help: str
 
 
-def complaint(kind: SettingType, setting: Setting, value: Any, given: dict[str, Any]) -> str | None:
-    """What is wrong with one setting's value; None when nothing is."""
-    if kind == "flag":
-        return None if isinstance(value, bool) else "Choose yes or no."
-    if kind == "list":
-        if not isinstance(value, list) or not all(isinstance(entry, str) for entry in value):
-            return "Enter a list."
-        entered = [entry for entry in value if entry.strip()]
-        return "Enter at least one." if setting.required and not entered else None
-    if not isinstance(value, str):
-        return "Enter text."
-    if not value:
-        if setting.required:
-            return "Enter this."
-        needed = setting.needs and given.get(setting.needs)
-        return "Say which this is: the settings beside it need it." if needed else None
-    if setting.pattern and not re.search(setting.pattern, value):
-        return setting.pattern_message
-    if setting.regex:
-        try:
-            groups = re.compile(value).groups
-        except re.error as error:
-            return f"Enter a regular expression ({error})."
-        if setting.capturing and groups < 1:
-            return "Put a group, ( ), around the data."
-    return None
+def _entered(value: Any) -> Any:
+    """A list's entries, without those left blank."""
+    if isinstance(value, list):
+        return [entry for entry in value if not isinstance(entry, str) or entry.strip()]
+    return value
+
+
+def _sitemap_path(value: str) -> str:
+    if value and not value.startswith("/") or re.search(r"\s", value):
+        raise ValueError("Start it with /.")
+    return value
+
+
+def _regex(value: str) -> str:
+    try:
+        re.compile(value)
+    except re.error as error:
+        raise ValueError(f"Enter a regular expression ({error}).") from error
+    return value
+
+
+def _path(value: str) -> str:
+    if not re.fullmatch(r"\S{0,200}", value):
+        raise ValueError("A path has no spaces in it.")
+    return value
+
+
+def _address(value: str) -> str:
+    if not re.fullmatch(r"https?://[^\s/]+\S*", value):
+        raise ValueError("Enter the API's address, starting http:// or https://.")
+    return value
+
+
+# A list at least one entry of which is needed, blank entries being none.
+Entries = Annotated[list[str], BeforeValidator(_entered), Field(min_length=1)]
+SitemapPath = Annotated[str, AfterValidator(_sitemap_path)]
+Pattern = Annotated[str, AfterValidator(_regex)]
+Path = Annotated[str, AfterValidator(_path)]
 
 
 class Settings(Contract):
-    """A kind of store's settings. A store's settings are checked against them as it is saved
-    (checked); as it is read back, they are only filled in, so the collector never has to guess
-    a default."""
+    """A kind of store's settings, holding to their rules however they are read."""
 
-    # Read back, every setting is given, so the schema of what is read says each is there.
     model_config = ConfigDict(extra="forbid")
     groups: ClassVar[tuple[Group, ...]] = ()
 
     @classmethod
-    def described(cls) -> list[tuple[str, SettingType, Setting]]:
-        """Each setting's name, type, and how it is asked for, in order."""
+    def described(cls) -> list[tuple[str, SettingType, Setting, bool]]:
+        """Each setting's name, type, how it is asked for, and whether it must be given, in
+        order."""
         types: dict[Any, SettingType] = {str: "text", list[str]: "list", bool: "flag"}
         return [
             (
                 name,
                 types[field.annotation],
                 next(m for m in field.metadata if isinstance(m, Setting)),
+                field.is_required(),
             )
             for name, field in cls.model_fields.items()
         ]
 
     @classmethod
-    def checked(cls, entered: Any) -> dict[str, Any]:
-        """The settings entered for a store, each checked, and any left out given as blank."""
-        if not isinstance(entered, dict):
-            raise PydanticCustomError("dict_type", "Enter the settings.")
-        described = {name: (kind, setting) for name, kind, setting in cls.described()}
-        errors = [
-            InitErrorDetails(
-                type=PydanticCustomError(
-                    "extra_forbidden", "This kind of store has no such setting."
-                ),
-                loc=(name,),
-                input=value,
-            )
-            for name, value in entered.items()
-            if name not in described
-        ]
-        given = {name: entered.get(name, BLANK[kind]) for name, (kind, _) in described.items()}
-        for name, (kind, setting) in described.items():
-            wrong = complaint(kind, setting, given[name], given)
-            if wrong:
-                errors.append(
-                    InitErrorDetails(
-                        type=PydanticCustomError("value_error", wrong),
-                        loc=(name,),
-                        input=given[name],
-                    )
-                )
-        if errors:
-            raise ValidationError.from_exception_data("settings", errors)
-        return given
-
-    @classmethod
     def saved(cls, saved: dict[str, Any]) -> dict[str, Any]:
         """A store's saved settings, as its kind has them now: without any dropped since. Those
-        added since are left to their blanks."""
+        added since are left to their defaults."""
         return {name: value for name, value in saved.items() if name in cls.model_fields}
-
-
-def path(label: str, placeholder: str, description: str = "", needs: str = "") -> Setting:
-    """A setting that says where something is in the data a page carries: a path."""
-    return Setting(
-        label,
-        group="data",
-        placeholder=placeholder,
-        description=description,
-        needs=needs,
-        pattern=r"^\S{0,200}$",
-        pattern_message="A path has no spaces in it.",
-    )
 
 
 SITEMAP_PATH = Setting(
     "Sitemap path",
     placeholder="/sitemap.xml",
     description="Blank: the sitemap robots.txt names, or /sitemap.xml",
-    pattern=r"^(/\S*)?$",
-    pattern_message="Start it with /.",
 )
+
+
+def path(label: str, placeholder: str, description: str = "") -> Setting:
+    """How the form asks where something is in the data a page carries."""
+    return Setting(label, group="data", placeholder=placeholder, description=description)
 
 
 class ManualSettings(Settings):
@@ -165,14 +127,13 @@ class ManualSettings(Settings):
 
 class ShopifySettings(Settings):
     collections: Annotated[
-        list[str],
+        Entries,
         Setting(
             "Collections",
-            required=True,
             placeholder="hard-drives, solid-state-drives",
             description="Comma-separated collection handles",
         ),
-    ] = []
+    ]
     free_shipping: Annotated[bool, Setting("Every order ships free")] = False
 
 
@@ -187,33 +148,30 @@ class SitemapSettings(Settings):
         ),
     )
 
-    sitemap_path: Annotated[str, SITEMAP_PATH] = ""
+    sitemap_path: Annotated[SitemapPath, SITEMAP_PATH] = ""
     product_path_pattern: Annotated[
-        str,
+        Pattern,
         Setting(
             "Product path pattern",
             placeholder="-p/",
             description="A regular expression product page paths match; blank reads every page",
-            regex=True,
         ),
     ] = ""
     free_shipping_marker: Annotated[
         str, Setting("Free-shipping marker", description="Text on a page whose item ships free")
     ] = ""
     data_pattern: Annotated[
-        str,
+        Pattern,
         Setting(
             "Data pattern",
             group="data",
             placeholder=r"product_models = JSON\.parse\('(.*?)'\);",
             description="A regular expression whose ( ) holds the JSON the page carries its"
             " products in",
-            regex=True,
-            capturing=True,
         ),
     ] = ""
     data_items: Annotated[
-        str,
+        Path,
         path(
             "Products path",
             "*.skus.*",
@@ -221,59 +179,56 @@ class SitemapSettings(Settings):
             " list; blank when it is one product",
         ),
     ] = ""
-    data_model_field: Annotated[
-        str, path("Model number field", "modelNo", needs="data_pattern")
-    ] = ""
+    # Needed once there is data to read: validated even when left out.
+    data_model_field: Annotated[Path, path("Model number field", "modelNo")] = Field(
+        default="", validate_default=True
+    )
     data_name_field: Annotated[
-        str,
-        path(
-            "Name field",
-            "name",
-            "The capacity and condition are read from the name",
-            needs="data_pattern",
-        ),
-    ] = ""
+        Path, path("Name field", "name", "The capacity and condition are read from the name")
+    ] = Field(default="", validate_default=True)
     data_price_field: Annotated[
-        str,
-        path(
-            "Price field",
-            "final_price",
-            "A product without a price is not an offer",
-            needs="data_pattern",
-        ),
-    ] = ""
+        Path, path("Price field", "final_price", "A product without a price is not an offer")
+    ] = Field(default="", validate_default=True)
     data_brand_field: Annotated[
-        str, path("Brand field", "brand", "Who made it, for names that do not say")
+        Path, path("Brand field", "brand", "Who made it, for names that do not say")
     ] = ""
     data_stock_field: Annotated[
-        str, path("Stock field", "stock_status", "Blank: in stock whenever it has a price")
+        Path, path("Stock field", "stock_status", "Blank: in stock whenever it has a price")
     ] = ""
     data_in_stock_value: Annotated[
         str, Setting("In-stock value", group="data", placeholder="IN_STOCK")
     ] = ""
 
+    @field_validator("data_pattern")
+    @classmethod
+    def a_group_around_the_data(cls, value: str) -> str:
+        if value and re.compile(value).groups < 1:
+            raise ValueError("Put a group, ( ), around the data.")
+        return value
+
+    @field_validator("data_model_field", "data_name_field", "data_price_field")
+    @classmethod
+    def said_when_there_is_data(cls, value: str, info: ValidationInfo) -> str:
+        if not value and info.data.get("data_pattern"):
+            raise ValueError("Say which this is: the settings beside it need it.")
+        return value
+
 
 class SapCommerceSettings(Settings):
     api_url: Annotated[
         str,
-        Setting(
-            "API URL",
-            required=True,
-            placeholder="https://api.example.com/occ/v2",
-            pattern=r"^https?://[^\s/]+\S*$",
-            pattern_message="Enter the API's address, starting http:// or https://.",
-        ),
-    ] = ""
-    site: Annotated[str, Setting("Site", required=True, placeholder="us")] = ""
-    sitemap_path: Annotated[str, SITEMAP_PATH] = ""
+        AfterValidator(_address),
+        Setting("API URL", placeholder="https://api.example.com/occ/v2"),
+    ]
+    site: Annotated[str, Field(min_length=1), Setting("Site", placeholder="us")]
+    sitemap_path: Annotated[SitemapPath, SITEMAP_PATH] = ""
     product_path_pattern: Annotated[
-        str,
+        Pattern,
         Setting(
             "Product path pattern",
             placeholder="^/products/",
             description="A regular expression the product pages to read match; blank reads"
             " every page",
-            regex=True,
         ),
     ] = ""
     # Put before a recertified product's SKU; dropped to find its model or part number.
@@ -305,8 +260,8 @@ class Kind:
             "page_test": self.page_test,
             "groups": [asdict(group) for group in self.settings.groups],
             "settings": [
-                {"name": name, "type": kind, **asdict(setting)}
-                for name, kind, setting in self.settings.described()
+                {"name": name, "type": kind, "required": required, **asdict(setting)}
+                for name, kind, setting, required in self.settings.described()
             ],
         }
 

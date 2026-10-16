@@ -3,13 +3,12 @@ generated from these."""
 
 import re
 from datetime import datetime
-from typing import Annotated, Any, ClassVar, Literal
+from typing import Annotated, ClassVar, Literal
 from uuid import UUID
 
 from croniter import croniter
 from pydantic import (
     AwareDatetime,
-    BeforeValidator,
     ConfigDict,
     Field,
     ValidationInfo,
@@ -171,14 +170,7 @@ SourceBasis = Literal["permission", "terms_allow", "open_api", "unconfirmed"]
 SourceTransport = Literal["direct", "browser"]
 
 
-def entered_settings() -> Any:
-    """A source's settings, as its kind has them: checked as they are entered, and given as
-    blank where left out."""
-    return Field(
-        default={},
-        validate_default=True,
-        description="Reader-specific fields, as GET /api/source-kinds describes them.",
-    )
+SETTINGS = "Reader-specific fields, as GET /api/source-kinds describes them."
 
 
 class SourceBase(Contract):
@@ -234,36 +226,34 @@ class SourceBase(Contract):
         return schedule
 
 
+class CollectedSourceBase(SourceBase):
+    """A store the collector reads, which it cannot without an address."""
+
+    base_url: str = Field(max_length=2083, description="Store HTTP(S) base URL.")
+
+
 class ManualSourceInput(SourceBase):
     of = KINDS["manual"]
     kind: Literal["manual"]
-    settings: Annotated[ManualSettings, BeforeValidator(ManualSettings.checked)] = (
-        entered_settings()
-    )
+    settings: ManualSettings = Field(default_factory=ManualSettings, description=SETTINGS)
 
 
-class ShopifySourceInput(SourceBase):
+class ShopifySourceInput(CollectedSourceBase):
     of = KINDS["shopify"]
     kind: Literal["shopify"]
-    settings: Annotated[ShopifySettings, BeforeValidator(ShopifySettings.checked)] = (
-        entered_settings()
-    )
+    settings: ShopifySettings = Field(description=SETTINGS)
 
 
-class SitemapSourceInput(SourceBase):
+class SitemapSourceInput(CollectedSourceBase):
     of = KINDS["sitemap"]
     kind: Literal["sitemap"]
-    settings: Annotated[SitemapSettings, BeforeValidator(SitemapSettings.checked)] = (
-        entered_settings()
-    )
+    settings: SitemapSettings = Field(default_factory=SitemapSettings, description=SETTINGS)
 
 
-class SapCommerceSourceInput(SourceBase):
+class SapCommerceSourceInput(CollectedSourceBase):
     of = KINDS["sap_commerce"]
     kind: Literal["sap_commerce"]
-    settings: Annotated[SapCommerceSettings, BeforeValidator(SapCommerceSettings.checked)] = (
-        entered_settings()
-    )
+    settings: SapCommerceSettings = Field(description=SETTINGS)
 
 
 # A source as it is entered: the fields of its kind, chosen by kind.
@@ -359,8 +349,8 @@ class SourcePreview(Contract):
 
 
 class SettingView(Contract):
-    """One thing a kind of store needs to know: how the form asks for it, and how it is
-    checked (disktracker.collection.settings)."""
+    """One thing a kind of store needs to know, as the form asks for it. Its rules are checked
+    when a source is entered (disktracker.collection.settings)."""
 
     name: str
     label: str
@@ -370,11 +360,6 @@ class SettingView(Contract):
     placeholder: str
     # The group of settings it is asked for among; "" for none.
     group: str
-    pattern: str
-    pattern_message: str
-    regex: bool
-    capturing: bool
-    needs: str
 
 
 class SettingGroupView(Contract):

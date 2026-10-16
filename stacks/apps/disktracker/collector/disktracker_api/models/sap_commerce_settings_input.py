@@ -23,17 +23,17 @@ T = TypeVar("T", bound="SapCommerceSettingsInput")
 class SapCommerceSettingsInput:
     """
         Attributes:
-            api_url (str | Unset):  Default: ''.
+            api_url (str):
+            site (str):
             product_path_pattern (str | Unset):  Default: ''.
             recertified_sku_prefix (str | Unset):  Default: ''.
-            site (str | Unset):  Default: ''.
             sitemap_path (str | Unset):  Default: ''.
      """
 
-    api_url: str | Unset = ''
+    api_url: str
+    site: str
     product_path_pattern: str | Unset = ''
     recertified_sku_prefix: str | Unset = ''
-    site: str | Unset = ''
     sitemap_path: str | Unset = ''
 
 
@@ -43,11 +43,11 @@ class SapCommerceSettingsInput:
     def to_dict(self) -> dict[str, Any]:
         api_url = self.api_url
 
+        site = self.site
+
         product_path_pattern = self.product_path_pattern
 
         recertified_sku_prefix = self.recertified_sku_prefix
-
-        site = self.site
 
         sitemap_path = self.sitemap_path
 
@@ -55,15 +55,13 @@ class SapCommerceSettingsInput:
         field_dict: dict[str, Any] = {}
 
         field_dict.update({
+            "api_url": api_url,
+            "site": site,
         })
-        if api_url is not UNSET:
-            field_dict["api_url"] = api_url
         if product_path_pattern is not UNSET:
             field_dict["product_path_pattern"] = product_path_pattern
         if recertified_sku_prefix is not UNSET:
             field_dict["recertified_sku_prefix"] = recertified_sku_prefix
-        if site is not UNSET:
-            field_dict["site"] = site
         if sitemap_path is not UNSET:
             field_dict["sitemap_path"] = sitemap_path
 
@@ -74,21 +72,21 @@ class SapCommerceSettingsInput:
     @classmethod
     def from_dict(cls: type[T], src_dict: Mapping[str, Any]) -> T:
         d = dict(src_dict)
-        api_url = d.pop("api_url", UNSET)
+        api_url = d.pop("api_url")
+
+        site = d.pop("site")
 
         product_path_pattern = d.pop("product_path_pattern", UNSET)
 
         recertified_sku_prefix = d.pop("recertified_sku_prefix", UNSET)
 
-        site = d.pop("site", UNSET)
-
         sitemap_path = d.pop("sitemap_path", UNSET)
 
         sap_commerce_settings_input = cls(
             api_url=api_url,
+            site=site,
             product_path_pattern=product_path_pattern,
             recertified_sku_prefix=recertified_sku_prefix,
-            site=site,
             sitemap_path=sitemap_path,
         )
 
