@@ -120,7 +120,7 @@ def test_a_page_of_review_items_is_counted_with_the_items_it_was_read_from(
 def test_a_trend_kept_while_a_price_is_recorded_is_what_working_it_out_afresh_gives(
     database_url: str,
 ) -> None:
-    """A trend is kept under the stamp of the very prices it was worked out from, so a price
+    """A trend is kept under the revision of the very prices it was worked out from, so a price
     recorded while it is worked out is never taken for one it already has."""
     with TestClient(create_app()) as client:
         followed_drives(client, datetime.now(UTC))

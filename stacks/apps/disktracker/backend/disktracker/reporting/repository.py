@@ -1,12 +1,12 @@
 """What reporting reads and keeps: every change of every price, to work trends out from, and
 each trend once worked out. Every operation opens its own session; the reads run in a snapshot,
-so what a trend is worked out from and the stamp it is kept under describe one moment."""
+so what a trend is worked out from and the revision it is kept under describe one moment."""
 
 from datetime import UTC, datetime
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import func, select
+from sqlalchemy import select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.orm import Session
 
@@ -15,23 +15,23 @@ from disktracker.catalog.queries import decided_pages, offer_facts, scope_filter
 from disktracker.catalog.rules import recorded_doubt
 from disktracker.catalog.schemas import DriveScope
 from disktracker.database import SessionFactory
-from disktracker.reporting.models import HistoryRevision, Trend
+from disktracker.reporting.models import Trend, TrendRevision
 from disktracker.reporting.trends import Change
 from disktracker.reporting.trends import Offer as Sold
 
 
 class Kept:
-    """A trend as kept, with the stamp and revision the database is at now."""
+    """A trend as kept, with the revision what trends read is at now."""
 
-    def __init__(self, trend: dict[str, Any] | None, stamp: str, revision: int) -> None:
-        self.trend, self.stamp, self.revision = trend, stamp, revision
+    def __init__(self, trend: dict[str, Any] | None, revision: int) -> None:
+        self.trend, self.revision = trend, revision
 
 
 class Changes:
-    """Every offer with every change of its price, with the stamp and revision they are at."""
+    """Every offer with every change of its price, with the revision they are at."""
 
-    def __init__(self, offers: list[Sold], stamp: str, revision: int) -> None:
-        self.offers, self.stamp, self.revision = offers, stamp, revision
+    def __init__(self, offers: list[Sold], revision: int) -> None:
+        self.offers, self.revision = offers, revision
 
 
 class ReportingRepository:
@@ -44,16 +44,15 @@ class ReportingRepository:
         with self.snapshot_factory() as session:
             trend = session.get(Trend, (days, by or "", recent_days, scope))
             kept = None if trend is None else {
-                "as_of": trend.as_of, "stamp": trend.stamp,
-                "revision": trend.revision, "body": trend.body,
+                "as_of": trend.as_of, "revision": trend.revision, "body": trend.body,
             }  # fmt: skip
-            return Kept(kept, _stamp(session), _revision(session))
+            return Kept(kept, _revision(session))
 
     def price_changes(self, scope: DriveScope) -> Changes:
         """Every offer of the drives in scope with every change of its price, oldest first: what
-        trends are read from; with the stamp and revision of that very moment."""
+        trends are read from; with the revision of that very moment."""
         with self.snapshot_factory() as session:
-            return Changes(_price_changes(session, scope), _stamp(session), _revision(session))
+            return Changes(_price_changes(session, scope), _revision(session))
 
     def latest_offers(self, scope: DriveScope) -> list[dict[str, Any]]:
         """Every offer of the drives in scope with its latest price and its drive's capacity:
@@ -112,14 +111,13 @@ class ReportingRepository:
         scope: str,
         body: dict[str, Any],
         as_of: datetime,
-        stamp: str,
         revision: int,
     ) -> None:
         """Keep a trend in place of the one kept before for the same period, split, allowance and
         scope.
-        as_of: when all of it was last worked out. stamp: the prices it stands for. revision: the
-        past it was worked out from."""
-        kept = {"as_of": as_of, "stamp": stamp, "revision": revision, "body": body}
+        as_of: when all of it was last worked out. revision: that of what it was worked out
+        from."""
+        kept = {"as_of": as_of, "revision": revision, "body": body}
         with self.session_factory() as session:
             session.execute(
                 pg_insert(Trend)
@@ -171,15 +169,6 @@ def _price_changes(session: Session, scope: DriveScope) -> list[Sold]:
     ]
 
 
-def _stamp(session: Session) -> str:
-    """What changes whenever a price is recorded or taken away, or an offer is checked: a trend
-    kept under one stamp still stands while the stamp is the same."""
-    prices = session.execute(select(func.count(), func.max(Price.entered_at))).one()
-    offers = session.execute(select(func.count(), func.max(Offer.last_checked_at))).one()
-    return "|".join(str(part) for part in (*prices, *offers))
-
-
 def _revision(session: Session) -> int:
-    """How many times the past a trend reads has changed: a trend worked out at another revision
-    is worked out again, all of it."""
-    return session.scalars(select(HistoryRevision.revision)).one()
+    """How many times what a trend reads has changed."""
+    return session.scalars(select(TrendRevision.revision)).one()

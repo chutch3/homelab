@@ -1,6 +1,6 @@
 """When the reporting service answers a trend from the one it kept, and when it works it out again
 and keeps that. Its repository is its own port, stood in for by a fake that keeps one trend and
-says where the prices stand."""
+says the revision of what trends read."""
 
 from datetime import UTC, datetime, timedelta
 from typing import Any, cast
@@ -17,24 +17,22 @@ KEPT_BODY: dict[str, Any] = {"days": 30, "by": None, "market": {"counted": 99}, 
 
 
 class FakeRepository:
-    """Keeps one trend, worked out from prices at stamp "a" and revision 1, earlier today; the
-    prices stand where the test says."""
+    """Keeps one trend, worked out at revision 1 earlier today; what trends read is at the
+    revision the test says."""
 
-    def __init__(self, stamp: str = "a", revision: int = 1, as_of: datetime = NOW) -> None:
-        self.trend: dict[str, Any] | None = {
-            "as_of": as_of, "stamp": "a", "revision": 1, "body": KEPT_BODY,
-        }  # fmt: skip
-        self.stamp, self.revision = stamp, revision
+    def __init__(self, revision: int = 1, as_of: datetime = NOW) -> None:
+        self.trend: dict[str, Any] | None = {"as_of": as_of, "revision": 1, "body": KEPT_BODY}
+        self.revision = revision
         self.kept: list[tuple[Any, ...]] = []
         self.asked: list[Any] = []
 
     def kept_trend(self, days: int, by: str | None, recent_days: int, scope: str) -> Kept:
         self.asked.append(scope)
-        return Kept(self.trend, self.stamp, self.revision)
+        return Kept(self.trend, self.revision)
 
     def price_changes(self, scope: DriveScope) -> Changes:
         self.asked.append(scope)
-        return Changes([], self.stamp, self.revision)
+        return Changes([], self.revision)
 
     def keep_trend(self, *kept: Any) -> None:
         self.kept.append(kept)
@@ -64,11 +62,10 @@ def test_a_trend_kept_in_another_zones_today_is_still_todays() -> None:
 @pytest.mark.parametrize(
     "repository",
     [
-        FakeRepository(stamp="b"),
         FakeRepository(revision=2),
         FakeRepository(as_of=NOW - timedelta(days=1)),
     ],
-    ids=["a price changed since", "a drive changed since", "kept on an earlier day"],
+    ids=["anything it reads changed since", "kept on an earlier day"],
 )
 def test_otherwise_it_is_worked_out_again_and_kept_under_what_it_was_worked_out_from(
     repository: FakeRepository,
@@ -76,7 +73,7 @@ def test_otherwise_it_is_worked_out_again_and_kept_under_what_it_was_worked_out_
     body = answered(repository)
 
     assert body["market"]["counted"] == 0
-    assert repository.kept == [(30, None, 7, "", body, NOW, repository.stamp, repository.revision)]
+    assert repository.kept == [(30, None, 7, "", body, NOW, repository.revision)]
 
 
 def test_with_none_kept_it_is_worked_out_and_kept() -> None:
@@ -85,7 +82,7 @@ def test_with_none_kept_it_is_worked_out_and_kept() -> None:
 
     body = answered(repository)
 
-    assert repository.kept == [(30, None, 7, "", body, NOW, "a", 1)]
+    assert repository.kept == [(30, None, 7, "", body, NOW, 1)]
 
 
 def test_a_trend_of_some_drives_is_read_for_them_and_kept_apart_under_what_narrows_them() -> None:

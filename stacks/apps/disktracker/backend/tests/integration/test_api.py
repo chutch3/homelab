@@ -2105,6 +2105,60 @@ def kept_trend_poisoned(engine: Any) -> None:
         )
 
 
+def test_a_kept_trend_of_some_drives_is_worked_out_again_once_what_narrows_them_changes(
+    database_url: str,
+) -> None:
+    """A trend of the drives a page narrows to reads what narrows them: a drive's brand and
+    specifications, and the names search reads, an offer's title, its drive's other MPNs and the
+    store's name. Changing any of them changes which drives it is of, though no price changed."""
+    engine = create_engine(database_url)
+    with TestClient(create_app()) as client:
+        followed_drives(client, datetime.now(UTC))
+        offers = {o["mpn"]: o for o in client.get("/api/offers").json()}
+        drive = offers["ST10000NM001G"]["drive"]["id"]
+        [store] = [s for s in client.get("/api/sources").json() if s["key"] == "serverpartdeals"]
+        entered = {k: v for k, v in store.items() if k not in ("id", "key", "next_run_at")}
+
+        def counted_after(change: Any, **scope: Any) -> int:
+            client.get("/api/trends", params={"days": 30, **scope})
+            kept_trend_poisoned(engine)
+            assert change().status_code in (200, 201)
+            answer = client.get("/api/trends", params={"days": 30, **scope}).json()
+            return int(answer["market"]["counted"])
+
+        counts = {
+            "brand": counted_after(
+                lambda: client.patch(f"/api/drives/{drive}", json={"brand": "Exabyte"}),
+                brand="Exabyte",
+            ),
+            "specification": counted_after(
+                lambda: client.patch(
+                    f"/api/drives/{drive}", json={"specifications": {"interface": "usb"}}
+                ),
+                interface="usb",
+            ),
+            "alias": counted_after(
+                lambda: client.post(f"/api/drives/{drive}/aliases", json={"mpn": "XYZALIAS1"}),
+                q="XYZALIAS1",
+            ),
+            "title": counted_after(
+                lambda: client.patch(
+                    f"/api/offers/{offers['ST10000NM002G']['id']}", json={"title": "Quillfeather"}
+                ),
+                q="Quillfeather",
+            ),
+            "store name": counted_after(
+                lambda: client.put(
+                    f"/api/sources/{store['id']}", json={**entered, "name": "Partorama"}
+                ),
+                q="Partorama",
+            ),
+        }
+    engine.dispose()
+
+    assert counts == {"brand": 1, "specification": 1, "alias": 1, "title": 1, "store name": 3}
+
+
 def test_a_kept_trend_is_worked_out_again_once_a_drive_or_what_it_is_changes(
     database_url: str,
 ) -> None:
