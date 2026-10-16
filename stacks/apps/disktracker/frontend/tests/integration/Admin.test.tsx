@@ -722,7 +722,12 @@ describe('Admin page', () => {
     expect([cells[0], cells[2]]).toEqual(['ServerPartDeals' + 'Shopify', 'Daily at 03:00 UTC' + 'Next in 15h']);
     expect(cells[5]).toBe('Unconfirmed');
     await user.click(row.getByRole('switch', { name: 'Collect from ServerPartDeals' }));
-    expect(updateSource).toHaveBeenCalledWith('spd', expect.objectContaining({ enabled: false }));
+    // What is sent is a store as it is entered: nothing the API gives back of its own.
+    expect(updateSource).toHaveBeenCalledWith('spd', {
+      name: 'ServerPartDeals', kind: 'shopify', base_url: 'https://www.serverpartdeals.com',
+      settings: { collections: ['hard-drives', 'solid-state-drives'], free_shipping: true },
+      schedule: '0 3 * * *', enabled: false, transport: 'browser', basis: 'unconfirmed', obey_robots: true, notes: '',
+    });
   }, 20000);
 
   it('adds a source from just its name, type and store URL', async () => {

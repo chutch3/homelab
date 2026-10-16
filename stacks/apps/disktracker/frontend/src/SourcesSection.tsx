@@ -31,7 +31,10 @@ function nextRunLabel({ key, next_run_at, enabled }: Source, now: Date, status: 
 /** What a run did, in the two counts that say whether it worked, and its failures when it had any. */
 const countsLabel = ({ recorded, queued, failed }: { recorded: number; queued: number; failed: number }) =>
   `${recorded} recorded · ${queued} queued${failed ? ` · ${failed} failed` : ''}`;
-const inputOf = ({ id: _id, next_run_at: _next, ...input }: Source): SourceInput => input;
+/** A store as it is entered, from the store as the API gives it back: each field the input takes,
+ * and nothing the API gives of its own (its id, key or next run). */
+const inputOf = ({ name, kind, base_url, settings, schedule, enabled, transport, basis, obey_robots, notes }: Source): SourceInput =>
+  ({ name, kind, base_url, settings, schedule, enabled, transport, basis, obey_robots, notes }) as SourceInput;
 
 type Props = {
   api: DisktrackerApi; now: () => Date;
