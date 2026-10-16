@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState, type MouseEvent } from 'react';
 import { Alert, Button, CloseButton, NativeSelect, Text } from '@mantine/core';
-import type { Condition, DisktrackerApi, DrivePage, DriveQuery, DriveScope, OfferSummary, Page, PriceMark, PriceRange, Source, ReviewFilter, ReviewItem, RecordedPrice } from './api';
+import type { Condition, DisktrackerApi, DrivePage, DriveQuery, DriveScope, OfferSummary, PriceMark, PriceRange, Source, RecordedPrice } from './api';
 import { AdminView } from './AdminView';
 import { entryDefaults } from './entry-validation';
 import { conditions } from './listing-display';
@@ -56,19 +56,14 @@ export function App({ api, base, storage, now, nextId, recentDays = 7 }: Depende
   const [previous, setPrevious] = useState<string>();
   /** What the last change did, said in a toast; the drive of the offer it saved, to show it, and whether the filters hide it. */
   const [notice, setNotice] = useState<{ text: string; saved?: { key: string; condition: Condition; title: string; hidden: boolean }; recorded?: RecordedPrice } | null>(null);
-  const [queue, setQueue] = useState<Page<ReviewItem>>({ items: [], total: 0 });
-  const [queuePage, setQueuePage] = useState(0);
-  const [queueFilter, setQueueFilter] = useState<ReviewFilter>({});
-  /** Every offer waiting for review, however the queue is narrowed. */
+  /** Every offer waiting for review, counted on every page; the queue itself is the review feature's. */
   const [queueAll, setQueueAll] = useState(0);
-  const [queueSize, setQueueSize] = usePageSize(storage, 'review-queue');
   const [listingsPerPage, setListingsPerPage] = usePageSize(storage, 'listings');
   const [stores, setStores] = useState<Source[]>([]);
   const [overdue, setOverdue] = useState<OfferSummary[]>([]);
   const [marks, setMarks] = useState<PriceMark[] | null>(null);
   const [view, setView] = useState<View>(() => viewAt(window.location.pathname, base));
   const [tab, setTab] = useState<AdminTab>(() => adminTabAt(window.location.pathname, base));
-  const [queueError, setQueueError] = useState('');
   const [query, setQuery] = useState(() => readQuery(window.location.search));
   const [trendQuery, setTrendQuery] = useState<TrendQuery>(() => readTrendQuery(window.location.search));
   // The trends page keeps its period and split in the URL, as the prices page keeps its filters.
@@ -178,35 +173,23 @@ export function App({ api, base, storage, now, nextId, recentDays = 7 }: Depende
     }
   }
   /** Reload after a change; a message replaces the current one, none leaves it. */
-  /** A page of the review queue; one left empty by its offers being dealt with gives way to the page before it. */
-  async function queueAt(page: number, size: number, filter: ReviewFilter): Promise<{ page: number; found: Page<ReviewItem> }> {
-    const found = await api.reviewItems({ limit: size, offset: page * size, ...filter });
-    return found.items.length === 0 && page > 0 ? queueAt(page - 1, size, filter) : { page, found };
-  }
-  async function showQueue(page: number, size = queueSize, filter = queueFilter) {
-    try {
-      const shown = await queueAt(page, size, filter);
-      const narrowed = filter.store !== undefined || filter.reason !== undefined;
-      const all = narrowed ? (await api.reviewItems({ limit: 1, offset: 0 })).total : shown.found.total;
-      setQueue(shown.found); setQueuePage(shown.page); setQueueAll(all); setQueueError('');
-    } catch (err) { setQueueError(err instanceof Error ? err.message : 'Unknown error.'); }
-  }
-  /** Reload after a change; a message replaces the current one, none leaves it. */
   async function reloadAfterChange(message?: string, recorded?: RecordedPrice) {
     setRevision(count => count + 1);
-    const [, found] = await Promise.all([showQueue(queuePage), api.listSources()]);
-    setStores(found); setError('');
+    setStores(await api.listSources()); setError('');
     if (message !== undefined) setNotice({ text: message, recorded });
   }
   const addOffer = () => { setPrevious(undefined); setForm(true); };
   useEffect(() => {
     let active = true;
-    api.reviewItems({ limit: queueSize, offset: 0 }).then(found => { if (active) { setQueue(found); setQueueAll(found.total); } })
-      .catch(err => { if (active) setQueueError(err instanceof Error ? err.message : 'Unknown error.'); });
     api.listSources().then(found => { if (active) setStores(found); }).catch(err => { if (active) setError(err.message); });
     return () => { active = false; };
-    // The queue's page size is read once here; changing it fetches the queue again itself.
   }, [api]);
+  // How many offers wait to be matched, for the count beside Admin; the review feature shows them.
+  useEffect(() => {
+    let active = true;
+    api.reviewItems({ limit: 1, offset: 0 }).then(found => { if (active) setQueueAll(found.total); }).catch(() => {});
+    return () => { active = false; };
+  }, [api, revision]);
   const loading = view === 'admin' ? !listingsLoaded && !loadError : drivesPage === null && !loadError && !invalidFilters;
   const loadingNote = <div role="status" className="loading"><span className="visually-hidden">Loading drives…</span>
     {Array.from({ length: 6 }, (_, index) => <div key={index} className="skeleton-row" aria-hidden="true" />)}</div>;
@@ -233,9 +216,7 @@ export function App({ api, base, storage, now, nextId, recentDays = 7 }: Depende
       {error && <Alert color="red" role="alert" mb="md">{error}</Alert>}
       {loading ? loadingNote : loadAlert || <AdminView api={api} now={now} nextId={nextId} recentDays={recentDays} storage={storage} listings={listings} toRecheck={overdue} revision={revision}
           tab={tab} tabHref={name => pathFor('admin', base, name)} onTab={name => go('admin', name)}
-          queue={queue} queueAll={queueAll} queuePage={queuePage} queueSize={queueSize} queueError={queueError}
-          queueFilter={queueFilter} onQueueFilter={filter => { setQueueFilter(filter); void showQueue(0, queueSize, filter); }}
-          onQueuePage={page => { void showQueue(page); }} onQueueSize={size => { setQueueSize(size); void showQueue(0, size); }} stores={stores}
+          queueAll={queueAll} stores={stores}
           onRecorded={reload} onChanged={reloadAfterChange} />}
     </main> : <main>
       <h1 className="visually-hidden">Prices</h1>

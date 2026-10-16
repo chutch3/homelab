@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState, type MouseEvent } from 'react';
 import { Alert, Button, Table, Text, TextInput } from '@mantine/core';
-import type { CollectorStatus, Run, DisktrackerApi, OfferSummary, Page, RecordedPrice, Source, ReviewFilter, ReviewItem } from './api';
+import type { CollectorStatus, Run, DisktrackerApi, OfferSummary, RecordedPrice, Source } from './api';
 import { ageLabel, driveIssues, elapsedLabel, endedBadly, issueLabel, issues, type Issue } from './admin-overview';
 import { CollectorBand } from './CollectorBand';
 import { DriveDetails } from './DriveDetails';
@@ -25,12 +25,8 @@ type Props = {
   revision: number;
   /** The tab shown, and each tab's address and the way to it. */
   tab: AdminTab; tabHref: (tab: AdminTab) => string; onTab: (tab: AdminTab) => (event: MouseEvent) => void;
-  /** The page of offers to match being shown, the way to its other pages, and why it could not be loaded. */
-  queue: Page<ReviewItem>; queuePage: number; queueSize: number; queueError: string;
   /** Every offer waiting for review, however the queue is narrowed. */
   queueAll: number;
-  onQueuePage: (page: number) => void; onQueueSize: (size: number) => void;
-  queueFilter: ReviewFilter; onQueueFilter: (filter: ReviewFilter) => void;
   onRecorded: (listingId: string) => Promise<void>;
   onChanged: (notice?: string, recorded?: RecordedPrice) => Promise<void>;
 };
@@ -45,7 +41,7 @@ const QUIET_MS = 5 * 60_000;
 /** What waits on a person (offers to recheck or match, collectors that failed), the stores and how
  * they are collected, and every drive to correct: one tab each. The tabs not shown stay as they
  * were left, so nothing typed in one is lost by looking at another. */
-export function AdminView({ api, now, nextId, recentDays, storage, listings, toRecheck, revision, tab, tabHref, onTab, queue, queueAll, queuePage, queueSize, queueError, onQueuePage, onQueueSize, queueFilter, onQueueFilter, stores, onRecorded, onChanged }: Props) {
+export function AdminView({ api, now, nextId, recentDays, storage, listings, toRecheck, revision, tab, tabHref, onTab, queueAll, stores, onRecorded, onChanged }: Props) {
   const [runs, setRuns] = useState<Run[] | null>(null);
   const [runsError, setRunsError] = useState('');
   const [issue, setIssue] = useState<Issue | null>(null);
@@ -113,9 +109,7 @@ export function AdminView({ api, now, nextId, recentDays, storage, listings, toR
         </div>)}
       </section>}
       <RecheckQueue offers={toRecheck} recentDays={recentDays} now={checkedAt} api={api} nextId={nextId} onChanged={onChanged} />
-      <ReviewQueue items={queue.items} total={queue.total} all={queueAll} page={queuePage} pageSize={queueSize} onPage={onQueuePage} onPageSize={onQueueSize}
-        filter={queueFilter} onFilter={onQueueFilter}
-        stores={stores} error={queueError} onRetry={() => onQueuePage(queuePage)} api={api} onChanged={() => onChanged()} />
+      <ReviewQueue api={api} storage={storage} stores={stores} all={queueAll} revision={revision} onChanged={() => onChanged()} />
       <section aria-labelledby="collectors-heading" className="admin-section panel">
         <h2 id="collectors-heading">Collectors</h2>
         {status && (status.seen_at === null ? <Text size="sm" c="dimmed">No collector has been heard from yet.</Text>

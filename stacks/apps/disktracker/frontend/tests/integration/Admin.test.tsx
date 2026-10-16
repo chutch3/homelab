@@ -119,7 +119,8 @@ describe('Admin page', () => {
     expect(await screen.findByRole('link', { name: 'Admin 3 to do' })).toBeVisible();
     expect(screen.getByRole('link', { name: 'To do (3)' })).toBeVisible();
     expect(screen.getByRole('heading', { name: 'Recheck by hand (1)' })).toBeVisible();
-    expect(screen.getByRole('heading', { name: 'Needs matching (2)' })).toBeVisible();
+    // The queue is the review section's own, loaded once it is shown.
+    expect(await screen.findByRole('heading', { name: 'Needs matching (2)' })).toBeVisible();
     await user.click(screen.getByRole('link', { name: 'Drives' }));
     const drives = within(screen.getByRole('region', { name: 'Drives' }));
     expect(drives.getByRole('button', { name: 'No specs (2)' })).toBeVisible();
@@ -161,7 +162,8 @@ describe('Admin page', () => {
       .toEqual(['Store', 'Collect', 'Schedule', 'Last run', 'Prices', 'Permission', 'Actions']);
     const cells = (store: string) => within(table.getByRole('row', { name: new RegExp(`^${store}`) })).getAllByRole('cell').map(cell => cell.textContent);
     // How a store is collected sits under its name; whether it is collected, when, and how it last went sit together after it.
-    expect(cells('GoHardDrive')[0]).toBe('GoHardDrive' + 'Shopify');
+    // Named as its kind is, once the kinds are loaded.
+    await waitFor(() => expect(cells('GoHardDrive')[0]).toBe('GoHardDrive' + 'Shopify'));
     expect(cells('Other')[0]).toBe('Other' + 'Entered by hand');
     expect(within(table.getByRole('row', { name: /^GoHardDrive/ }).children[1] as HTMLElement).getByRole('switch', { name: 'Collect from GoHardDrive' })).toBeChecked();
     // How long ago, as ages are said everywhere else; the moment itself is there for whoever points at it.
@@ -336,7 +338,7 @@ describe('Admin page', () => {
     renderApp({ listOffers: async () => [] });
     await screen.findByRole('heading', { name: 'Admin' });
     expect(screen.getByText('All checked.')).toBeVisible();
-    expect(screen.getByText('Nothing to match.')).toBeVisible();
+    expect(await screen.findByText('Nothing to match.')).toBeVisible();
     await user.click(screen.getByRole('link', { name: 'Drives' }));
     expect(within(screen.getByRole('region', { name: 'Drives' })).getByText('No drives yet.')).toBeVisible();
     expect(screen.queryByRole('table', { name: 'Drives' })).not.toBeInTheDocument();
@@ -1340,6 +1342,46 @@ describe('Admin page', () => {
     expect(pages.getByRole('button', { name: 'Next page' })).toBeDisabled();
   }, 20000);
 
+  it('shows the offers last asked for, though an answer asked for before them comes after', async () => {
+    const user = userEvent.setup();
+    const queue = [makeReviewItem('from-spd'), makeReviewItem('from-ghd', { store: 'goharddrive' })];
+    /** The next answer is held back until let go. */
+    let hold = false, letGo = () => {};
+    const reviewItems = async () => {
+      if (hold) { hold = false; await new Promise<void>(resolve => { letGo = resolve; }); }
+      return queue;
+    };
+    renderApp({ listOffers: async () => catalogue(), reviewItems });
+    const review = within(await screen.findByRole('region', { name: /Needs matching/ }));
+    const titles = () => review.queryAllByRole('row').slice(1).map(row => within(row).getByRole('link').textContent);
+    await waitFor(() => expect(titles()).toEqual(['from-spd', 'from-ghd']));
+    hold = true;
+    await user.selectOptions(review.getByLabelText('Store'), 'ServerPartDeals');
+    await user.selectOptions(review.getByLabelText('Store'), 'GoHardDrive');
+    await waitFor(() => expect(titles()).toEqual(['from-ghd']));
+    letGo();
+    await new Promise(resolve => setTimeout(resolve, 50));
+    expect(titles()).toEqual(['from-ghd']);
+    expect(review.getByLabelText('Store')).toHaveValue('goharddrive');
+  }, 20000);
+
+  it('goes to the last page there is when the one shown is left empty', async () => {
+    const user = userEvent.setup();
+    let queue = Array.from({ length: 120 }, (_, index) => makeReviewItem(`queued-${index + 1}`));
+    // Dealt with elsewhere as this one is ignored: thirty are left.
+    const decide = vi.fn<DisktrackerApi['decide']>(async () => { queue = queue.slice(0, 30); return { status: 'ignored', offer_id: null }; });
+    renderApp({ listOffers: async () => catalogue(), reviewItems: async () => queue, decide });
+    const review = within(await screen.findByRole('region', { name: /Needs matching/ }));
+    const pages = within(await review.findByRole('navigation', { name: 'Needs matching pages' }));
+    await user.click(pages.getByRole('button', { name: 'Next page' }));
+    await user.click(pages.getByRole('button', { name: 'Next page' }));
+    await waitFor(() => expect(pages.getByText('101–120 of 120')).toBeVisible());
+    const first = review.getAllByRole('button', { name: 'Ignore' })[0];
+    await user.click(first);
+    await user.click(review.getByRole('button', { name: 'Yes, ignore' }));
+    await waitFor(() => expect(pages.getByText('1–30 of 30')).toBeVisible());
+  }, 20000);
+
   it('says why each collected offer waits, including one that may not be one drive', async () => {
     const queue = [makeReviewItem('bundle', { reason: 'not_a_single_drive' }), makeReviewItem('huge', { reason: 'implausible_capacity' })];
     renderApp({ listOffers: async () => catalogue(), reviewItems: async () => queue });
@@ -1553,15 +1595,15 @@ describe('Admin page', () => {
 
   it('says the offers to match could not be loaded rather than that there are none, and loads them again on request', async () => {
     const user = userEvent.setup();
-    let attempts = 0;
+    let down = true;
     renderApp({ listOffers: async () => catalogue(), reviewItems: async () => {
-      attempts += 1;
-      if (attempts === 1) throw new Error('Unable to save or load listings (503).');
+      if (down) throw new Error('Unable to save or load listings (503).');
       return [makeReviewItem('waiting')];
     } });
     const review = within(await screen.findByRole('region', { name: /Needs matching/ }));
     expect(await review.findByRole('alert')).toHaveTextContent('The offers to match could not be loaded: Unable to save or load listings (503).');
     expect(review.queryByText('Nothing to match.')).not.toBeInTheDocument();
+    down = false;
     await user.click(review.getByRole('button', { name: 'Try again' }));
     expect(await review.findByRole('link', { name: 'waiting' })).toBeVisible();
     expect(review.queryByRole('alert')).not.toBeInTheDocument();

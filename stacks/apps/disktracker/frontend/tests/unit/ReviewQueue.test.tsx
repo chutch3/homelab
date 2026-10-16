@@ -1,23 +1,31 @@
 import { afterEach, expect, it, vi } from 'vitest';
-import { cleanup, render, screen, within } from '@testing-library/react';
+import { cleanup, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MantineProvider } from '@mantine/core';
 import { ReviewQueue } from '../../src/ReviewQueue';
 import type { DisktrackerApi, ReviewItem } from '../../src/api';
 import { knownStores, makeOffer, makeReviewItem, unusedWrites } from '../fixtures/listings';
+import { memoryStorage } from '../fixtures/render-app';
 
 afterEach(cleanup);
 
-function renderQueue(items: ReviewItem[], api: Partial<DisktrackerApi> = {}, error = '') {
-  const handlers = { onChanged: vi.fn(async () => {}), onRetry: vi.fn() };
-  render(<MantineProvider env="test"><ReviewQueue items={items} total={items.length} all={items.length} page={0} pageSize={50} onPage={() => {}} onPageSize={() => {}}
-    filter={{}} onFilter={() => {}}
-    stores={knownStores} error={error} api={{ ...unusedWrites, ...api }} {...handlers} /></MantineProvider>);
-  return { handlers, review: within(screen.getByRole('region', { name: /Needs matching/ })), user: userEvent.setup() };
+/** The queue as the API serves it, a page at a time; failing first with `failure`, when given. */
+async function renderQueue(items: ReviewItem[], api: Partial<DisktrackerApi> = {}, failure = '') {
+  const handlers = { onChanged: vi.fn(async () => {}) };
+  let failing = failure;
+  const reviewItems: DisktrackerApi['reviewItems'] = async ({ limit, offset }) => {
+    if (failing) { const message = failing; failing = ''; throw new Error(message); }
+    return { items: items.slice(offset, offset + limit), total: items.length };
+  };
+  render(<MantineProvider env="test"><ReviewQueue api={{ ...unusedWrites, reviewItems, ...api }} storage={memoryStorage()}
+    stores={knownStores} all={items.length} revision={0} {...handlers} /></MantineProvider>);
+  const review = within(screen.getByRole('region', { name: /Needs matching/ }));
+  await waitFor(() => expect(review.queryByRole('status', { name: 'Loading offers to match' })).not.toBeInTheDocument());
+  return { handlers, review, user: userEvent.setup() };
 }
 
-it('explains why each offer is waiting, with its store, its link and its price', () => {
-  const { review } = renderQueue([
+it('explains why each offer is waiting, with its store, its link and its price', async () => {
+  const { review } = await renderQueue([
     makeReviewItem('a', { title: 'Mystery drive', reason: 'missing_mpn', item_price_cents: 36999 }),
     makeReviewItem('b', { reason: 'missing_condition' }),
     makeReviewItem('c', { reason: 'capacity_conflict' }),
@@ -37,7 +45,7 @@ it('explains why each offer is waiting, with its store, its link and its price',
 
 it('ignores an offer only once that is confirmed, and says when nothing is left', async () => {
   const decide = vi.fn<DisktrackerApi['decide']>(async () => ({ status: 'ignored', offer_id: null }));
-  const { review, user, handlers } = renderQueue([makeReviewItem('a')], { decide });
+  const { review, user, handlers } = await renderQueue([makeReviewItem('a')], { decide });
   await user.click(review.getByRole('button', { name: 'Ignore' }));
   expect(review.getByText('Ignore this offer? Later collections skip its page too.')).toBeVisible();
   expect(review.queryByRole('button', { name: 'Resolve' })).not.toBeInTheDocument();
@@ -49,23 +57,24 @@ it('ignores an offer only once that is confirmed, and says when nothing is left'
   expect(decide).toHaveBeenCalledWith('a', { decision: 'ignore' });
   expect(handlers.onChanged).toHaveBeenCalled();
   cleanup();
-  renderQueue([]);
+  await renderQueue([]);
   // Said as the other list says it is clear: in words, with no tick before them.
   expect(screen.getByText('Nothing to match.')).toHaveTextContent(/^Nothing to match\.$/);
 });
 
 it('says the offers could not be loaded instead of that there are none, with a way to try again', async () => {
-  const { review, user, handlers } = renderQueue([], {}, 'Unable to save or load listings (503).');
+  const { review, user } = await renderQueue([makeReviewItem('waiting')], {}, 'Unable to save or load listings (503).');
   expect(review.getByRole('alert')).toHaveTextContent('The offers to match could not be loaded: Unable to save or load listings (503).');
   expect(review.queryByText('Nothing to match.')).not.toBeInTheDocument();
   await user.click(review.getByRole('button', { name: 'Try again' }));
-  expect(handlers.onRetry).toHaveBeenCalled();
+  expect(await review.findByRole('link', { name: 'waiting' })).toBeVisible();
+  expect(review.queryByRole('alert')).not.toBeInTheDocument();
 });
 
 it('resolves an offer with the details the scraper found filled in', async () => {
   const decide = vi.fn<DisktrackerApi['decide']>(async () => ({ status: 'matched', offer_id: 'x' }));
   const item = makeReviewItem('a', { mpn: 'ST18000NM000J', condition: null, capacity_gb: 18000, reason: 'missing_condition' });
-  const { review, user, handlers } = renderQueue([item], { decide });
+  const { review, user, handlers } = await renderQueue([item], { decide });
   await user.click(review.getByRole('button', { name: 'Resolve' }));
   const form = within(screen.getByRole('dialog', { name: 'Resolve offer' }));
   expect(form.getByRole('textbox', { name: 'Drive' })).toHaveValue('ST18000NM000J');
@@ -80,9 +89,31 @@ it('resolves an offer with the details the scraper found filled in', async () =>
 
 it('keeps the resolve form open and explains a server rejection', async () => {
   const decide = vi.fn(async () => { throw new Error('MPN ST18000NM000J is recorded as 18 TB.'); });
-  const { review, user } = renderQueue([makeReviewItem('a', { mpn: 'ST18000NM000J', condition: 'new', capacity_gb: 20000 })], { decide });
+  const { review, user } = await renderQueue([makeReviewItem('a', { mpn: 'ST18000NM000J', condition: 'new', capacity_gb: 20000 })], { decide });
   await user.click(review.getByRole('button', { name: 'Resolve' }));
   const form = within(screen.getByRole('dialog', { name: 'Resolve offer' }));
   await user.click(form.getByRole('button', { name: 'Save' }));
   expect(await form.findByRole('alert')).toHaveTextContent('MPN ST18000NM000J is recorded as 18 TB.');
+});
+
+it('asks for the last page there is, worked out from the total, when the one shown is left empty', async () => {
+  let queue = Array.from({ length: 120 }, (_, index) => makeReviewItem(`queued-${index + 1}`));
+  const asked: number[] = [];
+  const reviewItems = vi.fn<DisktrackerApi['reviewItems']>(async ({ limit, offset }) => {
+    asked.push(offset);
+    return { items: queue.slice(offset, offset + limit), total: queue.length };
+  });
+  const queueAt = (revision: number) => <MantineProvider env="test"><ReviewQueue api={{ ...unusedWrites, reviewItems }} storage={memoryStorage()}
+    stores={knownStores} all={queue.length} revision={revision} onChanged={async () => {}} /></MantineProvider>;
+  const { rerender } = render(queueAt(0));
+  const pages = within(await screen.findByRole('navigation', { name: 'Needs matching pages' }));
+  const user = userEvent.setup();
+  await user.click(pages.getByRole('button', { name: 'Next page' }));
+  await user.click(pages.getByRole('button', { name: 'Next page' }));
+  expect(await pages.findByText('101–120 of 120')).toBeVisible();
+  queue = queue.slice(0, 30);
+  asked.length = 0;
+  rerender(queueAt(1));
+  expect(await pages.findByText('1–30 of 30')).toBeVisible();
+  expect(asked).toEqual([100, 0]);
 });
