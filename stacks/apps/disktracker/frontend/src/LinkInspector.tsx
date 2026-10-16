@@ -1,10 +1,10 @@
 import { useState } from 'react';
 import { Alert, Button, Group, Stack, Text, TextInput } from '@mantine/core';
-import type { InspectionCandidate, ListingsApi, SourceInspection, SourceTransport } from './api';
+import type { InspectionCandidate, DisktrackerApi, SourceInspection, SourceTransport } from './api';
 import { SourcePreviewResult } from './SourcePreviewResult';
 
 type Props = {
-  api: ListingsApi; transport: SourceTransport;
+  api: DisktrackerApi; transport: SourceTransport;
   /** Told the way of reading the store that was chosen, the store's address, and the link inspected. */
   onUse: (candidate: InspectionCandidate, baseUrl: string, link: string) => void;
 };

@@ -13,8 +13,13 @@ import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import Connection, create_engine, insert, select
 
-from disktracker.storage import drives, listings, mpn_aliases, observations, unmatched
-from disktracker.web import create_app
+from disktracker.catalog.models import Drive, MpnAlias, Offer, Price, ReviewItem
+from disktracker.main import create_app
+
+# The records are made and read by their tables, as the scripts, which run as SQL, see them.
+drives, listings, mpn_aliases, observations, unmatched = (
+    model.__table__ for model in (Drive, Offer, MpnAlias, Price, ReviewItem)
+)
 
 SCRIPTS = Path(__file__).parents[3] / "scripts"
 NOW = datetime(2026, 10, 2, 12, tzinfo=UTC)
@@ -45,7 +50,7 @@ def run(script: str, database_url: str, **env: str) -> str:
 @pytest.fixture
 def database(database_url: str) -> str:
     """A database with the stores ServerOrbit and Elsewhere, both read from sitemaps."""
-    with TestClient(create_app(database_url)) as client:
+    with TestClient(create_app()) as client:
         for name in ("ServerOrbit", "Elsewhere"):
             added = client.post(
                 "/api/sources", json={"name": name, "kind": "sitemap", "base_url": BASE}
@@ -104,6 +109,7 @@ def queued(db: Connection, url: str, mpn: str | None, price: int) -> None:
             item_price_cents=price,
             in_stock=True,
             reason="missing_condition",
+            provenance="collected",
             first_seen_at=NOW,
             last_seen_at=NOW,
         )

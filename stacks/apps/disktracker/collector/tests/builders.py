@@ -8,7 +8,14 @@ from uuid import UUID, uuid4
 
 from listing_text.readers import condition_rules
 
-from disktracker_api.models import ListingSummary, SourceView
+from collector.models import SourceView
+from disktracker_api.models import (
+    ManualSourceView,
+    OfferSummary,
+    SapCommerceSourceView,
+    ShopifySourceView,
+    SitemapSourceView,
+)
 
 # The condition rules disktracker is seeded with.
 CONDITION_RULES = condition_rules(
@@ -33,10 +40,10 @@ STORE_NAMES = {
 }
 
 
-def listing_json(
+def offer_json(
     url: str | None,
     *,
-    listing_id: UUID | None = None,
+    offer_id: UUID | None = None,
     store: str = "serverpartdeals",
     seller: str = "",
     title: str = "Seagate Exos X18 18TB",
@@ -54,12 +61,12 @@ def listing_json(
         "observed_at": "2026-09-25T12:00:00Z",
         "entered_at": "2026-09-25T12:00:00Z",
         "notes": "",
-        "acquisition_method": "serverpartdeals",
+        "provenance": "collected",
         "total_cents": 36999,
         "price_per_tb": "20.56",
     }
     data: dict[str, Any] = {
-        "id": str(listing_id or uuid4()),
+        "id": str(offer_id or uuid4()),
         "title": title,
         "mpn": mpn,
         "store": store,
@@ -75,16 +82,24 @@ def listing_json(
             "aliases": [],
             "brand": None,
             "capacity_gb": capacity_gb,
-            "specifications": {"interface": "sata", "recording_type": "cmr", "intended_use": []},
+            # As the API gives a drive back: every specification, unknown where nobody said.
+            "specifications": {
+                "media_type": "unknown",
+                "form_factor": "unknown",
+                "interface": "sata",
+                "recording_type": "cmr",
+                "intended_use": [],
+            },
         },
         "latest": observation,
+        "doubt": None,
     }
-    ListingSummary.from_dict(data)
+    OfferSummary.from_dict(data)
     return data
 
 
-def listing(url: str | None, **fields: Any) -> ListingSummary:
-    return ListingSummary.from_dict(listing_json(url, **fields))
+def known_offer(url: str | None, **fields: Any) -> OfferSummary:
+    return OfferSummary.from_dict(offer_json(url, **fields))
 
 
 def source_view(
@@ -93,19 +108,22 @@ def source_view(
     settings: dict[str, Any] | None = None,
     transport: str = "direct",
 ) -> SourceView:
-    """A source as disktracker says it is due."""
-    return SourceView.from_dict(
+    """A source as disktracker says it is due, with every setting of its kind: blank unless
+    given."""
+    view, blank = VIEWS[kind]
+    return view.from_dict(
         {
             "id": str(UUID(int=len(key))),
             "key": key,
             "name": key,
             "kind": kind,
             "base_url": "https://store.test/",
-            "settings": settings or {},
+            "settings": {**blank(), **(settings or {})},
             "schedule": "0 3 * * *",
             "enabled": True,
             "transport": transport,
             "basis": "unconfirmed",
+            "obey_robots": True,
             "notes": "",
             "next_run_at": None,
         }
@@ -128,3 +146,18 @@ def sitemap_settings(**given: str) -> dict[str, str]:
         "data_in_stock_value",
     )
     return {**dict.fromkeys(names, ""), **given}
+
+
+def sap_commerce_settings(**given: str) -> dict[str, str]:
+    """An SAP Commerce source's settings as disktracker gives them: blank unless given."""
+    names = ("api_url", "site", "sitemap_path", "product_path_pattern", "recertified_sku_prefix")
+    return {**dict.fromkeys(names, ""), **given}
+
+
+# Each kind's source, and its settings with nothing set.
+VIEWS: dict[str, tuple[type[SourceView], Any]] = {
+    "manual": (ManualSourceView, dict),
+    "shopify": (ShopifySourceView, lambda: {"collections": [], "free_shipping": False}),
+    "sitemap": (SitemapSourceView, sitemap_settings),
+    "sap_commerce": (SapCommerceSourceView, sap_commerce_settings),
+}

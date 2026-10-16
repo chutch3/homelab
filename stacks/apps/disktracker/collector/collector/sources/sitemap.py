@@ -30,7 +30,7 @@ import logging
 import re
 from collections import Counter
 from collections.abc import Iterator, Mapping, Sequence
-from dataclasses import asdict, dataclass, fields, replace
+from dataclasses import dataclass, replace
 from decimal import Decimal
 from functools import cached_property
 from pathlib import PurePosixPath
@@ -51,7 +51,6 @@ from collector.models import FREE_SHIPPING, TITLE_LIMIT, ScrapedOffer, Store
 from collector.polite import Pages, same_site
 from collector.ports import (
     Fact,
-    Group,
     Inspection,
     Reading,
     Rechecked,
@@ -59,10 +58,9 @@ from collector.ports import (
     Tell,
     tell_nobody,
 )
-from collector.settings import described, setting, settings_from
 from collector.sources.rechecking import rechecked
 from collector.sources.sitemaps import SAMPLE_PAGES, each_fetched, locations, page_urls
-from disktracker_api.models import ListingSummary
+from disktracker_api.models import OfferSummary, SitemapSettingsOutput
 
 log = logging.getLogger(__name__)
 NOT_DRIVES = re.compile(
@@ -108,80 +106,15 @@ class EmbeddedData:
         return cls(**{**named, "pattern": pattern})
 
 
-def in_the_data(label: str, placeholder: str, description: str = "", needs: str = "") -> Any:
-    """A setting that says where something is in the data a page carries: a path."""
-    return setting(
-        label,
-        group="data",
-        placeholder=placeholder,
-        description=description,
-        needs=needs,
-        pattern=r"^\S{0,200}$",
-        pattern_message="A path has no spaces in it.",
-    )
-
-
-@dataclass(frozen=True)
-class SitemapSettings:
-    sitemap_path: str = setting(
-        "Sitemap path",
-        placeholder="/sitemap.xml",
-        description="Blank: the sitemap robots.txt names, or /sitemap.xml",
-        pattern=r"^(/\S*)?$",
-        pattern_message="Start it with /.",
-    )
-    product_path_pattern: str = setting(
-        "Product path pattern",
-        placeholder="-p/",
-        description="A regular expression product page paths match; blank reads every page",
-        regex=True,
-    )
-    free_shipping_marker: str = setting(
-        "Free-shipping marker", description="Text on a page whose item ships free"
-    )
-    data_pattern: str = setting(
-        "Data pattern",
-        group="data",
-        placeholder=r"product_models = JSON\.parse\('(.*?)'\);",
-        description="A regular expression whose ( ) holds the JSON the page carries its products"
-        " in",
-        regex=True,
-        capturing=True,
-    )
-    data_items: str = in_the_data(
-        "Products path",
-        "*.skus.*",
-        "Where the products are in that JSON: names apart by dots, * for every entry of a list;"
-        " blank when it is one product",
-    )
-    data_model_field: str = in_the_data("Model number field", "modelNo", needs="data_pattern")
-    data_name_field: str = in_the_data(
-        "Name field",
-        "name",
-        "The capacity and condition are read from the name",
-        needs="data_pattern",
-    )
-    data_price_field: str = in_the_data(
-        "Price field",
-        "final_price",
-        "A product without a price is not an offer",
-        needs="data_pattern",
-    )
-    data_brand_field: str = in_the_data(
-        "Brand field", "brand", "Who made it, for names that do not say"
-    )
-    data_stock_field: str = in_the_data(
-        "Stock field", "stock_status", "Blank: in stock whenever it has a price"
-    )
-    data_in_stock_value: str = setting("In-stock value", group="data", placeholder="IN_STOCK")
-
-    def __post_init__(self) -> None:
-        # Patterns that are no regular expression are refused when the settings are read.
-        _ = self.product_path, self.data
+class SitemapSettings(SitemapSettingsOutput):
+    """A sitemap store's settings, as disktracker gives them (every one, checked)."""
 
     @classmethod
     def of(cls, saved: Mapping[str, Any]) -> "SitemapSettings":
-        return settings_from(cls, saved)
+        read = cls.from_dict(saved)
+        # Patterns that are no regular expression are refused when the settings are read.
+        _ = read.product_path, read.data
+        return read
 
     @cached_property
     def product_path(self) -> re.Pattern[str]:
@@ -191,7 +124,7 @@ class SitemapSettings:
     def data(self) -> EmbeddedData | None:
         """Where its pages carry their products as data; None when each page is one product,
         read from its price tags or JSON-LD."""
-        return EmbeddedData.of(asdict(self))
+        return EmbeddedData.of(self.to_dict())
 
 
 @dataclass(frozen=True)
@@ -227,7 +160,7 @@ def product_paths(urls: list[str], base_url: str, settings: SitemapSettings) -> 
 
 
 # A sitemap source with nothing set: every setting, blank.
-NOTHING_SET = {entry.name: "" for entry in fields(SitemapSettings)}
+NOTHING_SET = SitemapSettingsOutput().to_dict()
 
 
 def cents(price: object) -> int | None:
@@ -435,7 +368,7 @@ def not_a_drive(item: Item) -> str | None:
     """Why an item is no offer of a drive; None when it is one."""
     if item.price_cents is None:
         return "no price"
-    if capacity_in(item.title) is None:
+    if capacity_in(item.title, item.model) is None:
         return "no capacity in its name"
     return "named as an accessory" if NOT_DRIVES.search(item.title) else None
 
@@ -467,7 +400,7 @@ def offers_from_page(
             brand=maker_named(item.title) or maker_named(item.brand),
             # What the title says of its condition, then what the page's data states of it.
             condition=condition_in(store.conditions, item.title, item.condition) or "new",
-            capacity_gb=capacity_in(item.title),
+            capacity_gb=capacity_in(item.title, item.model),
             item_price_cents=item.price_cents,
             in_stock=item.in_stock,
             shipping_cents=FREE_SHIPPING if free else None,
@@ -478,22 +411,22 @@ def offers_from_page(
     ]
 
 
-def known_item(listing: ListingSummary, page: str, settings: SitemapSettings) -> Item | None:
+def known_item(known: OfferSummary, page: str, settings: SitemapSettings) -> Item | None:
     """A known offer's product as its page has it now: the page itself, or, on a page of many,
     the one with the offer's model number."""
     items = items_on(page, settings)
     if settings.data is None:
         return items[0]
-    return next((item for item in items if (item.model or "").upper() == listing.mpn), None)
+    return next((item for item in items if (item.model or "").upper() == known.mpn), None)
 
 
 def recheck_offer(
-    listing: ListingSummary, page: str | None, store: Store, settings: SitemapSettings
+    known: OfferSummary, page: str | None, store: Store, settings: SitemapSettings
 ) -> ScrapedOffer:
     """A known offer as its product page shows it now (None when the page is gone)."""
-    found = known_item(listing, page, settings) if page is not None else None
+    found = known_item(known, page, settings) if page is not None else None
     return ScrapedOffer.recheck(
-        listing,
+        known,
         source=store.key,
         item_price_cents=found.price_cents if found else None,
         in_stock=bool(found and found.in_stock),
@@ -751,20 +684,6 @@ def json_ld_says(page: str) -> str:
 
 
 class Sitemap:
-    description = described(
-        "Sitemap + product page",
-        SitemapSettings,
-        groups=(
-            Group(
-                "data",
-                "Pages that list several products",
-                "For a store whose page covers a whole family of drives and carries them as"
-                " JSON inside a script. Left blank, each page is one product, read from its"
-                " own price markup.",
-            ),
-        ),
-    )
-
     def settings(self, saved: Mapping[str, Any]) -> SitemapSettings:
         return SitemapSettings.of(saved)
 
@@ -807,7 +726,7 @@ class Sitemap:
         return [f"{store.base_url}{path}" for path in paths]
 
     def recheck(
-        self, listings: Sequence[ListingSummary], site: Site[SitemapSettings]
+        self, known: Sequence[OfferSummary], site: Site[SitemapSettings]
     ) -> Iterator[Rechecked]:
         """Each on its product page; the models of a family that share one share its fetch."""
 
@@ -818,10 +737,10 @@ class Sitemap:
             return response.text if response is not None else None
 
         return rechecked(
-            listings,
+            known,
             lambda url: product_path(url, site.store.base_url, site.settings),
             fetch,
-            lambda listing, page: recheck_offer(listing, page, site.store, site.settings),
+            lambda offer, page: recheck_offer(offer, page, site.store, site.settings),
         )
 
     def inspect(self, url: str, page: str, site: Site[None]) -> Inspection:

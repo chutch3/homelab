@@ -17,7 +17,7 @@ from tests.integration.harness import (
     base_of,
     environment,
     events,
-    know_listings,
+    know_offers,
     posts,
     record_everything,
     run,
@@ -78,7 +78,7 @@ def test_a_store_is_fetched_through_the_proxy_and_disktracker_is_not(
     serverpartdeals: HTTPServer, disktracker: HTTPServer, proxy: ForwardingProxy
 ) -> None:
     serve_store(serverpartdeals)
-    know_listings(disktracker, [], store="orbit")
+    know_offers(disktracker, [], store="orbit")
     record_everything(disktracker)
 
     result = run(
@@ -119,7 +119,7 @@ def test_a_browser_is_told_to_fetch_through_the_proxy_too(
     serverpartdeals: HTTPServer, disktracker: HTTPServer, flaresolverr: HTTPServer
 ) -> None:
     serve_store(serverpartdeals)
-    know_listings(disktracker, [], store="orbit")
+    know_offers(disktracker, [], store="orbit")
     record_everything(disktracker)
     browser = serve_browser(flaresolverr)
 

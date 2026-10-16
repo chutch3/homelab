@@ -2,7 +2,7 @@
 (how its pages are fetched, its store, and its settings as the reader reads them)."""
 
 import re
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from typing import Any
 
 from listing_text.readers import ConditionRules
@@ -18,11 +18,16 @@ class Sites:
         self,
         readers: Mapping[str, Reader[Any]],
         transports: Mapping[str, PoliteHttp],
+        permitted: Mapping[str, Callable[..., PoliteHttp]],
         min_delay: float,
     ) -> None:
         """readers: the reader for each kind of source. transports: how pages are fetched, by
-        a source's transport. min_delay: the least time between two requests to a store."""
-        self.readers, self.transports, self.min_delay = readers, transports, min_delay
+        a source's transport. permitted: by transport, how pages are fetched for a source
+        permitted to read past robots.txt, given that source (permitted=key); it shares the
+        transport's pacing and robots.txt rules. min_delay: the least time between two requests
+        to a store."""
+        self.readers, self.transports, self.permitted = readers, transports, permitted
+        self.min_delay = min_delay
 
     def open(
         self,
@@ -33,10 +38,12 @@ class Sites:
         transport: str,
         settings: Mapping[str, Any],
         conditions: ConditionRules,
+        obey_robots: bool = True,
     ) -> tuple[Reader[Any], Site[Any]]:
         """The reader for a source and the site it is to read, at the start of a run or a
         preview: what its transport knew of robots.txt is forgotten, so each reads it afresh.
-        A source that cannot be read as configured is unavailable, with the reason."""
+        A source told not to obey robots.txt (only one the store permits) reads past it. A
+        source that cannot be read as configured is unavailable, with the reason."""
         reader = self.readers.get(kind)
         if reader is None:
             raise SourceUnavailable(f"settings: a {kind} source is not collected")
@@ -49,7 +56,10 @@ class Sites:
         except (TypeError, ValueError, re.error) as error:
             raise SourceUnavailable(f"settings: {error}") from error
         site = self.visit(key=key, base_url=base_url, transport=transport, conditions=conditions)
-        return reader, Site(site.http, site.store, read)
+        http = (
+            self.transports[transport] if obey_robots else self.permitted[transport](permitted=key)
+        )
+        return reader, Site(http, site.store, read)
 
     def visit(
         self, *, key: str, base_url: str, transport: str, conditions: ConditionRules

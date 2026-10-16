@@ -11,7 +11,9 @@ Specifications = dict[str, str | list[str]]
 # condition. disktracker keeps them, editable on its Admin page.
 ConditionRules = Sequence[tuple[re.Pattern[str], str]]
 # "4TB", "1.92TB", "500 GB" — but not a link speed like "6Gb/s".
-CAPACITY = re.compile(r"(?<![\d.])(\d+(?:\.\d+)?)\s?(TB|GB)\b(?!/s)")
+# A capacity is a word of its own, so never the end of a part number (MZ-WL615TB), and never a
+# rate (12Gb/s, 43TB/S).
+CAPACITY = re.compile(r"(?<![\w.])(\d+(?:\.\d+)?)\s?(TB|GB)\b(?!/[sS])")
 
 
 # Manufacturer part numbers as printed in titles, one alternative per maker's format.
@@ -44,8 +46,12 @@ def mpn_from_title(title: str) -> str | None:
     return match[1] if match else None
 
 
-def capacity_in(text: str) -> int | None:
-    """The first capacity written in the text, in whole decimal gigabytes."""
+def capacity_in(text: str, mpn: str | None = None) -> int | None:
+    """The first capacity written in the text, in whole decimal gigabytes. mpn: the part
+    number the text names, read past, since some stores run it into the capacity
+    (9YX611.92TB)."""
+    if mpn:
+        text = re.sub(rf"(?<![\w.-]){re.escape(mpn)}", " ", text, flags=re.IGNORECASE)
     match = CAPACITY.search(text)
     if not match:
         return None

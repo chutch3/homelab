@@ -119,7 +119,7 @@ def specification(listing: dict) -> dict:
 
 
 existing = {
-    (row["mpn"], row["store"], row["seller"], row["condition"]) for row in get("/api/listings")
+    (row["mpn"], row["store"], row["seller"], row["condition"]) for row in get("/api/offers")
 }
 
 for listing in LISTINGS:
@@ -134,10 +134,8 @@ for listing in LISTINGS:
         "item_price_cents": listing["price"], "observed_at": NOW,
         "notes": f"Seeded from {name} on 2026-09-22",
     })
-    drive = saved["drive"]
+    drive = get(f"/api/offers/{saved['offer_id']}")["drive"]
     # Specs belong to the drive, so only the first seller seeded for an MPN sets them.
     if drive["specifications"]["interface"] == "unknown":
-        send("PUT", f"/api/drives/{drive['id']}/specifications", {
-            "capacity_gb": drive["capacity_gb"], "specifications": specification(listing),
-        })
-    print(f"created {saved['id']}  {name}: {listing['title'][:60]}")
+        send("PATCH", f"/api/drives/{drive['id']}", {"specifications": specification(listing)})
+    print(f"created {saved['offer_id']}  {name}: {listing['title'][:60]}")

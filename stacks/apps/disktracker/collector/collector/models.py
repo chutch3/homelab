@@ -7,11 +7,19 @@ from uuid import UUID
 
 from listing_text.readers import ConditionRules, Specifications
 
-from disktracker_api.models import ListingSummary
+from disktracker_api.models import (
+    ManualSourceView,
+    OfferSummary,
+    SapCommerceSourceView,
+    ShopifySourceView,
+    SitemapSourceView,
+)
 
 # disktracker accepts titles up to this many characters.
 TITLE_LIMIT = 160
 FREE_SHIPPING = 0
+# A source as disktracker gives it: the fields of its kind, its settings among them.
+SourceView = ManualSourceView | ShopifySourceView | SitemapSourceView | SapCommerceSourceView
 
 
 @dataclass(frozen=True)
@@ -48,7 +56,7 @@ class ScrapedOffer:
     @classmethod
     def recheck(
         cls,
-        listing: ListingSummary,
+        known: OfferSummary,
         *,
         source: str,
         item_price_cents: int | None,
@@ -59,11 +67,11 @@ class ScrapedOffer:
         what its product page says now."""
         return cls(
             source=source,
-            url=listing.url or "",
-            title=listing.title,
-            mpn=listing.mpn,
-            condition=listing.condition,
-            capacity_gb=listing.drive.capacity_gb,
+            url=known.url or "",
+            title=known.title,
+            mpn=known.mpn,
+            condition=known.condition,
+            capacity_gb=known.drive.capacity_gb,
             item_price_cents=item_price_cents,
             in_stock=in_stock,
             shipping_cents=shipping_cents,
@@ -74,7 +82,16 @@ class ScrapedOffer:
         return {**asdict(self), "aliases": list(self.aliases)}
 
     def payload(self, observed_at: datetime) -> dict[str, Any]:
-        return {**self.fields(), "observed_at": observed_at.isoformat()}
+        """The offer as a price submitted to disktracker: collected, under the store it was read
+        from, and to wait for review when disktracker cannot match it to a drive."""
+        fields = self.fields()
+        return {
+            **{name: value for name, value in fields.items() if name != "source"},
+            "store": fields["source"],
+            "provenance": "collected",
+            "on_unmatched": "queue",
+            "observed_at": observed_at.isoformat(),
+        }
 
 
 @dataclass(frozen=True)
@@ -93,10 +110,12 @@ class RunSummary:
     recheck_failed: int = 0
     # The run ended early because disktracker asked it to stop, rather than failing.
     stopped: bool = False
+    # Why it failed, for whoever looks at the store; None when it did not, or nothing says.
+    reason: str | None = None
 
 
 class Posted(NamedTuple):
-    """What disktracker did with a posted offer, and the listing it recorded it on."""
+    """What disktracker did with a posted offer, and the offer it recorded it on."""
 
     status: str
-    listing_id: UUID | None = None
+    offer_id: UUID | None = None

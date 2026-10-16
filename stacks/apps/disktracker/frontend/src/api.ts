@@ -1,138 +1,113 @@
-import type { Specifications } from './specifications';
-export type ObservationInput = {
-  item_price_cents: number | null; shipping_cents: number; in_stock: boolean; observed_at: string | null; notes: string;
-};
-export type Observation = {
-  id: string; item_price_cents: number; shipping_cents: number | null; shipping_known: boolean; in_stock: boolean;
-  observed_at: string; entered_at: string;
-  /** 'manual' when a person entered it, otherwise the collector source that recorded it. */
-  notes: string; acquisition_method: string; total_cents: number; price_per_tb: string;
-};
-export type Condition = 'new' | 'manufacturer_recertified' | 'refurbished' | 'used';
-/** Text matching the pattern (a case-insensitive regular expression) names the condition. */
-export type ConditionRule = { pattern: string; condition: Condition };
+import type { components, operations } from './api-schema';
+
+/** The API's own types, generated from its OpenAPI schema by scripts/generate-api-client.sh. */
+type Schemas = components['schemas'];
+
+export type Condition = Schemas['ConditionRule']['condition'];
+/** Who submitted a price: a person, or a collector. Where it was seen is the offer's store. */
+export type Provenance = Schemas['Observation']['provenance'];
+export type Observation = Schemas['Observation'];
+export type ConditionRule = Schemas['ConditionRule'];
 /** A store offers are recorded under, as the listing filters and Add price offer it: a source's key and name.
  * 'other' names a one-off store by seller. */
 export type Store = Pick<Source, 'key' | 'name'>;
-export type PriceInput = ObservationInput & {
-  mpn: string; store: string; seller: string; condition: Condition; title: string | null; url: string | null; capacity_gb: number | null;
-};
-export type OfferEdit = { title: string; url: string | null };
-/** brand is the drive's maker (Seagate, Western Digital…), or null until a source names it. */
-export type Drive = { id: string; mpn: string; aliases: string[]; brand: string | null; capacity_gb: number; specifications: Specifications };
-/** brand: the drive's maker as corrected by hand; blank makes it unknown again, for a source to name. */
-export type DriveInput = { capacity_gb: number; specifications: Specifications; brand: string };
-/** An offer with its latest price, as the listings table shows it. */
-export type ListingSummary = {
-  id: string; title: string; mpn: string | null; store: string; store_name: string; seller: string; url: string | null;
-  capacity_gb: number; condition: Condition; drive: Drive | null; last_checked_at: string;
-  latest: Observation;
-};
-/** An offer with every price it has had, oldest first. */
-export type Listing = ListingSummary & { observations: Observation[] };
-export type UnmatchedReason = 'missing_mpn' | 'missing_condition' | 'capacity_conflict' | 'missing_capacity' | 'missing_price';
-export type UnmatchedItem = {
-  /** source: the key of the source it was read from, which is its store. */
-  id: string; source: string; url: string; title: string; seller: string;
-  mpn: string | null; condition: Condition | null; capacity_gb: number | null;
-  item_price_cents: number | null; shipping_cents: number | null; in_stock: boolean;
-  reason: UnmatchedReason; first_seen_at: string; last_seen_at: string;
-};
-/** How one collector run went, as the collector reported it. */
-export type CollectorRun = {
-  source: string; started_at: string; finished_at: string; completed: boolean;
-  seen: number; recorded: number; queued: number; ignored: number; failed: number; rechecked: number; recheck_failed: number;
-  /** It ended early because it was asked to stop, rather than failing. */
-  stopped: boolean;
-};
-/** A run in progress: how far the collector last said it had got, and when it said so. */
-export type RunProgress = {
-  source: string; started_at: string; updated_at: string;
-  seen: number; recorded: number; queued: number; ignored: number; failed: number;
-};
-/** What the collector is doing: when it was last heard from (never: null), the runs in progress,
- * and the keys of the sources waiting to run, in the order they will. */
-export type CollectorStatus = { seen_at: string | null; running: RunProgress[]; waiting: string[] };
-/** What pasted listing text says of an offer; anything it does not say is null. */
-export type ListingFacts = {
-  title: string | null; mpn: string | null; capacity_gb: number | null; condition: Condition | null;
-  brand: string | null; item_price_cents: number | null;
-};
-/** manual: a store whose offers are entered by hand, never collected. */
-/** The kind of a store: one the collector reads, or 'manual', entered by hand. The kinds there are, and
- * what each needs to know, come from the API (listSourceKinds). */
-export type SourceKind = string;
-/** One thing a kind of store needs to know, as its reader describes it. */
-export type SettingDescription = {
-  name: string; label: string; type: 'text' | 'list' | 'flag'; required: boolean; description: string; placeholder: string;
-  /** The group of settings it is asked for among; '' for none. */
-  group: string; pattern: string; pattern_message: string; regex: boolean; capturing: boolean; needs: string;
-};
-/** A kind of store: what it is called, whether it is collected, whether one of its pages can be read
- * alone to test it, and its settings, some of them in groups. */
-export type SourceKindDescription = {
-  kind: SourceKind; label: string; collected: boolean; page_test: boolean;
-  groups: { name: string; label: string; help: string }[]; settings: SettingDescription[];
-};
-/** What allows collecting from a source; recorded so the decision is visible, not enforced. */
-export type SourceBasis = 'permission' | 'terms_allow' | 'open_api' | 'unconfirmed';
-export type SourceTransport = 'direct' | 'browser';
-/** A store offers are recorded under: read by a collector on a cron schedule, with settings for its kind, or entered by hand. */
-export type SourceInput = {
-  name: string; kind: SourceKind; base_url: string; settings: SourceSettings; schedule: string;
-  enabled: boolean; transport: SourceTransport; basis: SourceBasis; notes: string;
-};
-export type SourceSettings = Record<string, string | boolean | string[]>;
-/** key is what its prices and runs are recorded under, fixed when it is created. */
-/** next_run_at is when the source is next due (in the past while it waits for the collector); null while switched off. */
-/** One offer as the collector read it from a source being tested, and what disktracker would do with it.
- * status: found, nothing (the store was read but no drive found), or failed (for the reason given). */
-export type SourcePreview = {
-  status: 'found' | 'nothing' | 'failed'; reason: string | null;
-  offer: {
-    url: string; title: string; mpn: string | null; brand: string | null; condition: Condition | null; capacity_gb: number | null;
-    item_price_cents: number | null; shipping_cents: number | null; in_stock: boolean; aliases: string[];
-  } | null;
-  verdict: { outcome: 'recorded' | 'review' | 'ignored'; reason: string | null } | null;
-  /** What the collector read on the way, and why a page gave no offer. */
-  notes: string[];
-};
-/** A source to try. page_url: one of its pages to read instead of those its sitemap lists. */
-export type SourcePreviewInput = SourceInput & { page_url?: string };
-/** One way of reading the store a link is from: the kind of source and its settings, why they were
- * chosen, how many offers they read from the page, the first of them, and what would become of it. */
-export type InspectionCandidate = {
-  kind: SourceKind; settings: SourceSettings; evidence: string[]; offers: number;
-  /** How much there is to the store read this way, and how long a run of it would take. */
-  summary: { label: string; value: string }[];
-  offer: NonNullable<SourcePreview['offer']>; verdict: NonNullable<SourcePreview['verdict']>;
-};
-/** What inspecting a link to one product page found: the ways of reading its store, best first. */
-export type SourceInspection = {
-  status: 'found' | 'nothing' | 'failed'; reason: string | null; base_url: string;
-  candidates: InspectionCandidate[]; notes: string[];
-};
-export type Source = SourceInput & { id: string; key: string; next_run_at: string | null };
-export type Resolution = { mpn: string; condition: Condition; capacity_gb: number | null };
+export type PriceInput = Schemas['PriceInput'];
+/** The price itself, apart from the offer it is of. */
+export type ObservationInput = Pick<PriceInput, 'item_price_cents' | 'shipping_cents' | 'in_stock' | 'observed_at' | 'notes'>;
+export type OfferEdit = Schemas['OfferEdit'];
+export type Drive = Schemas['Drive'];
+export type DriveEdit = Schemas['DriveEdit'];
+export type OfferSummary = Schemas['OfferSummary'];
+export type Offer = Schemas['Offer'];
+export type ReviewItem = Schemas['ReviewItem'];
+export type ReviewReason = ReviewItem['reason'];
+export type Run = Schemas['Run'];
+export type RunStatus = Run['status'];
+export type CollectorStatus = Schemas['CollectorStatus'];
+export type ListingFacts = Schemas['ListingFacts'];
+export type SettingDescription = Schemas['SettingView'];
+export type SourceKindDescription = Schemas['SourceKindView'];
+/** The kind of a store: one the collector reads, or 'manual', entered by hand. */
+export type SourceKind = SourceKindDescription['kind'];
+/** A store as it is entered, and as the API shows it: the fields of its kind, chosen by kind. */
+export type SourceInput = Schemas['ManualSourceInput'] | Schemas['ShopifySourceInput']
+  | Schemas['SitemapSourceInput'] | Schemas['SapCommerceSourceInput'];
+export type Source = Schemas['ManualSourceView'] | Schemas['ShopifySourceView']
+  | Schemas['SitemapSourceView'] | Schemas['SapCommerceSourceView'];
+export type SourceSettings = Source['settings'];
+export type SourceBasis = Source['basis'];
+export type SourceTransport = Source['transport'];
+export type SourcePreviewInput = Schemas['ManualSourcePreviewInput'] | Schemas['ShopifySourcePreviewInput']
+  | Schemas['SitemapSourcePreviewInput'] | Schemas['SapCommerceSourcePreviewInput'];
+export type SourcePreview = Schemas['SourcePreview'];
+export type InspectionCandidate = Schemas['ShopifyCandidate'] | Schemas['SitemapCandidate'] | Schemas['SapCommerceCandidate'];
+export type SourceInspection = Schemas['SourceInspection'];
+export type ReviewDecision = Schemas['MatchDecision'] | Schemas['IgnoreDecision'];
+export type DecisionResult = Schemas['DecisionResult'];
 /** Part of a long list, as the API serves it: these items, and how many there are in all. */
 export type Page<T> = { items: T[]; total: number };
 /** Which part of a list to serve: this many items, after skipping that many. */
 export type PageRequest = { limit: number; offset: number };
+/** Which offers waiting for review to read: those seen at one store, or waiting for one reason. */
+export type ReviewFilter = { store?: string; reason?: ReviewReason };
 
-export interface ListingsApi {
+export type TrendPoint = Schemas['TrendPoint'];
+export type TrendSeries = Schemas['TrendSeries'];
+export type Trends = Schemas['Trends'];
+export type TrendSplit = NonNullable<Trends['by']>;
+/** Which drives a report is of, narrowed as the drives list narrows them; empty for every drive. */
+export type DriveScope = Omit<NonNullable<operations['price_trends']['parameters']['query']>, 'days' | 'by' | 'recent_days'>;
+
+/** A price just recorded, named so that it can be taken back. */
+export type RecordedPrice = { priceId: string };
+export type PriceResult = Schemas['PriceResult'];
+
+/** Which drives to list, as the server takes it: filters apply to offers, and a drive is listed when
+ * any offer of it matches. Left out, a filter does not narrow. */
+export type DriveQuery = NonNullable<operations['list_drives']['parameters']['query']>;
+export type PriceRange = Schemas['PriceRange'];
+export type DriveRow = Schemas['DriveRow'];
+export type FilterOptions = Schemas['FilterOptions'];
+export type DrivePage = Schemas['DrivePage'];
+export type DriveDetail = Schemas['DriveDetail'];
+export type PriceRow = Schemas['PriceRow'];
+export type PricePage = Schemas['PricePage'];
+/** Prices of one drive's offers or of one offer, in effect at any time since since. */
+export type PriceRequest = ({ driveId: string; offerId?: never } | { offerId: string; driveId?: never })
+  & { since?: string; limit?: number; offset?: number };
+export type PriceMark = Schemas['PriceMark'];
+
+export interface DisktrackerApi {
+  /** A page of the drives that match, with what is said of every match and the filter options of every drive. */
+  drives(query: DriveQuery): Promise<DrivePage>;
+  /** A drive with every offer of it, in every condition, with its ranges over rangeDays. */
+  drive(id: string, rangeDays: number, recentDays: number): Promise<DriveDetail>;
+  /** One offer with every price it has had. */
+  offer(id: string): Promise<Offer>;
+  /** A part of the prices of a drive's offers or of one offer, oldest first. */
+  prices(request: PriceRequest): Promise<PricePage>;
+  /** Offers entered by hand and not checked within the recent days, longest unchecked first. */
+  offersToRecheck(recentDays: number): Promise<OfferSummary[]>;
+  /** What each drive costs today in each condition it is in stock in, by the terabyte, cheapest first. */
+  pricesToday(recentDays: number, scope: DriveScope): Promise<PriceMark[]>;
+  /** Item prices across every drive over the days up to now, split when a split is asked for. */
+  trends(days: number, by: TrendSplit | null, recentDays: number, scope: DriveScope): Promise<Trends>;
   /** The review queue, newest first, a page at a time. */
-  listUnmatched(page: PageRequest): Promise<Page<UnmatchedItem>>;
-  resolveUnmatched(id: string, resolution: Resolution): Promise<Listing>;
-  ignoreUnmatched(id: string): Promise<void>;
-  recordPrice(input: PriceInput, requestId: string): Promise<Listing>;
-  deletePrice(id: string, observationId: string): Promise<Listing | null>;
-  editOffer(id: string, input: OfferEdit): Promise<Listing>;
+  reviewItems(query: PageRequest & ReviewFilter): Promise<Page<ReviewItem>>;
+  decide(id: string, decision: ReviewDecision): Promise<DecisionResult>;
+  /** Records a price for the offer described, creating the offer and its drive when they are new. */
+  recordPrice(input: PriceInput, requestId: string): Promise<PriceResult>;
+  /** Deletes a price, and its offer with it when it was the last; a price already gone is no error. */
+  deletePrice(priceId: string): Promise<null>;
+  editOffer(id: string, input: OfferEdit): Promise<Offer>;
   deleteOffer(id: string): Promise<void>;
-  replaceSpecifications(driveId: string, input: DriveInput): Promise<Drive>;
+  editDrive(driveId: string, input: DriveEdit): Promise<Drive>;
   addAlias(driveId: string, mpn: string): Promise<Drive>;
-  list(): Promise<ListingSummary[]>;
-  priceHistory(ids: string[]): Promise<Listing[]>;
-  latestRuns(): Promise<CollectorRun[]>;
+  listOffers(): Promise<OfferSummary[]>;
+  /** The latest run of each store, by store. */
+  latestRuns(): Promise<Run[]>;
+  /** Every run that ended since a moment, oldest first. */
+  recentRuns(since: string): Promise<Run[]>;
   readListing(text: string): Promise<ListingFacts>;
   listSources(): Promise<Source[]>;
   listSourceKinds(): Promise<SourceKindDescription[]>;
@@ -172,7 +147,16 @@ export function validationError(detail: unknown): ApiValidationError | null {
   return Object.keys(fields).length ? new ApiValidationError(fields) : null;
 }
 
-export class HttpListingsApi implements ListingsApi {
+/** Query parameters with a scope's filters, a choice of several repeated. */
+function scoped(fixed: Record<string, string | number>, scope: DriveScope): URLSearchParams {
+  const params = new URLSearchParams(Object.entries(fixed).map(([name, value]) => [name, String(value)]));
+  for (const [name, value] of Object.entries(scope)) {
+    for (const one of Array.isArray(value) ? value : [value]) if (one !== undefined && one !== null && one !== '') params.append(name, String(one));
+  }
+  return params;
+}
+
+export class HttpDisktrackerApi implements DisktrackerApi {
   constructor(private readonly request: typeof fetch, private readonly baseUrl: string) {}
   private async send<T>(path: string, body?: unknown, requestId?: string, method = body === undefined ? 'GET' : 'POST'): Promise<T> {
     const headers: Record<string, string> = body === undefined ? {} : { 'Content-Type': 'application/json' };
@@ -190,33 +174,56 @@ export class HttpListingsApi implements ListingsApi {
     return (response.status === 204 ? null : response.json()) as Promise<T>;
   }
   /** A page of a list the API serves in parts: X-Total-Count says how many there are in all. */
-  private async page<T>(path: string, { limit, offset }: PageRequest): Promise<Page<T>> {
-    const response = await this.request(`${this.baseUrl}${path}?limit=${limit}&offset=${offset}`, { method: 'GET', headers: {} });
+  private async page<T>(path: string, { limit, offset, ...narrowed }: PageRequest & Record<string, string | number | undefined>): Promise<Page<T>> {
+    const params = new URLSearchParams({ limit: String(limit), offset: String(offset) });
+    for (const [name, value] of Object.entries(narrowed)) if (value !== undefined) params.set(name, String(value));
+    const response = await this.request(`${this.baseUrl}${path}?${params}`, { method: 'GET', headers: {} });
     if (!response.ok) throw new Error(`Unable to save or load listings (${response.status}).`);
     const items = await response.json() as T[];
     return { items, total: Number(response.headers.get('X-Total-Count') ?? items.length) };
   }
-  listUnmatched(page: PageRequest): Promise<Page<UnmatchedItem>> { return this.page('/unmatched', page); }
-  resolveUnmatched(id: string, resolution: Resolution): Promise<Listing> {
-    return this.send(`/unmatched/${id}/resolve`, resolution);
+  trends(days: number, by: TrendSplit | null, recentDays: number, scope: DriveScope): Promise<Trends> {
+    return this.send(`/trends?${scoped({ days, recent_days: recentDays, ...(by ? { by } : {}) }, scope)}`);
   }
-  ignoreUnmatched(id: string): Promise<void> {
-    return this.send(`/unmatched/${id}/ignore`, undefined, undefined, 'POST');
+  reviewItems(query: PageRequest & ReviewFilter): Promise<Page<ReviewItem>> { return this.page('/review-items', query); }
+  decide(id: string, decision: ReviewDecision): Promise<DecisionResult> {
+    return this.send(`/review-items/${id}/decision`, decision, undefined, 'PUT');
   }
   addAlias(driveId: string, mpn: string): Promise<Drive> {
     return this.send(`/drives/${driveId}/aliases`, { mpn });
   }
-  replaceSpecifications(driveId: string, input: DriveInput): Promise<Drive> {
-    return this.send(`/drives/${driveId}/specifications`, input, undefined, 'PUT');
+  editDrive(driveId: string, input: DriveEdit): Promise<Drive> {
+    return this.send(`/drives/${driveId}`, input, undefined, 'PATCH');
   }
   deleteOffer(id: string): Promise<void> {
-    return this.send(`/listings/${id}`, undefined, undefined, 'DELETE');
+    return this.send(`/offers/${id}`, undefined, undefined, 'DELETE');
   }
-  list(): Promise<ListingSummary[]> { return this.send('/listings'); }
-  priceHistory(ids: string[]): Promise<Listing[]> {
-    return this.send(`/price-history?${new URLSearchParams(ids.map(id => ['listing', id]))}`);
+  listOffers(): Promise<OfferSummary[]> { return this.send('/offers'); }
+  drives(query: DriveQuery): Promise<DrivePage> {
+    const params = new URLSearchParams();
+    for (const [name, value] of Object.entries(query)) {
+      for (const one of Array.isArray(value) ? value : [value]) {
+        if (one !== undefined && one !== '') params.append(name, String(one));
+      }
+    }
+    return this.send(`/drives?${params}`);
   }
-  latestRuns(): Promise<CollectorRun[]> { return this.send('/collector-runs/latest'); }
+  drive(id: string, rangeDays: number, recentDays: number): Promise<DriveDetail> {
+    return this.send(`/drives/${id}?range_days=${rangeDays}&recent_days=${recentDays}`);
+  }
+  offer(id: string): Promise<Offer> { return this.send(`/offers/${id}`); }
+  prices({ driveId, offerId, since, limit = 500, offset = 0 }: PriceRequest): Promise<PricePage> {
+    const params = new URLSearchParams(driveId ? { drive_id: driveId } : { offer_id: offerId! });
+    if (since) params.set('since', since);
+    params.set('limit', String(limit)); params.set('offset', String(offset));
+    return this.send(`/prices?${params}`);
+  }
+  offersToRecheck(recentDays: number): Promise<OfferSummary[]> {
+    return this.send(`/offers?needs_recheck=true&recent_days=${recentDays}`);
+  }
+  pricesToday(recentDays: number, scope: DriveScope): Promise<PriceMark[]> { return this.send(`/reports/prices-today?${scoped({ recent_days: recentDays }, scope)}`); }
+  latestRuns(): Promise<Run[]> { return this.send('/collection-runs?latest_per_source=true'); }
+  recentRuns(since: string): Promise<Run[]> { return this.send(`/collection-runs?${new URLSearchParams({ finished_since: since })}`); }
   readListing(text: string): Promise<ListingFacts> { return this.send('/listing-text', { text }); }
   listSources(): Promise<Source[]> { return this.send('/sources'); }
   listSourceKinds(): Promise<SourceKindDescription[]> { return this.send('/source-kinds'); }
@@ -230,13 +237,13 @@ export class HttpListingsApi implements ListingsApi {
   inspectLink(url: string, transport: SourceTransport): Promise<SourceInspection> { return this.send('/source-inspections', { url, transport }); }
   listConditionRules(): Promise<ConditionRule[]> { return this.send('/condition-rules'); }
   replaceConditionRules(rules: ConditionRule[]): Promise<ConditionRule[]> { return this.send('/condition-rules', rules, undefined, 'PUT'); }
-  recordPrice(input: PriceInput, requestId: string): Promise<Listing> {
+  recordPrice(input: PriceInput, requestId: string): Promise<PriceResult> {
     return this.send('/prices', input, requestId);
   }
-  editOffer(id: string, input: OfferEdit): Promise<Listing> {
-    return this.send(`/listings/${id}`, input, undefined, 'PATCH');
+  editOffer(id: string, input: OfferEdit): Promise<Offer> {
+    return this.send(`/offers/${id}`, input, undefined, 'PATCH');
   }
-  deletePrice(id: string, observationId: string): Promise<Listing | null> {
-    return this.send(`/listings/${id}/observations/${observationId}`, undefined, undefined, 'DELETE');
+  deletePrice(priceId: string): Promise<null> {
+    return this.send(`/prices/${priceId}`, undefined, undefined, 'DELETE');
   }
 }

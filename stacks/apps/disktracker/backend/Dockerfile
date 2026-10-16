@@ -25,4 +25,4 @@ COPY --from=frontend /frontend/dist /app/site
 ENV DISKTRACKER_STATIC_DIR=/app/site
 EXPOSE 8000
 # Migrations run before the API starts, so a deploy of a new version brings its schema along.
-CMD ["sh", "-c", "alembic upgrade head && exec uvicorn disktracker.main:app --host 0.0.0.0 --port 8000"]
+CMD ["sh", "-c", "alembic upgrade head && exec uvicorn disktracker.main:create_app --factory --host 0.0.0.0 --port 8000"]

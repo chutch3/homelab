@@ -1,9 +1,9 @@
 import { useState } from 'react';
 import { Alert, Button, Group, Modal, Stack, Text } from '@mantine/core';
-import type { Listing, ListingsApi } from './api';
+import type { Offer, DisktrackerApi } from './api';
 import { conditionLabel, sellerLabel } from './listing-display';
 
-type Props = { listing: Listing; api: ListingsApi; onClose: () => void; onDeleted: () => Promise<void> };
+type Props = { listing: Offer; api: DisktrackerApi; onClose: () => void; onDeleted: () => Promise<void> };
 
 export function DeleteOfferDialog({ listing, api, onClose, onDeleted }: Props) {
   const [deleting, setDeleting] = useState(false);

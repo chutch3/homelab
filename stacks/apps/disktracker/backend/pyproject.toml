@@ -10,6 +10,7 @@ dependencies = [
     "alembic>=1.14,<2",
     "disktracker-listing-text",
     "croniter>=6,<7",
+    "dependency-injector>=4.49.1,<5",
 ]
 
 [dependency-groups]
@@ -33,9 +34,12 @@ testpaths = ["tests"]
 pythonpath = ["."]
 addopts = "--strict-markers --cov=disktracker --cov-report=term-missing --cov-fail-under=90"
 
-[tool.coverage.run]
-omit = ["*/disktracker/main.py"]
-
 [tool.ruff]
 target-version = "py312"
 line-length = 100
+
+[tool.ruff.lint.per-file-ignores]
+# The contract's models are pydantic models through disktracker.contract.Contract, which ruff does
+# not follow: pydantic copies a list default for each instance, so it is not shared.
+"disktracker/*/schemas.py" = ["RUF012"]
+"disktracker/collection/settings.py" = ["RUF012"]

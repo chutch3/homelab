@@ -11,7 +11,6 @@ disktracker records no price for a sold-out offer."""
 
 import re
 from collections.abc import Iterator, Mapping, Sequence
-from dataclasses import dataclass
 from decimal import Decimal
 from itertools import count
 from typing import Any
@@ -36,29 +35,20 @@ from collector.errors import SourceUnavailable
 from collector.models import FREE_SHIPPING, TITLE_LIMIT, ScrapedOffer, Store
 from collector.polite import json_of, same_site
 from collector.ports import Inspection, Reading, Rechecked, Site, Tell, tell_nobody
-from collector.settings import described, setting, settings_from
 from collector.sources.rechecking import rechecked
-from disktracker_api.models import ListingSummary
+from disktracker_api.models import OfferSummary, ShopifySettingsOutput
 
 PAGE_SIZE = 250
 # What every Shopify storefront's pages load or set up.
 SHOPIFY = re.compile(r"cdn\.shopify\.com|\bShopify\.(shop|theme)\b")
 
 
-@dataclass(frozen=True)
-class ShopifySettings:
-    collections: tuple[str, ...] = setting(
-        "Collections",
-        type="list",
-        required=True,
-        placeholder="hard-drives, solid-state-drives",
-        description="Comma-separated collection handles",
-    )
-    free_shipping: bool = setting("Every order ships free", type="flag")
+class ShopifySettings(ShopifySettingsOutput):
+    """A Shopify store's settings, as disktracker gives them (every one, checked)."""
 
     @classmethod
     def of(cls, saved: Mapping[str, Any]) -> "ShopifySettings":
-        return settings_from(cls, saved)
+        return cls.from_dict(saved)
 
     @property
     def shipping_cents(self) -> int | None:
@@ -201,14 +191,14 @@ def parse_products(
 
 
 def recheck_offer(
-    listing: ListingSummary, page: dict[str, Any] | None, store: Store, settings: ShopifySettings
+    known: OfferSummary, page: dict[str, Any] | None, store: Store, settings: ShopifySettings
 ) -> ScrapedOffer:
     """A known offer as its product page shows it now (None when the page is gone)."""
-    wanted = parse_qs(urlsplit(listing.url or "").query).get("variant")
+    wanted = parse_qs(urlsplit(known.url or "").query).get("variant")
     variants = (page or {}).get("variants", [])
     variant = next((v for v in variants if not wanted or str(v["id"]) == wanted[0]), None)
     return ScrapedOffer.recheck(
-        listing,
+        known,
         source=store.key,
         item_price_cents=int(variant["price"]) if variant else None,
         in_stock=bool(variant and variant["available"]),
@@ -217,8 +207,6 @@ def recheck_offer(
 
 
 class Shopify:
-    description = described("Shopify", ShopifySettings)
-
     def settings(self, saved: Mapping[str, Any]) -> ShopifySettings:
         return ShopifySettings.of(saved)
 
@@ -230,7 +218,7 @@ class Shopify:
         return self._read(site, site.settings.collections[:1], every_page=False)
 
     def _read(
-        self, site: Site[ShopifySettings], collections: tuple[str, ...], every_page: bool
+        self, site: Site[ShopifySettings], collections: Sequence[str], every_page: bool
     ) -> list[ScrapedOffer]:
         products: dict[int, dict[str, Any]] = {}
         for collection in collections:
@@ -251,7 +239,7 @@ class Shopify:
         return parse_products(list(products.values()), site.store, site.settings)
 
     def recheck(
-        self, listings: Sequence[ListingSummary], site: Site[ShopifySettings]
+        self, known: Sequence[OfferSummary], site: Site[ShopifySettings]
     ) -> Iterator[Rechecked]:
         """Each on its product's own page; the variants of one product share it."""
 
@@ -266,10 +254,10 @@ class Shopify:
             return json_of(response) if response is not None else None
 
         return rechecked(
-            listings,
+            known,
             handle,
             fetch,
-            lambda listing, page: recheck_offer(listing, page, site.store, site.settings),
+            lambda offer, page: recheck_offer(offer, page, site.store, site.settings),
         )
 
     def inspect(self, url: str, page: str, site: Site[None]) -> Inspection:

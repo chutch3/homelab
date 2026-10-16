@@ -6,7 +6,7 @@ from pathlib import Path
 import pytest
 from fastapi.testclient import TestClient
 
-from disktracker.web import create_app
+from disktracker.main import create_app
 
 
 @pytest.fixture
@@ -19,8 +19,11 @@ def site(tmp_path: Path) -> Path:
     return built
 
 
-def test_the_built_frontend_is_served_beside_the_api(database_url: str, site: Path) -> None:
-    with TestClient(create_app(database_url, static_dir=str(site))) as client:
+def test_the_built_frontend_is_served_beside_the_api(
+    database_url: str, site: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("DISKTRACKER_STATIC_DIR", str(site))
+    with TestClient(create_app()) as client:
         home = client.get("/")
         script = client.get("/assets/app.js")
         # The Admin page is a route inside the app: the page is the same, the app shows it.
@@ -40,5 +43,5 @@ def test_the_built_frontend_is_served_beside_the_api(database_url: str, site: Pa
 
 
 def test_without_a_built_frontend_only_the_api_is_served(database_url: str) -> None:
-    with TestClient(create_app(database_url)) as client:
+    with TestClient(create_app()) as client:
         assert (client.get("/").status_code, client.get("/api/sources").status_code) == (404, 200)

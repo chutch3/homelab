@@ -1,0 +1,294 @@
+from __future__ import annotations
+
+from collections.abc import Mapping
+from typing import Any, TypeVar, BinaryIO, TextIO, TYPE_CHECKING, Generator
+
+from attrs import define as _attrs_define
+from attrs import field as _attrs_field
+
+from ..types import UNSET, Unset
+
+from ..models.review_item_condition_type_0 import check_review_item_condition_type_0
+from ..models.review_item_condition_type_0 import ReviewItemConditionType0
+from ..models.review_item_provenance import check_review_item_provenance
+from ..models.review_item_provenance import ReviewItemProvenance
+from ..models.review_item_reason import check_review_item_reason
+from ..models.review_item_reason import ReviewItemReason
+from typing import cast
+from uuid import UUID
+import datetime
+
+if TYPE_CHECKING:
+  from ..models.drive import Drive
+
+
+
+
+
+T = TypeVar("T", bound="ReviewItem")
+
+
+
+@_attrs_define
+class ReviewItem:
+    """ An offer waiting for a reviewer to say what it is.
+
+        Attributes:
+            capacity_gb (int | None):
+            condition (None | ReviewItemConditionType0):
+            drive (Drive | None): The drive its MPN names as recorded now, to set what was collected beside; null when it
+                names none.
+            first_seen_at (datetime.datetime):
+            id (UUID):
+            in_stock (bool):
+            item_price_cents (int | None):
+            last_seen_at (datetime.datetime):
+            mpn (None | str):
+            provenance (ReviewItemProvenance):
+            reason (ReviewItemReason):
+            seller (str):
+            shipping_cents (int | None):
+            store (str):
+            title (str):
+            url (str):
+     """
+
+    capacity_gb: int | None
+    condition: None | ReviewItemConditionType0
+    drive: Drive | None
+    first_seen_at: datetime.datetime
+    id: UUID
+    in_stock: bool
+    item_price_cents: int | None
+    last_seen_at: datetime.datetime
+    mpn: None | str
+    provenance: ReviewItemProvenance
+    reason: ReviewItemReason
+    seller: str
+    shipping_cents: int | None
+    store: str
+    title: str
+    url: str
+    additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
+
+
+
+
+
+    def to_dict(self) -> dict[str, Any]:
+        from ..models.drive import Drive # noqa: PLC0415
+        capacity_gb: int | None
+        capacity_gb = self.capacity_gb
+
+        condition: None | str
+        if isinstance(self.condition, str):
+            condition = self.condition
+        else:
+            condition = self.condition
+
+        drive: dict[str, Any] | None
+        if isinstance(self.drive, Drive):
+            drive = self.drive.to_dict()
+        else:
+            drive = self.drive
+
+        first_seen_at = self.first_seen_at.isoformat()
+
+        id = str(self.id)
+
+        in_stock = self.in_stock
+
+        item_price_cents: int | None
+        item_price_cents = self.item_price_cents
+
+        last_seen_at = self.last_seen_at.isoformat()
+
+        mpn: None | str
+        mpn = self.mpn
+
+        provenance: str = self.provenance
+
+        reason: str = self.reason
+
+        seller = self.seller
+
+        shipping_cents: int | None
+        shipping_cents = self.shipping_cents
+
+        store = self.store
+
+        title = self.title
+
+        url = self.url
+
+
+        field_dict: dict[str, Any] = {}
+        field_dict.update(self.additional_properties)
+        field_dict.update({
+            "capacity_gb": capacity_gb,
+            "condition": condition,
+            "drive": drive,
+            "first_seen_at": first_seen_at,
+            "id": id,
+            "in_stock": in_stock,
+            "item_price_cents": item_price_cents,
+            "last_seen_at": last_seen_at,
+            "mpn": mpn,
+            "provenance": provenance,
+            "reason": reason,
+            "seller": seller,
+            "shipping_cents": shipping_cents,
+            "store": store,
+            "title": title,
+            "url": url,
+        })
+
+        return field_dict
+
+
+
+    @classmethod
+    def from_dict(cls: type[T], src_dict: Mapping[str, Any]) -> T:
+        from ..models.drive import Drive # noqa: PLC0415
+        d = dict(src_dict)
+        def _parse_capacity_gb(data: object) -> int | None:
+            if data is None:
+                return data
+            return cast(int | None, data)
+
+        capacity_gb = _parse_capacity_gb(d.pop("capacity_gb"))
+
+
+        def _parse_condition(data: object) -> None | ReviewItemConditionType0:
+            if data is None:
+                return data
+            try:
+                if not isinstance(data, str):
+                    raise TypeError()
+                condition_type_0 = check_review_item_condition_type_0(data)
+
+
+
+                return condition_type_0
+            except (TypeError, ValueError, AttributeError, KeyError):
+                pass
+            return cast(None | ReviewItemConditionType0, data)
+
+        condition = _parse_condition(d.pop("condition"))
+
+
+        def _parse_drive(data: object) -> Drive | None:
+            if data is None:
+                return data
+            try:
+                if not isinstance(data, dict):
+                    raise TypeError()
+                drive_type_0 = Drive.from_dict(data)
+
+
+
+                return drive_type_0
+            except (TypeError, ValueError, AttributeError, KeyError):
+                pass
+            return cast(Drive | None, data)
+
+        drive = _parse_drive(d.pop("drive"))
+
+
+        first_seen_at = datetime.datetime.fromisoformat(d.pop("first_seen_at"))
+
+
+
+
+        id = UUID(d.pop("id"))
+
+
+
+
+        in_stock = d.pop("in_stock")
+
+        def _parse_item_price_cents(data: object) -> int | None:
+            if data is None:
+                return data
+            return cast(int | None, data)
+
+        item_price_cents = _parse_item_price_cents(d.pop("item_price_cents"))
+
+
+        last_seen_at = datetime.datetime.fromisoformat(d.pop("last_seen_at"))
+
+
+
+
+        def _parse_mpn(data: object) -> None | str:
+            if data is None:
+                return data
+            return cast(None | str, data)
+
+        mpn = _parse_mpn(d.pop("mpn"))
+
+
+        provenance = check_review_item_provenance(d.pop("provenance"))
+
+
+
+
+        reason = check_review_item_reason(d.pop("reason"))
+
+
+
+
+        seller = d.pop("seller")
+
+        def _parse_shipping_cents(data: object) -> int | None:
+            if data is None:
+                return data
+            return cast(int | None, data)
+
+        shipping_cents = _parse_shipping_cents(d.pop("shipping_cents"))
+
+
+        store = d.pop("store")
+
+        title = d.pop("title")
+
+        url = d.pop("url")
+
+        review_item = cls(
+            capacity_gb=capacity_gb,
+            condition=condition,
+            drive=drive,
+            first_seen_at=first_seen_at,
+            id=id,
+            in_stock=in_stock,
+            item_price_cents=item_price_cents,
+            last_seen_at=last_seen_at,
+            mpn=mpn,
+            provenance=provenance,
+            reason=reason,
+            seller=seller,
+            shipping_cents=shipping_cents,
+            store=store,
+            title=title,
+            url=url,
+        )
+
+
+        review_item.additional_properties = d
+        return review_item
+
+    @property
+    def additional_keys(self) -> list[str]:
+        return list(self.additional_properties.keys())
+
+    def __getitem__(self, key: str) -> Any:
+        return self.additional_properties[key]
+
+    def __setitem__(self, key: str, value: Any) -> None:
+        self.additional_properties[key] = value
+
+    def __delitem__(self, key: str) -> None:
+        del self.additional_properties[key]
+
+    def __contains__(self, key: str) -> bool:
+        return key in self.additional_properties

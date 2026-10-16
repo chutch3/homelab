@@ -5,13 +5,27 @@ preview tests use."""
 
 from typing import Any
 
+import pytest
 from fastapi.testclient import TestClient
 from test_source_previews import OFFER, FakeCollector, collector  # noqa: F401
 
-from disktracker.web import create_app
+from disktracker.main import create_app
 
 PAGE = "https://www.seagate.com/products/nas-drives/ironwolf-pro-hard-drive/"
-SETTINGS = {"sitemap_path": "/sitemap.xml", "product_path_pattern": "^/products/"}
+# Every setting of its kind, as the collector sends them.
+SETTINGS = {
+    "sitemap_path": "/sitemap.xml",
+    "product_path_pattern": "^/products/",
+    "free_shipping_marker": "",
+    "data_pattern": r"product_models = JSON\.parse\('(.*?)'\);",
+    "data_items": "*.skus.*",
+    "data_model_field": "modelNo",
+    "data_name_field": "name",
+    "data_price_field": "final_price",
+    "data_brand_field": "",
+    "data_stock_field": "",
+    "data_in_stock_value": "",
+}
 CANDIDATE = {
     "kind": "sitemap",
     "settings": SETTINGS,
@@ -38,7 +52,7 @@ def test_a_link_is_inspected_by_the_collector_and_each_way_of_reading_it_gets_a_
     collector: FakeCollector,  # noqa: F811
 ) -> None:
     collector.answer = INSPECTED
-    with TestClient(create_app(database_url, collector.url)) as client:
+    with TestClient(create_app()) as client:
         rules = client.get("/api/condition-rules").json()
         inspected = client.post(
             "/api/source-inspections", json={"url": PAGE, "transport": "browser"}
@@ -78,7 +92,7 @@ def test_a_link_that_reads_as_nothing_or_cannot_be_read_is_passed_on_as_it_is(
         "notes": [],
     }
     collector.answer = failed
-    with TestClient(create_app(database_url, collector.url)) as client:
+    with TestClient(create_app()) as client:
         inspected = client.post("/api/source-inspections", json={"url": PAGE})
 
     assert inspected.json() == failed
@@ -86,14 +100,15 @@ def test_a_link_that_reads_as_nothing_or_cannot_be_read_is_passed_on_as_it_is(
 
 
 def test_what_is_not_a_link_is_refused_before_the_collector_is_asked(
-    database_url: str,
     collector: FakeCollector,  # noqa: F811
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    with TestClient(create_app(database_url, collector.url)) as client:
+    with TestClient(create_app()) as client:
         refused = client.post("/api/source-inspections", json={"url": "seagate ironwolf"})
-        no_collector = TestClient(create_app(database_url)).post(
-            "/api/source-inspections", json={"url": PAGE}
-        )
+    # This one has no collector to ask.
+    monkeypatch.delenv("DISKTRACKER_COLLECTOR_URL")
+    with TestClient(create_app()) as client:
+        no_collector = client.post("/api/source-inspections", json={"url": PAGE})
 
     assert refused.status_code == 422
     assert refused.json()["detail"][0]["loc"] == ["body", "url"]

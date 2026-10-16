@@ -5,6 +5,7 @@ are called."""
 
 import os
 from collections.abc import Iterator
+from uuid import uuid4
 
 import httpx
 from dependency_injector import containers, providers
@@ -17,7 +18,7 @@ from collector.collection import Collector
 from collector.config import Config
 from collector.inspect import Inspector
 from collector.pacer import Pacer
-from collector.polite import PoliteHttp
+from collector.polite import PoliteHttp, TimedPages
 from collector.preview import Previewer
 from collector.schedule import Schedule
 from collector.sites import Sites
@@ -72,13 +73,27 @@ class Container(containers.DeclarativeContainer):
     pacer = providers.Singleton(Pacer, clock=clock)
     polite = providers.Singleton(PoliteHttp, http=store_client, pacer=pacer, clock=clock)
     browser_polite = providers.Singleton(PoliteHttp, http=browser, pacer=pacer, clock=clock)
+    # For a source permitted to read past robots.txt: the same fetching, pacing and rules.
+    permitted_polite = providers.Factory(
+        PoliteHttp, http=store_client, pacer=pacer, clock=clock, rules=polite.provided.rules
+    )
+    permitted_browser_polite = providers.Factory(
+        PoliteHttp, http=browser, pacer=pacer, clock=clock, rules=browser_polite.provided.rules
+    )
     sites = providers.Singleton(
         Sites,
         readers=readers,
         transports=providers.Dict(direct=polite, browser=browser_polite),
+        permitted=providers.Dict(
+            direct=permitted_polite.provider, browser=permitted_browser_polite.provider
+        ),
         min_delay=config.provided.min_delay_seconds,
     )
-    collector = providers.Singleton(Collector, disktracker=disktracker, sites=sites, clock=clock)
+    # Each run's id, chosen by the collector so that its start can be sent again.
+    new_run_id = providers.Object(uuid4)
+    collector = providers.Singleton(
+        Collector, disktracker=disktracker, sites=sites, clock=clock, new_id=new_run_id
+    )
     schedule = providers.Singleton(
         Schedule,
         disktracker=disktracker,
@@ -96,20 +111,37 @@ class Container(containers.DeclarativeContainer):
     preview_browser_polite = providers.Singleton(
         PoliteHttp, http=browser, pacer=preview_pacer, clock=clock
     )
+    preview_permitted_polite = providers.Factory(
+        PoliteHttp,
+        http=store_client,
+        pacer=preview_pacer,
+        clock=clock,
+        rules=preview_polite.provided.rules,
+    )
+    preview_permitted_browser_polite = providers.Factory(
+        PoliteHttp,
+        http=browser,
+        pacer=preview_pacer,
+        clock=clock,
+        rules=preview_browser_polite.provided.rules,
+    )
     preview_sites = providers.Singleton(
         Sites,
         readers=readers,
         transports=providers.Dict(direct=preview_polite, browser=preview_browser_polite),
+        permitted=providers.Dict(
+            direct=preview_permitted_polite.provider,
+            browser=preview_permitted_browser_polite.provider,
+        ),
         min_delay=0,
     )
-    previewer = providers.Singleton(
-        Previewer, sites=preview_sites, clock=clock, time_limit=config.provided.preview_seconds
-    )
+    # A store's pages, read only for as long as a preview or an inspection may take.
+    timed = providers.Factory(TimedPages, clock=clock, seconds=config.provided.preview_seconds)
+    previewer = providers.Singleton(Previewer, sites=preview_sites, timed=timed.provider)
     inspector = providers.Singleton(
         Inspector,
         sites=preview_sites,
-        clock=clock,
-        time_limit=config.provided.preview_seconds,
+        timed=timed.provider,
         run_delay=config.provided.min_delay_seconds,
     )
     preview_api = providers.Resource(

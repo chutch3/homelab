@@ -1,4 +1,4 @@
-import type { ListingSummary, Store } from './api';
+import type { OfferSummary, Run, Store } from './api';
 import type { DriveGroup } from './drive-groups';
 import { isRecent } from './listing-query';
 
@@ -8,8 +8,9 @@ const DAY = 24 * HOUR;
 export const issues = ['unknown_specifications', 'stale'] as const;
 export type Issue = typeof issues[number];
 
-export function issueLabel(issue: Issue, recentDays: number): string {
-  return issue === 'stale' ? `Not checked in ${recentDays} days` : 'Unknown specifications';
+/** A few characters for a count or a column; Stale is an in-stock offer unchecked for longer than the recent window. */
+export function issueLabel(issue: Issue): string {
+  return issue === 'stale' ? 'Stale' : 'No specs';
 }
 
 /** What is missing or out of date for a drive: nothing known of its specifications, or an
@@ -28,7 +29,7 @@ export function driveIssues(group: DriveGroup, now: Date, recentDays: number): I
 export type Freshness = { store: Store; offers: number; latest: string; medianAgeMs: number };
 
 /** How recently each store's offers were checked, in the order stores are listed. */
-export function freshness(listings: ListingSummary[], now: Date, stores: Store[]): Freshness[] {
+export function freshness(listings: OfferSummary[], now: Date, stores: Store[]): Freshness[] {
   return stores.flatMap(store => {
     const value = store.key;
     const checked = listings.filter(listing => listing.store === value).map(listing => listing.last_checked_at)
@@ -41,13 +42,10 @@ export function freshness(listings: ListingSummary[], now: Date, stores: Store[]
   });
 }
 
+/** An age in a few characters, for a column of them: hours up to two days, then days. */
 export function ageLabel(ms: number): string {
-  if (ms < HOUR) return 'under an hour';
-  if (ms < 2 * DAY) {
-    const count = Math.floor(ms / HOUR);
-    return `${count} hour${count === 1 ? '' : 's'}`;
-  }
-  return `${Math.floor(ms / DAY)} days`;
+  if (ms < HOUR) return '<1h';
+  return ms < 2 * DAY ? `${Math.floor(ms / HOUR)}h` : `${Math.floor(ms / DAY)}d`;
 }
 
 /** How long something has gone on, or how long ago it was: to the minute within the hour, where
@@ -59,10 +57,5 @@ export function elapsedLabel(ms: number): string {
   return `${minutes} minute${minutes === 1 ? '' : 's'}`;
 }
 
-/** Hand-entered offers last checked before the recent window, oldest first: collectors keep
- * their own offers current, so only these wait on a person. */
-export function overdueForRecheck(listings: ListingSummary[], now: Date, recentDays: number): ListingSummary[] {
-  return listings
-    .filter(listing => listing.latest.acquisition_method === 'manual' && !isRecent(listing, now, recentDays))
-    .sort((a, b) => a.last_checked_at.localeCompare(b.last_checked_at));
-}
+/** A run that failed, or that its collector lost: not one that completed, was stopped, or is still going. */
+export const endedBadly = (run: Run) => run.status === 'failed' || run.status === 'abandoned';

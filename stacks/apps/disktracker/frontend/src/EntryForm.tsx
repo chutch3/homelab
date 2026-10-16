@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Alert, Autocomplete, Button, Group, Modal, NativeSelect, SegmentedControl, Stack, Text, TextInput, Textarea } from '@mantine/core';
 import { useForm } from '@mantine/form';
-import { ApiValidationError, type Condition, type Listing, type ListingsApi, type ObservationInput, type Store } from './api';
+import { ApiValidationError, type Condition, type Offer, type DisktrackerApi, type ObservationInput, type Store } from './api';
 import { CapacityField } from './CapacityField';
 import type { KnownDrive } from './drive-groups';
 import { parseDollars } from './money';
@@ -10,7 +10,7 @@ import { asksForSeller, capacityLabel, conditions, conditionLabel, dollars, sell
 
 const localTime = (date: Date) => new Date(date.getTime() - date.getTimezoneOffset() * 60_000).toISOString().slice(0, 19);
 type EntryProps = {
-  api: ListingsApi; now: () => Date; nextId: () => string; listing: Listing | null;
+  api: DisktrackerApi; now: () => Date; nextId: () => string; listing: Offer | null;
   knownCapacities?: Record<string, number>;
   /** Drives already recorded, suggested as the MPN is typed. */
   knownDrives?: KnownDrive[];
@@ -22,7 +22,7 @@ type EntryProps = {
   onAnother?: (savedTitle: string) => void;
   /** The title of the price just saved, when this form follows it. */
   previous?: string;
-  onClose: () => void; onSaved: (listingId: string, observedAt: string) => Promise<void>;
+  onClose: () => void; onSaved: (listingId: string) => Promise<void>;
 };
 
 export function EntryForm({ listing, knownCapacities = {}, knownDrives = [], stores = [], defaults = { store: '', condition: '' }, onEntered, onAnother, previous, api, now, nextId, onClose, onSaved }: EntryProps) {
@@ -99,8 +99,9 @@ export function EntryForm({ listing, knownCapacities = {}, knownDrives = [], sto
           title: values.title.trim() || null, url: values.url.trim() || null, capacity_gb: knownCapacity ? null : Number(values.capacity.trim()) };
       const saved = await api.recordPrice({ ...offer, ...observation }, requestId);
       if (!listing) onEntered?.({ store: values.store, condition: values.condition });
-      await onSaved(saved.id, observation.observed_at ?? saved.latest.observed_at);
-      if (another.current && onAnother) onAnother(saved.title); else onClose();
+      // A price entered by hand is recorded or refused: it is never queued or ignored.
+      await onSaved(saved.offer_id ?? '');
+      if (another.current && onAnother) onAnother(offer.title || offer.mpn); else onClose();
     } catch (err) {
       if (err instanceof ApiValidationError) {
         const errors = formFieldErrors(err.fields, priceOnly);
@@ -115,7 +116,7 @@ export function EntryForm({ listing, knownCapacities = {}, knownDrives = [], sto
     }
     finally { setSaving(false); }
   }, focusFirstError);
-  return <Modal opened onClose={() => { if (!saving) onClose(); }} title={listing ? 'Record price' : 'Add offer'} size="lg" centered>
+  return <Modal opened onClose={() => { if (!saving) onClose(); }} title="Record price" size="lg" centered>
     <form ref={formElement} onSubmit={submit} noValidate>
       <Stack gap="md">
         {previous && <Text role="status" size="sm" c="dimmed">Saved {previous}. Add the next offer.</Text>}
@@ -167,7 +168,7 @@ export function EntryForm({ listing, knownCapacities = {}, knownDrives = [], sto
         {error && <Alert color="red" role="alert">{error}</Alert>}
         <Group justify="flex-end"><Button variant="default" onClick={onClose} disabled={saving}>Cancel</Button>{!listing && onAnother && <Button type="submit" variant="default" disabled={saving}
           onClick={() => { another.current = true; }}>Save and add another</Button>}
-          <Button type="submit" loading={saving} onClick={() => { another.current = false; }}>{listing ? 'Save price' : 'Save offer'}</Button></Group>
+          <Button type="submit" loading={saving} onClick={() => { another.current = false; }}>Save price</Button></Group>
       </Stack>
     </form>
   </Modal>;

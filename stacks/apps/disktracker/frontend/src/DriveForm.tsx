@@ -1,14 +1,14 @@
 import { useState } from 'react';
 import { Alert, Button, Group, Modal, Stack, Text, TextInput } from '@mantine/core';
 import { useForm } from '@mantine/form';
-import { ApiValidationError, type Drive, type ListingsApi } from './api';
+import { ApiValidationError, type Drive, type DisktrackerApi } from './api';
 import { CapacityField } from './CapacityField';
 import { capacityError } from './entry-validation';
 import { SpecificationFields } from './SpecificationFields';
 import type { Specifications } from './specifications';
 
 type Props = {
-  drive: Drive; api: ListingsApi; onClose: () => void; onSaved: (drive: Drive) => void;
+  drive: Drive; api: DisktrackerApi; onClose: () => void; onSaved: (drive: Drive) => void;
   onAliasAdded?: () => Promise<void>;
 };
 
@@ -35,7 +35,7 @@ export function DriveForm({ drive, api, onClose, onSaved, onAliasAdded }: Props)
   const submit = form.onSubmit(async values => {
     setError(''); setSaving(true);
     try {
-      const saved = await api.replaceSpecifications(drive.id, {
+      const saved = await api.editDrive(drive.id, {
         capacity_gb: Number(values.capacity.trim()), specifications: values.specifications, brand: values.brand.trim(),
       });
       onSaved(saved); onClose();

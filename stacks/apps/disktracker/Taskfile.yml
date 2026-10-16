@@ -19,16 +19,10 @@ tasks:
                 uv run --frozen alembic upgrade head
 
     api-client:
-        desc: Regenerate the collector's disktracker API client from the backend's OpenAPI spec
+        desc: Regenerate the collector's API client and the frontend's API types from the backend's OpenAPI spec
         dir: '{{.TASKFILE_DIR}}'
         cmds:
             - scripts/generate-api-client.sh
-
-    source-kinds:
-        desc: Regenerate the backend's description of the kinds of source from the collector's readers
-        dir: '{{.TASKFILE_DIR}}'
-        cmds:
-            - scripts/generate-source-kinds.sh
 
     dev:
         desc: Start the local frontend and backend (and, with COLLECTOR=1, the collector); Ctrl-C stops them
@@ -47,7 +41,7 @@ tasks:
                 if [ "${COLLECTOR:-}" = "1" ]; then
                     export DISKTRACKER_COLLECTOR_URL='http://127.0.0.1:{{.COLLECTOR_PORT}}'
                 fi
-                exec uv run --frozen uvicorn disktracker.main:app --host 127.0.0.1 --port '{{.API_PORT}}'
+                exec uv run --frozen uvicorn disktracker.main:create_app --factory --host 127.0.0.1 --port '{{.API_PORT}}'
 
     dev:collector:
         internal: true
