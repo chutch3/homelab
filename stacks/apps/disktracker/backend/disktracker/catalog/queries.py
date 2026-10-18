@@ -20,9 +20,7 @@ from disktracker.catalog.models import (
     Offer,
     Price,
     ReviewItem,
-    ScrapedMatch,
 )
-from disktracker.catalog.rules import recorded_doubt
 from disktracker.catalog.schemas import DriveQuery, DriveScope
 from disktracker.catalog.views import drive_view, price_view, review_item_view, summary_view
 from disktracker.collection.models import Source
@@ -272,8 +270,13 @@ def _latest() -> Any:
     )
 
 
+# The one rule for what counts in a ranking, a distribution or a trend: every offer but those held
+# while a person settles what their page is (catalog.models.Offer.held_reason).
+COUNTED = Offer.held_reason.is_(None)
+
+
 def offer_facts() -> Select[Any]:
-    """One row for each offer: what it is filtered, grouped and ordered by. Its total and
+    """One row for each offer that counts (COUNTED): what it is filtered, grouped and ordered by. Its total and
     total per terabyte are as its latest price gives them, to the cent; it was checked when it
     was last priced, or later; its names are its title, MPN, its drive's other MPNs and who sells
     it, as search reads them."""
@@ -312,6 +315,7 @@ def offer_facts() -> Select[Any]:
         .join(Drive, Drive.id == Offer.drive_id)
         .join(Source, Source.key == Offer.store)
         .outerjoin(aliases, aliases.c.drive_id == Offer.drive_id)
+        .where(COUNTED)
     )
 
 
@@ -361,50 +365,24 @@ def scope_filters(facts: Any, query: DriveScope) -> list[ColumnElement[bool]]:
     return wanted
 
 
-def decided_pages(session: Session) -> set[tuple[str, str]]:
-    """The store pages a person has said are a drive, as (store, url)."""
-    decided = select(ScrapedMatch.store, ScrapedMatch.url).where(ScrapedMatch.ignored.is_(False))
-    return set(session.execute(decided).tuples())
-
-
 def _lowest(
     session: Session, matching: Any, now: datetime, recent_days: int
 ) -> dict[str, list[str]]:
     """The offers with the lowest total, and the lowest total per terabyte, among those that
-    match, in stock and checked recently, and are not doubted (catalog.rules.recorded_doubt):
-    read cheapest first, past any that are, which are few."""
-    eligible = (
-        select(matching, Offer.title, Offer.url, Offer.mpn)
-        .join(Offer, Offer.id == matching.c.id)
-        .where(
-            matching.c.in_stock.is_(True),
-            matching.c.checked <= now,
-            matching.c.checked >= now - timedelta(days=recent_days),
-        )
-        .execution_options(yield_per=100)
+    match, in stock and checked recently."""
+    eligible = select(matching).where(
+        matching.c.in_stock.is_(True),
+        matching.c.checked <= now,
+        matching.c.checked >= now - timedelta(days=recent_days),
     )
-    decided = decided_pages(session)
 
     def least(name: str) -> list[str]:
-        value, ids = None, []
-        rows = session.execute(eligible.order_by(matching.c[name], matching.c.id))
-        try:
-            for row in rows:
-                if value is not None and getattr(row, name) != value:
-                    break
-                doubted = recorded_doubt(
-                    row.title,
-                    row.capacity_gb,
-                    row.mpn,
-                    row.provenance,
-                    (row.store, row.url) in decided,
-                )
-                if not doubted:
-                    value = getattr(row, name)
-                    ids.append(str(row.id))
-        finally:
-            rows.close()
-        return sorted(ids)
+        chosen = eligible.subquery()
+        lowest = select(func.min(chosen.c[name])).scalar_subquery()
+        return sorted(
+            str(offer_id)
+            for offer_id in session.scalars(select(chosen.c.id).where(chosen.c[name] == lowest))
+        )
 
     return {"total": least("total"), "unit": least("per_tb")}
 
@@ -531,7 +509,6 @@ def _summaries(session: Session, chosen: Select[Any]) -> list[dict[str, Any]]:
         drive.id: drive for drive in session.scalars(select(Drive).where(Drive.id.in_(drive_ids)))
     }
     names = dict(session.execute(select(Source.key, Source.name)).tuples().all())
-    decided = decided_pages(session)
     aliases: dict[UUID, list[str]] = {}
     for alias in session.scalars(
         select(MpnAlias).where(MpnAlias.drive_id.in_(drive_ids)).order_by(MpnAlias.alias)
@@ -544,13 +521,7 @@ def _summaries(session: Session, chosen: Select[Any]) -> list[dict[str, Any]]:
             aliases.get(offer.drive_id, []),
             latest[offer.id],
             names[offer.store],
-            recorded_doubt(
-                offer.title,
-                drives[offer.drive_id].capacity_gb,
-                offer.mpn,
-                latest[offer.id].provenance,
-                (offer.store, offer.url) in decided,
-            ),
+            offer.held_reason,
         )
         for offer in offers
     ]

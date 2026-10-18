@@ -688,7 +688,12 @@ def test_scraped_offers_that_cannot_be_matched_wait_in_the_review_queue(database
         post(
             client,
             "/api/prices",
-            scraped_payload(url=base + "wrong-capacity", seller="x", capacity_gb=20000),
+            scraped_payload(
+                url=base + "wrong-capacity",
+                seller="x",
+                capacity_gb=20000,
+                title="Seagate Exos X18 ST18000NM000J 20TB",
+            ),
         )
         post(
             client,
@@ -714,6 +719,61 @@ def test_scraped_offers_that_cannot_be_matched_wait_in_the_review_queue(database
         assert len(client.get("/api/offers").json()) == 1
 
 
+def test_an_offer_whose_page_comes_to_be_doubted_is_held_out_of_every_report_until_settled(
+    database_url: str,
+) -> None:
+    """Recorded, then read again as several drives: it waits for a person, and until then it is
+    in no ranking, no distribution and no trend, though it and its prices are kept and listed
+    where offers are managed. Said to be what it was, it counts again."""
+    now = datetime.now(UTC)
+    page = scraped_payload(url="https://www.serverpartdeals.com/products/exos")
+    with TestClient(create_app()) as client:
+        for days, item in ((40.5, 37999), (0.001, 36999)):
+            recorded = post(
+                client,
+                "/api/prices",
+                {
+                    **page,
+                    "item_price_cents": item,
+                    "observed_at": (now - timedelta(days=days)).isoformat(),
+                },
+            )
+            assert recorded.status_code == 201, recorded.text
+        offer_id = recorded.json()["offer_id"]
+
+        def reports() -> dict[str, Any]:
+            return {
+                "drives": client.get("/api/drives").json()["total"],
+                "lowest": client.get("/api/drives").json()["lowest"]["unit"],
+                "today": len(client.get("/api/reports/prices-today").json()),
+                "trend": client.get("/api/trends", params={"days": 30}).json()["market"]["counted"],
+            }
+
+        counted = reports()
+        queued = post(client, "/api/prices", {
+            **page, "title": "Seagate Exos X18 ST18000NM000J 18TB Recertified 4-pack",
+            "observed_at": now.isoformat(),
+        })  # fmt: skip
+        held = reports()
+        managed = {o["id"]: o["doubt"] for o in client.get("/api/offers").json()}
+        kept = len(client.get(f"/api/offers/{offer_id}").json()["observations"])
+        decided = client.put(
+            f"/api/review-items/{queued.json()['review_item_id']}/decision",
+            json={"decision": "match", "mpn": "ST18000NM000J",
+                  "condition": "manufacturer_recertified", "capacity_gb": 18000},
+        )  # fmt: skip
+        settled = reports()
+        managed_after = {o["id"]: o["doubt"] for o in client.get("/api/offers").json()}
+
+    assert counted == {"drives": 1, "lowest": [offer_id], "today": 1, "trend": 1}
+    assert queued.json()["status"] == "queued"
+    assert held == {"drives": 0, "lowest": [], "today": 0, "trend": 0}
+    assert (managed, kept) == ({offer_id: "not_a_single_drive"}, 2)
+    assert (decided.status_code, decided.json()["offer_id"]) == (200, offer_id)
+    assert settled == counted
+    assert managed_after == {offer_id: None}
+
+
 def test_a_collected_offer_no_single_drive_could_be_waits_for_a_person_to_say_what_it_is(
     database_url: str,
 ) -> None:
@@ -728,8 +788,13 @@ def test_a_collected_offer_no_single_drive_could_be_waits_for_a_person_to_say_wh
         url=base + "kioxia", mpn="KPM7XVUG960G", title="Kioxia KPM7XVUG960G 960TB SAS Read Intensive",
         capacity_gb=960000,
     )  # fmt: skip
+    # Under any ceiling, but its own title, read past its part number, says 3.2TB.
+    misread = scraped_payload(
+        url=base + "misread", mpn="P09094-H21", condition="refurbished",
+        title="HPE P09094-H213.2TB SAS 12GBPS Smart Carrier", capacity_gb=213200,
+    )  # fmt: skip
     with TestClient(create_app()) as client:
-        queued = [post(client, "/api/prices", entry) for entry in (bundle, huge)]
+        queued = [post(client, "/api/prices", entry) for entry in (bundle, huge, misread)]
         queue = {item["url"]: item["reason"] for item in client.get("/api/review-items").json()}
         # A person says what the second one is: a 960 GB drive.
         decided = client.put(
@@ -745,8 +810,12 @@ def test_a_collected_offer_no_single_drive_could_be_waits_for_a_person_to_say_wh
             price_payload(mpn="R0P90A", title="HPE R0P90A 48TB (8x6) 6-pack", capacity_gb=48000),
         )
 
-    assert [answer.json()["status"] for answer in queued] == ["queued", "queued"]
-    assert queue == {base + "bundle": "not_a_single_drive", base + "kioxia": "implausible_capacity"}
+    assert [answer.json()["status"] for answer in queued] == ["queued"] * 3
+    assert queue == {
+        base + "bundle": "not_a_single_drive",
+        base + "kioxia": "implausible_capacity",
+        base + "misread": "implausible_capacity",
+    }
     assert decided.status_code == 200, decided.text
     assert (later.status_code, later.json()["status"]) == (201, "recorded")
     assert entered.status_code == 201, entered.text
@@ -884,7 +953,11 @@ def test_a_scraped_offer_can_declare_other_mpns_for_its_drive(database_url: str)
             client,
             "/api/prices",
             scraped_payload(
-                url=base + "dell-g14", mpn="0HNHWC", capacity_gb=16000, condition="new"
+                url=base + "dell-g14",
+                mpn="0HNHWC",
+                capacity_gb=16000,
+                condition="new",
+                title="Dell 0HNHWC 16TB SAS",
             ),
         ).json()
         maker = post(
@@ -893,6 +966,7 @@ def test_a_scraped_offer_can_declare_other_mpns_for_its_drive(database_url: str)
             scraped_payload(
                 url=base + "bare",
                 mpn="WUH721816AL5205",
+                title="WD Ultrastar WUH721816AL5205 16TB",
                 aliases=["0hnhwc"],
                 capacity_gb=16000,
                 condition="refurbished",
@@ -908,6 +982,7 @@ def test_a_scraped_offer_can_declare_other_mpns_for_its_drive(database_url: str)
             scraped_payload(
                 url=base + "bare",
                 mpn="WUH721816AL5205",
+                title="WD Ultrastar WUH721816AL5205 16TB",
                 aliases=["0HNHWC"],
                 capacity_gb=16000,
                 condition="refurbished",
@@ -922,7 +997,11 @@ def test_a_scraped_offer_can_declare_other_mpns_for_its_drive(database_url: str)
                 client,
                 "/api/prices",
                 scraped_payload(
-                    url=base + "dell-g13", mpn="0HNHWC", capacity_gb=16000, condition="used"
+                    url=base + "dell-g13",
+                    mpn="0HNHWC",
+                    capacity_gb=16000,
+                    condition="used",
+                    title="Dell 0HNHWC 16TB SAS",
                 ),
             ),
         )
@@ -947,6 +1026,7 @@ def test_a_scraped_alias_already_claimed_by_another_drive_is_left_for_a_person(
             scraped_payload(
                 url="https://www.serverpartdeals.com/products/other",
                 mpn="ST16000NM000J",
+                title="Seagate Exos ST16000NM000J 16TB",
                 aliases=["0XYZ"],
                 capacity_gb=16000,
             ),
@@ -1050,7 +1130,12 @@ def test_a_scraped_offer_names_its_drive_s_brand_until_one_is_known(database_url
         unnamed = post(
             client,
             "/api/prices",
-            scraped_payload(mpn="WD120EFBX", capacity_gb=12000, url="https://spd.test/wd"),
+            scraped_payload(
+                mpn="WD120EFBX",
+                capacity_gb=12000,
+                url="https://spd.test/wd",
+                title="WD Red Plus WD120EFBX 12TB",
+            ),
         )
         brands = {o["mpn"]: o["drive"]["brand"] for o in client.get("/api/offers").json()}
         too_long = post(client, "/api/prices", scraped_payload(brand="x" * 61))

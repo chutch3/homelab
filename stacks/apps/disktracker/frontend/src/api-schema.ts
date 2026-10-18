@@ -1084,7 +1084,7 @@ export interface components {
             condition: "new" | "manufacturer_recertified" | "refurbished" | "used";
             /**
              * Doubt
-             * @description Why it may not be one drive of its drive's capacity, collected before that was checked; null when nothing is doubted. A doubted offer is never the lowest.
+             * @description Why it is held while a person settles what its page is: it may not be one drive of its drive's capacity. Held, it counts in no ranking, no prices today and no trend; null when it is not held.
              */
             doubt: ("not_a_single_drive" | "implausible_capacity") | null;
             drive: components["schemas"]["Drive"];
@@ -1138,7 +1138,7 @@ export interface components {
             condition: "new" | "manufacturer_recertified" | "refurbished" | "used";
             /**
              * Doubt
-             * @description Why it may not be one drive of its drive's capacity, collected before that was checked; null when nothing is doubted. A doubted offer is never the lowest.
+             * @description Why it is held while a person settles what its page is: it may not be one drive of its drive's capacity. Held, it counts in no ranking, no prices today and no trend; null when it is not held.
              */
             doubt: ("not_a_single_drive" | "implausible_capacity") | null;
             drive: components["schemas"]["Drive"];

@@ -11,8 +11,7 @@ from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.orm import Session
 
 from disktracker.catalog.models import Drive, Offer, Price
-from disktracker.catalog.queries import decided_pages, offer_facts, scope_filters
-from disktracker.catalog.rules import recorded_doubt
+from disktracker.catalog.queries import COUNTED, offer_facts, scope_filters
 from disktracker.catalog.schemas import DriveScope
 from disktracker.database import SessionFactory
 from disktracker.reporting.models import Trend, TrendRevision
@@ -55,8 +54,8 @@ class ReportingRepository:
             return Changes(_price_changes(session, scope), _revision(session))
 
     def latest_offers(self, scope: DriveScope) -> list[dict[str, Any]]:
-        """Every offer of the drives in scope with its latest price and its drive's capacity:
-        what today's prices are read from. An offer is checked whenever a price is recorded for
+        """Every offer that counts (catalog.queries.COUNTED) of the drives in scope with its latest
+        price and its drive's capacity: what today's prices are read from. An offer is checked whenever a price is recorded for
         it."""
         latest = (
             select(Price)
@@ -74,13 +73,11 @@ class ReportingRepository:
                     latest.c.item_price_cents,
                     latest.c.in_stock,
                     latest.c.observed_at,
-                    latest.c.acquisition_method,
                 )
                 .join(Drive, Drive.id == Offer.drive_id)
                 .join(latest, latest.c.listing_id == Offer.id)
-                .where(*_in_scope(scope))
+                .where(COUNTED, *_in_scope(scope))
             ).tuples()
-            decided = decided_pages(session)
             return [
                 {
                     "id": offer.id,
@@ -91,16 +88,8 @@ class ReportingRepository:
                     "item_price_cents": item_price_cents,
                     "in_stock": in_stock,
                     "last_checked_at": max(observed_at, offer.last_checked_at or observed_at),
-                    "doubted": recorded_doubt(
-                        offer.title,
-                        capacity_gb,
-                        offer.mpn,
-                        provenance,
-                        (offer.store, offer.url) in decided,
-                    )
-                    is not None,
                 }
-                for offer, capacity_gb, item_price_cents, in_stock, observed_at, provenance in rows
+                for offer, capacity_gb, item_price_cents, in_stock, observed_at in rows
             ]
 
     def keep_trend(
@@ -140,7 +129,7 @@ def _in_scope(scope: DriveScope) -> list[Any]:
 
 def _price_changes(session: Session, scope: DriveScope) -> list[Sold]:
     changes: dict[UUID, list[Change]] = {}
-    chosen = select(Offer.id).where(*_in_scope(scope))
+    chosen = select(Offer.id).where(COUNTED, *_in_scope(scope))
     for offer_id, observed_at, item_price_cents, in_stock in session.execute(
         select(Price.offer_id, Price.observed_at, Price.item_price_cents, Price.in_stock)
         .where(Price.offer_id.in_(chosen))
@@ -150,7 +139,7 @@ def _price_changes(session: Session, scope: DriveScope) -> list[Sold]:
     offers = session.execute(
         select(Offer, Drive.capacity_gb)
         .join(Drive, Drive.id == Offer.drive_id)
-        .where(*_in_scope(scope))
+        .where(COUNTED, *_in_scope(scope))
     ).tuples()
     return [
         Sold(

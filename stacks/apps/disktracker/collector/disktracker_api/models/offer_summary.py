@@ -35,8 +35,9 @@ class OfferSummary:
         Attributes:
             capacity_gb (int):
             condition (OfferSummaryCondition):
-            doubt (None | OfferSummaryDoubtType0): Why it may not be one drive of its drive's capacity, collected before
-                that was checked; null when nothing is doubted. A doubted offer is never the lowest.
+            doubt (None | OfferSummaryDoubtType0): Why it is held while a person settles what its page is: it may not be one
+                drive of its drive's capacity. Held, it counts in no ranking, no prices today and no trend; null when it is not
+                held.
             drive (Drive):
             id (UUID):
             last_checked_at (datetime.datetime):

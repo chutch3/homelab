@@ -22,7 +22,6 @@ from disktracker.catalog.rules import (
     preview_verdict,
     queue_reason,
     queued_fields,
-    recorded_doubt,
     replayed,
     source_key,
     unchanged,
@@ -197,9 +196,17 @@ def scraped(**fields: Any) -> dict[str, Any]:
         (scraped(mpn=None), 18000, ("review", "missing_mpn")),
         (scraped(condition=None), 18000, ("review", "missing_condition")),
         (scraped(capacity_gb=None), None, ("review", "missing_capacity")),
-        (scraped(capacity_gb=20000), 18000, ("review", "capacity_conflict")),
+        (
+            scraped(capacity_gb=20000, title="Seagate Exos ST18000NM000J 20TB"),
+            18000,
+            ("review", "capacity_conflict"),
+        ),
         (scraped(in_stock=False), 18000, ("ignored", "sold_out")),
-        (scraped(capacity_gb=20000), None, ("recorded", None)),
+        (
+            scraped(capacity_gb=20000, title="Seagate Exos ST18000NM000J 20TB"),
+            None,
+            ("recorded", None),
+        ),
         (scraped(), 18000, ("recorded", None)),
         # A drive's capacity is known, so the offer need not say it.
         (scraped(capacity_gb=None), 18000, ("recorded", None)),
@@ -366,20 +373,10 @@ class TestDoubt:
         assert doubt(title, 256000) is None
         assert doubt(title, None) is None
 
-    def test_a_recorded_offer_is_doubted_as_it_would_be_collected_now(self) -> None:
-        """Unless a person entered it, or has said what its page is."""
-        bundle = "HPE R0P90A 48TB (8x6) 6-pack"
-
-        assert recorded_doubt(bundle, 48000, "R0P90A", "collected", decided=False) == (
-            "not_a_single_drive"
-        )
-        assert recorded_doubt(bundle, 48000, "R0P90A", "manual", decided=False) is None
-        assert recorded_doubt(bundle, 48000, "R0P90A", "collected", decided=True) is None
-
     @pytest.mark.parametrize(
         ("title", "capacity_gb", "mpn", "doubted"),
         [
-            # Read as 213.2 TB before part numbers were read past.
+            # Read as 213.2 TB, a part number run into its capacity.
             ("HPE P09094-H213.2TB SAS 12GBPS Smart Carrier", 213200, "P09094-H21", True),
             ("Samsung MZ-ILT30TB 30.72TB SAS 12GBPS", 30000, "MZ-ILT30TB", True),
             ("HPE P09094-H213.2TB SAS 12GBPS Smart Carrier", 3200, "P09094-H21", False),
@@ -387,8 +384,8 @@ class TestDoubt:
             ("HPE P09094-H21 Smart Carrier", 213200, "P09094-H21", False),
         ],
     )
-    def test_a_recorded_capacity_its_own_title_reads_otherwise_is_doubted(
+    def test_a_capacity_its_own_title_reads_otherwise_is_doubted(
         self, title: str, capacity_gb: int, mpn: str, doubted: bool
     ) -> None:
-        found = recorded_doubt(title, capacity_gb, mpn, "collected", decided=False)
+        found = doubt(title, capacity_gb, mpn)
         assert found == ("implausible_capacity" if doubted else None)

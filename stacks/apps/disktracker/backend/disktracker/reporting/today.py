@@ -9,8 +9,7 @@ def marks(offers: list[dict[str, Any]], now: datetime, recent_days: int) -> list
     """offers: each offer's drive, condition, title, capacity, latest item price, whether it is
     in stock, and when it was last checked. Shipping is left out, as it is from every chart. The
     cheapest mark of an offer checked within recent_days is the lowest; one unchecked for longer
-    is placed but cannot be lowest, and nor can one doubted: one whose title or capacity says it
-    may not be one drive of that size."""
+    is placed but cannot be lowest. Offers held for a person to settle are not among them."""
 
     def per_tb(offer: dict[str, Any]) -> float:
         return float(offer["item_price_cents"] * 1000 / offer["capacity_gb"])
@@ -25,11 +24,7 @@ def marks(offers: list[dict[str, Any]], now: datetime, recent_days: int) -> list
     placed = sorted(cheapest.values(), key=lambda offer: (per_tb(offer), str(offer["id"])))
     recent = timedelta(days=recent_days)
     lowest = next(
-        (
-            offer
-            for offer in placed
-            if timedelta(0) <= now - offer["last_checked_at"] <= recent and not offer["doubted"]
-        ),
+        (offer for offer in placed if timedelta(0) <= now - offer["last_checked_at"] <= recent),
         None,
     )
     return [

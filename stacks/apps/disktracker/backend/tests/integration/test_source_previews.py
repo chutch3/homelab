@@ -145,7 +145,9 @@ def test_the_verdict_weighs_the_offer_against_the_drive_disktracker_knows(
 ) -> None:
     """Every verdict is the catalog rules' (tests/unit/catalog/test_rules.py); this is the one
     that needs the drive as disktracker has it."""
-    collector.finds(**{**OFFER, "capacity_gb": 20000})
+    collector.finds(
+        **{**OFFER, "capacity_gb": 20000, "title": "Seagate Exos X18 ST18000NM000J 20TB"}
+    )
     with TestClient(create_app()) as client:
         # ST18000NM000J is a drive disktracker already knows, at 18 TB.
         client.post(

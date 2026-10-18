@@ -39,6 +39,9 @@ class Offer(Base):
     condition: Mapped[str] = mapped_column(String(40))
     drive_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("drives.id"))
     last_checked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # Why it is held out of every ranking, distribution and trend (its page's doubt, as
+    # catalog.rules.doubt says) until a person settles what its page is; None for none.
+    held_reason: Mapped[str | None] = mapped_column(String(40))
 
 
 class Price(Base):

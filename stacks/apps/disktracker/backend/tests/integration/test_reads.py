@@ -8,7 +8,6 @@ from uuid import uuid4
 
 from fastapi.testclient import TestClient
 from test_api import post, price_payload, scraped_payload
-from test_persistence import run_sql
 
 from disktracker.main import create_app
 
@@ -369,66 +368,3 @@ def test_a_drive_is_read_with_the_range_of_its_price_in_each_condition_over_the_
     }  # fmt: skip
     # Ninety days unless asked: the offer is newer than that.
     assert default["ranges"]["new"]["days"] == 40
-
-
-def test_an_offer_recorded_before_it_would_be_doubted_says_so_and_is_never_the_lowest(
-    database_url: str,
-) -> None:
-    """Offers collected before titles and capacities were doubted (tests/unit/catalog/
-    test_rules.py) stay recorded: each says why it is doubted, and none is the lowest, until a
-    person says what it is. One entered by hand is as the person entered it."""
-    base = "https://www.serverorbit.com/products/"
-    with TestClient(create_app()) as client:
-
-        def collected(name: str, **fields: Any) -> str:
-            answer = post(client, "/api/prices", scraped_payload(
-                url=base + name, store="serverpartdeals", observed_at=ago(0.01), **fields))  # fmt: skip
-            assert answer.status_code == 201, answer.text
-            offer_id: str = answer.json()["offer_id"]
-            return offer_id
-
-        plain = collected("plain", item_price_cents=18000)
-        huge = collected("huge", mpn="KPM7XVUG960G", title="Kioxia KPM7XVUG960G 960GB SAS",
-                         capacity_gb=960, condition="new", item_price_cents=114000)  # fmt: skip
-        bundle = collected("bundle", mpn="R0P90A", title="HPE R0P90A SAS", capacity_gb=6000,
-                           condition="refurbished", item_price_cents=9000)  # fmt: skip
-        # Under any ceiling, but its own title says 3.2TB.
-        misread = collected("misread", mpn="P09094-H21", condition="refurbished",
-                            title="HPE P09094-H213.2TB SAS 12GBPS Smart Carrier",
-                            capacity_gb=213200, item_price_cents=7450)  # fmt: skip
-        entered = record(client, mpn="R0Q67A", title="HPE R0Q67A 14.4TB (2.4TB x6)",
-                         capacity_gb=14400, item_price_cents=150000)  # fmt: skip
-        # As they were read before: the store's 960TB, and the bundle's own title.
-        run_sql(database_url, "UPDATE drives SET capacity_gb = 960000 WHERE mpn = 'KPM7XVUG960G'")
-        run_sql(database_url, "UPDATE listings SET title = 'HPE R0P90A 48TB (8x6) 6-pack' "
-                "WHERE id = :id", id=bundle)  # fmt: skip
-
-        def doubts() -> dict[str, str | None]:
-            return {offer["id"]: offer["doubt"] for offer in client.get("/api/offers").json()}
-
-        before = doubts()
-        lowest = client.get("/api/drives").json()["lowest"]
-        marks = client.get("/api/reports/prices-today").json()
-        # A person says the bundle is what it is, when it is next collected.
-        queued = post(client, "/api/prices", scraped_payload(
-            url=base + "bundle", store="serverpartdeals", mpn="R0P90A",
-            title="HPE R0P90A 48TB (8x6) 6-pack", capacity_gb=6000, condition="refurbished",
-            item_price_cents=9000, observed_at=ago(0.005)))  # fmt: skip
-        client.put(
-            f"/api/review-items/{queued.json()['review_item_id']}/decision",
-            json={"decision": "match", "mpn": "R0P90A", "condition": "refurbished",
-                  "capacity_gb": 6000},
-        )  # fmt: skip
-        after = doubts()
-        lowest_after = client.get("/api/drives").json()["lowest"]
-
-    assert before == {
-        misread: "implausible_capacity",
-        plain: None, huge: "implausible_capacity", bundle: "not_a_single_drive", entered: None,
-    }  # fmt: skip
-    assert lowest == {"total": [plain], "unit": [plain]}
-    assert [mark["drive_id"] for mark in marks if mark["lowest"]] == [
-        next(m["drive_id"] for m in marks if m["title"] == "Seagate Exos X18 ST18000NM000J 18TB Recertified")
-    ]  # fmt: skip
-    assert after[bundle] is None
-    assert lowest_after == {"total": [bundle], "unit": [plain]}

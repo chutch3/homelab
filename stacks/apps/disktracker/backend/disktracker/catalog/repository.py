@@ -103,8 +103,21 @@ class CatalogRepository:
             return {"status": "ignored"}
         reason = missing_detail(identity["mpn"], identity["condition"])
         if reason is None and collected and decided is None:
-            # What a person has said an offer is, or entered, is taken as said.
-            reason = doubt(entry.title, entry.capacity_gb)
+            # What a person has said an offer is, or entered, is taken as said. Its capacity is
+            # what it is recorded under: the offer's, or else its drive's.
+            capacity = entry.capacity_gb or session.scalar(
+                select(Drive.capacity_gb).where(
+                    Drive.mpn == canonical_mpn(session, identity["mpn"])
+                )
+            )
+            reason = doubt(entry.title, capacity, identity["mpn"])
+            if reason is not None and entry.url is not None:
+                # What was recorded of its page counts for nothing until a person settles it.
+                session.execute(
+                    update(Offer)
+                    .where(Offer.store == identity["store"], Offer.url == str(entry.url))
+                    .values(held_reason=reason)
+                )
         if reason is not None:
             return self._queue(session, entry, identity, price, reason)
         try:
@@ -164,6 +177,12 @@ class CatalogRepository:
         drive_id = self._resolve_drive(session, mpn, capacity_gb)
         offer_id = self._ensure_offer(
             session, {**identity, "mpn": mpn}, drive_id, title or mpn, url
+        )
+        # Recorded, it is not in doubt: read without doubt, or settled by a person.
+        session.execute(
+            update(Offer)
+            .where(Offer.id == offer_id, Offer.held_reason.is_not(None))
+            .values(held_reason=None)
         )
         entered_at = self.now()
         observed_at = price["observed_at"] or entered_at

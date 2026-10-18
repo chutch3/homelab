@@ -12,7 +12,7 @@ NOW = datetime(2026, 9, 22, 12, tzinfo=UTC)
 def today_offer(name: str, drive: str, cents: int, **fields: Any) -> dict[str, Any]:
     return {"id": name, "drive_id": drive, "condition": "new", "title": name,
             "capacity_gb": 18000, "item_price_cents": cents, "in_stock": True,
-            "last_checked_at": NOW, "doubted": False, **fields}  # fmt: skip
+            "last_checked_at": NOW, **fields}  # fmt: skip
 
 
 def test_today_has_one_mark_for_each_condition_a_drive_is_in_stock_in_cheapest_first() -> None:
@@ -55,17 +55,3 @@ def test_today_leaves_out_what_is_sold_out_and_never_calls_an_unchecked_offer_lo
         ("Fresh", 1000, True),
     ]
     assert marks([], NOW, 7) == []
-
-
-def test_a_doubted_offer_is_placed_but_never_called_the_lowest() -> None:
-    """One whose title or capacity says it may not be one drive of that size."""
-    found = marks(
-        [today_offer("bundle", "a", 9000, doubted=True), today_offer("drive", "b", 18000)],
-        NOW,
-        7,
-    )
-
-    assert [(mark["title"], mark["lowest"]) for mark in found] == [
-        ("bundle", False),
-        ("drive", True),
-    ]

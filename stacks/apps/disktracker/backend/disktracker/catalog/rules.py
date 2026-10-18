@@ -104,29 +104,21 @@ NOT_ONE_DRIVE_PATTERNS = (
 NOT_ONE_DRIVE = re.compile("|".join(NOT_ONE_DRIVE_PATTERNS), re.IGNORECASE)
 
 
-def doubt(title: str | None, capacity_gb: int | None) -> str | None:
+def doubt(title: str | None, capacity_gb: int | None, mpn: str | None = None) -> str | None:
     """Why a collected offer cannot be taken as one drive of the capacity it says, for a person
-    to settle: "not_a_single_drive" or "implausible_capacity"; None when nothing is doubted."""
+    to settle: "not_a_single_drive"; or "implausible_capacity", for more than any drive holds or
+    other than its own title says, read past its part number (one misread from a part number
+    run into its capacity); None when nothing is doubted."""
+    # Not one drive first: what the title of several says is all of them together.
     if title and NOT_ONE_DRIVE.search(title):
         return "not_a_single_drive"
-    if capacity_gb is not None and capacity_gb > MOST_A_DRIVE_HOLDS_GB:
+    if capacity_gb is None:
+        return None
+    if capacity_gb > MOST_A_DRIVE_HOLDS_GB:
+        return "implausible_capacity"
+    if title and mpn and capacity_in(title, mpn) not in (None, capacity_gb):
         return "implausible_capacity"
     return None
-
-
-def recorded_doubt(
-    title: str, capacity_gb: int, mpn: str, provenance: str, decided: bool
-) -> str | None:
-    """Why an offer already recorded is doubted: as it would be were it collected now, or for
-    a capacity its own title, read again, says otherwise (one misread before part numbers were
-    read past); None when it was entered by hand, or a person has said what its page is."""
-    if provenance != "collected" or decided:
-        return None
-    # Not one drive first: what the title of several says is all of them together.
-    found = doubt(title, capacity_gb)
-    if found is None and capacity_in(title, mpn) not in (None, capacity_gb):
-        return "implausible_capacity"
-    return found
 
 
 def preview_verdict(offer: Mapping[str, Any], drive_capacity: int | None) -> tuple[str, str | None]:
@@ -134,7 +126,7 @@ def preview_verdict(offer: Mapping[str, Any], drive_capacity: int | None) -> tup
     wait in the Review queue; or "ignored", when it is sold out and so has no price to record.
     drive_capacity is the capacity of the drive its MPN names, when disktracker knows it."""
     reason = missing_detail(offer["mpn"], offer["condition"]) or doubt(
-        offer["title"], offer["capacity_gb"]
+        offer["title"], offer["capacity_gb"], offer["mpn"]
     )
     if reason is not None:
         return "review", reason
