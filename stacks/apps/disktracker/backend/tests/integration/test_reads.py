@@ -460,3 +460,30 @@ def test_any_one_specification_known_is_specifications_enough(database_url: str)
         ).json()
 
     assert catalog_mpns(needing) == ["ST18000NM000J", "ST14000NM001G"]
+
+
+def test_how_fresh_each_stores_prices_are_is_reported_over_every_offer_it_has(
+    database_url: str,
+) -> None:
+    """How many offers each store has, held ones and all, when the latest was checked, and when
+    the middle one was (between the middle two, of an even number): stores with none are left
+    out."""
+    with TestClient(create_app()) as client:
+        catalogue(client)
+        record(
+            client, seller="Shop two", mpn="ST12000NM001G", capacity_gb=12000, observed_at=ago(10)
+        )
+        report = client.get("/api/reports/store-freshness").json()
+
+    at = {key: datetime.fromisoformat(value) for key, value in {
+        "now": ago(0.01), "between": ago(5.005)}.items()}  # fmt: skip
+    assert [
+        (row["store"], row["offers"], datetime.fromisoformat(row["latest_checked_at"]),
+         datetime.fromisoformat(row["median_checked_at"]))
+        for row in report
+    ] == [
+        ("goharddrive", 1, at["now"], at["now"]),
+        # Shop, the sold-out Exos X16, Old shop 20 days ago, Shop two 10 days ago.
+        ("other", 4, at["now"], at["between"]),
+        ("serverpartdeals", 1, at["now"], at["now"]),
+    ]  # fmt: skip

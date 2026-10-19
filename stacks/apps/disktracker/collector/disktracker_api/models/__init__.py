@@ -166,6 +166,7 @@ from .specifications_output_interface import SpecificationsOutputInterface
 from .specifications_output_media_type import SpecificationsOutputMediaType
 from .specifications_output_recording_type import SpecificationsOutputRecordingType
 from .store_fact import StoreFact
+from .store_freshness import StoreFreshness
 from .trend_part import TrendPart
 from .trend_point import TrendPoint
 from .trend_series import TrendSeries
@@ -341,6 +342,7 @@ __all__ = (
     "SpecificationsOutputMediaType",
     "SpecificationsOutputRecordingType",
     "StoreFact",
+    "StoreFreshness",
     "TrendPart",
     "TrendPoint",
     "Trends",

@@ -176,7 +176,11 @@ describe('Admin page', () => {
   it("shows each store's last collector run and how fresh its prices are", async () => {
     at('stores');
     const runs = [run('goharddrive', { status: 'failed', seen: 12, recorded: 12, queued: 0, rechecked: 0 }), run('serverpartdeals')];
-    renderApp({ listOffers: async () => catalogue(), latestRuns: async () => runs });
+    // How fresh each store's prices are, as the server reports it.
+    const fresh = (store: string, offers: number, latestDays: number, medianDays: number) =>
+      ({ store, offers, latest_checked_at: daysAgo(latestDays), median_checked_at: daysAgo(medianDays) });
+    const storeFreshness = vi.fn(async () => [fresh('goharddrive', 1, 0.01, 0.01), fresh('other', 3, 0.01, 0.02), fresh('serverpartdeals', 7, 1, 3)]);
+    renderApp({ listOffers: async () => catalogue(), latestRuns: async () => runs, storeFreshness });
     const table = within(await screen.findByRole('table', { name: 'Stores' }));
     expect(table.getAllByRole('columnheader').map(header => header.textContent))
       .toEqual(['Store', 'Collect', 'Schedule', 'Last run', 'Prices', 'Permission', 'Actions']);
@@ -192,11 +196,12 @@ describe('Admin page', () => {
     await waitFor(() => expect(cells('GoHardDrive')[3]).toBe(`✕ Failed${finished}12 recorded · 0 queued`));
     expect(cells('ServerPartDeals')[3]).toBe(`✓ Completed${finished}68 recorded · 2 queued`);
     expect(table.getByText('68 recorded · 2 queued')).toHaveAttribute('title', '70 seen · 68 recorded · 2 queued · 0 failed · 3 rechecked');
-    expect(cells('ServerPartDeals')[4]).toBe('2 offers' + 'median age 5d');
+    await waitFor(() => expect(cells('ServerPartDeals')[4]).toBe('7 offers' + 'median age 3d'));
+    expect(table.getByText('median age 3d')).toHaveAttribute('title', expect.stringMatching(/^Last checked /));
     expect(cells('GoHardDrive')[4]).toBe('1 offer' + 'median age <1h');
     expect(cells('Western Digital').slice(3, 5)).toEqual(['No run yet', '—']);
     // Other is entered by hand: nothing runs, but its prices still age.
-    expect(cells('Other').slice(3, 5)).toEqual(['—', '1 offer' + 'median age <1h']);
+    expect(cells('Other').slice(3, 5)).toEqual(['—', '3 offers' + 'median age <1h']);
   });
 
   it('says how many offers failed in a run that had failures', async () => {

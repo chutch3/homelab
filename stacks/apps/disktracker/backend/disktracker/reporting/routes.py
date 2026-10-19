@@ -6,7 +6,7 @@ from dependency_injector.wiring import Provide, inject
 from fastapi import APIRouter, Depends, Query
 
 from disktracker.container import Container
-from disktracker.reporting.schemas import PriceMark, TodayQuery, TrendQuery, Trends
+from disktracker.reporting.schemas import PriceMark, StoreFreshness, TodayQuery, TrendQuery, Trends
 from disktracker.reporting.service import ReportingService
 
 router = APIRouter(prefix="/api")
@@ -44,3 +44,17 @@ def prices_today(
     list) costs today in each condition it is in stock in, by item price per terabyte, cheapest
     first. recent_days: the lowest is the cheapest of those checked within it."""
     return reporting.prices_today(query.recent_days, query.scope())
+
+
+@router.get(
+    "/reports/store-freshness",
+    response_model=list[StoreFreshness],
+    tags=["Reports"],
+    summary="Read how fresh each store's prices are",
+)
+@inject
+def store_freshness(reporting: Reporting) -> list[dict[str, Any]]:
+    """Each store with offers, by key: how many offers it has, held for review or not, when the
+    latest of them was checked, and when the middle one was (between the middle two, of an even
+    number)."""
+    return reporting.store_freshness()

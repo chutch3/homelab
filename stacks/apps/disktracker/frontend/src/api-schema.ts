@@ -372,6 +372,28 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/reports/store-freshness": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read how fresh each store's prices are
+         * @description Each store with offers, by key: how many offers it has, held for review or not, when the
+         *     latest of them was checked, and when the middle one was (between the middle two, of an even
+         *     number).
+         */
+        get: operations["store_freshness"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/review-items": {
         parameters: {
             query?: never;
@@ -2546,6 +2568,28 @@ export interface components {
             /** Value */
             value: string;
         };
+        /**
+         * StoreFreshness
+         * @description How fresh a store's prices are: how many offers it has, held ones and all, when the latest
+         *     of them was checked, and when the middle one was (between the middle two, of an even
+         *     number).
+         */
+        StoreFreshness: {
+            /**
+             * Latest Checked At
+             * Format: date-time
+             */
+            latest_checked_at: string;
+            /**
+             * Median Checked At
+             * Format: date-time
+             */
+            median_checked_at: string;
+            /** Offers */
+            offers: number;
+            /** Store */
+            store: string;
+        };
         /** TrendPart */
         TrendPart: {
             /** Key */
@@ -3509,6 +3553,26 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    store_freshness: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StoreFreshness"][];
                 };
             };
         };

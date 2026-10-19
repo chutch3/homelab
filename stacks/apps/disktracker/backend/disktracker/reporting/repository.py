@@ -6,12 +6,12 @@ from datetime import UTC, datetime
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import select
+from sqlalchemy import extract, func, select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.orm import Session
 
 from disktracker.catalog.models import Drive, Offer, Price
-from disktracker.catalog.queries import COUNTED, offer_facts, scope_filters
+from disktracker.catalog.queries import COUNTED, every_offer_facts, offer_facts, scope_filters
 from disktracker.catalog.schemas import DriveScope
 from disktracker.database import SessionFactory
 from disktracker.reporting.models import Trend, TrendRevision
@@ -91,6 +91,24 @@ class ReportingRepository:
                 }
                 for offer, capacity_gb, item_price_cents, in_stock, observed_at in rows
             ]
+
+    def store_freshness(self) -> list[dict[str, Any]]:
+        """Each store with offers, by key: how many it has, held ones and all, and when the
+        latest and the middle of them were checked."""
+        facts = every_offer_facts().subquery()
+        middle = func.percentile_cont(0.5).within_group(extract("epoch", facts.c.checked))
+        with self.snapshot_factory() as session:
+            rows = session.execute(
+                select(
+                    facts.c.store,
+                    func.count().label("offers"),
+                    func.max(facts.c.checked).label("latest_checked_at"),
+                    func.to_timestamp(middle).label("median_checked_at"),
+                )
+                .group_by(facts.c.store)
+                .order_by(facts.c.store)
+            ).mappings()
+            return [dict(row) for row in rows]
 
     def keep_trend(
         self,

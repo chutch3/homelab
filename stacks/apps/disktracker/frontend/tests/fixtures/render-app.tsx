@@ -49,6 +49,8 @@ export function renderApp({ listOffers = async () => shoppingListings, reviewIte
     },
     prices: async request => pricesOf((await listOffers()).filter(ofDrive(request.driveId ?? '')), request),
     offersToRecheck: async () => [],
+    // No store has offers; a test that shows how fresh they are says what the server reports.
+    storeFreshness: async () => [],
     pricesToday: async () => [],
     ...overrides,
     listOffers: async () => (await listOffers()).map(({ observations: _history, ...summary }) => summary),

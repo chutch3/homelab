@@ -44,3 +44,7 @@ class ReportingService:
         """What each drive in scope costs today in each condition it is in stock in, by the
         terabyte, cheapest first."""
         return marks(self.repository.latest_offers(scope), self.now(), recent_days)
+
+    def store_freshness(self) -> list[dict[str, Any]]:
+        """How fresh each store's prices are."""
+        return self.repository.store_freshness()

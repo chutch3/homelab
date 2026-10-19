@@ -120,7 +120,7 @@ export function AdminView({ api, now, nextId, recentDays, storage, listings, toR
       </section>
     </div>
     <div hidden={tab !== 'stores'}>
-      <SourcesSection api={api} storage={storage} sources={stores} listings={listings} runs={runs} status={status} now={now}
+      <SourcesSection api={api} storage={storage} sources={stores} revision={revision} runs={runs} status={status} now={now}
         onChanged={async notice => { await Promise.all([onChanged(notice), refresh()]); }} />
     </div>
     <div hidden={tab !== 'rules'}>

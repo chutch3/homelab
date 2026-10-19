@@ -109,3 +109,14 @@ class PriceMark(Contract):
         description="Lowest in-stock item price per decimal TB, in US cents; shipping excluded."
     )
     lowest: bool
+
+
+class StoreFreshness(Contract):
+    """How fresh a store's prices are: how many offers it has, held ones and all, when the latest
+    of them was checked, and when the middle one was (between the middle two, of an even
+    number)."""
+
+    store: str
+    offers: int
+    latest_checked_at: datetime
+    median_checked_at: datetime

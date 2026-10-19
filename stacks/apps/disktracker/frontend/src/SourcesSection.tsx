@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Alert, Button, Group, Switch, Table, Text, VisuallyHidden } from '@mantine/core';
-import type { CollectorStatus, Run, DisktrackerApi, OfferSummary, Source, SourceBasis, SourceInput, SourceKindDescription } from './api';
-import { ageLabel, elapsedLabel, freshness } from './admin-overview';
+import type { CollectorStatus, Run, DisktrackerApi, Source, SourceBasis, SourceInput, SourceKindDescription, StoreFreshness } from './api';
+import { ageLabel, elapsedLabel } from './admin-overview';
 import { DeleteSourceDialog } from './DeleteSourceDialog';
 import { Pager } from './Pager';
 import { usePages, usePageSize } from './paging';
@@ -40,8 +40,10 @@ type Props = {
   api: DisktrackerApi; now: () => Date;
   /** Keeps how many stores a page shows between visits. */
   storage: Pick<Storage, 'getItem' | 'setItem'>;
-  /** Every store, loaded once by the app, and the offers recorded under them. */
-  sources: Source[]; listings: OfferSummary[];
+  /** Every store, loaded once by the app. */
+  sources: Source[];
+  /** Counts changes made anywhere: how fresh the stores' prices are is asked again after each. */
+  revision: number;
   /** Each collector's last run; null until they are loaded, or when they could not be. */
   runs: Run[] | null;
   /** What the collector is doing now; null until it is known. */
@@ -62,8 +64,16 @@ function runLabel(run: Run) {
   return <span className={`status ${tone}`}>{signs[tone]} {label}</span>;
 }
 
-export function SourcesSection({ api, sources, listings, runs, status, now, storage, onChanged }: Props) {
+export function SourcesSection({ api, sources, revision, runs, status, now, storage, onChanged }: Props) {
   const [perPage, setPerPage] = usePageSize(storage, 'stores');
+  /** How fresh each store's prices are, as the server reports it; none until it has. */
+  const [fresh, setFresh] = useState<StoreFreshness[]>([]);
+  useEffect(() => {
+    let active = true;
+    // Without it the stores are still shown, with no age for their prices.
+    api.storeFreshness().then(found => { if (active) setFresh(found); }).catch(() => {});
+    return () => { active = false; };
+  }, [api, revision]);
   const pages = usePages(sources, perPage);
   const [editing, setEditing] = useState<Source | 'new' | null>(null);
   const [deleting, setDeleting] = useState<Source | null>(null);
@@ -98,7 +108,6 @@ export function SourcesSection({ api, sources, listings, runs, status, now, stor
     } catch (err) { setError(err instanceof Error ? err.message : 'The store could not be asked to stop.'); }
   };
   const checkedAt = now();
-  const fresh = freshness(listings, checkedAt, sources);
   return <section aria-labelledby="sources-heading" className="admin-section">
     <Group justify="space-between" align="end" mb="xs">
       <div>
@@ -119,7 +128,7 @@ export function SourcesSection({ api, sources, listings, runs, status, now, stor
           const collected = kind?.collected ?? source.kind !== 'manual';
           const run = runs?.find(found => found.source === source.key);
           const progress = status?.running.find(found => found.source === source.key);
-          const prices = fresh.find(row => row.store.key === source.key);
+          const prices = fresh.find(row => row.store === source.key);
           // Whether it is collected, when, and how it last went sit together, after its name.
           return <Table.Tr key={source.id} id={`store-${source.key}`}>
             {/* How it is collected sits under its name: one column fewer to read across. */}
@@ -138,7 +147,7 @@ export function SourcesSection({ api, sources, listings, runs, status, now, stor
               {run.reason && <div className="run-reason">{run.reason}</div>}
             </>}</Table.Td>
             <Table.Td data-label="Prices">{prices ? <>{prices.offers} offer{prices.offers === 1 ? '' : 's'}
-              <div className="secondary" title={`Last checked ${dateLabel(prices.latest)}`}>median age {ageLabel(prices.medianAgeMs)}</div></> : '—'}</Table.Td>
+              <div className="secondary" title={`Last checked ${dateLabel(prices.latest_checked_at)}`}>median age {ageLabel(checkedAt.getTime() - Date.parse(prices.median_checked_at))}</div></> : '—'}</Table.Td>
             <Table.Td data-label="Permission">{collected ? <>{labelOf(sourceBases, source.basis)}
               {!source.obey_robots && <div className="secondary">Ignores robots.txt</div>}</> : '—'}</Table.Td>
             <Table.Td className="store-actions">{confirming === source.id

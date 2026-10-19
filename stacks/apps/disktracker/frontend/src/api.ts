@@ -81,6 +81,7 @@ export type PricePage = Schemas['PricePage'];
 export type PriceRequest = ({ driveId: string; offerId?: never } | { offerId: string; driveId?: never })
   & { since?: string; limit?: number; offset?: number };
 export type PriceMark = Schemas['PriceMark'];
+export type StoreFreshness = Schemas['StoreFreshness'];
 
 export interface DisktrackerApi {
   /** A page of the drives that match, with what is said of every match and the filter options of every drive. */
@@ -99,6 +100,8 @@ export interface DisktrackerApi {
   pricesToday(recentDays: number, scope: DriveScope): Promise<PriceMark[]>;
   /** Item prices across every drive over the days up to now, split when a split is asked for. */
   trends(days: number, by: TrendSplit | null, recentDays: number, scope: DriveScope): Promise<Trends>;
+  /** How fresh each store's prices are: its offers, and when the latest and the middle were checked. */
+  storeFreshness(): Promise<StoreFreshness[]>;
   /** The review queue, newest first, a page at a time. */
   reviewItems(query: PageRequest & ReviewFilter): Promise<Page<ReviewItem>>;
   decide(id: string, decision: ReviewDecision): Promise<DecisionResult>;
@@ -217,6 +220,7 @@ export class HttpDisktrackerApi implements DisktrackerApi {
     return this.send(`/offers/${id}`, undefined, undefined, 'DELETE');
   }
   listOffers(): Promise<OfferSummary[]> { return this.send('/offers'); }
+  storeFreshness(): Promise<StoreFreshness[]> { return this.send('/reports/store-freshness'); }
   drives(query: DriveQuery): Promise<DrivePage> { return this.send(`/drives?${searchOf(query)}`); }
   catalogDrives(query: CatalogDriveQuery): Promise<CatalogDrivePage> { return this.send(`/catalog-drives?${searchOf(query)}`); }
   drive(id: string, rangeDays: number, recentDays: number): Promise<DriveDetail> {
