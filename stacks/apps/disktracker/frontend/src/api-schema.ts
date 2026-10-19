@@ -163,7 +163,12 @@ export interface paths {
          */
         get: operations["list_drives"];
         put?: never;
-        post?: never;
+        /**
+         * Make a drive
+         * @description Make a drive before any price of it, under an MPN that no drive goes by, as its own MPN or
+         *     another of its MPNs. A drive already going by it is never merged with this one.
+         */
+        post: operations["create_drive"];
         delete?: never;
         options?: never;
         head?: never;
@@ -777,6 +782,23 @@ export interface components {
             capacity_gb?: number;
             /** Specifications */
             specifications?: components["schemas"]["SpecificationsEdit"];
+        };
+        /**
+         * DriveInput
+         * @description A drive made on its own, before any price of it: its MPN, which no drive may go by already,
+         *     its capacity, and what is known of it. Specifications left out are unknown.
+         */
+        DriveInput: {
+            /** Brand */
+            brand?: string | null;
+            /**
+             * Capacity Gb
+             * @description Capacity in decimal GB; 1 TB = 1,000 GB.
+             */
+            capacity_gb: number;
+            /** Mpn */
+            mpn: string;
+            specifications?: components["schemas"]["Specifications-Input"];
         };
         /** DriveIssueCounts */
         DriveIssueCounts: {
@@ -3005,6 +3027,48 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["DrivePage"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_drive: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DriveInput"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Drive"];
+                };
+            };
+            /** @description The MPN already identifies a drive */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
             /** @description Validation Error */

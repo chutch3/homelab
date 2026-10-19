@@ -7,6 +7,7 @@ from uuid import uuid4
 
 from dependency_injector import containers, providers
 
+from disktracker.catalog.drive_repository import DriveRepository
 from disktracker.catalog.queries import CatalogQueries
 from disktracker.catalog.repository import CatalogRepository
 from disktracker.catalog.service import CatalogService
@@ -49,6 +50,7 @@ class Container(containers.DeclarativeContainer):
     catalog_repository = providers.Factory(
         CatalogRepository, session_factory=database.provided.session, now=clock, next_id=next_id
     )
+    drive_repository = providers.Factory(DriveRepository, next_id=next_id)
     catalog_queries = providers.Factory(CatalogQueries, snapshot_factory=database.provided.snapshot)
     collection_repository = providers.Factory(
         CollectionRepository,
@@ -64,7 +66,12 @@ class Container(containers.DeclarativeContainer):
     collector_client = providers.Singleton(CollectorClient, url=config.collector_url)
 
     catalog_service = providers.Factory(
-        CatalogService, repository=catalog_repository, queries=catalog_queries, now=clock
+        CatalogService,
+        repository=catalog_repository,
+        queries=catalog_queries,
+        now=clock,
+        session_factory=database.provided.session,
+        drives=drive_repository,
     )
     collection_service = providers.Factory(
         CollectionService,

@@ -118,15 +118,17 @@ class CatalogQueries:
             }
 
     def catalog_drives(self, query: CatalogDriveQuery, now: datetime) -> dict[str, Any]:
-        """Every drive, held offers and all, that an offer of matches the words, a page of them:
-        one named by the words first, then in stock first and cheapest terabyte first, as each
-        is shown by its cheapest offer in stock (else its cheapest); each with how many offers it
-        has and what it needs, and how many of every drive need each thing."""
+        """Every drive, those with no offer and those with held offers too, that the words match
+        by its MPN, another of its MPNs, or any name an offer of it goes by: a page of them, one
+        named by the words first, then in stock first and cheapest terabyte first, as each is
+        shown by its cheapest offer in stock (else its cheapest), and a drive with no offer after
+        those with one, by MPN. Each comes with how many offers it has and what it needs, and how
+        many of every drive need each thing."""
         facts = every_offer_facts().subquery()
         by_drive = {"partition_by": facts.c.drive_id}
         named = named_by(facts, query.q) if query.q else true()
         stale = and_(facts.c.in_stock, facts.c.checked < now - timedelta(days=query.recent_days))
-        drives = (
+        ranked = (
             select(
                 facts,
                 func.row_number()
@@ -137,7 +139,29 @@ class CatalogQueries:
                 func.bool_or(named).over(**by_drive).label("named"),
             )
         ).subquery()
-        shown = select(drives).where(drives.c.rank == 1).subquery()
+        offered = select(ranked).where(ranked.c.rank == 1).subquery()
+        aliases = (
+            select(MpnAlias.drive_id, func.string_agg(MpnAlias.alias, " ").label("names"))
+            .group_by(MpnAlias.drive_id)
+            .subquery()
+        )
+        own_names = func.concat_ws(" ", Drive.mpn, aliases.c.names)
+        own = own_names.ilike(f"%{escaped(query.q)}%", escape="\\") if query.q else true()
+        shown = (
+            select(
+                Drive.id.label("drive_id"),
+                Drive.mpn,
+                Drive.specifications,
+                func.coalesce(offered.c.title, Drive.mpn).label("title"),
+                func.coalesce(offered.c.offers, 0).label("offers"),
+                func.coalesce(offered.c.stale, False).label("stale"),
+                func.coalesce(offered.c.in_stock, False).label("in_stock"),
+                offered.c.per_tb,
+                (func.coalesce(offered.c.named, False) | own).label("named"),
+            )
+            .outerjoin(offered, offered.c.drive_id == Drive.id)
+            .outerjoin(aliases, aliases.c.drive_id == Drive.id)
+        ).subquery()
         specs = shown.c.specifications
         unknown = and_(
             *(
@@ -168,7 +192,13 @@ class CatalogQueries:
             rows = session.execute(
                 select(shown, unknown.label("unknown"))
                 .where(*wanted)
-                .order_by(*first, shown.c.in_stock.desc(), shown.c.per_tb, shown.c.id)
+                .order_by(
+                    *first,
+                    shown.c.in_stock.desc(),
+                    shown.c.per_tb.asc().nulls_last(),
+                    shown.c.mpn,
+                    shown.c.drive_id,
+                )
                 .limit(query.limit)
                 .offset(query.offset)
             ).all()
@@ -432,10 +462,14 @@ def _filters(facts: Any, query: DriveQuery, now: datetime) -> list[ColumnElement
     return wanted
 
 
+def escaped(words: str) -> str:
+    """Words to look for as they are typed, in a LIKE pattern escaped with a backslash."""
+    return words.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+
+
 def named_by(facts: Any, words: str) -> ColumnElement[bool]:
     """Whether an offer (a row of offer_facts) goes by a name containing the words, as typed."""
-    escaped = words.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
-    return facts.c.names.ilike(f"%{escaped}%", escape="\\")
+    return facts.c.names.ilike(f"%{escaped(words)}%", escape="\\")
 
 
 def scope_filters(facts: Any, query: DriveScope) -> list[ColumnElement[bool]]:

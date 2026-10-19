@@ -1,6 +1,8 @@
 """The catalog's application behavior: recording prices, deciding what queued offers are,
 correcting drives and offers, and the condition rules. It applies what a request means and asks
-the repository for whole operations; it never opens a session or commits."""
+the repository for whole operations. An operation over several repositories opens one session,
+hands it to each, and commits once (the shared-session convention); the repositories never
+commit."""
 
 from collections.abc import Callable, Sequence
 from datetime import datetime, timedelta
@@ -8,12 +10,14 @@ from hashlib import sha256
 from typing import Any
 from uuid import UUID
 
+from disktracker.catalog.drive_repository import DriveRepository
 from disktracker.catalog.queries import CatalogQueries
 from disktracker.catalog.repository import CatalogRepository
 from disktracker.catalog.schemas import (
     CatalogDriveQuery,
     ConditionRule,
     DriveEdit,
+    DriveInput,
     DriveQuery,
     ObservationInput,
     OfferEdit,
@@ -23,14 +27,37 @@ from disktracker.catalog.schemas import (
     RangeQuery,
     ReviewDecision,
 )
+from disktracker.catalog.views import drive_view
+from disktracker.database import SessionFactory
 from disktracker.reporting.ranges import price_range
 
 
 class CatalogService:
     def __init__(
-        self, repository: CatalogRepository, queries: CatalogQueries, now: Callable[[], datetime]
+        self,
+        repository: CatalogRepository,
+        queries: CatalogQueries,
+        now: Callable[[], datetime],
+        session_factory: SessionFactory,
+        drives: DriveRepository,
     ) -> None:
         self.repository, self.queries, self.now = repository, queries, now
+        self.session_factory, self.drive_repository = session_factory, drives
+
+    # Making drives.
+
+    def create_drive(self, entry: DriveInput) -> dict[str, Any]:
+        """A drive made on its own, before any price of it."""
+        with self.session_factory() as session:
+            drive = self.drive_repository.create(
+                session,
+                mpn=entry.mpn,
+                capacity_gb=entry.capacity_gb,
+                brand=entry.brand,
+                specifications=entry.specifications.model_dump(mode="json"),
+            )
+            session.commit()
+            return drive_view(drive, [])
 
     # Reading drives, offers and prices.
 

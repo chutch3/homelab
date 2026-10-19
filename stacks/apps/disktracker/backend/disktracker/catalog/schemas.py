@@ -222,6 +222,22 @@ class OfferEdit(Contract):
     url: HttpUrl | None = None
 
 
+class DriveInput(Contract):
+    """A drive made on its own, before any price of it: its MPN, which no drive may go by already,
+    its capacity, and what is known of it. Specifications left out are unknown."""
+
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
+    mpn: NormalizedMpn
+    capacity_gb: Capacity
+    brand: str | None = Field(default=None, max_length=60)
+    specifications: Specifications = Field(default_factory=Specifications)
+
+    @field_validator("brand")
+    @classmethod
+    def blank_is_unknown(cls, brand: str | None) -> str | None:
+        return brand or None
+
+
 class AliasInput(Contract):
     model_config = ConfigDict(extra="forbid")
     mpn: NormalizedMpn

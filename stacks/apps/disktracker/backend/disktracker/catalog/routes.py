@@ -19,6 +19,7 @@ from disktracker.catalog.schemas import (
     Drive,
     DriveDetail,
     DriveEdit,
+    DriveInput,
     DrivePage,
     DriveQuery,
     IgnoreDecision,
@@ -85,6 +86,21 @@ def list_drives(catalog: Catalog, query: Annotated[DriveQuery, Query()]) -> dict
     asked. total counts matching drives before pagination; offers counts matching offers.
     """
     return catalog.drives(query)
+
+
+@router.post(
+    "/drives",
+    status_code=201,
+    response_model=Drive,
+    tags=["Drives"],
+    summary="Make a drive",
+    responses={409: {"model": ErrorResponse, "description": "The MPN already identifies a drive"}},
+)
+@inject
+def create_drive(catalog: Catalog, entry: DriveInput) -> dict[str, Any]:
+    """Make a drive before any price of it, under an MPN that no drive goes by, as its own MPN or
+    another of its MPNs. A drive already going by it is never merged with this one."""
+    return catalog.create_drive(entry)
 
 
 @router.get(

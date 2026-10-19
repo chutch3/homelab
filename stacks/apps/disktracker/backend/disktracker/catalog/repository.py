@@ -13,6 +13,7 @@ from sqlalchemy import delete, func, select, update
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.orm import Session
 
+from disktracker.catalog.drive_repository import hold_mpn
 from disktracker.catalog.models import (
     ConditionRule,
     Drive,
@@ -502,6 +503,7 @@ def _delete_offer(session: Session, offer_id: UUID) -> None:
 def _add_alias(session: Session, drive_id: UUID, alias: str) -> Drive:
     """Declare another MPN for a drive; a drive recorded under it is merged in, its offers
     moving across, or combining with the matching offer, and its own aliases following."""
+    hold_mpn(session, alias)
     drive = _lock_drive(session, drive_id)
     taken = session.scalar(select(MpnAlias.drive_id).where(MpnAlias.alias == alias))
     if alias == drive.mpn or taken is not None:

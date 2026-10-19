@@ -67,6 +67,10 @@ class AliasConflict(Exception):
     pass
 
 
+class MpnTaken(Exception):
+    """An MPN already identifies a drive, as its own MPN or another of its MPNs."""
+
+
 class ReviewItemNotFound(Exception):
     pass
 
@@ -132,6 +136,7 @@ def located(issue: dict[str, Any]) -> dict[str, Any]:
 
 def register_error_handlers(app: FastAPI) -> None:
     @app.exception_handler(AliasConflict)
+    @app.exception_handler(MpnTaken)
     @app.exception_handler(CapacityConflict)
     @app.exception_handler(IdempotencyConflict)
     @app.exception_handler(DecisionConflict)

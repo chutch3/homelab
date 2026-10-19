@@ -7,10 +7,12 @@ from uuid import UUID, uuid4
 
 import pytest
 
+from disktracker.catalog.drive_repository import DriveRepository
 from disktracker.catalog.queries import CatalogQueries
 from disktracker.catalog.repository import CatalogRepository
 from disktracker.catalog.schemas import DriveEdit, OfferEdit, PriceInput
 from disktracker.catalog.service import CatalogService
+from disktracker.database import SessionFactory
 
 NOW = datetime(2026, 9, 22, 12, tzinfo=UTC)
 
@@ -41,8 +43,14 @@ def repository() -> FakeRepository:
 
 @pytest.fixture
 def subject(repository: FakeRepository) -> CatalogService:
+    # Making a drive is the drive repository's, tested against the database
+    # (tests/integration/test_drives.py); nothing here makes one.
     return CatalogService(
-        cast(CatalogRepository, repository), cast(CatalogQueries, None), now=lambda: NOW
+        cast(CatalogRepository, repository),
+        cast(CatalogQueries, None),
+        now=lambda: NOW,
+        session_factory=cast(SessionFactory, None),
+        drives=cast(DriveRepository, None),
     )
 
 

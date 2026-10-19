@@ -17,6 +17,7 @@ from .drive import Drive
 from .drive_detail import DriveDetail
 from .drive_detail_ranges import DriveDetailRanges
 from .drive_edit import DriveEdit
+from .drive_input import DriveInput
 from .drive_issue_counts import DriveIssueCounts
 from .drive_page import DrivePage
 from .drive_row import DriveRow
@@ -193,6 +194,7 @@ __all__ = (
     "DriveDetail",
     "DriveDetailRanges",
     "DriveEdit",
+    "DriveInput",
     "DriveIssueCounts",
     "DrivePage",
     "DriveRow",
