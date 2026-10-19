@@ -187,7 +187,9 @@ def test_a_sold_out_product_is_reported_at_the_price_the_feed_shows() -> None:
 
 
 def test_a_gone_page_marks_the_offer_unavailable_without_a_price() -> None:
-    assert recheck_offer(known_offer(f"{BASE}/products/gone"), None, STORE, SPD) == ScrapedOffer(
+    known = known_offer(f"{BASE}/products/gone")
+    assert recheck_offer(known, None, STORE, SPD) == ScrapedOffer(
+        offer_id=known.id,
         source="serverpartdeals",
         url=f"{BASE}/products/gone",
         title="Seagate Exos X18 18TB",

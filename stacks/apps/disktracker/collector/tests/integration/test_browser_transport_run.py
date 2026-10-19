@@ -87,7 +87,8 @@ def test_a_browser_source_is_read_and_rechecked_through_flaresolverr_only(
     serve_store(serverpartdeals)
     gone = f"{base_of(serverpartdeals)}/products/gone"
     serverpartdeals.expect_request("/products/gone.js").respond_with_data("", status=404)
-    know_offers(disktracker, [offer_json(gone, store="orbit")], store="orbit")
+    known = offer_json(gone, store="orbit")
+    know_offers(disktracker, [known], store="orbit")
     record_everything(disktracker)
     browser = serve_browser(flaresolverr)
 
@@ -105,8 +106,8 @@ def test_a_browser_source_is_read_and_rechecked_through_flaresolverr_only(
     ]
     assert all("source" not in offer and "retailer" not in offer for offer in posted)
     [recheck] = rechecks(disktracker)
-    assert (recheck["url"], recheck["item_price_cents"], recheck["in_stock"]) == (
-        gone,
+    assert (recheck["offer_id"], recheck["item_price_cents"], recheck["in_stock"]) == (
+        known["id"],
         None,
         False,
     )

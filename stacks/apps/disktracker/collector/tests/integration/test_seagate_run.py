@@ -66,6 +66,11 @@ def told(offers: list[dict[str, Any]]) -> list[tuple[Any, ...]]:
     ]
 
 
+def prices_of(rechecks: list[dict[str, Any]]) -> list[tuple[Any, ...]]:
+    """What each recheck says: the offer it names, and the price and stock its page shows."""
+    return [(offer["offer_id"], offer["item_price_cents"], offer["in_stock"]) for offer in rechecks]
+
+
 def test_one_page_gives_an_offer_for_each_model_it_prices(
     seagate: HTTPServer, disktracker: HTTPServer
 ) -> None:
@@ -118,9 +123,7 @@ def test_a_model_its_page_no_longer_prices_is_out_of_stock_without_another_fetch
     result = run_collector(seagate, disktracker)
 
     assert result.returncode == 0, result.stderr
-    assert told(rechecks(disktracker)) == [
-        ("ST30000NT011", "IronWolf Pro 30TB", 18000, None, False)
-    ]
+    assert prices_of(rechecks(disktracker)) == [(known["id"], None, False)]
     assert [request.path for request, _ in seagate.log].count(IRONWOLF_PRO) == 1
 
 
@@ -142,9 +145,9 @@ def test_an_offer_whose_page_left_the_sitemap_is_rechecked_as_its_own_model(
 
     assert result.returncode == 0, result.stderr
     # Each is read from its own entry on the page; one the page no longer has is gone.
-    assert told(rechecks(disktracker)) == [
-        ("ST28000NT000", "IronWolf Pro 28TB", 18000, 122999, True),
-        ("ST26000NT000", "IronWolf Pro 26TB", 18000, None, False),
+    assert prices_of(rechecks(disktracker)) == [
+        (known[0]["id"], 122999, True),
+        (known[2]["id"], None, False),
     ]
     # The page they share is fetched once for them all.
     assert [request.path for request, _ in seagate.log].count(IRONWOLF_PRO) == 1

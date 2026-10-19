@@ -118,6 +118,7 @@ def test_a_recheck_keeps_disktrackers_identity_and_reads_price_and_stock_from_th
     assert recheck_offer(
         known, page("hgst_refurbished_out_of_stock.htm"), STORE, GHD
     ) == ScrapedOffer(
+        offer_id=known.id,
         source="goharddrive",
         url=f"{BASE}/x-p/g01-2172-cr.htm",
         title=known.title,

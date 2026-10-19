@@ -52,6 +52,9 @@ class ScrapedOffer:
     specifications: Specifications | None = None
     # The drive's maker, as named by titles.maker_named.
     brand: str | None = None
+    # The offer disktracker already has that this re-reads the price of: a recheck, which says
+    # nothing new of what the offer is. None for an offer read from the store's listing.
+    offer_id: UUID | None = None
 
     @classmethod
     def recheck(
@@ -63,9 +66,10 @@ class ScrapedOffer:
         in_stock: bool,
         shipping_cents: int | None,
     ) -> "ScrapedOffer":
-        """Re-post an offer disktracker already knows, under the identity it has for it, with
-        what its product page says now."""
+        """Re-post an offer disktracker already knows, named by its id, with the price its product
+        page shows now."""
         return cls(
+            offer_id=known.id,
             source=source,
             url=known.url or "",
             title=known.title,
@@ -78,12 +82,24 @@ class ScrapedOffer:
         )
 
     def fields(self) -> dict[str, Any]:
-        """The offer as plain data."""
-        return {**asdict(self), "aliases": list(self.aliases)}
+        """The offer as plain data, as it was read."""
+        fields = {**asdict(self), "aliases": list(self.aliases)}
+        del fields["offer_id"]
+        return fields
 
     def payload(self, observed_at: datetime) -> dict[str, Any]:
         """The offer as a price submitted to disktracker: collected, under the store it was read
-        from, and to wait for review when disktracker cannot match it to a drive."""
+        from, and to wait for review when disktracker cannot match it to a drive. A recheck names
+        the offer it is of, and gives only what its page shows of the price."""
+        if self.offer_id is not None:
+            return {
+                "offer_id": str(self.offer_id),
+                "provenance": "collected",
+                "item_price_cents": self.item_price_cents,
+                "shipping_cents": self.shipping_cents,
+                "in_stock": self.in_stock,
+                "observed_at": observed_at.isoformat(),
+            }
         fields = self.fields()
         return {
             **{name: value for name, value in fields.items() if name != "source"},

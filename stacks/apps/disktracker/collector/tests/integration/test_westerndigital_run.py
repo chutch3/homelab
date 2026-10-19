@@ -249,20 +249,17 @@ def test_offers_that_left_the_sitemap_are_rechecked_through_the_api(
     for posting in reposted:
         posting.pop("observed_at")
 
-    def repost(path: str, mpn: str, price: int | None, in_stock: bool) -> dict[str, Any]:
-        return offer(
-            f"{base}{path}",
-            title=f"Known {mpn}",
-            mpn=mpn,
-            condition="manufacturer_recertified",
-            capacity_gb=12000,
-            item_price_cents=price,
-            in_stock=in_stock,
-            specifications=None,
-        )
+    named = {offer["url"]: offer["id"] for offer in known}
 
-    assert reposted == [
-        repost(RECERTIFIED, "0F29590", 65499, True),
-        repost(gone, "WD2005FBYZ", None, False),
-    ]
+    def repost(path: str, price: int | None, in_stock: bool) -> dict[str, Any]:
+        # Named as the offer it is: only its price and stock are read again.
+        return {
+            "offer_id": named[f"{base}{path}"],
+            "provenance": "collected",
+            "item_price_cents": price,
+            "shipping_cents": None,
+            "in_stock": in_stock,
+        }
+
+    assert reposted == [repost(RECERTIFIED, 65499, True), repost(gone, None, False)]
     assert events(result.stdout)[-1]["rechecked"] == 2

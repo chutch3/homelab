@@ -529,11 +529,9 @@ def test_an_offer_now_read_under_another_condition_leaves_its_old_offer_out_of_s
     assert result.returncode == 0, result.stderr
     assert not [request for request, _ in serverpartdeals.log if request.path.endswith(".js")]
     [superseded] = rechecks(disktracker)
-    assert (superseded["url"], superseded["condition"], superseded["in_stock"]) == (
-        url,
-        "new",
-        False,
-    )
+    # Named as the offer it was: what it is is not said again.
+    assert (superseded["offer_id"], superseded["in_stock"]) == (str(UUID(int=9)), False)
+    assert "condition" not in superseded
     assert superseded["item_price_cents"] is None
     assert events(result.stdout)[-1]["rechecked"] == 1
 
@@ -889,23 +887,22 @@ def test_offers_that_left_the_feed_are_rechecked_on_their_own_page(
     def known(handle: str, **fields: Any) -> dict[str, Any]:
         return offer_json(f"{base}/products/{handle}", title=f"Title of {handle}", **fields)
 
-    know_offers(
-        disktracker,
-        [
-            known("sold-out"),
-            known("gone"),
-            known("unlisted"),
-            known("broken"),
-            known("challenged"),
-            known("already-sold-out", in_stock=False),
-            known("marketplace", seller="Some shop"),
-            offer_json(None, title="Entered by hand without a URL"),
-            offer_json(
-                f"{base}/collections/hard-drives/products/sold-out-at-a-price",
-                title="Title of sold-out-at-a-price",
-            ),
-        ],
-    )
+    offers = [
+        known("sold-out"),
+        known("gone"),
+        known("unlisted"),
+        known("broken"),
+        known("challenged"),
+        known("already-sold-out", in_stock=False),
+        known("marketplace", seller="Some shop"),
+        offer_json(None, title="Entered by hand without a URL"),
+        offer_json(
+            f"{base}/collections/hard-drives/products/sold-out-at-a-price",
+            title="Title of sold-out-at-a-price",
+        ),
+    ]
+    know_offers(disktracker, offers)
+    named = {offer["url"]: offer["id"] for offer in offers}
     record_everything(disktracker)
 
     result = run_collector(serverpartdeals, disktracker)
@@ -932,22 +929,15 @@ def test_offers_that_left_the_feed_are_rechecked_on_their_own_page(
         offer.pop("observed_at")
 
     def repost(url: str, title: str, price: int | None, in_stock: bool) -> dict[str, Any]:
+        # A recheck reads only the price: it names the offer it is of, and says nothing new of
+        # what that offer is (title is the page's, for whoever reads this test).
+        del title
         return {
+            "offer_id": named[url],
             "provenance": "collected",
-            "on_unmatched": "queue",
-            "store": "serverpartdeals",
-            "seller": "",
-            "url": url,
-            "title": title,
-            "mpn": "ST18000NM000J",
-            "condition": "manufacturer_recertified",
-            "capacity_gb": 18000,
             "item_price_cents": price,
             "shipping_cents": 0,
             "in_stock": in_stock,
-            "aliases": [],
-            "brand": None,
-            "specifications": None,
         }
 
     assert reposted == [
