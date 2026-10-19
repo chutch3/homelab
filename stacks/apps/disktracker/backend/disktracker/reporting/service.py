@@ -1,5 +1,6 @@
 """Reporting's one workflow: a trend, worked out once a day and kept."""
 
+import json
 from collections.abc import Callable
 from datetime import UTC, datetime
 from typing import Any, cast
@@ -8,6 +9,18 @@ from disktracker.catalog.schemas import DriveScope
 from disktracker.reporting.repository import ReportingRepository
 from disktracker.reporting.today import marks
 from disktracker.reporting.trends import By, trends
+
+
+def kept_as(scope: DriveScope) -> str:
+    """What a trend of these drives is kept under: the same for the same drives asked for,
+    however written. Choices within a filter are ORed, so their order and repeats narrow
+    nothing; the words searched for are kept as typed. Empty for every drive."""
+    given = scope.scope().model_dump(mode="json", exclude_defaults=True)
+    chosen = {
+        name: sorted(set(value)) if isinstance(value, list) else value
+        for name, value in given.items()
+    }
+    return json.dumps(chosen, sort_keys=True) if chosen else ""
 
 
 def still_stands(kept: dict[str, Any], revision: int, now: datetime) -> bool:
@@ -29,7 +42,7 @@ class ReportingService:
         """The typical item price per terabyte on each day of a period, over the drives in scope
         and over each condition, capacity or store when asked. A trend of each scope is kept
         apart, once worked out, while it still stands."""
-        found = self.repository.kept_trend(days, by, recent_days, scope.key())
+        found = self.repository.kept_trend(days, by, recent_days, kept_as(scope))
         if found.trend and still_stands(found.trend, found.revision, self.now()):
             return cast(dict[str, Any], found.trend["body"])
         # The prices are read with the revision they are at, so the trend is kept under exactly
@@ -37,7 +50,9 @@ class ReportingService:
         changes = self.repository.price_changes(scope)
         now = self.now()
         body = trends(changes.offers, now, days, recent_days, by)
-        self.repository.keep_trend(days, by, recent_days, scope.key(), body, now, changes.revision)
+        self.repository.keep_trend(
+            days, by, recent_days, kept_as(scope), body, now, changes.revision
+        )
         return body
 
     def prices_today(self, recent_days: int, scope: DriveScope) -> list[dict[str, Any]]:

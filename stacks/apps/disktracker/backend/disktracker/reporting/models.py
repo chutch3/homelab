@@ -18,7 +18,7 @@ class Trend(Base):
     days: Mapped[int] = mapped_column(Integer, primary_key=True)
     by: Mapped[str] = mapped_column(String(20), primary_key=True)
     recent_days: Mapped[int] = mapped_column(Integer, primary_key=True)
-    # The drives it is of: DriveScope.key(), empty for every drive.
+    # The drives it is of: reporting.service.kept_as, empty for every drive.
     scope: Mapped[str] = mapped_column(Text, primary_key=True, server_default="")
     as_of: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     revision: Mapped[int] = mapped_column(BigInteger)

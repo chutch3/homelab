@@ -139,7 +139,7 @@ class ReportingRepository:
 
 def _in_scope(scope: DriveScope) -> list[Any]:
     """What an offer must be to be of the drives in scope: as the drives list narrows them."""
-    if not scope.key():
+    if scope.scope() == DriveScope():
         return []
     facts = offer_facts().subquery()
     return [Offer.id.in_(select(facts.c.id).where(*scope_filters(facts, scope)))]

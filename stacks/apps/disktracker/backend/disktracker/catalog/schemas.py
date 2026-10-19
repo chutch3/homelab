@@ -1,7 +1,6 @@
 """The catalog's public contract: what its routes accept and what they return. Clients are
 generated from these; database and domain code do not depend on FastAPI."""
 
-import json
 import re
 from datetime import datetime
 from typing import Annotated, Literal
@@ -485,11 +484,6 @@ class DriveScope(Contract):
     def scope(self) -> "DriveScope":
         """Just which drives, without anything a subclass asks besides."""
         return DriveScope(**{name: getattr(self, name) for name in DriveScope.model_fields})
-
-    def key(self) -> str:
-        """The same for the same drives asked for, however written; empty for every drive."""
-        given = self.scope().model_dump(mode="json", exclude_defaults=True)
-        return json.dumps(given, sort_keys=True) if given else ""
 
 
 class DriveQuery(RangeQuery, DriveScope):

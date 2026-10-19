@@ -95,3 +95,26 @@ def test_a_trend_of_some_drives_is_read_for_them_and_kept_apart_under_what_narro
     key = '{"capacity": [18000], "q": "exos"}'
     assert repository.asked == [key, scope]
     assert [kept[3] for kept in repository.kept] == [key]
+
+
+@pytest.mark.parametrize(
+    "scope",
+    [
+        DriveScope(brand=["Toshiba", "Seagate"], store=["goharddrive", "serverpartdeals"]),
+        DriveScope(
+            brand=["Seagate", "Toshiba", "Seagate"], store=["serverpartdeals", "goharddrive"]
+        ),
+    ],
+    ids=["one order", "another order, and a choice twice"],
+)
+def test_the_same_drives_chosen_in_any_order_are_one_kept_trend(scope: DriveScope) -> None:
+    """Choices within a filter are ORed: their order and repeats narrow nothing. The words
+    searched for are kept as they are."""
+    repository = FakeRepository()
+    repository.trend = None
+
+    answered(repository, scope)
+
+    assert repository.asked[0] == (
+        '{"brand": ["Seagate", "Toshiba"], "store": ["goharddrive", "serverpartdeals"]}'
+    )
