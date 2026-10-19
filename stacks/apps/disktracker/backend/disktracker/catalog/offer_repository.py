@@ -14,6 +14,7 @@ from sqlalchemy import func, select, update
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.orm import Session
 
+from disktracker.catalog.facts import LATEST_FIRST
 from disktracker.catalog.models import Drive, Offer, Price
 from disktracker.catalog.rules import unchanged, with_carried_price
 from disktracker.collection.models import Source
@@ -67,10 +68,7 @@ class OfferRepository:
         entered_at = self.now()
         observed_at = price["observed_at"] or entered_at
         latest = session.scalars(
-            select(Price)
-            .where(Price.offer_id == offer_id)
-            .order_by(Price.observed_at.desc(), Price.entered_at.desc())
-            .limit(1)
+            select(Price).where(Price.offer_id == offer_id).order_by(*LATEST_FIRST).limit(1)
         ).first()
         before = None if latest is None else columns(latest)
         values = with_carried_price(

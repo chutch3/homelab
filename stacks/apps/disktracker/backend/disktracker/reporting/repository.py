@@ -10,8 +10,9 @@ from sqlalchemy import extract, func, select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.orm import Session
 
+from disktracker.catalog.facts import COUNTED, LATEST_FIRST
 from disktracker.catalog.models import Drive, Offer, Price
-from disktracker.catalog.queries import COUNTED, every_offer_facts, offer_facts, scope_filters
+from disktracker.catalog.queries import every_offer_facts, offer_facts, scope_filters
 from disktracker.catalog.schemas import DriveScope
 from disktracker.database import SessionFactory
 from disktracker.reporting.models import Trend, TrendRevision
@@ -54,15 +55,13 @@ class ReportingRepository:
             return Changes(_price_changes(session, scope), _revision(session))
 
     def latest_offers(self, scope: DriveScope) -> list[dict[str, Any]]:
-        """Every offer that counts (catalog.queries.COUNTED) of the drives in scope with its latest
+        """Every offer that counts (catalog.facts.COUNTED) of the drives in scope with its latest
         price and its drive's capacity: what today's prices are read from. An offer is checked whenever a price is recorded for
         it."""
         latest = (
             select(Price)
             .distinct(Price.offer_id)
-            .order_by(
-                Price.offer_id, Price.observed_at.desc(), Price.entered_at.desc(), Price.id.desc()
-            )
+            .order_by(Price.offer_id, *LATEST_FIRST)
             .subquery()
         )
         with self.snapshot_factory() as session:

@@ -170,6 +170,24 @@ def test_backdated_prices_preserve_the_latest_observation(database_url: str) -> 
         assert [o["item_price_cents"] for o in older["observations"]] == [10000, 18900]
 
 
+def test_a_price_corrected_for_the_moment_it_was_seen_is_the_latest_everywhere(
+    database_url: str,
+) -> None:
+    """Mistyped, then entered again for the same moment: the one entered last is the offer's
+    price, as it is shown and as a later check is compared with."""
+    with TestClient(create_app()) as client:
+        post(client, "/api/prices", price_payload(item_price_cents=18900))
+        corrected = saved_offer(
+            client, post(client, "/api/prices", price_payload(item_price_cents=17900))
+        )
+        again = post(client, "/api/prices", price_payload(item_price_cents=17900))
+
+    assert corrected["latest"]["item_price_cents"] == 17900
+    assert [o["item_price_cents"] for o in corrected["observations"]] == [18900, 17900]
+    # The correction seen again is only a check of it.
+    assert (again.status_code, again.json()["price_id"]) == (201, None)
+
+
 def test_a_price_left_without_shipping_or_time_is_free_and_seen_now(database_url: str) -> None:
     with TestClient(create_app()) as client:
         started = datetime.now(UTC)
@@ -2301,7 +2319,7 @@ def test_a_hold_is_released_only_by_fresh_evidence_of_the_offer_it_is_on(databas
     ignored, says nothing new of what the offer is: each leaves its hold."""
     now = datetime.now(UTC)
     page = scraped_payload(url="https://www.serverpartdeals.com/products/exos")
-    at = lambda days: (now - timedelta(days=days)).isoformat()  # noqa: E731
+    at = lambda days: (now - timedelta(days=days)).isoformat()
     with TestClient(create_app()) as client:
         new = post(client, "/api/prices", {**page, "condition": "new", "observed_at": at(2)})
         refurbished = post(

@@ -13,6 +13,7 @@ from sqlalchemy.dialects.postgresql import aggregate_order_by
 from sqlalchemy.orm import Session
 from sqlalchemy.sql import ColumnElement, Select
 
+from disktracker.catalog.facts import COUNTED, LATEST_FIRST
 from disktracker.catalog.models import (
     ConditionRule,
     Drive,
@@ -392,19 +393,7 @@ class CatalogQueries:
 
 def _latest() -> Any:
     """Each offer's latest price."""
-    return (
-        select(Price)
-        .distinct(Price.offer_id)
-        .order_by(
-            Price.offer_id, Price.observed_at.desc(), Price.entered_at.desc(), Price.id.desc()
-        )
-        .subquery()
-    )
-
-
-# The one rule for what counts in a ranking, a distribution or a trend: every offer but those held
-# while a person settles what their page is (catalog.models.Offer.held_reason).
-COUNTED = Offer.held_reason.is_(None)
+    return select(Price).distinct(Price.offer_id).order_by(Price.offer_id, *LATEST_FIRST).subquery()
 
 
 def offer_facts() -> Select[Any]:
@@ -586,9 +575,7 @@ def _holding(offers: Any, since: datetime) -> Select[Any]:
         select(Price.id)
         .where(Price.offer_id.in_(offers), Price.observed_at < since)
         .distinct(Price.offer_id)
-        .order_by(
-            Price.offer_id, Price.observed_at.desc(), Price.entered_at.desc(), Price.id.desc()
-        )
+        .order_by(Price.offer_id, *LATEST_FIRST)
     )
 
 
@@ -646,9 +633,7 @@ def _summaries(session: Session, chosen: Select[Any]) -> list[dict[str, Any]]:
             select(Price)
             .where(Price.offer_id.in_(ids))
             .distinct(Price.offer_id)
-            .order_by(
-                Price.offer_id, Price.observed_at.desc(), Price.entered_at.desc(), Price.id.desc()
-            )
+            .order_by(Price.offer_id, *LATEST_FIRST)
         )
     }
     drives = {
