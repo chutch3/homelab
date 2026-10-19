@@ -8,6 +8,7 @@ from uuid import uuid4
 from dependency_injector import containers, providers
 
 from disktracker.catalog.drive_repository import DriveRepository
+from disktracker.catalog.offer_repository import OfferRepository
 from disktracker.catalog.queries import CatalogQueries
 from disktracker.catalog.repository import CatalogRepository
 from disktracker.catalog.service import CatalogService
@@ -47,8 +48,13 @@ class Container(containers.DeclarativeContainer):
     # threads.
     database = providers.ThreadSafeSingleton(Database, url=config.database_url)
 
+    offer_repository = providers.Factory(OfferRepository, now=clock, next_id=next_id)
     catalog_repository = providers.Factory(
-        CatalogRepository, session_factory=database.provided.session, now=clock, next_id=next_id
+        CatalogRepository,
+        session_factory=database.provided.session,
+        now=clock,
+        next_id=next_id,
+        offers=offer_repository,
     )
     drive_repository = providers.Factory(DriveRepository, next_id=next_id)
     catalog_queries = providers.Factory(CatalogQueries, snapshot_factory=database.provided.snapshot)

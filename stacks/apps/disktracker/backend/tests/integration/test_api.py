@@ -2281,3 +2281,85 @@ def test_a_kept_trend_is_worked_out_again_once_a_drive_or_what_it_is_changes(
     # Two offers of one drive in one condition are one item, counted once.
     assert after_merge["market"]["counted"] == 3
     assert (deleted.status_code, after_deletion["market"]["counted"]) == (204, 2)
+
+
+def held_reasons(database_url: str) -> dict[str, str | None]:
+    """Each offer's hold, by its condition."""
+    engine = create_engine(database_url)
+    with engine.connect() as connection:
+        found = dict(
+            connection.execute(text("SELECT condition, held_reason FROM listings")).tuples().all()
+        )
+    engine.dispose()
+    return found
+
+
+def test_a_hold_is_released_only_by_fresh_evidence_of_the_offer_it_is_on(database_url: str) -> None:
+    """One store page, two offers of it: new and refurbished. Read as several drives, both are
+    held. A clean collection of the new one releases the new one alone, and leaves what waits for
+    review of the other. A price saved by hand, or named by the offer it is for, or a page
+    ignored, says nothing new of what the offer is: each leaves its hold."""
+    now = datetime.now(UTC)
+    page = scraped_payload(url="https://www.serverpartdeals.com/products/exos")
+    at = lambda days: (now - timedelta(days=days)).isoformat()  # noqa: E731
+    with TestClient(create_app()) as client:
+        new = post(client, "/api/prices", {**page, "condition": "new", "observed_at": at(2)})
+        refurbished = post(
+            client, "/api/prices", {**page, "condition": "refurbished", "observed_at": at(2)}
+        )
+        ids = {"new": new.json()["offer_id"], "refurbished": refurbished.json()["offer_id"]}
+        bundle = "Seagate Exos X18 ST18000NM000J 18TB 4-pack"
+        post(
+            client,
+            "/api/prices",
+            {**page, "condition": "new", "title": bundle, "observed_at": at(1.5)},
+        )
+        queued = post(
+            client,
+            "/api/prices",
+            {**page, "condition": "refurbished", "title": bundle, "observed_at": at(1.4)},
+        )
+        both_held = held_reasons(database_url)
+
+        by_hand = post(
+            client,
+            "/api/prices",
+            {"offer_id": ids["refurbished"], "item_price_cents": 30000, "observed_at": at(1.3)},
+        )
+        recheck = post(
+            client,
+            "/api/prices",
+            {
+                "offer_id": ids["new"],
+                "provenance": "collected",
+                "item_price_cents": 35000,
+                "observed_at": at(1.2),
+            },
+        )
+        after_named = held_reasons(database_url)
+
+        clean = post(
+            client,
+            "/api/prices",
+            {**page, "condition": "new", "item_price_cents": 34000, "observed_at": at(1)},
+        )
+        after_clean = held_reasons(database_url)
+        waiting = [
+            (item["condition"], item["reason"]) for item in client.get("/api/review-items").json()
+        ]
+
+        ignored = client.put(
+            f"/api/review-items/{queued.json()['review_item_id']}/decision",
+            json={"decision": "ignore"},
+        )
+        after_ignore = held_reasons(database_url)
+
+    assert both_held == {"new": "not_a_single_drive", "refurbished": "not_a_single_drive"}
+    assert [r.json()["status"] for r in (by_hand, recheck, clean)] == ["recorded"] * 3
+    # Recorded, both prices, and still held.
+    assert [r.json()["price_id"] is not None for r in (by_hand, recheck)] == [True, True]
+    assert after_named == both_held
+    assert after_clean == {"new": None, "refurbished": "not_a_single_drive"}
+    assert waiting == [("refurbished", "not_a_single_drive")]
+    assert ignored.status_code == 200, ignored.text
+    assert after_ignore == after_clean
