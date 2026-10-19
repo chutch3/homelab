@@ -14,12 +14,12 @@ from sqlalchemy import func, select, update
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.orm import Session
 
-from disktracker.catalog.facts import LATEST_FIRST
 from disktracker.catalog.models import Drive, Offer, Price
 from disktracker.catalog.rules import unchanged, with_carried_price
 from disktracker.collection.models import Source
 from disktracker.database import columns
 from disktracker.errors import UnknownStore
+from disktracker.facts import LATEST_FIRST
 
 OFFER_IDENTITY = (Offer.mpn, Offer.store, Offer.seller, Offer.condition)
 

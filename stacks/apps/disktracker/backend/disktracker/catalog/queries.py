@@ -8,12 +8,10 @@ from datetime import datetime, timedelta
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import Numeric, and_, case, cast, func, literal_column, select, true
-from sqlalchemy.dialects.postgresql import aggregate_order_by
+from sqlalchemy import and_, func, select, true
 from sqlalchemy.orm import Session
 from sqlalchemy.sql import ColumnElement, Select
 
-from disktracker.catalog.facts import COUNTED, LATEST_FIRST
 from disktracker.catalog.models import (
     ConditionRule,
     Drive,
@@ -22,15 +20,24 @@ from disktracker.catalog.models import (
     Price,
     ReviewItem,
 )
-from disktracker.catalog.schemas import CatalogDriveQuery, DriveQuery, DriveScope
+from disktracker.catalog.schemas import CatalogDriveQuery, DriveQuery
 from disktracker.catalog.views import drive_view, price_view, review_item_view, summary_view
 from disktracker.collection.models import Source
 from disktracker.database import SessionFactory, columns
 from disktracker.errors import DriveNotFound, OfferNotFound
+from disktracker.facts import (
+    COUNTED,
+    LATEST_FIRST,
+    SCALAR_SPECIFICATIONS,
+    UNKNOWN,
+    escaped,
+    every_offer_facts,
+    named_by,
+    offer_facts,
+    scope_filters,
+)
 
 CONDITIONS = ("new", "manufacturer_recertified", "refurbished", "used")
-UNKNOWN = "unknown"
-SCALAR_SPECIFICATIONS = ("media_type", "form_factor", "interface", "recording_type")
 
 
 class CatalogQueries:
@@ -391,60 +398,6 @@ class CatalogQueries:
 # Reading on a session already open.
 
 
-def _latest() -> Any:
-    """Each offer's latest price."""
-    return select(Price).distinct(Price.offer_id).order_by(Price.offer_id, *LATEST_FIRST).subquery()
-
-
-def offer_facts() -> Select[Any]:
-    """One row for each offer that counts (COUNTED), as every_offer_facts gives it."""
-    return every_offer_facts().where(COUNTED)
-
-
-def every_offer_facts() -> Select[Any]:
-    """One row for each offer, held or not: what it is filtered, grouped and ordered by. Its total and
-    total per terabyte are as its latest price gives them, to the cent; it was checked when it
-    was last priced, or later; its names are its title, MPN, its drive's other MPNs and who sells
-    it, as search reads them."""
-    latest = _latest()
-    aliases = (
-        select(
-            MpnAlias.drive_id,
-            func.string_agg(
-                MpnAlias.alias, aggregate_order_by(literal_column("' '"), MpnAlias.alias)
-            ).label("aliases"),
-        )
-        .group_by(MpnAlias.drive_id)
-        .subquery()
-    )
-    total = latest.c.item_price_cents + func.coalesce(latest.c.shipping_cents, 0)
-    seller = case((Offer.store == "other", Offer.seller), else_=Source.name)
-    return (
-        select(
-            Offer.id,
-            Offer.drive_id,
-            Offer.title,
-            Offer.condition,
-            Offer.store,
-            latest.c.in_stock,
-            latest.c.acquisition_method.label("provenance"),
-            total.label("total"),
-            func.round(cast(total, Numeric) * 10 / Drive.capacity_gb, 2).label("per_tb"),
-            func.greatest(
-                latest.c.observed_at, func.coalesce(Offer.last_checked_at, latest.c.observed_at)
-            ).label("checked"),
-            func.concat_ws(" ", Offer.title, Offer.mpn, aliases.c.aliases, seller).label("names"),
-            Drive.capacity_gb,
-            Drive.brand,
-            Drive.specifications,
-        )
-        .join(latest, latest.c.listing_id == Offer.id)
-        .join(Drive, Drive.id == Offer.drive_id)
-        .join(Source, Source.key == Offer.store)
-        .outerjoin(aliases, aliases.c.drive_id == Offer.drive_id)
-    )
-
-
 def _filters(facts: Any, query: DriveQuery, now: datetime) -> list[ColumnElement[bool]]:
     """What an offer must be to match: each filter asked for."""
     c = facts.c
@@ -458,45 +411,6 @@ def _filters(facts: Any, query: DriveQuery, now: datetime) -> list[ColumnElement
     if query.recent_only:
         wanted.append(c.checked <= now)
         wanted.append(c.checked >= now - timedelta(days=query.recent_days))
-    return wanted
-
-
-def escaped(words: str) -> str:
-    """Words to look for as they are typed, in a LIKE pattern escaped with a backslash."""
-    return words.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
-
-
-def named_by(facts: Any, words: str) -> ColumnElement[bool]:
-    """Whether an offer (a row of offer_facts) goes by a name containing the words, as typed."""
-    return facts.c.names.ilike(f"%{escaped(words)}%", escape="\\")
-
-
-def scope_filters(facts: Any, query: DriveScope) -> list[ColumnElement[bool]]:
-    """What an offer (a row of offer_facts) must be to be of the drives asked for. Unknown is a
-    value of every specification, and an empty list of intended uses is an unknown one."""
-    c = facts.c
-    wanted: list[ColumnElement[bool]] = []
-    words = query.q.strip()
-    if words:
-        wanted.append(named_by(facts, words))
-    if query.brand:
-        wanted.append(func.coalesce(c.brand, UNKNOWN).in_(query.brand))
-    if query.capacity:
-        wanted.append(c.capacity_gb.in_(query.capacity))
-    if query.condition:
-        wanted.append(c.condition.in_(query.condition))
-    if query.store:
-        wanted.append(c.store.in_(query.store))
-    for key in SCALAR_SPECIFICATIONS:
-        value = getattr(query, key)
-        if value is not None:
-            wanted.append(func.coalesce(c.specifications[key].astext, UNKNOWN) == value)
-    if query.intended_use is not None:
-        uses = c.specifications["intended_use"]
-        if query.intended_use == UNKNOWN:
-            wanted.append(func.coalesce(func.jsonb_array_length(uses), 0) == 0)
-        else:
-            wanted.append(uses.contains([query.intended_use]))
     return wanted
 
 
