@@ -6,7 +6,8 @@ import { catalogPage, detailOf, drivePage, pricesOf, rowsOf } from './responses'
 import { groupKeyFor } from '../../src/drive-groups';
 import { checkedAt, knownKinds, knownStores, shoppingListings, unusedWrites } from './listings';
 
-export type FakeApi = Omit<Partial<DisktrackerApi>, 'listOffers' | 'reviewItems'> & {
+export type FakeApi = Omit<Partial<DisktrackerApi>, 'reviewItems'> & {
+  /** The offers recorded: what the drives, a drive, an offer and its prices are answered from. */
   listOffers?: () => Promise<Offer[]>;
   /** The whole review queue; like the server, the fake serves it a page at a time, of one store
    * or for one reason when asked. */
@@ -53,7 +54,6 @@ export function renderApp({ listOffers = async () => shoppingListings, reviewIte
     storeFreshness: async () => [],
     pricesToday: async () => [],
     ...overrides,
-    listOffers: async () => (await listOffers()).map(({ observations: _history, ...summary }) => summary),
   };
   return render(<MantineProvider env="test"><App api={api} base={base} storage={storage}
     now={() => checkedAt} nextId={() => 'save-key'} /></MantineProvider>);

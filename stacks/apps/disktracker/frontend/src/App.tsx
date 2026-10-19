@@ -8,7 +8,7 @@ import { DriveDetails, driveIdOf } from './DriveDetails';
 import { DriveTable } from './DriveTable';
 import { EntryForm } from './EntryForm';
 import { ListingFilters } from './ListingFilters';
-import { groupKeyFor, knownDrives, type DriveGroup } from './drive-groups';
+import { groupKeyFor, type DriveGroup } from './drive-groups';
 import { periods, readQuery, scopeOf, scopeSearch, sorts, writeQuery, queryErrors, type ListingQuery, type Period, type Sort } from './listing-query';
 import { Pager } from './Pager';
 import { usePageSize } from './paging';
@@ -38,9 +38,6 @@ export function driveQuery(query: ListingQuery, recentDays: number, page: number
 }
 
 export function App({ api, base, storage, now, nextId, recentDays = 7 }: Dependencies) {
-  /** Every offer, for what manages them (the Admin page, the entry form): loaded only where they are wanted. */
-  const [listings, setListings] = useState<OfferSummary[]>([]);
-  const [listingsLoaded, setListingsLoaded] = useState(false);
   /** The page of drives the Prices page shows, as the server worked it out. */
   const [drivesPage, setDrivesPage] = useState<DrivePage | null>(null);
   const [error, setError] = useState('');
@@ -115,15 +112,6 @@ export function App({ api, base, storage, now, nextId, recentDays = 7 }: Depende
     void loadDrives(() => active);
     return () => { active = false; };
   }, [view, loadDrives, revision]);
-  // Every offer, where they are managed: on the Admin page, and by the entry form, for the drives it knows.
-  const wantsListings = view === 'admin' || form;
-  useEffect(() => {
-    if (!wantsListings) return;
-    let active = true;
-    api.listOffers().then(found => { if (active) { setListings(found); setListingsLoaded(true); } })
-      .catch(err => { if (active) setLoadError(err instanceof Error ? err.message : 'Unknown error.'); });
-    return () => { active = false; };
-  }, [api, wantsListings, revision]);
   // What waits on a person, counted on every page: offers entered by hand that are due a check.
   useEffect(() => {
     let active = true;
@@ -148,16 +136,12 @@ export function App({ api, base, storage, now, nextId, recentDays = 7 }: Depende
   const options = drivesPage?.filter_options ?? { brands: [], capacities: [], conditions: [] };
   /** Whether there are any drives at all, whatever the filters: every drive has a capacity. */
   const anyDrives = options.capacities.length > 0;
-  const known = useMemo(() => ({
-    capacityOf: Object.fromEntries(listings.map(listing => [listing.mpn, listing.capacity_gb])), drives: knownDrives(listings),
-  }), [listings]);
   const rail = useMemo(() => buildRail((marks ?? []).map(mark => ({
     key: `drive:${mark.drive_id}`, condition: mark.condition, title: mark.title, capacityGb: mark.capacity_gb, perTb: mark.per_tb_cents, lowest: mark.lowest,
   }))), [marks]);
   /** The conditions a row's price may come from, as a phrase: "any condition", or those chosen. */
   const chosen = conditions.filter(option => query.conditions.includes(option.value)).map(option => option.label);
   const accepted = chosen.length === 0 ? 'any condition' : chosen.length === 1 ? chosen[0] : `${chosen.slice(0, -1).join(', ')} or ${chosen[chosen.length - 1]}`;
-  const knownCapacities = known.capacityOf;
   const total = drivesPage?.total ?? 0, offerCount = drivesPage?.offers ?? 0, soldOut = drivesPage?.sold_out ?? 0;
   /** Reload after saving a price: say what was saved, and whether the filters hide its drive. */
   async function reload(offerId: string) {
@@ -190,7 +174,8 @@ export function App({ api, base, storage, now, nextId, recentDays = 7 }: Depende
     api.reviewItems({ limit: 1, offset: 0 }).then(found => { if (active) setQueueAll(found.total); }).catch(() => {});
     return () => { active = false; };
   }, [api, revision]);
-  const loading = view === 'admin' ? !listingsLoaded && !loadError : drivesPage === null && !loadError && !invalidFilters;
+  // The Admin page loads each of its parts itself; the prices page waits for its drives.
+  const loading = view === 'listings' && drivesPage === null && !loadError && !invalidFilters;
   const loadingNote = <div role="status" className="loading"><span className="visually-hidden">Loading drives…</span>
     {Array.from({ length: 6 }, (_, index) => <div key={index} className="skeleton-row" aria-hidden="true" />)}</div>;
   const loadAlert = loadError && <Alert color="red" role="alert" mb="md" title="The drives could not be loaded">
@@ -214,7 +199,7 @@ export function App({ api, base, storage, now, nextId, recentDays = 7 }: Depende
       }} />}
     </main> : view === 'admin' ? <main>
       {error && <Alert color="red" role="alert" mb="md">{error}</Alert>}
-      {loading ? loadingNote : loadAlert || <AdminView api={api} now={now} nextId={nextId} recentDays={recentDays} storage={storage} listings={listings} toRecheck={overdue} revision={revision}
+      {loading ? loadingNote : loadAlert || <AdminView api={api} now={now} nextId={nextId} recentDays={recentDays} storage={storage} toRecheck={overdue} revision={revision}
           tab={tab} tabHref={name => pathFor('admin', base, name)} onTab={name => go('admin', name)}
           queueAll={queueAll} stores={stores}
           onRecorded={reload} onChanged={reloadAfterChange} />}
@@ -247,12 +232,12 @@ export function App({ api, base, storage, now, nextId, recentDays = 7 }: Depende
       </>}
       </div>
       {selected && <DriveDetails api={api} now={now} nextId={nextId} driveKey={selectedKey!} title={selected.title} revision={revision} key={selectedKey}
-        condition={selected!.condition} sort={query.sort} knownCapacities={knownCapacities} manage={false} besideTable recentDays={recentDays} days={query.days} onClose={() => setSelected(null)}
+        condition={selected!.condition} sort={query.sort} manage={false} besideTable recentDays={recentDays} days={query.days} onClose={() => setSelected(null)}
         onRecorded={reload} onChanged={reloadAfterChange} />}
       </div>
     </main>}
     {form && <EntryForm key={formKey} previous={previous}
-      onAnother={title => { setPrevious(title); setFormKey(key => key + 1); }} knownCapacities={knownCapacities} knownDrives={known.drives} api={api} now={now} nextId={nextId} listing={null} stores={stores}
+      onAnother={title => { setPrevious(title); setFormKey(key => key + 1); }} api={api} now={now} nextId={nextId} listing={null} stores={stores}
       defaults={entryDefaults(storage.getItem(ENTRY_DEFAULTS), stores)} onEntered={defaults => storage.setItem(ENTRY_DEFAULTS, JSON.stringify(defaults))}
       onClose={() => setForm(false)} onSaved={reload} />}
     {notice && <div className="toast">

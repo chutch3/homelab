@@ -5,7 +5,7 @@ import type { Condition, DisktrackerApi, DrivePage, DriveQuery, Observation } fr
 import { emptySpecifications, type SpecValue } from '../../src/specifications';
 import { checkedAt, historyPrices, makeDrive, makeOffer, makeReviewItem, recordedOn, shoppingListings } from '../fixtures/listings';
 import { memoryStorage, namesIn, renderApp } from '../fixtures/render-app';
-import { detailOf, drivePage, noOptions, pricesOf, rowsOf } from '../fixtures/responses';
+import { catalogPage, detailOf, drivePage, noOptions, pricesOf, rowsOf } from '../fixtures/responses';
 
 afterEach(() => { cleanup(); window.history.replaceState(null, '', '/'); });
 
@@ -797,16 +797,23 @@ describe('App shopping view', () => {
       makeOffer('Exos X18', { drive, mpn: drive.mpn, capacity_gb: 18000 }),
       makeOffer('Exos X20', { drive: makeDrive('ST20000NM007D'), mpn: 'ST20000NM007D', capacity_gb: 20000 }),
     ];
-    renderApp({ listOffers: async () => listings });
+    // The drives the server finds by the MPN typed so far: here, only the Exos X18.
+    const catalogDrives = vi.fn<DisktrackerApi['catalogDrives']>(async query => catalogPage(rowsOf(listings.slice(0, 1)), {}, query));
+    renderApp({ listOffers: async () => listings, catalogDrives });
     await screen.findByRole('table', { name: 'Drive prices' });
     await user.click(within(screen.getByRole('banner')).getByRole('button', { name: 'Record price' }));
     const form = within(screen.getByRole('dialog', { name: 'Record price' }));
     await user.type(form.getByLabelText('MPN', { exact: true }), 'st18');
-    expect(within(screen.getByRole('listbox')).getAllByRole('option').map(option => option.textContent))
-      .toEqual(['ST18000NM000J · Exos X18']);
+    // Asked for once the MPN stops changing, not at every letter.
+    await waitFor(() => expect(catalogDrives).toHaveBeenLastCalledWith({ q: 'st18', limit: 8, offset: 0 }));
+    expect(catalogDrives).toHaveBeenCalledTimes(1);
+    await waitFor(() => expect(within(screen.getByRole('listbox')).getAllByRole('option').map(option => option.textContent))
+      .toEqual(['ST18000NM000J · Exos X18']));
+    // Like but not the same: no capacity is taken from it.
+    expect(form.getByLabelText('Capacity', { exact: true })).toBeVisible();
     await user.click(screen.getByRole('option', { name: 'ST18000NM000J · Exos X18' }));
     expect(form.getByLabelText('MPN', { exact: true })).toHaveValue('ST18000NM000J');
-    expect(form.getByText('18 TB, as recorded for this drive')).toBeVisible();
+    expect(await form.findByText('18 TB, as recorded for this drive')).toBeVisible();
   });
 
   it('starts each new price with the store and condition last used, even after a reload', async () => {
@@ -972,8 +979,8 @@ describe('App shopping view', () => {
     await user.click(within(screen.getByRole('banner')).getByRole('button', { name: 'Record price' }));
     const form = within(screen.getByRole('dialog', { name: 'Record price' }));
     await user.type(form.getByRole('textbox', { name: 'MPN' }), 'ST18000NM000J');
+    expect(await form.findByText('18 TB, as recorded for this drive')).toBeVisible();
     expect(form.queryByLabelText('Capacity', { exact: true })).not.toBeInTheDocument();
-    expect(form.getByText('18 TB, as recorded for this drive')).toBeVisible();
     await user.selectOptions(form.getByLabelText('Store', { exact: true }), 'goharddrive');
     expect(form.queryByRole('textbox', { name: 'Seller name' })).not.toBeInTheDocument();
     await user.click(form.getByText('More details'));

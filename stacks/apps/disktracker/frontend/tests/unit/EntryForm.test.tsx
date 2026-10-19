@@ -2,7 +2,8 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MantineProvider } from '@mantine/core';
-import { knownStores, makeDrive, recordedOn, unusedWrites } from '../fixtures/listings';
+import { knownStores, makeDrive, makeOffer, recordedOn, unusedWrites } from '../fixtures/listings';
+import { catalogPage, rowsOf } from '../fixtures/responses';
 import { EntryForm } from '../../src/EntryForm';
 import { ApiValidationError, type Offer, type DisktrackerApi } from '../../src/api';
 
@@ -24,7 +25,6 @@ const listing: Offer = {
 function renderForm(failure: Error) {
   const api: DisktrackerApi = {
     ...unusedWrites,
-    listOffers: async () => [listing],
     recordPrice: async () => { throw failure; },
   };
   render(<MantineProvider env="test"><EntryForm stores={knownStores} api={api} listing={listing}
@@ -84,13 +84,16 @@ describe('EntryForm', () => {
 
   it("shows a known MPN's recorded capacity instead of asking for it", async () => {
     const user = userEvent.setup();
-    render(<MantineProvider env="test"><EntryForm stores={knownStores} api={unusedWrites} listing={null} knownCapacities={{ ST18000NM000J: 18000 }}
+    // The server finds the drive recorded under another of its MPNs.
+    const drive = makeDrive('ST18000NM000J', { aliases: ['0HNHWC'] });
+    const catalogDrives = vi.fn<DisktrackerApi['catalogDrives']>(async () => catalogPage(rowsOf([makeOffer('Exos X18', { drive, mpn: drive.mpn })])));
+    render(<MantineProvider env="test"><EntryForm stores={knownStores} api={{ ...unusedWrites, catalogDrives }} listing={null}
       now={() => new Date('2026-09-21T12:00:00Z')} nextId={() => 'save-key'}
       onClose={() => {}} onSaved={async () => {}} /></MantineProvider>);
     const form = within(screen.getByRole('dialog', { name: 'Record price' }));
-    await user.type(form.getByRole('textbox', { name: 'MPN' }), 'ST18000NM000J');
+    await user.type(form.getByRole('textbox', { name: 'MPN' }), '0hnhwc');
+    expect(await form.findByText('18 TB, as recorded for this drive')).toBeVisible();
     expect(form.queryByLabelText('Capacity', { exact: true })).not.toBeInTheDocument();
-    expect(form.getByText('18 TB, as recorded for this drive')).toBeVisible();
   });
 
   it('records the price as observed now unless another date is chosen', async () => {

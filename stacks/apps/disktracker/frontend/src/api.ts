@@ -113,7 +113,6 @@ export interface DisktrackerApi {
   deleteOffer(id: string): Promise<void>;
   editDrive(driveId: string, input: DriveEdit): Promise<Drive>;
   addAlias(driveId: string, mpn: string): Promise<Drive>;
-  listOffers(): Promise<OfferSummary[]>;
   /** The latest run of each store, by store. */
   latestRuns(): Promise<Run[]>;
   /** Every run that ended since a moment, oldest first. */
@@ -219,7 +218,6 @@ export class HttpDisktrackerApi implements DisktrackerApi {
   deleteOffer(id: string): Promise<void> {
     return this.send(`/offers/${id}`, undefined, undefined, 'DELETE');
   }
-  listOffers(): Promise<OfferSummary[]> { return this.send('/offers'); }
   storeFreshness(): Promise<StoreFreshness[]> { return this.send('/reports/store-freshness'); }
   drives(query: DriveQuery): Promise<DrivePage> { return this.send(`/drives?${searchOf(query)}`); }
   catalogDrives(query: CatalogDriveQuery): Promise<CatalogDrivePage> { return this.send(`/catalog-drives?${searchOf(query)}`); }

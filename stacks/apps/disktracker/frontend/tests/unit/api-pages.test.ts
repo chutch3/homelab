@@ -50,7 +50,6 @@ it('reads and changes offers, prices, drives and review items at their own addre
     return init?.method === 'DELETE' ? new Response(null, { status: 204 }) : new Response('[]');
   }, '/api');
 
-  await api.listOffers();
   await api.editOffer('a', { title: 'Exos X18', url: null });
   await api.deleteOffer('a');
   expect(await api.deletePrice('p')).toBeNull();
@@ -59,7 +58,6 @@ it('reads and changes offers, prices, drives and review items at their own addre
   await api.decide('r', { decision: 'ignore' });
 
   expect(sent).toEqual([
-    'GET /api/offers',
     'PATCH /api/offers/a {"title":"Exos X18","url":null}',
     'DELETE /api/offers/a',
     'DELETE /api/prices/p',

@@ -1,19 +1,22 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Alert, Autocomplete, Button, Group, Modal, NativeSelect, SegmentedControl, Stack, Text, TextInput, Textarea } from '@mantine/core';
+import { useDebouncedValue } from '@mantine/hooks';
 import { useForm } from '@mantine/form';
-import { ApiValidationError, type Condition, type Offer, type DisktrackerApi, type ObservationInput, type Store } from './api';
+import { ApiValidationError, type CatalogDrive, type Condition, type Drive, type Offer, type DisktrackerApi, type ObservationInput, type Store } from './api';
 import { CapacityField } from './CapacityField';
-import type { KnownDrive } from './drive-groups';
 import { parseDollars } from './money';
 import { formFieldErrors, validateEntry, type EntryDefaults, type EntryValues } from './entry-validation';
 import { asksForSeller, capacityLabel, conditions, conditionLabel, dollars, sellerLabel } from './listing-display';
 
+/** Whether a drive goes by this MPN, as its own or another of its MPNs, in any case. */
+const goesBy = (drive: Drive, mpn: string) => [drive.mpn, ...drive.aliases].some(name => name.toUpperCase() === mpn.toUpperCase());
+/** The drives the server finds by an MPN typed, and the one recorded under it, if any is. */
+type Found = { mpn: string; drives: CatalogDrive[] };
+const recordedUnder = ({ mpn, drives }: Found) => drives.find(row => goesBy(row.drive, mpn))?.drive;
+
 const localTime = (date: Date) => new Date(date.getTime() - date.getTimezoneOffset() * 60_000).toISOString().slice(0, 19);
 type EntryProps = {
   api: DisktrackerApi; now: () => Date; nextId: () => string; listing: Offer | null;
-  knownCapacities?: Record<string, number>;
-  /** Drives already recorded, suggested as the MPN is typed. */
-  knownDrives?: KnownDrive[];
   /** The stores a new offer can be recorded under. */
   stores?: Store[];
   /** Where a new offer starts, and a hook to remember the store and condition a new offer used. */
@@ -25,7 +28,7 @@ type EntryProps = {
   onClose: () => void; onSaved: (listingId: string) => Promise<void>;
 };
 
-export function EntryForm({ listing, knownCapacities = {}, knownDrives = [], stores = [], defaults = { store: '', condition: '' }, onEntered, onAnother, previous, api, now, nextId, onClose, onSaved }: EntryProps) {
+export function EntryForm({ listing, stores = [], defaults = { store: '', condition: '' }, onEntered, onAnother, previous, api, now, nextId, onClose, onSaved }: EntryProps) {
   const priceOnly = listing !== null;
   const [requestId] = useState(nextId);
   const [changingDate, setChangingDate] = useState(false);
@@ -43,7 +46,7 @@ export function EntryForm({ listing, knownCapacities = {}, knownDrives = [], sto
     }
   };
   const form = useForm<EntryValues>({
-    validate: values => validateEntry(values, priceOnly, values.mpn.trim() in knownCapacities),
+    validate: values => validateEntry(values, priceOnly, knownCapacity.current !== undefined),
     validateInputOnBlur: true,
     clearInputErrorOnChange: false,
     initialValues: {
@@ -51,7 +54,23 @@ export function EntryForm({ listing, knownCapacities = {}, knownDrives = [], sto
       item: '', shipping: '', inStock: true, observed: localTime(now()), notes: '',
     },
   });
-  const knownCapacity = knownCapacities[form.values.mpn.trim()];
+  // Drives already recorded, found by the MPN as it is typed, once it stops changing.
+  const lookUp = useCallback((mpn: string) =>
+    api.catalogDrives({ q: mpn, limit: 8, offset: 0 }).then(page => ({ mpn, drives: page.items })), [api]);
+  const [found, setFound] = useState<Found | null>(null);
+  const typedMpn = form.values.mpn.trim();
+  const [settledMpn] = useDebouncedValue(typedMpn, 250);
+  useEffect(() => {
+    if (priceOnly || !settledMpn) return;
+    let current = true;
+    // Without an answer the form still works: it asks for the capacity, and the server checks it.
+    lookUp(settledMpn).then(answer => { if (current) setFound(answer); }).catch(() => {});
+    return () => { current = false; };
+  }, [lookUp, settledMpn, priceOnly]);
+  /** The capacity of the drive recorded under the MPN as it is now, once the server has said. */
+  const recorded = found && found.mpn.toUpperCase() === typedMpn.toUpperCase() ? recordedUnder(found) : undefined;
+  const knownCapacity = useRef<number | undefined>(undefined);
+  knownCapacity.current = recorded?.capacity_gb;
   const seller = asksForSeller(form.values.store);
   const [pasted, setPasted] = useState('');
   const [fills, setFills] = useState(0);
@@ -75,7 +94,9 @@ export function EntryForm({ listing, knownCapacities = {}, knownDrives = [], sto
         ...(facts.item_price_cents !== null && { item: (facts.item_price_cents / 100).toFixed(2) }),
       });
       // A drive already recorded brings its own capacity, so none is asked of the text.
-      const capacityKnown = Boolean(facts.capacity_gb) || (facts.mpn ?? '').trim() in knownCapacities;
+      const named = facts.mpn?.trim() ? await lookUp(facts.mpn.trim()) : null;
+      if (named) setFound(named);
+      const capacityKnown = Boolean(facts.capacity_gb) || Boolean(named && recordedUnder(named));
       const read: [name: string, path: string | null, found: boolean][] = [
         ['title', null, Boolean(facts.title)], ['MPN', 'mpn', Boolean(facts.mpn)], ['capacity', 'capacity', capacityKnown],
         ['condition', 'condition', Boolean(facts.condition)], ['price', 'item', facts.item_price_cents !== null],
@@ -96,7 +117,7 @@ export function EntryForm({ listing, knownCapacities = {}, knownDrives = [], sto
         ? { mpn: listing.mpn ?? '', store: listing.store, seller: listing.seller, condition: listing.condition, title: listing.title,
           url: listing.url, capacity_gb: null }
         : { mpn: values.mpn.trim(), store: values.store, seller: seller ? values.seller.trim() : '', condition: values.condition as Condition,
-          title: values.title.trim() || null, url: values.url.trim() || null, capacity_gb: knownCapacity ? null : Number(values.capacity.trim()) };
+          title: values.title.trim() || null, url: values.url.trim() || null, capacity_gb: knownCapacity.current ? null : Number(values.capacity.trim()) };
       const saved = await api.recordPrice({ ...offer, ...observation }, requestId);
       if (!listing) onEntered?.({ store: values.store, condition: values.condition });
       // A price entered by hand is recorded or refused: it is never queued or ignored.
@@ -139,9 +160,11 @@ export function EntryForm({ listing, knownCapacities = {}, knownDrives = [], sto
           </div>
           <div className="entry-grid">
             <Autocomplete label="MPN" aria-label="MPN" required maxLength={100} placeholder="e.g. ST18000NM000J" limit={8}
-              data={knownDrives.map(drive => drive.mpn)} {...form.getInputProps('mpn')}
-              renderOption={({ option }) => `${option.value} · ${knownDrives.find(drive => drive.mpn === option.value)?.title ?? ''}`} />
-            {knownCapacity ? <Text size="sm" className="entry-known">{capacityLabel(knownCapacity)}, as recorded for this drive</Text>
+              data={(found?.drives ?? []).map(row => row.drive.mpn)} {...form.getInputProps('mpn')}
+              // The server has found them by any name they go by: each is shown as it was found.
+              filter={({ options }) => options}
+              renderOption={({ option }) => `${option.value} · ${found?.drives.find(row => row.drive.mpn === option.value)?.title ?? ''}`} />
+            {recorded ? <Text size="sm" className="entry-known">{capacityLabel(recorded.capacity_gb)}, as recorded for this drive</Text>
               : <CapacityField key={fills} value={form.values.capacity} error={form.errors.capacity}
                 onChange={capacity => form.setFieldValue('capacity', capacity)} />}
           </div>

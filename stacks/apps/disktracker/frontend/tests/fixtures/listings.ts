@@ -66,7 +66,6 @@ export const unusedWrites = {
   reviewItems: async (): Promise<Page<ReviewItem>> => ({ items: [], total: 0 }),
   decide: async (): Promise<DecisionResult> => { throw new Error('Not used'); },
   deleteOffer: async (): Promise<void> => { throw new Error('Not used'); },
-  listOffers: async (): Promise<OfferSummary[]> => { throw new Error('Not used'); },
   drives: async (): Promise<DrivePage> => { throw new Error('Not used'); },
   catalogDrives: async (): Promise<CatalogDrivePage> => { throw new Error('Not used'); },
   storeFreshness: async (): Promise<StoreFreshness[]> => { throw new Error('Not used'); },

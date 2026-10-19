@@ -21,7 +21,7 @@ import { SpecificationDetails } from './SpecificationDetails';
 type Props = {
   api: DisktrackerApi; now: () => Date; nextId: () => string;
   /** The drive to show, by its key, and what to call it until it has loaded. */
-  driveKey: string; title: string; sort: Sort; knownCapacities: Record<string, number>;
+  driveKey: string; title: string; sort: Sort;
   /** Counts the app's changes: the drive is loaded again after each. */
   revision: number;
   /** The condition to open on: that of the row the drive was opened from. */
@@ -47,7 +47,7 @@ export const driveIdOf = (key: string) => key.replace(/^(drive|listing):/, '');
 /** One drive in a panel beside the list, a condition at a time: that condition's offers, price trend
  * and history, loaded when the drive is opened. Conditions are not mixed, as they are different
  * things to buy; each choice of condition says what it costs now, so they can still be compared. */
-export function DriveDetails({ api, now, nextId, driveKey, title: named, sort, knownCapacities, revision, condition: opensOn, manage, besideTable, recentDays, days, onClose, onRecorded, onChanged }: Props) {
+export function DriveDetails({ api, now, nextId, driveKey, title: named, sort, revision, condition: opensOn, manage, besideTable, recentDays, days, onClose, onRecorded, onChanged }: Props) {
   /** The drive's offers, each with its latest price, and its ranges; null until they have loaded. */
   const [summaries, setSummaries] = useState<OfferSummary[] | null>(null);
   const [ranges, setRanges] = useState<DriveDetail['ranges']>({});
@@ -140,7 +140,7 @@ export function DriveDetails({ api, now, nextId, driveKey, title: named, sort, k
         <SpecificationDetails value={drive.specifications} />
       </Disclosure>}
     </>)}
-    {recording && <EntryForm knownCapacities={knownCapacities} api={api} now={now} nextId={nextId} listing={recording}
+    {recording && <EntryForm api={api} now={now} nextId={nextId} listing={recording}
       onClose={() => setRecording(null)} onSaved={onRecorded} />}
     {editingDrive && <DriveForm drive={editingDrive} api={api} onClose={() => setEditingDrive(null)}
       onSaved={saved => onChanged(`Specifications saved for every offer of MPN ${saved.mpn}.`)}

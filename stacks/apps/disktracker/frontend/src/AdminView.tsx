@@ -15,7 +15,7 @@ import { adminTabs, type AdminTab } from './view';
 type Props = {
   api: DisktrackerApi; now: () => Date; nextId: () => string; recentDays: number;
   storage: Pick<Storage, 'getItem' | 'setItem'>;
-  listings: OfferSummary[]; stores: Source[];
+  stores: Source[];
   /** Hand-entered offers overdue for a check, oldest first, as the server lists them. */
   toRecheck: OfferSummary[];
   /** Counts the app's changes: what the page loads itself is loaded again after each. */
@@ -38,7 +38,7 @@ const QUIET_MS = 5 * 60_000;
 /** What waits on a person (offers to recheck or match, collectors that failed), the stores and how
  * they are collected, and every drive to correct: one tab each. The tabs not shown stay as they
  * were left, so nothing typed in one is lost by looking at another. */
-export function AdminView({ api, now, nextId, recentDays, storage, listings, toRecheck, revision, tab, tabHref, onTab, queueAll, stores, onRecorded, onChanged }: Props) {
+export function AdminView({ api, now, nextId, recentDays, storage, toRecheck, revision, tab, tabHref, onTab, queueAll, stores, onRecorded, onChanged }: Props) {
   const [runs, setRuns] = useState<Run[] | null>(null);
   const [runsError, setRunsError] = useState('');
   /** The drive open in the panel, by its key, and the title it is named by. */
@@ -130,7 +130,7 @@ export function AdminView({ api, now, nextId, recentDays, storage, listings, toR
       <DrivesSection api={api} storage={storage} recentDays={recentDays} revision={revision} onSelect={(key, title) => setSelected({ key, title })} />
     </div>
     {selected && <DriveDetails api={api} now={now} nextId={nextId} driveKey={selected.key} title={selected.title} revision={revision} key={selected.key} sort="unit-asc"
-      knownCapacities={Object.fromEntries(listings.map(listing => [listing.mpn, listing.capacity_gb]))} manage besideTable={false} recentDays={recentDays} days={defaultQuery().days}
+      manage besideTable={false} recentDays={recentDays} days={defaultQuery().days}
       onClose={() => setSelected(null)} onRecorded={onRecorded} onChanged={onChanged} />}
   </>;
 }
