@@ -71,12 +71,14 @@ class PoliteHttp:
         clock: Clock,
         *,
         permitted: str | None = None,
-        rules: dict[str, tuple[float, RobotFileParser]] | None = None,
     ) -> None:
-        """permitted: the source this reads for when the store has given it permission to read
-        what robots.txt disallows; None for every other source."""
+        """One run's or preview's way of fetching a store's pages: what it learns of robots.txt
+        is kept only while it lasts, to save asking again before each page; nothing, a refusal
+        least of all, should outlast the run or the preview that learnt it. permitted: the
+        source this reads for when the store has given it permission to read what robots.txt
+        disallows; None for every other source."""
         self.http, self.pacer, self.clock, self.permitted = http, pacer, clock, permitted
-        self.rules: dict[str, tuple[float, RobotFileParser]] = {} if rules is None else rules
+        self.rules: dict[str, tuple[float, RobotFileParser]] = {}
 
     def get(
         self, url: str, params: dict[str, Any] | None = None, min_delay: float = 0
@@ -108,12 +110,6 @@ class PoliteHttp:
             return response.raise_for_status()
         except httpx.HTTPError as error:
             raise SourceUnavailable(str(error)) from error
-
-    def forget_rules(self) -> None:
-        """Read every site's robots.txt again when it is next needed. Rules are kept only to
-        save asking again before each page of one run; nothing, a refusal least of all, should
-        outlast the run or the preview that learnt it."""
-        self.rules.clear()
 
     def sitemaps(self, url: str) -> list[str]:
         """The sitemaps the site's robots.txt names."""

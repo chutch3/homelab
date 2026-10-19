@@ -18,7 +18,7 @@ from collector.collection import Collector
 from collector.config import Config
 from collector.inspect import Inspector
 from collector.pacer import Pacer
-from collector.polite import PoliteHttp, TimedPages
+from collector.polite import TimedPages
 from collector.preview import Previewer
 from collector.schedule import Schedule
 from collector.sites import Sites
@@ -69,24 +69,17 @@ class Container(containers.DeclarativeContainer):
         DisktrackerClient, api=api, retry_delay=config.provided.retry_delay_seconds, clock=clock
     )
 
+    # What a source's pages are fetched with, by its transport.
+    transports = providers.Dict(direct=store_client, browser=browser)
+
     # Scheduled runs. One pacer, so a store's requests are spaced however they are fetched.
     pacer = providers.Singleton(Pacer, clock=clock)
-    polite = providers.Singleton(PoliteHttp, http=store_client, pacer=pacer, clock=clock)
-    browser_polite = providers.Singleton(PoliteHttp, http=browser, pacer=pacer, clock=clock)
-    # For a source permitted to read past robots.txt: the same fetching, pacing and rules.
-    permitted_polite = providers.Factory(
-        PoliteHttp, http=store_client, pacer=pacer, clock=clock, rules=polite.provided.rules
-    )
-    permitted_browser_polite = providers.Factory(
-        PoliteHttp, http=browser, pacer=pacer, clock=clock, rules=browser_polite.provided.rules
-    )
     sites = providers.Singleton(
         Sites,
         readers=readers,
-        transports=providers.Dict(direct=polite, browser=browser_polite),
-        permitted=providers.Dict(
-            direct=permitted_polite.provider, browser=permitted_browser_polite.provider
-        ),
+        transports=transports,
+        pacer=pacer,
+        clock=clock,
         min_delay=config.provided.min_delay_seconds,
     )
     # Each run's id, chosen by the collector so that its start can be sent again.
@@ -105,34 +98,12 @@ class Container(containers.DeclarativeContainer):
     # Previews. Their own pacer, so a preview never waits behind a scheduled run; it waits only
     # as long as the store itself asks between its own few requests.
     preview_pacer = providers.Singleton(Pacer, clock=clock)
-    preview_polite = providers.Singleton(
-        PoliteHttp, http=store_client, pacer=preview_pacer, clock=clock
-    )
-    preview_browser_polite = providers.Singleton(
-        PoliteHttp, http=browser, pacer=preview_pacer, clock=clock
-    )
-    preview_permitted_polite = providers.Factory(
-        PoliteHttp,
-        http=store_client,
-        pacer=preview_pacer,
-        clock=clock,
-        rules=preview_polite.provided.rules,
-    )
-    preview_permitted_browser_polite = providers.Factory(
-        PoliteHttp,
-        http=browser,
-        pacer=preview_pacer,
-        clock=clock,
-        rules=preview_browser_polite.provided.rules,
-    )
     preview_sites = providers.Singleton(
         Sites,
         readers=readers,
-        transports=providers.Dict(direct=preview_polite, browser=preview_browser_polite),
-        permitted=providers.Dict(
-            direct=preview_permitted_polite.provider,
-            browser=preview_permitted_browser_polite.provider,
-        ),
+        transports=transports,
+        pacer=preview_pacer,
+        clock=clock,
         min_delay=0,
     )
     # A store's pages, read only for as long as a preview or an inspection may take.

@@ -1,7 +1,6 @@
 import logging
 from collections.abc import Callable, Iterator, Mapping
-from functools import partial
-from typing import Any
+from typing import Any, cast
 from uuid import UUID
 
 import pytest
@@ -44,20 +43,20 @@ def clock() -> FakeClock:
 
 
 @pytest.fixture
-def transports(clock: FakeClock) -> dict[str, PoliteHttp]:
-    """How pages are fetched, by transport: made afresh for each test."""
-    return {name: PoliteHttp(FakeFetcher(), Pacer(clock), clock) for name in ("direct", "browser")}
+def fetchers() -> dict[str, FakeFetcher]:
+    """What pages are fetched with, by transport: made afresh for each test."""
+    return {name: FakeFetcher() for name in ("direct", "browser")}
 
 
 @pytest.fixture
-def subject(clock: FakeClock, transports: dict[str, PoliteHttp]) -> MakeCollector:
+def subject(clock: FakeClock, fetchers: dict[str, FakeFetcher]) -> MakeCollector:
     def make(reader: FakeReader, disktracker: FakeDisktracker) -> Collector:
-        permitted = {
-            name: partial(PoliteHttp, http.http, http.pacer, http.clock, rules=http.rules)
-            for name, http in transports.items()
-        }
         sites = Sites(
-            readers={"shopify": reader}, transports=transports, permitted=permitted, min_delay=2
+            readers={"shopify": reader},
+            transports=fetchers,
+            pacer=Pacer(clock),
+            clock=clock,
+            min_delay=2,
         )
         ids = iter(UUID(int=number) for number in range(1, 1000))
         return Collector(
@@ -381,7 +380,7 @@ class TestCollector:
         ]
 
     def test_a_source_is_read_through_its_transport_as_its_store_with_its_settings(
-        self, subject: MakeCollector, transports: dict[str, PoliteHttp]
+        self, subject: MakeCollector, fetchers: dict[str, FakeFetcher]
     ) -> None:
         reader = FakeReader()
         collector = subject(reader, FakeDisktracker())
@@ -390,19 +389,23 @@ class TestCollector:
             source_view("store", settings={"collections": ["drives"]}), CONDITION_RULES
         )
         collector.collect(source_view("store", transport="browser"), ())
+        collector.collect(
+            source_view("store", basis="permission", obey_robots=False), CONDITION_RULES
+        )
 
-        assert reader.sites == [
-            Site(
-                transports["direct"],
-                Store("store", "https://store.test", 2, CONDITION_RULES),
-                {"collections": ["drives"], "free_shipping": False},
-            ),
-            Site(
-                transports["browser"],
-                Store("store", "https://store.test", 2, ()),
-                {"collections": [], "free_shipping": False},
-            ),
-        ]
+        # Each run fetches through its own transport, permitted past robots.txt only when told.
+        fetched = [cast(PoliteHttp, site.http) for site in reader.sites]
+        assert [(http.http, http.permitted, site.store, site.settings)
+                for http, site in zip(fetched, reader.sites, strict=True)] == [
+            (fetchers["direct"], None, Store("store", "https://store.test", 2, CONDITION_RULES),
+             {"collections": ["drives"], "free_shipping": False}),
+            (fetchers["browser"], None, Store("store", "https://store.test", 2, ()),
+             {"collections": [], "free_shipping": False}),
+            (fetchers["direct"], "store", Store("store", "https://store.test", 2, CONDITION_RULES),
+             {"collections": [], "free_shipping": False}),
+        ]  # fmt: skip
+        # And afresh for each run, so nothing it learnt of robots.txt outlasts it.
+        assert len({id(http) for http in fetched}) == 3
 
     @pytest.mark.parametrize(
         ("source", "unreadable", "reason"),

@@ -107,9 +107,10 @@ def source_view(
     kind: str = "shopify",
     settings: dict[str, Any] | None = None,
     transport: str = "direct",
+    **fields: Any,
 ) -> SourceView:
     """A source as disktracker says it is due, with every setting of its kind: blank unless
-    given."""
+    given, and anything else as given."""
     view, blank = VIEWS[kind]
     return view.from_dict(
         {
@@ -126,6 +127,7 @@ def source_view(
             "obey_robots": True,
             "notes": "",
             "next_run_at": None,
+            **fields,
         }
     )
 
