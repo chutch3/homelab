@@ -487,3 +487,32 @@ def test_how_fresh_each_stores_prices_are_is_reported_over_every_offer_it_has(
         ("other", 4, at["now"], at["between"]),
         ("serverpartdeals", 1, at["now"], at["now"]),
     ]  # fmt: skip
+
+
+def test_a_held_offer_is_in_no_price_range_though_it_and_its_prices_are_still_shown(
+    database_url: str,
+) -> None:
+    """A drive at $200 from one store, and at $100 from another whose page has come to read as
+    several drives: held, the $100 is no price of the drive's, on the prices page or its own
+    page, while its offer and history stay there for a person to see."""
+    with TestClient(create_app()) as client:
+        eligible = record(client, seller="Shop", condition="new", item_price_cents=20000,
+                          shipping_cents=0, observed_at=ago(0.01))  # fmt: skip
+        page = scraped_payload(condition="new", item_price_cents=10000, observed_at=ago(0.02))
+        held = post(client, "/api/prices", page).json()["offer_id"]
+        post(
+            client,
+            "/api/prices",
+            {**page, "title": f"{page['title']} 4-pack", "observed_at": ago(0.01)},
+        )
+        [row] = client.get("/api/drives", params={"range_days": 30}).json()["items"]
+        detail = client.get(f"/api/drives/{row['drive']['id']}", params={"range_days": 30}).json()
+        history = client.get("/api/prices", params={"offer_id": held}).json()
+
+    # Priced minutes ago: no whole day of prices yet.
+    only_eligible = {"today": 20000, "low": 20000, "high": 20000, "average": 20000, "days": 0}
+    assert [offer["id"] for offer in row["offers"]] == [eligible]
+    assert row["range"] == only_eligible
+    assert detail["ranges"]["new"] == only_eligible
+    assert sorted(offer["id"] for offer in detail["offers"]) == sorted([eligible, held])
+    assert [price["item_price_cents"] for price in history["items"]] == [10000]

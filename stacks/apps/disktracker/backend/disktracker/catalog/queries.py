@@ -86,14 +86,16 @@ class CatalogQueries:
                 .order_by(Offer.title, Offer.id),
             )
             # Every offer of each drive on the page in the condition it is shown in.
+            # Of those that count: a held offer's price is no price of its drive's.
             kin = (
                 _summaries(
                     session,
                     select(Offer)
                     .where(
+                        COUNTED,
                         func.row(Offer.drive_id, Offer.condition).in_(
                             [func.row(row.drive_id, row.condition) for row in page]
-                        )
+                        ),
                     )
                     .order_by(Offer.title, Offer.id),
                 )
@@ -240,15 +242,22 @@ class CatalogQueries:
             }
 
     def drive_detail(self, drive_id: UUID, since: datetime) -> dict[str, Any]:
-        """A drive with every offer of it, each offer's prices in effect from a moment on, and
-        when it was last checked: what the range of each condition is drawn from."""
+        """A drive with every offer of it, held ones too, and of those that count (COUNTED) each
+        one's prices in effect from a moment on and when it was last checked: what the range of
+        each condition is drawn from."""
         with self.snapshot_factory() as session:
             drive = session.get(Drive, drive_id)
             if drive is None:
                 raise DriveNotFound()
             chosen = select(Offer).where(Offer.drive_id == drive_id).order_by(Offer.title, Offer.id)
             offers = _summaries(session, chosen)
-            windows = _windows(session, [UUID(offer["id"]) for offer in offers], since)
+            counted = {
+                str(offer_id)
+                for offer_id in session.scalars(
+                    select(Offer.id).where(Offer.drive_id == drive_id, COUNTED)
+                )
+            }
+            windows = _windows(session, [UUID(offer_id) for offer_id in counted], since)
             return {
                 "drive": drive_view(drive, aliases_of(session, drive_id)),
                 "offers": offers,
@@ -256,6 +265,7 @@ class CatalogQueries:
                     (offer["condition"], windows[offer["id"]],
                      datetime.fromisoformat(offer["last_checked_at"]))
                     for offer in offers
+                    if offer["id"] in counted
                 ],
             }  # fmt: skip
 
