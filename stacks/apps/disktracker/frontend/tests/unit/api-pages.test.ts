@@ -91,6 +91,20 @@ it('asks the server for a page of drives with every filter as a query parameter'
   ]);
 });
 
+it('asks the server for a page of the drives to manage by words and need, leaving out what is not asked', async () => {
+  const asked: string[] = [];
+  const page = { items: [], total: 0, all: 0, issues: { unknown_specifications: 0, stale: 0 }, limit: 25, offset: 25 };
+  const api = new HttpDisktrackerApi(async url => { asked.push(String(url)); return new Response(JSON.stringify(page)); }, '/api');
+
+  expect(await api.catalogDrives({ q: 'wuh 72', issue: 'stale', recent_days: 14, limit: 25, offset: 25 })).toEqual(page);
+  await api.catalogDrives({ q: '', recent_days: 7, limit: 50, offset: 0 });
+
+  expect(asked).toEqual([
+    '/api/catalog-drives?q=wuh+72&issue=stale&recent_days=14&limit=25&offset=25',
+    '/api/catalog-drives?recent_days=7&limit=50&offset=0',
+  ]);
+});
+
 it('reads a drive, its prices a page at a time, the offers due a check, and what drives cost today', async () => {
   const asked: string[] = [];
   const api = new HttpDisktrackerApi(async url => {

@@ -8,7 +8,7 @@ from datetime import datetime, timedelta
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import Numeric, case, cast, func, literal_column, select
+from sqlalchemy import Numeric, and_, case, cast, func, literal_column, select, true
 from sqlalchemy.dialects.postgresql import aggregate_order_by
 from sqlalchemy.orm import Session
 from sqlalchemy.sql import ColumnElement, Select
@@ -21,7 +21,7 @@ from disktracker.catalog.models import (
     Price,
     ReviewItem,
 )
-from disktracker.catalog.schemas import DriveQuery, DriveScope
+from disktracker.catalog.schemas import CatalogDriveQuery, DriveQuery, DriveScope
 from disktracker.catalog.views import drive_view, price_view, review_item_view, summary_view
 from disktracker.collection.models import Source
 from disktracker.database import SessionFactory, columns
@@ -115,6 +115,98 @@ class CatalogQueries:
                 "as_of": now,
                 "lowest": _lowest(session, matching, now, query.recent_days),
                 "filter_options": _filter_options(session, facts, query, now),
+            }
+
+    def catalog_drives(self, query: CatalogDriveQuery, now: datetime) -> dict[str, Any]:
+        """Every drive, held offers and all, that an offer of matches the words, a page of them:
+        one named by the words first, then in stock first and cheapest terabyte first, as each
+        is shown by its cheapest offer in stock (else its cheapest); each with how many offers it
+        has and what it needs, and how many of every drive need each thing."""
+        facts = every_offer_facts().subquery()
+        by_drive = {"partition_by": facts.c.drive_id}
+        named = named_by(facts, query.q) if query.q else true()
+        stale = and_(facts.c.in_stock, facts.c.checked < now - timedelta(days=query.recent_days))
+        drives = (
+            select(
+                facts,
+                func.row_number()
+                .over(**by_drive, order_by=(facts.c.in_stock.desc(), facts.c.per_tb, facts.c.id))
+                .label("rank"),
+                func.count().over(**by_drive).label("offers"),
+                func.bool_or(stale).over(**by_drive).label("stale"),
+                func.bool_or(named).over(**by_drive).label("named"),
+            )
+        ).subquery()
+        shown = select(drives).where(drives.c.rank == 1).subquery()
+        specs = shown.c.specifications
+        unknown = and_(
+            *(
+                func.coalesce(specs[key].astext, UNKNOWN) == UNKNOWN
+                for key in SCALAR_SPECIFICATIONS
+            ),
+            func.coalesce(func.jsonb_array_length(specs["intended_use"]), 0) == 0,
+        )
+        need = {"unknown_specifications": unknown, "stale": shown.c.stale}
+        # Those the words are the MPN, or another MPN, of come first.
+        first = (
+            [
+                shown.c.drive_id.in_(
+                    select(Drive.id)
+                    .where(func.upper(Drive.mpn) == query.q.upper())
+                    .union(
+                        select(MpnAlias.drive_id).where(
+                            func.upper(MpnAlias.alias) == query.q.upper()
+                        )
+                    )
+                ).desc()
+            ]
+            if query.q
+            else []
+        )
+        wanted = [shown.c.named, need[query.issue] if query.issue else true()]
+        with self.snapshot_factory() as session:
+            rows = session.execute(
+                select(shown, unknown.label("unknown"))
+                .where(*wanted)
+                .order_by(*first, shown.c.in_stock.desc(), shown.c.per_tb, shown.c.id)
+                .limit(query.limit)
+                .offset(query.offset)
+            ).all()
+            counted = session.execute(
+                select(
+                    func.count().filter(and_(*wanted)),
+                    func.count(),
+                    *(func.count().filter(value) for value in need.values()),
+                ).select_from(shown)
+            ).one()
+            found = {
+                drive.id: drive
+                for drive in session.scalars(
+                    select(Drive).where(Drive.id.in_([row.drive_id for row in rows]))
+                )
+            }
+            return {
+                "items": [
+                    {
+                        "drive": drive_view(found[row.drive_id], aliases_of(session, row.drive_id)),
+                        "title": row.title,
+                        "offers": row.offers,
+                        "issues": [
+                            name
+                            for name, needed in (
+                                ("unknown_specifications", row.unknown),
+                                ("stale", row.stale),
+                            )
+                            if needed
+                        ],
+                    }
+                    for row in rows
+                ],
+                "total": counted[0],
+                "all": counted[1],
+                "issues": dict(zip(need, counted[2:], strict=True)),
+                "limit": query.limit,
+                "offset": query.offset,
             }
 
     def drive_detail(self, drive_id: UUID, since: datetime) -> dict[str, Any]:
@@ -276,7 +368,12 @@ COUNTED = Offer.held_reason.is_(None)
 
 
 def offer_facts() -> Select[Any]:
-    """One row for each offer that counts (COUNTED): what it is filtered, grouped and ordered by. Its total and
+    """One row for each offer that counts (COUNTED), as every_offer_facts gives it."""
+    return every_offer_facts().where(COUNTED)
+
+
+def every_offer_facts() -> Select[Any]:
+    """One row for each offer, held or not: what it is filtered, grouped and ordered by. Its total and
     total per terabyte are as its latest price gives them, to the cent; it was checked when it
     was last priced, or later; its names are its title, MPN, its drive's other MPNs and who sells
     it, as search reads them."""
@@ -297,6 +394,7 @@ def offer_facts() -> Select[Any]:
         select(
             Offer.id,
             Offer.drive_id,
+            Offer.title,
             Offer.condition,
             Offer.store,
             latest.c.in_stock,
@@ -315,7 +413,6 @@ def offer_facts() -> Select[Any]:
         .join(Drive, Drive.id == Offer.drive_id)
         .join(Source, Source.key == Offer.store)
         .outerjoin(aliases, aliases.c.drive_id == Offer.drive_id)
-        .where(COUNTED)
     )
 
 
@@ -335,6 +432,12 @@ def _filters(facts: Any, query: DriveQuery, now: datetime) -> list[ColumnElement
     return wanted
 
 
+def named_by(facts: Any, words: str) -> ColumnElement[bool]:
+    """Whether an offer (a row of offer_facts) goes by a name containing the words, as typed."""
+    escaped = words.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+    return facts.c.names.ilike(f"%{escaped}%", escape="\\")
+
+
 def scope_filters(facts: Any, query: DriveScope) -> list[ColumnElement[bool]]:
     """What an offer (a row of offer_facts) must be to be of the drives asked for. Unknown is a
     value of every specification, and an empty list of intended uses is an unknown one."""
@@ -342,8 +445,7 @@ def scope_filters(facts: Any, query: DriveScope) -> list[ColumnElement[bool]]:
     wanted: list[ColumnElement[bool]] = []
     words = query.q.strip()
     if words:
-        escaped = words.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
-        wanted.append(c.names.ilike(f"%{escaped}%", escape="\\"))
+        wanted.append(named_by(facts, words))
     if query.brand:
         wanted.append(func.coalesce(c.brand, UNKNOWN).in_(query.brand))
     if query.capacity:

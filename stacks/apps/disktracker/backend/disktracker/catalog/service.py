@@ -11,6 +11,7 @@ from uuid import UUID
 from disktracker.catalog.queries import CatalogQueries
 from disktracker.catalog.repository import CatalogRepository
 from disktracker.catalog.schemas import (
+    CatalogDriveQuery,
     ConditionRule,
     DriveEdit,
     DriveQuery,
@@ -32,6 +33,10 @@ class CatalogService:
         self.repository, self.queries, self.now = repository, queries, now
 
     # Reading drives, offers and prices.
+
+    def catalog_drives(self, query: CatalogDriveQuery) -> dict[str, Any]:
+        """A page of every drive to manage, with what each needs."""
+        return self.queries.catalog_drives(query, self.now())
 
     def drives(self, query: DriveQuery) -> dict[str, Any]:
         """A page of the drive list, each drive with the range of its price over the days asked

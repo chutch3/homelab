@@ -42,27 +42,6 @@ export function queryErrors(query: ListingQuery): Record<string, string> {
   return errors;
 }
 
-export function queryListings(listings: OfferSummary[], query: ListingQuery, now: Date, recentDays: number): OfferSummary[] {
-  if (Object.keys(queryErrors(query)).length) return [];
-  const search = query.search.trim().toLowerCase();
-  const rows = listings.filter(listing => {
-    const capacity = listing.capacity_gb, total = listing.latest.total_cents;
-    // Search covers every name a drive or offer goes by: title, MPN, other MPNs, and seller.
-    const names = `${listing.title} ${listing.mpn ?? ''} ${(listing.drive?.aliases ?? []).join(' ')} ${sellerLabel(listing)}`;
-    return (!search || names.toLowerCase().includes(search))
-      && (!query.brands.length || query.brands.includes(listing.drive?.brand ?? UNKNOWN_BRAND))
-      && (!query.capacities.length || query.capacities.includes(String(capacity)))
-      && (!query.maxTotal.trim() || (total !== null && total <= Math.round(Number(query.maxTotal) * 100)))
-      && (!query.conditions.length || query.conditions.includes(listing.condition))
-      && (!query.stores.length || query.stores.includes(listing.store))
-      && (!query.inStockOnly || listing.latest.in_stock)
-      && (Object.keys(specOptions) as SpecKey[]).every(key => matchesSpecification(listing.drive?.specifications ?? emptySpecifications(), key, query[key]))
-      && (!query.recentOnly || isRecent(listing, now, recentDays));
-  });
-  return rows.sort(compareListings(query.sort));
-}
-
-/** The brand filter's value for drives no source has named a brand for. */
 export const UNKNOWN_BRAND = 'unknown';
 export const brandLabel = (brand: string) => brand === UNKNOWN_BRAND ? 'Unknown' : brand;
 export type BrandCount = { brand: string; drives: number };

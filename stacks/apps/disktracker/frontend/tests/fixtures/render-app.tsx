@@ -2,7 +2,7 @@ import { render, screen, within } from '@testing-library/react';
 import { MantineProvider } from '@mantine/core';
 import { App } from '../../src/App';
 import type { Offer, DisktrackerApi, ReviewItem } from '../../src/api';
-import { detailOf, drivePage, pricesOf, rowsOf } from './responses';
+import { catalogPage, detailOf, drivePage, pricesOf, rowsOf } from './responses';
 import { groupKeyFor } from '../../src/drive-groups';
 import { checkedAt, knownKinds, knownStores, shoppingListings, unusedWrites } from './listings';
 
@@ -39,6 +39,8 @@ export function renderApp({ listOffers = async () => shoppingListings, reviewIte
     // The offers as the server would list them, unfiltered, a page at a time; a drive and its prices
     // by the drive. A test that filters says what the server answers.
     drives: async query => drivePage(rowsOf(await listOffers()), {}, query),
+    // Every drive, a page at a time; a test that searches or narrows says what the server answers.
+    catalogDrives: async query => catalogPage(rowsOf(await listOffers()), {}, query),
     drive: async id => detailOf((await listOffers()).filter(ofDrive(id))),
     offer: async id => {
       const found = (await listOffers()).find(offer => offer.id === id);

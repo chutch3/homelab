@@ -1,6 +1,9 @@
 """ Contains all the data models used in inputs/outputs """
 
 from .alias_input import AliasInput
+from .catalog_drive import CatalogDrive
+from .catalog_drive_issues_item import CatalogDriveIssuesItem
+from .catalog_drive_page import CatalogDrivePage
 from .choice_literalnew_manufacturer_recertified_refurbished_used import ChoiceLiteralnewManufacturerRecertifiedRefurbishedUsed
 from .choice_literalnew_manufacturer_recertified_refurbished_used_value import ChoiceLiteralnewManufacturerRecertifiedRefurbishedUsedValue
 from .choiceint import Choiceint
@@ -14,6 +17,7 @@ from .drive import Drive
 from .drive_detail import DriveDetail
 from .drive_detail_ranges import DriveDetailRanges
 from .drive_edit import DriveEdit
+from .drive_issue_counts import DriveIssueCounts
 from .drive_page import DrivePage
 from .drive_row import DriveRow
 from .error_response import ErrorResponse
@@ -23,6 +27,7 @@ from .heartbeat import Heartbeat
 from .heartbeat_answer import HeartbeatAnswer
 from .http_validation_error import HTTPValidationError
 from .ignore_decision import IgnoreDecision
+from .list_catalog_drives_issue_type_0 import ListCatalogDrivesIssueType0
 from .list_drives_condition_item import ListDrivesConditionItem
 from .list_drives_form_factor_type_0 import ListDrivesFormFactorType0
 from .list_drives_intended_use_type_0 import ListDrivesIntendedUseType0
@@ -171,6 +176,9 @@ from .validation_error_context import ValidationErrorContext
 
 __all__ = (
     "AliasInput",
+    "CatalogDrive",
+    "CatalogDriveIssuesItem",
+    "CatalogDrivePage",
     "Choiceint",
     "ChoiceLiteralnewManufacturerRecertifiedRefurbishedUsed",
     "ChoiceLiteralnewManufacturerRecertifiedRefurbishedUsedValue",
@@ -184,6 +192,7 @@ __all__ = (
     "DriveDetail",
     "DriveDetailRanges",
     "DriveEdit",
+    "DriveIssueCounts",
     "DrivePage",
     "DriveRow",
     "ErrorResponse",
@@ -193,6 +202,7 @@ __all__ = (
     "HeartbeatAnswer",
     "HTTPValidationError",
     "IgnoreDecision",
+    "ListCatalogDrivesIssueType0",
     "ListDrivesConditionItem",
     "ListDrivesFormFactorType0",
     "ListDrivesIntendedUseType0",

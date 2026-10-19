@@ -1,5 +1,5 @@
-import type { DriveDetail, DrivePage, DriveQuery, DriveRow, FilterOptions, Offer, OfferSummary, PricePage, PriceRequest } from '../../src/api';
-import { groupKeyFor } from '../../src/drive-groups';
+import type { CatalogDrive, CatalogDrivePage, CatalogDriveQuery, DriveDetail, DrivePage, DriveQuery, DriveRow, FilterOptions, Offer, OfferSummary, PricePage, PriceRequest } from '../../src/api';
+import { groupKeyFor, type DriveGroup } from '../../src/drive-groups';
 import { checkedAt } from './listings';
 
 /** Responses as the server gives them, written out by each test: nothing here filters, orders,
@@ -40,3 +40,19 @@ export function pricesOf(offers: Offer[], { limit = 500, offset = 0 }: PriceRequ
   const all = offers.flatMap(offer => offer.observations.map(price => ({ ...price, offer_id: offer.id })));
   return { items: all.slice(offset, offset + limit), total: all.length, limit, offset };
 }
+
+/** A page of drives to manage, one for each of these rows, named by its row's first offer; total
+ * and counts as given, or as the rows say, with nothing needed. */
+export function catalogPage(rows: DriveRow[], fields: Partial<CatalogDrivePage> = {}, query?: Pick<CatalogDriveQuery, 'limit' | 'offset'>): CatalogDrivePage {
+  const limit = query?.limit ?? 50, offset = query?.offset ?? 0;
+  const items: CatalogDrive[] = rows.map(row => ({ drive: row.drive, title: row.representative.title, offers: row.offers.length, issues: [] }));
+  return {
+    items: items.slice(offset, offset + limit), total: items.length, all: items.length,
+    issues: { unknown_specifications: 0, stale: 0 }, limit, offset, ...fields,
+  };
+}
+
+/** The drive table's groups for these rows, as the app makes them of the server's: each shown by
+ * its first offer given. */
+export const groupsOf = (offers: OfferSummary[]): DriveGroup[] =>
+  rowsOf(offers).map(row => ({ key: row.key, drive: row.drive, listings: row.offers, representative: row.representative }));

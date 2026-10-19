@@ -1,6 +1,6 @@
 import { emptySpecifications } from '../../src/specifications';
 import described from './source-kinds.json';
-import type { SourceInput, DecisionResult, DriveDetail, DrivePage, PriceMark, PricePage, PriceResult, Run, CollectorStatus, ConditionRule, Drive, ListingFacts, Page, Source, SourceInspection, SourceKindDescription, SourcePreview, Offer, OfferSummary, Observation, Trends, ReviewItem } from '../../src/api';
+import type { CatalogDrivePage, SourceInput, DecisionResult, DriveDetail, DrivePage, PriceMark, PricePage, PriceResult, Run, CollectorStatus, ConditionRule, Drive, ListingFacts, Page, Source, SourceInspection, SourceKindDescription, SourcePreview, Offer, OfferSummary, Observation, Trends, ReviewItem } from '../../src/api';
 
 export const checkedAt = new Date('2026-09-22T12:00:00Z');
 export function makeDrive(mpn: string, fields: Partial<Drive> = {}): Drive {
@@ -68,6 +68,7 @@ export const unusedWrites = {
   deleteOffer: async (): Promise<void> => { throw new Error('Not used'); },
   listOffers: async (): Promise<OfferSummary[]> => { throw new Error('Not used'); },
   drives: async (): Promise<DrivePage> => { throw new Error('Not used'); },
+  catalogDrives: async (): Promise<CatalogDrivePage> => { throw new Error('Not used'); },
   drive: async (): Promise<DriveDetail> => { throw new Error('Not used'); },
   offer: async (): Promise<Offer> => { throw new Error('Not used'); },
   prices: async (): Promise<PricePage> => { throw new Error('Not used'); },

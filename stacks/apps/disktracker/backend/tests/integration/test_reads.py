@@ -368,3 +368,95 @@ def test_a_drive_is_read_with_the_range_of_its_price_in_each_condition_over_the_
     }  # fmt: skip
     # Ninety days unless asked: the offer is newer than that.
     assert default["ranges"]["new"]["days"] == 40
+
+
+def catalog_mpns(page: dict[str, Any]) -> list[str]:
+    return [row["drive"]["mpn"] for row in page["items"]]
+
+
+def test_the_drives_to_manage_are_every_drive_a_page_at_a_time_with_what_each_needs(
+    database_url: str,
+) -> None:
+    """Every drive, held offers and all, in stock first and cheapest terabyte first, each with
+    how many offers it has and what it needs: specifications, or a check of an offer in stock
+    not checked within recent_days. Each need is counted over every drive."""
+    with TestClient(create_app()) as client:
+        catalogue(client)
+        first = client.get("/api/catalog-drives", params={"limit": 2}).json()
+        second = client.get("/api/catalog-drives", params={"limit": 2, "offset": 2}).json()
+        stale = client.get("/api/catalog-drives", params={"issue": "stale"}).json()
+        later = client.get(
+            "/api/catalog-drives", params={"issue": "stale", "recent_days": 30}
+        ).json()
+        refused = client.get("/api/catalog-drives", params={"issue": "broken"})
+
+    assert catalog_mpns(first) + catalog_mpns(second) == [
+        "WUH721212ALE6L4", "ST18000NM000J", "ST8000VN004", "ST14000NM001G",
+    ]  # fmt: skip
+    assert (first["total"], first["all"], first["limit"], first["offset"]) == (4, 4, 2, 0)
+    assert first["items"][1] == {
+        "drive": first["items"][1]["drive"],
+        "title": "Exos X18 18TB",
+        "offers": 2,
+        "issues": ["unknown_specifications"],
+    }
+    assert [row["issues"] for row in second["items"]] == [
+        ["unknown_specifications", "stale"], ["unknown_specifications"],
+    ]  # fmt: skip
+    assert first["issues"] == {"unknown_specifications": 3, "stale": 1}
+    assert (catalog_mpns(stale), stale["total"], stale["all"]) == (["ST8000VN004"], 1, 4)
+    assert later["total"] == 0
+    assert refused.status_code == 422
+
+
+def test_the_drives_to_manage_are_searched_by_every_name_with_a_drive_named_exactly_first(
+    database_url: str,
+) -> None:
+    """By any name an offer of it goes by: its title, MPN, its drive's other MPNs, and who sells
+    it. A drive the words are the MPN of, or another MPN of, comes first, so a form can tell a
+    drive already recorded from those it only resembles."""
+    with TestClient(create_app()) as client:
+        catalogue(client)
+        drives = {o["mpn"]: o["drive"]["id"] for o in client.get("/api/offers").json()}
+        client.post(f"/api/drives/{drives['ST8000VN004']}/aliases", json={"mpn": "ST8000"})
+        by_seller = client.get("/api/catalog-drives", params={"q": "old shop"}).json()
+        by_title = client.get("/api/catalog-drives", params={"q": "exos"}).json()
+        by_alias = client.get("/api/catalog-drives", params={"q": "st8000"}).json()
+        exact = client.get("/api/catalog-drives", params={"q": "ST14000NM001G"}).json()
+        resembling = client.get("/api/catalog-drives", params={"q": "ST1"}).json()
+
+    assert catalog_mpns(by_seller) == ["ST8000VN004"]
+    assert (catalog_mpns(by_title), by_title["all"]) == (["ST18000NM000J", "ST14000NM001G"], 4)
+    # Its other MPN, and in ST8000VN004 itself.
+    assert catalog_mpns(by_alias) == ["ST8000VN004"]
+    assert catalog_mpns(exact) == ["ST14000NM001G"]
+    assert catalog_mpns(resembling) == ["ST18000NM000J", "ST14000NM001G"]
+
+
+def test_a_held_offer_is_still_a_drive_to_manage(database_url: str) -> None:
+    with TestClient(create_app()) as client:
+        page = scraped_payload(url="https://www.serverpartdeals.com/products/bundle", mpn="R0P90A",
+                               title="HPE R0P90A 6TB", capacity_gb=6000, condition="refurbished")  # fmt: skip
+        post(client, "/api/prices", page)
+        post(client, "/api/prices", {**page, "title": "HPE R0P90A 48TB (8x6) 6-pack",
+                                     "observed_at": ago(0.001)})  # fmt: skip
+        listed = client.get("/api/drives").json()["total"]
+        managed = client.get("/api/catalog-drives").json()
+
+    assert (listed, catalog_mpns(managed)) == (0, ["R0P90A"])
+
+
+def test_any_one_specification_known_is_specifications_enough(database_url: str) -> None:
+    """Only a drive nothing is known of needs its specifications: a use it is meant for is one."""
+    with TestClient(create_app()) as client:
+        catalogue(client)
+        drives = {o["mpn"]: o["drive"]["id"] for o in client.get("/api/offers").json()}
+        client.patch(
+            f"/api/drives/{drives['ST8000VN004']}",
+            json={"specifications": {"intended_use": ["nas"]}},
+        )
+        needing = client.get(
+            "/api/catalog-drives", params={"issue": "unknown_specifications"}
+        ).json()
+
+    assert catalog_mpns(needing) == ["ST18000NM000J", "ST14000NM001G"]

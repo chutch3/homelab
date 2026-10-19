@@ -3,14 +3,14 @@ import { cleanup, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MantineProvider } from '@mantine/core';
 import { DriveTable } from '../../src/DriveTable';
-import { groupByDrive } from '../../src/drive-groups';
 import { checkedAt, makeDrive, makeOffer, shoppingListings } from '../fixtures/listings';
+import { groupsOf } from '../fixtures/responses';
 
 afterEach(cleanup);
 
 it('DriveTable renders one row per listing, sort indicators, price leaders, and selection', async () => {
   const onSort = vi.fn(), onSelect = vi.fn();
-  const groups = groupByDrive(shoppingListings, 'total-asc');
+  const groups = groupsOf(shoppingListings);
   render(<MantineProvider env="test"><DriveTable groups={groups} sort="total-asc"
     onSort={onSort} onSelect={onSelect} now={checkedAt} recentDays={7}
     leaders={{ total: new Set(['Small drive']), unit: new Set(['Large drive']) }} ranges={{}} rangeDays={90} onRangeDays={() => {}} /></MantineProvider>);
@@ -29,7 +29,7 @@ it('shows how many sellers share a drive and surfaces the cheapest one', () => {
   const drive = makeDrive('ST18000NM000J');
   const cheaper = makeOffer('Cheaper seller', { drive, store: 'serverpartdeals', seller: '' }, { total_cents: 20000, price_per_tb: '10.00' });
   const pricier = makeOffer('Pricier seller', { drive, seller: 'GoHardDrive' }, { total_cents: 30000, price_per_tb: '15.00' });
-  const groups = groupByDrive([pricier, cheaper], 'unit-asc');
+  const groups = groupsOf([cheaper, pricier]);
   render(<MantineProvider env="test"><DriveTable groups={groups} sort="unit-asc" onSort={() => {}} onSelect={() => {}}
     now={checkedAt} recentDays={7} leaders={{ total: new Set(), unit: new Set() }} ranges={{}} rangeDays={90} onRangeDays={() => {}} /></MantineProvider>);
   expect(screen.getByTitle('Cheaper seller')).toBeVisible();
@@ -44,7 +44,8 @@ it('names the other conditions a drive is sold in, each opening the drive on it,
   const recertifiedToo = makeOffer('recertified-too', { drive, condition: 'manufacturer_recertified', seller: 'Two' }, { total_cents: 49900, price_per_tb: '27.72' });
   const soldOut = makeOffer('new', { drive, condition: 'new' }, { total_cents: 45000, price_per_tb: '25.00', in_stock: false });
   const onSelect = vi.fn();
-  const [group] = groupByDrive([soldOut, recertifiedToo, recertified, refurbished], 'unit-asc');
+  // Shown by its cheapest offer in stock, as the server shows it.
+  const [group] = groupsOf([refurbished, soldOut, recertifiedToo, recertified]);
   render(<MantineProvider env="test"><DriveTable groups={[group]} sort="unit-asc" onSort={() => {}} onSelect={onSelect}
     now={checkedAt} recentDays={7} leaders={{ total: new Set(), unit: new Set() }} ranges={{}} rangeDays={90} onRangeDays={() => {}} /></MantineProvider>);
   const row = within(screen.getByTitle('Exos X18').closest('tr')!);
@@ -59,7 +60,7 @@ it('names the other conditions a drive is sold in, each opening the drive on it,
 it("shows each drive's price range for the days asked about, and leaves the cell empty until its range is known", () => {
   const known = makeOffer('Known drive', { drive: makeDrive('ST18000NM000J') });
   const waiting = makeOffer('Waiting drive');
-  const groups = groupByDrive([known, waiting], 'unit-asc');
+  const groups = groupsOf([known, waiting]);
   const key = groups.find(group => group.representative.id === 'Known drive')!.key;
   render(<MantineProvider env="test"><DriveTable groups={groups} sort="unit-asc" onSort={() => {}} onSelect={() => {}}
     now={checkedAt} recentDays={7} leaders={{ total: new Set(), unit: new Set() }}
@@ -75,7 +76,7 @@ it("shows each drive's price range for the days asked about, and leaves the cell
 
 it('offers the days the range looks back over in its column heading, and tells of a change', async () => {
   const onRangeDays = vi.fn();
-  render(<MantineProvider env="test"><DriveTable groups={groupByDrive(shoppingListings, 'unit-asc')} sort="unit-asc" onSort={() => {}} onSelect={() => {}}
+  render(<MantineProvider env="test"><DriveTable groups={groupsOf(shoppingListings)} sort="unit-asc" onSort={() => {}} onSelect={() => {}}
     now={checkedAt} recentDays={7} leaders={{ total: new Set(), unit: new Set() }} ranges={{}} rangeDays={90} onRangeDays={onRangeDays} /></MantineProvider>);
   const period = screen.getByRole('combobox', { name: 'Days the range looks back over' });
   expect(period).toHaveValue('90');
@@ -86,7 +87,7 @@ it('offers the days the range looks back over in its column heading, and tells o
 
 it('keeps a long listing title to one line of its row, with the whole of it there on pointing', () => {
   const title = 'Western Digital Ultrastar DC HC530 WUH721414ALE601 14TB 7200RPM 512MB Cache SATA 6.0Gb/s 3.5inch Enterprise Hard Drive (Certified Refurbished) - 3 Year Warranty';
-  const groups = groupByDrive([makeOffer(title)], 'unit-asc');
+  const groups = groupsOf([makeOffer(title)]);
   render(<MantineProvider env="test"><DriveTable groups={groups} sort="unit-asc" onSort={() => {}} onSelect={() => {}}
     now={checkedAt} recentDays={7} leaders={{ total: new Set(), unit: new Set() }} ranges={{}} rangeDays={90} onRangeDays={() => {}} /></MantineProvider>);
   // The row names the drive; the store's whole title is there on pointing.
@@ -97,7 +98,7 @@ it('leads each row with the price the list is ordered by: the total when it is, 
   const offer = makeOffer('Exos', {}, { total_cents: 19250, price_per_tb: '10.69' });
   const table = (sort: 'unit-asc' | 'total-asc' | 'checked-desc') => {
     cleanup();
-    render(<MantineProvider env="test"><DriveTable groups={groupByDrive([offer], sort)} sort={sort} onSort={() => {}} onSelect={() => {}}
+    render(<MantineProvider env="test"><DriveTable groups={groupsOf([offer])} sort={sort} onSort={() => {}} onSelect={() => {}}
       now={checkedAt} recentDays={7} leaders={{ total: new Set(), unit: new Set() }} ranges={{}} rangeDays={90} onRangeDays={() => {}} /></MantineProvider>);
     const lead = (text: string) => screen.getByText(text).classList.contains('lead-price');
     return [lead('$10.69'), lead('$192.50')];

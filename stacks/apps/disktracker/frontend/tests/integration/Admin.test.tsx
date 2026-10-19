@@ -5,7 +5,7 @@ import { ApiValidationError, type CollectorStatus, type Run, type ConditionRule,
 import { emptySpecifications } from '../../src/specifications';
 import { checkedAt, historyPrices, knownStores, makeDrive, makeOffer, makeSource, makeReviewItem, recordedOn, savedSource, sitemapSettings } from '../fixtures/listings';
 import { memoryStorage, namesIn, renderApp } from '../fixtures/render-app';
-import { drivePage, rowsOf } from '../fixtures/responses';
+import { catalogPage, drivePage, rowsOf } from '../fixtures/responses';
 
 beforeEach(() => { window.history.replaceState(null, '', '/admin'); });
 afterEach(() => { cleanup(); window.history.replaceState(null, '', '/'); });
@@ -115,7 +115,11 @@ describe('Admin page', () => {
 
   it('counts what is waiting, in the header and on the To do tab, and what is wrong with drives on theirs', async () => {
     const user = userEvent.setup();
-    renderApp({ listOffers: async () => catalogue(), offersToRecheck: overdueInCatalogue, reviewItems: async () => [makeReviewItem('a'), makeReviewItem('b')] });
+    renderApp({
+      listOffers: async () => catalogue(), offersToRecheck: overdueInCatalogue, reviewItems: async () => [makeReviewItem('a'), makeReviewItem('b')],
+      // What every drive needs, as the server counts it.
+      catalogDrives: async query => catalogPage(rowsOf(catalogue()), { issues: { unknown_specifications: 2, stale: 1 } }, query),
+    });
     expect(await screen.findByRole('link', { name: 'Admin 3 to do' })).toBeVisible();
     expect(screen.getByRole('link', { name: 'To do (3)' })).toBeVisible();
     expect(screen.getByRole('heading', { name: 'Recheck by hand (1)' })).toBeVisible();
@@ -123,7 +127,7 @@ describe('Admin page', () => {
     expect(await screen.findByRole('heading', { name: 'Needs matching (2)' })).toBeVisible();
     await user.click(screen.getByRole('link', { name: 'Drives' }));
     const drives = within(screen.getByRole('region', { name: 'Drives' }));
-    expect(drives.getByRole('button', { name: 'No specs (2)' })).toBeVisible();
+    expect(await drives.findByRole('button', { name: 'No specs (2)' })).toBeVisible();
     expect(drives.getByRole('button', { name: 'Stale (1)' })).toBeVisible();
     // One store selling a drive is nothing to act on.
     expect(drives.queryByRole('button', { name: /Sold by one store/ })).not.toBeInTheDocument();
@@ -132,25 +136,41 @@ describe('Admin page', () => {
   it('narrows the drive list to what a count counts, and choosing it again clears the filter', async () => {
     at('drives');
     const user = userEvent.setup();
-    renderApp({ listOffers: async () => catalogue() });
+    const rows = rowsOf(catalogue());
+    const named = (title: string) => rows.filter(row => row.representative.title === title);
+    // What the server answers for each need asked for.
+    const answers = { stale: [...named('Ultrastar HC550')], unknown_specifications: [...named('Ultrastar HC550'), ...named('WD Red Plus')] };
+    const catalogDrives = vi.fn<DisktrackerApi['catalogDrives']>(async query =>
+      catalogPage(query.issue ? answers[query.issue] : rows, {}, query));
+    renderApp({ listOffers: async () => catalogue(), catalogDrives });
     await screen.findByRole('table', { name: 'Drives' });
     const attention = within(screen.getByRole('region', { name: 'Drives' }));
+    const asked = () => catalogDrives.mock.lastCall?.[0];
     await user.click(attention.getByRole('button', { name: /^Stale/ }));
     expect(attention.getByRole('button', { name: /^Stale/ })).toHaveAttribute('aria-pressed', 'true');
-    expect(adminNames()).toEqual(['Ultrastar HC550']);
+    expect(asked()).toEqual({ q: '', issue: 'stale', recent_days: 7, limit: 50, offset: 0 });
+    await waitFor(() => expect(adminNames()).toEqual(['Ultrastar HC550']));
     await user.click(attention.getByRole('button', { name: /^No specs/ }));
-    expect(adminNames().sort()).toEqual(['Ultrastar HC550', 'WD Red Plus']);
+    expect(asked()).toMatchObject({ issue: 'unknown_specifications', offset: 0 });
+    await waitFor(() => expect(adminNames()).toEqual(['Ultrastar HC550', 'WD Red Plus']));
     await user.click(attention.getByRole('button', { name: /^No specs/ }));
-    expect(adminNames()).toHaveLength(3);
+    expect(asked()).not.toHaveProperty('issue');
+    await waitFor(() => expect(adminNames()).toHaveLength(3));
   });
 
   it('finds drives by MPN', async () => {
     at('drives');
     const user = userEvent.setup();
-    renderApp({ listOffers: async () => catalogue() });
+    const rows = rowsOf(catalogue());
+    const catalogDrives = vi.fn<DisktrackerApi['catalogDrives']>(async query =>
+      catalogPage(query.q ? rows.filter(row => row.representative.title === 'Ultrastar HC550') : rows, {}, query));
+    renderApp({ listOffers: async () => catalogue(), catalogDrives });
     await screen.findByRole('table', { name: 'Drives' });
     await user.type(screen.getByLabelText('Search drives'), 'wuh7218');
-    expect(adminNames()).toEqual(['Ultrastar HC550']);
+    // Asked for once the words stop changing, not at every letter.
+    await waitFor(() => expect(catalogDrives.mock.lastCall?.[0]).toEqual({ q: 'wuh7218', recent_days: 7, limit: 50, offset: 0 }));
+    expect(catalogDrives.mock.calls.map(([query]) => query.q).filter(Boolean)).toEqual(['wuh7218']);
+    await waitFor(() => expect(adminNames()).toEqual(['Ultrastar HC550']));
   });
 
   it("shows each store's last collector run and how fresh its prices are", async () => {
@@ -1416,15 +1436,19 @@ describe('Admin page', () => {
       const drive = makeDrive(`MPN${String(index + 1).padStart(3, '0')}`);
       return makeOffer(`Drive ${String(index + 1).padStart(3, '0')}`, { drive, mpn: drive.mpn }, { price_per_tb: `${10 + index}.00` });
     });
-    renderApp({ listOffers: async () => drives });
+    const rows = rowsOf(drives);
+    const catalogDrives = vi.fn<DisktrackerApi['catalogDrives']>(async query => catalogPage(query.q ? rows.slice(0, 9) : rows, {}, query));
+    renderApp({ listOffers: async () => drives, catalogDrives });
     await screen.findByRole('table', { name: 'Drives' });
     expect(adminNames()).toHaveLength(50);
     const pages = within(screen.getByRole('navigation', { name: 'Drives pages' }));
     expect(pages.getByText('1–50 of 60')).toBeVisible();
     await user.click(pages.getByRole('button', { name: 'Next page' }));
-    expect(adminNames()).toEqual(drives.slice(50).map(listing => listing.title));
+    expect(catalogDrives.mock.lastCall?.[0]).toMatchObject({ limit: 50, offset: 50 });
+    await waitFor(() => expect(adminNames()).toEqual(drives.slice(50).map(listing => listing.title)));
     await user.type(screen.getByLabelText('Search drives', { exact: true }), 'Drive 00');
-    expect(adminNames()).toEqual(drives.slice(0, 9).map(listing => listing.title));
+    await waitFor(() => expect(catalogDrives.mock.lastCall?.[0]).toMatchObject({ q: 'Drive 00', offset: 0 }));
+    await waitFor(() => expect(adminNames()).toEqual(drives.slice(0, 9).map(listing => listing.title)));
     expect(screen.queryByRole('navigation', { name: 'Drives pages' })).not.toBeInTheDocument();
   }, 20000);
 

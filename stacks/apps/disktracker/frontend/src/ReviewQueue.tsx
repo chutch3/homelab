@@ -1,12 +1,12 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Alert, Autocomplete, Button, Group, Modal, NativeSelect, Radio, Stack, Table, Text } from '@mantine/core';
 import { useDebouncedValue } from '@mantine/hooks';
 import { useForm } from '@mantine/form';
-import type { Condition, DisktrackerApi, Drive, Page, ReviewFilter, ReviewItem, ReviewReason, Store } from './api';
+import type { Condition, DisktrackerApi, Drive, ReviewFilter, ReviewItem, ReviewReason, Store } from './api';
 import { CapacityField } from './CapacityField';
 import { capacityLabel, conditions, dollars } from './listing-display';
 import { Pager } from './Pager';
-import { usePageSize } from './paging';
+import { useServedPages } from './paging';
 
 const reasons: Record<ReviewReason, string> = {
   missing_mpn: 'No MPN',
@@ -18,35 +18,15 @@ const reasons: Record<ReviewReason, string> = {
   implausible_capacity: 'Capacity too large',
 };
 
-type Asked = { page: number; filter: ReviewFilter; attempt: number };
-
-/** The page of the review queue asked for, as the API last answered it. Only the answer to what
- * was asked last is shown: one that comes after it, asked before, is dropped. A page left empty by
- * its offers being dealt with gives way to the last page there is, worked out from the total.
- * Asked again whenever `revision` changes. */
+/** The page of the review queue asked for, as the API last answered it (paging.useServedPages),
+ * narrowed by the filter chosen. */
 export function useReviewQueue(api: DisktrackerApi, storage: Pick<Storage, 'getItem' | 'setItem'>, revision: number) {
-  const [size, keepSize] = usePageSize(storage, 'review-queue');
-  const [asked, setAsked] = useState<Asked>({ page: 0, filter: {}, attempt: 0 });
-  /** The last answer, with the page it is. */
-  const [shown, setShown] = useState<{ page: number; found: Page<ReviewItem> } | null>(null);
-  const [error, setError] = useState('');
-  useEffect(() => {
-    let current = true;
-    api.reviewItems({ limit: size, offset: asked.page * size, ...asked.filter }).then(found => {
-      if (!current) return;
-      const last = Math.max(0, Math.ceil(found.total / size) - 1);
-      if (!found.items.length && last < asked.page) { setAsked({ ...asked, page: last }); return; }
-      setShown({ page: asked.page, found }); setError('');
-    }).catch(err => { if (current) setError(err instanceof Error ? err.message : 'Unknown error.'); });
-    return () => { current = false; };
-  }, [api, size, asked, revision]);
+  const [filter, setFilter] = useState<ReviewFilter>({});
+  const serve = useCallback((chosen: ReviewFilter, limit: number, offset: number) => api.reviewItems({ limit, offset, ...chosen }), [api]);
+  const { found, page, size, error, setPage, setSize, retry } = useServedPages(serve, filter, storage, 'review-queue', revision);
   return {
-    items: shown?.found.items ?? [], total: shown?.found.total ?? 0, loaded: shown !== null, error,
-    page: shown?.page ?? 0, size, filter: asked.filter,
-    setPage: (page: number) => setAsked({ ...asked, page }),
-    setFilter: (filter: ReviewFilter) => setAsked({ ...asked, page: 0, filter }),
-    setSize: (next: number) => { keepSize(next); setAsked({ ...asked, page: 0 }); },
-    retry: () => setAsked({ ...asked, attempt: asked.attempt + 1 }),
+    items: found?.items ?? [], total: found?.total ?? 0, loaded: found !== null, error,
+    page, size, filter, setPage, setFilter, setSize, retry,
   };
 }
 

@@ -12,6 +12,8 @@ from listing_text.readers import condition_rules
 
 from disktracker.catalog.schemas import (
     AliasInput,
+    CatalogDrivePage,
+    CatalogDriveQuery,
     ConditionRule,
     DecisionResult,
     Drive,
@@ -83,6 +85,22 @@ def list_drives(catalog: Catalog, query: Annotated[DriveQuery, Query()]) -> dict
     asked. total counts matching drives before pagination; offers counts matching offers.
     """
     return catalog.drives(query)
+
+
+@router.get(
+    "/catalog-drives",
+    response_model=CatalogDrivePage,
+    tags=["Drives"],
+    summary="List every drive to manage",
+)
+@inject
+def list_catalog_drives(
+    catalog: Catalog, query: Annotated[CatalogDriveQuery, Query()]
+) -> dict[str, Any]:
+    """Every drive, offers held for review and all, a page at a time: those named by q exactly
+    (by MPN or another MPN) first, then in stock first and cheapest per terabyte first. Each has
+    how many offers it has and what it needs; issues counts every drive needing each."""
+    return catalog.catalog_drives(query)
 
 
 @router.get(

@@ -1,38 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { ageLabel, driveIssues, elapsedLabel, freshness, issues } from '../../src/admin-overview';
-import { groupByDrive } from '../../src/drive-groups';
+import { ageLabel, elapsedLabel, freshness } from '../../src/admin-overview';
 import { emptySpecifications } from '../../src/specifications';
 import { checkedAt, knownStores, makeDrive, makeOffer } from '../fixtures/listings';
 
 const hours = (count: number) => new Date(checkedAt.getTime() - count * 3_600_000).toISOString();
-
-describe('what needs attention for a drive', () => {
-  const issuesOf = (listings: ReturnType<typeof makeOffer>[]) =>
-    driveIssues(groupByDrive(listings, 'unit-asc')[0], checkedAt, 7);
-
-  it('flags a drive with no known specification or an in-stock offer not checked recently', () => {
-    const drive = makeDrive('A');
-    expect(issuesOf([makeOffer('a', { drive, last_checked_at: hours(24 * 8) })]))
-      .toEqual(['unknown_specifications', 'stale']);
-  });
-
-  it('does not count a single store selling a drive: there is nothing to do about it', () => {
-    const drive = makeDrive('A', { specifications: { ...emptySpecifications(), intended_use: ['nas'] } });
-    expect(issuesOf([makeOffer('a', { drive })])).toEqual([]);
-    expect(issues).toEqual(['unknown_specifications', 'stale']);
-  });
-
-  it('flags nothing for a known drive two stores sell and check', () => {
-    const drive = makeDrive('A', { specifications: { ...emptySpecifications(), intended_use: ['nas'] } });
-    expect(issuesOf([makeOffer('a', { drive, seller: 'One' }), makeOffer('b', { drive, seller: 'Two' })])).toEqual([]);
-  });
-
-  it('does not call a sold-out offer stale: it is not expected to change', () => {
-    const drive = makeDrive('A', { specifications: { ...emptySpecifications(), interface: 'sas' } });
-    const soldOut = makeOffer('a', { drive, seller: 'One', last_checked_at: hours(24 * 30) }, { in_stock: false });
-    expect(issuesOf([soldOut, makeOffer('b', { drive, seller: 'Two' })])).toEqual([]);
-  });
-});
 
 describe('price freshness', () => {
   it("gives each store's offer count, latest check, and median age, stores in the usual order", () => {

@@ -1,6 +1,4 @@
 import type { OfferSummary, Run, Store } from './api';
-import type { DriveGroup } from './drive-groups';
-import { isRecent } from './listing-query';
 
 const HOUR = 3_600_000;
 const DAY = 24 * HOUR;
@@ -8,22 +6,9 @@ const DAY = 24 * HOUR;
 export const issues = ['unknown_specifications', 'stale'] as const;
 export type Issue = typeof issues[number];
 
-/** A few characters for a count or a column; Stale is an in-stock offer unchecked for longer than the recent window. */
+/** What a drive may need (the server says which it does), in a few characters for a count or a column; Stale is an in-stock offer unchecked for longer than the recent window. */
 export function issueLabel(issue: Issue): string {
   return issue === 'stale' ? 'Stale' : 'No specs';
-}
-
-/** What is missing or out of date for a drive: nothing known of its specifications, or an
- * in-stock offer not checked within the recent window. */
-export function driveIssues(group: DriveGroup, now: Date, recentDays: number): Issue[] {
-  const specifications = group.drive?.specifications;
-  const unknown = !specifications || (
-    [specifications.media_type, specifications.form_factor, specifications.interface, specifications.recording_type]
-      .every(value => value === 'unknown') && specifications.intended_use.length === 0);
-  const found: Issue[] = [];
-  if (unknown) found.push('unknown_specifications');
-  if (group.listings.some(listing => listing.latest.in_stock && !isRecent(listing, now, recentDays))) found.push('stale');
-  return found;
 }
 
 export type Freshness = { store: Store; offers: number; latest: string; medianAgeMs: number };

@@ -1,14 +1,11 @@
 import { useCallback, useEffect, useState, type MouseEvent } from 'react';
-import { Alert, Button, Table, Text, TextInput } from '@mantine/core';
+import { Alert, Button, Text } from '@mantine/core';
 import type { CollectorStatus, Run, DisktrackerApi, OfferSummary, RecordedPrice, Source } from './api';
-import { ageLabel, driveIssues, elapsedLabel, endedBadly, issueLabel, issues, type Issue } from './admin-overview';
+import { ageLabel, elapsedLabel, endedBadly } from './admin-overview';
 import { CollectorBand } from './CollectorBand';
 import { DriveDetails } from './DriveDetails';
-import { groupByDrive, groupKeyFor } from './drive-groups';
-import { capacityLabel, driveName } from './listing-display';
-import { defaultQuery, queryListings } from './listing-query';
-import { Pager } from './Pager';
-import { usePages, usePageSize } from './paging';
+import { DrivesSection } from './DrivesSection';
+import { defaultQuery } from './listing-query';
 import { RecheckQueue } from './RecheckQueue';
 import { SourcesSection } from './SourcesSection';
 import { ConditionRulesSection } from './ConditionRulesSection';
@@ -44,9 +41,8 @@ const QUIET_MS = 5 * 60_000;
 export function AdminView({ api, now, nextId, recentDays, storage, listings, toRecheck, revision, tab, tabHref, onTab, queueAll, stores, onRecorded, onChanged }: Props) {
   const [runs, setRuns] = useState<Run[] | null>(null);
   const [runsError, setRunsError] = useState('');
-  const [issue, setIssue] = useState<Issue | null>(null);
-  const [search, setSearch] = useState('');
-  const [selectedKey, setSelectedKey] = useState<string | null>(null);
+  /** The drive open in the panel, by its key, and the title it is named by. */
+  const [selected, setSelected] = useState<{ key: string; title: string } | null>(null);
   const [status, setStatus] = useState<CollectorStatus | null>(null);
   /** Every run of the last day, for the picture of them; without it the page still says how the last runs went. */
   const [recent, setRecent] = useState<Run[]>([]);
@@ -81,12 +77,6 @@ export function AdminView({ api, now, nextId, recentDays, storage, listings, toR
     try { await api.runSource(source.id); setRunError(''); await onChanged(`${source.name} is queued to run next.`); }
     catch (err) { setRunError(err instanceof Error ? err.message : 'The store could not be asked to run.'); }
   };
-  const groups = groupByDrive(listings, 'unit-asc').map(group => ({ group, found: driveIssues(group, checkedAt, recentDays) }));
-  const matching = new Set(queryListings(listings, { ...defaultQuery(), inStockOnly: false, search }, checkedAt, recentDays).map(groupKeyFor));
-  const shown = groups.filter(({ group, found }) => matching.has(group.key) && (!issue || found.includes(issue)));
-  const [drivesPerPage, setDrivesPerPage] = usePageSize(storage, 'drives');
-  const pages = usePages(shown, drivesPerPage, `${search}\n${issue ?? ''}`);
-  const selected = listings.filter(listing => groupKeyFor(listing) === selectedKey);
   return <>
     <h1>Admin</h1>
     <nav aria-label="Admin sections" className="tabs">
@@ -137,32 +127,10 @@ export function AdminView({ api, now, nextId, recentDays, storage, listings, toR
       <ConditionRulesSection api={api} />
     </div>
     <div hidden={tab !== 'drives'}>
-      <section aria-labelledby="drives-heading" className="admin-section">
-        <h2 id="drives-heading">Drives</h2>
-        <div className="drive-tools">
-          <TextInput label="Search drives" aria-label="Search drives" placeholder="Name, MPN or store" w={360} maw="100%"
-            value={search} onChange={event => setSearch(event.currentTarget.value)} />
-          {issues.map(value => <button key={value} type="button" className="chip toggle" aria-pressed={issue === value}
-            onClick={() => setIssue(issue === value ? null : value)}>
-            {issueLabel(value)} ({groups.filter(({ found }) => found.includes(value)).length})</button>)}
-        </div>
-        <Text size="sm" c="dimmed" mb="xs">{shown.length} of {groups.length} drives{issue && ` · ${issueLabel(issue)}`}</Text>
-        {groups.length === 0 ? <Text size="sm" c="dimmed">No drives yet.</Text> : <div className="sheet-scroll"><Table aria-label="Drives" verticalSpacing="sm">
-          <Table.Thead><Table.Tr><Table.Th>Drive</Table.Th><Table.Th>MPN</Table.Th><Table.Th className="numeric">Capacity</Table.Th>
-            <Table.Th className="numeric">Offers</Table.Th><Table.Th>Needs attention</Table.Th></Table.Tr></Table.Thead>
-          <Table.Tbody>{pages.shown.map(({ group, found }) => <Table.Tr key={group.key} className="drive-row" onClick={() => setSelectedKey(group.key)}>
-            <Table.Td><button type="button" className="drive-link" title={group.representative.title}>{driveName(group.drive)}</button></Table.Td>
-            <Table.Td className="mono">{group.drive?.mpn ?? group.representative.mpn ?? '—'}</Table.Td>
-            <Table.Td className="numeric">{capacityLabel(group.representative.capacity_gb)}</Table.Td>
-            <Table.Td className="numeric">{group.listings.length}</Table.Td>
-            <Table.Td className="secondary">{found.map(value => issueLabel(value)).join(', ') || '—'}</Table.Td>
-          </Table.Tr>)}</Table.Tbody>
-        </Table></div>}
-        <Pager label="Drives" page={pages.page} total={shown.length} pageSize={drivesPerPage} onPage={pages.setPage} onPageSize={setDrivesPerPage} />
-      </section>
+      <DrivesSection api={api} storage={storage} recentDays={recentDays} revision={revision} onSelect={(key, title) => setSelected({ key, title })} />
     </div>
-    {selected.length > 0 && <DriveDetails api={api} now={now} nextId={nextId} driveKey={selectedKey!} title={selected[0].title} revision={revision} key={selectedKey} sort="unit-asc"
+    {selected && <DriveDetails api={api} now={now} nextId={nextId} driveKey={selected.key} title={selected.title} revision={revision} key={selected.key} sort="unit-asc"
       knownCapacities={Object.fromEntries(listings.map(listing => [listing.mpn, listing.capacity_gb]))} manage besideTable={false} recentDays={recentDays} days={defaultQuery().days}
-      onClose={() => setSelectedKey(null)} onRecorded={onRecorded} onChanged={onChanged} />}
+      onClose={() => setSelected(null)} onRecorded={onRecorded} onChanged={onChanged} />}
   </>;
 }

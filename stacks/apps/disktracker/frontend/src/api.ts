@@ -70,6 +70,11 @@ export type DriveRow = Schemas['DriveRow'];
 export type FilterOptions = Schemas['FilterOptions'];
 export type DrivePage = Schemas['DrivePage'];
 export type DriveDetail = Schemas['DriveDetail'];
+/** Which of every drive to manage: by any name an offer of it goes by, and by what it needs. */
+export type CatalogDriveQuery = NonNullable<operations['list_catalog_drives']['parameters']['query']>;
+export type CatalogDrive = Schemas['CatalogDrive'];
+export type CatalogDrivePage = Schemas['CatalogDrivePage'];
+export type DriveIssue = Schemas['CatalogDrive']['issues'][number];
 export type PriceRow = Schemas['PriceRow'];
 export type PricePage = Schemas['PricePage'];
 /** Prices of one drive's offers or of one offer, in effect at any time since since. */
@@ -80,6 +85,8 @@ export type PriceMark = Schemas['PriceMark'];
 export interface DisktrackerApi {
   /** A page of the drives that match, with what is said of every match and the filter options of every drive. */
   drives(query: DriveQuery): Promise<DrivePage>;
+  /** A page of every drive to manage, held offers and all, with what each needs and how many of every drive need each thing. */
+  catalogDrives(query: CatalogDriveQuery): Promise<CatalogDrivePage>;
   /** A drive with every offer of it, in every condition, with its ranges over rangeDays. */
   drive(id: string, rangeDays: number, recentDays: number): Promise<DriveDetail>;
   /** One offer with every price it has had. */
@@ -147,6 +154,17 @@ export function validationError(detail: unknown): ApiValidationError | null {
   return Object.keys(fields).length ? new ApiValidationError(fields) : null;
 }
 
+/** A query as parameters, a choice of several repeated; one left out or blank is not sent. */
+function searchOf(query: object): URLSearchParams {
+  const params = new URLSearchParams();
+  for (const [name, value] of Object.entries(query)) {
+    for (const one of Array.isArray(value) ? value : [value]) {
+      if (one !== undefined && one !== null && one !== '') params.append(name, String(one));
+    }
+  }
+  return params;
+}
+
 /** Query parameters with a scope's filters, a choice of several repeated. */
 function scoped(fixed: Record<string, string | number>, scope: DriveScope): URLSearchParams {
   const params = new URLSearchParams(Object.entries(fixed).map(([name, value]) => [name, String(value)]));
@@ -199,15 +217,8 @@ export class HttpDisktrackerApi implements DisktrackerApi {
     return this.send(`/offers/${id}`, undefined, undefined, 'DELETE');
   }
   listOffers(): Promise<OfferSummary[]> { return this.send('/offers'); }
-  drives(query: DriveQuery): Promise<DrivePage> {
-    const params = new URLSearchParams();
-    for (const [name, value] of Object.entries(query)) {
-      for (const one of Array.isArray(value) ? value : [value]) {
-        if (one !== undefined && one !== '') params.append(name, String(one));
-      }
-    }
-    return this.send(`/drives?${params}`);
-  }
+  drives(query: DriveQuery): Promise<DrivePage> { return this.send(`/drives?${searchOf(query)}`); }
+  catalogDrives(query: CatalogDriveQuery): Promise<CatalogDrivePage> { return this.send(`/catalog-drives?${searchOf(query)}`); }
   drive(id: string, rangeDays: number, recentDays: number): Promise<DriveDetail> {
     return this.send(`/drives/${id}?range_days=${rangeDays}&recent_days=${recentDays}`);
   }

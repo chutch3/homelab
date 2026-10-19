@@ -4,6 +4,28 @@
  */
 
 export interface paths {
+    "/api/catalog-drives": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List every drive to manage
+         * @description Every drive, offers held for review and all, a page at a time: those named by q exactly
+         *     (by MPN or another MPN) first, then in stock first and cheapest per terabyte first. Each has
+         *     how many offers it has and what it needs; issues counts every drive needing each.
+         */
+        get: operations["list_catalog_drives"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/collection-runs": {
         parameters: {
             query?: never;
@@ -588,6 +610,38 @@ export interface components {
             /** Mpn */
             mpn: string;
         };
+        /**
+         * CatalogDrive
+         * @description A drive to manage: named by the title of the offer it is shown by (its cheapest in stock,
+         *     else its cheapest), with how many offers it has and what it needs.
+         */
+        CatalogDrive: {
+            drive: components["schemas"]["Drive"];
+            /** Issues */
+            issues: ("unknown_specifications" | "stale")[];
+            /** Offers */
+            offers: number;
+            /** Title */
+            title: string;
+        };
+        /**
+         * CatalogDrivePage
+         * @description A part of the drives to manage. total: drives that match; all: every drive; issues: how
+         *     many of every drive need each thing.
+         */
+        CatalogDrivePage: {
+            /** All */
+            all: number;
+            issues: components["schemas"]["DriveIssueCounts"];
+            /** Items */
+            items: components["schemas"]["CatalogDrive"][];
+            /** Limit */
+            limit: number;
+            /** Offset */
+            offset: number;
+            /** Total */
+            total: number;
+        };
         /** Choice[Literal['new', 'manufacturer_recertified', 'refurbished', 'used']] */
         Choice_Literal__new____manufacturer_recertified____refurbished____used___: {
             /** Drives */
@@ -701,6 +755,13 @@ export interface components {
             capacity_gb?: number;
             /** Specifications */
             specifications?: components["schemas"]["SpecificationsEdit"];
+        };
+        /** DriveIssueCounts */
+        DriveIssueCounts: {
+            /** Stale */
+            stale: number;
+            /** Unknown Specifications */
+            unknown_specifications: number;
         };
         /**
          * DrivePage
@@ -2564,6 +2625,45 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    list_catalog_drives: {
+        parameters: {
+            query?: {
+                q?: string;
+                /** @description Only drives that need this */
+                issue?: ("unknown_specifications" | "stale") | null;
+                /** @description What checked recently means */
+                recent_days?: number;
+                /** @description Maximum drives in this page. */
+                limit?: number;
+                /** @description Number of matching drives to skip. */
+                offset?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CatalogDrivePage"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     list_runs: {
         parameters: {
             query?: {
