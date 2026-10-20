@@ -8,7 +8,9 @@ from uuid import uuid4
 from dependency_injector import containers, providers
 
 from disktracker.catalog.drive_repository import DriveRepository
+from disktracker.catalog.ingestion_service import IngestionService
 from disktracker.catalog.offer_repository import OfferRepository
+from disktracker.catalog.price_service import PriceService
 from disktracker.catalog.queries import CatalogQueries
 from disktracker.catalog.repository import CatalogRepository
 from disktracker.catalog.review_repository import ReviewRepository
@@ -49,6 +51,7 @@ class Container(containers.DeclarativeContainer):
     # threads.
     database = providers.ThreadSafeSingleton(Database, url=config.database_url)
 
+    drive_repository = providers.Factory(DriveRepository, next_id=next_id)
     offer_repository = providers.Factory(OfferRepository, now=clock, next_id=next_id)
     review_repository = providers.Factory(ReviewRepository, next_id=next_id)
     catalog_repository = providers.Factory(
@@ -58,8 +61,8 @@ class Container(containers.DeclarativeContainer):
         next_id=next_id,
         offers=offer_repository,
         reviews=review_repository,
+        drives=drive_repository,
     )
-    drive_repository = providers.Factory(DriveRepository, next_id=next_id)
     catalog_queries = providers.Factory(CatalogQueries, snapshot_factory=database.provided.snapshot)
     collection_repository = providers.Factory(
         CollectionRepository,
@@ -74,6 +77,17 @@ class Container(containers.DeclarativeContainer):
 
     collector_client = providers.Singleton(CollectorClient, url=config.collector_url)
 
+    price_service = providers.Factory(
+        PriceService, session_factory=database.provided.session, offers=offer_repository
+    )
+    ingestion_service = providers.Factory(
+        IngestionService,
+        session_factory=database.provided.session,
+        drives=drive_repository,
+        offers=offer_repository,
+        reviews=review_repository,
+        now=clock,
+    )
     catalog_service = providers.Factory(
         CatalogService,
         repository=catalog_repository,

@@ -390,6 +390,7 @@ ReviewReason = Literal[
     "missing_capacity",
     "capacity_conflict",
     "missing_price",
+    "alias_conflict",
     Doubt,
 ]
 
@@ -413,6 +414,10 @@ class ReviewItem(Contract):
     specifications: Specifications | None = Field(
         description="What the page said of the drive; null where nothing was kept."
     )
+    conflict_mpn: str | None = Field(
+        description="For alias_conflict: the MPN the page named that another drive goes by."
+    )
+    conflict_drive_id: UUID | None = Field(description="For alias_conflict: that other drive.")
     item_price_cents: int | None
     shipping_cents: int | None
     in_stock: bool

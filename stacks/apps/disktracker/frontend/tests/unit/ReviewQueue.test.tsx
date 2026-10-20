@@ -117,3 +117,13 @@ it('asks for the last page there is, worked out from the total, when the one sho
   expect(await pages.findByText('1–30 of 30')).toBeVisible();
   expect(asked).toEqual([100, 0]);
 });
+
+it('says which MPN the page named that another drive already goes by', async () => {
+  const item = makeReviewItem('conflict', { reason: 'alias_conflict', mpn: 'ST16000NM000J', condition: 'new',
+    aliases: ['0XYZ'], conflict_mpn: '0XYZ', conflict_drive_id: 'other-drive' });
+  const { review, user } = await renderQueue([item]);
+  expect(within(review.getAllByRole('row')[1]).getAllByRole('cell')[1]).toHaveTextContent('MPN of another drive');
+  await user.click(review.getByRole('button', { name: 'Resolve' }));
+  const form = within(screen.getByRole('dialog', { name: 'Resolve offer' }));
+  expect(form.getByText('The store also calls it 0XYZ, which another drive already goes by. Nothing it said was recorded.')).toBeVisible();
+});

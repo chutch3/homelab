@@ -40,6 +40,8 @@ class ReviewItem:
             brand (None | str):
             capacity_gb (int | None):
             condition (None | ReviewItemConditionType0): As the page gave it; null where it gave none.
+            conflict_drive_id (None | UUID): For alias_conflict: that other drive.
+            conflict_mpn (None | str): For alias_conflict: the MPN the page named that another drive goes by.
             drive (Drive | None): The drive its MPN names as recorded now, to set what was collected beside; null when it
                 names none.
             first_seen_at (datetime.datetime):
@@ -62,6 +64,8 @@ class ReviewItem:
     brand: None | str
     capacity_gb: int | None
     condition: None | ReviewItemConditionType0
+    conflict_drive_id: None | UUID
+    conflict_mpn: None | str
     drive: Drive | None
     first_seen_at: datetime.datetime
     id: UUID
@@ -105,6 +109,15 @@ class ReviewItem:
             condition = self.condition
         else:
             condition = self.condition
+
+        conflict_drive_id: None | str
+        if isinstance(self.conflict_drive_id, UUID):
+            conflict_drive_id = str(self.conflict_drive_id)
+        else:
+            conflict_drive_id = self.conflict_drive_id
+
+        conflict_mpn: None | str
+        conflict_mpn = self.conflict_mpn
 
         drive: dict[str, Any] | None
         if isinstance(self.drive, Drive):
@@ -155,6 +168,8 @@ class ReviewItem:
             "brand": brand,
             "capacity_gb": capacity_gb,
             "condition": condition,
+            "conflict_drive_id": conflict_drive_id,
+            "conflict_mpn": conflict_mpn,
             "drive": drive,
             "first_seen_at": first_seen_at,
             "id": id,
@@ -229,6 +244,32 @@ class ReviewItem:
             return cast(None | ReviewItemConditionType0, data)
 
         condition = _parse_condition(d.pop("condition"))
+
+
+        def _parse_conflict_drive_id(data: object) -> None | UUID:
+            if data is None:
+                return data
+            try:
+                if not isinstance(data, str):
+                    raise TypeError()
+                conflict_drive_id_type_0 = UUID(data)
+
+
+
+                return conflict_drive_id_type_0
+            except (TypeError, ValueError, AttributeError, KeyError):
+                pass
+            return cast(None | UUID, data)
+
+        conflict_drive_id = _parse_conflict_drive_id(d.pop("conflict_drive_id"))
+
+
+        def _parse_conflict_mpn(data: object) -> None | str:
+            if data is None:
+                return data
+            return cast(None | str, data)
+
+        conflict_mpn = _parse_conflict_mpn(d.pop("conflict_mpn"))
 
 
         def _parse_drive(data: object) -> Drive | None:
@@ -331,6 +372,8 @@ class ReviewItem:
             brand=brand,
             capacity_gb=capacity_gb,
             condition=condition,
+            conflict_drive_id=conflict_drive_id,
+            conflict_mpn=conflict_mpn,
             drive=drive,
             first_seen_at=first_seen_at,
             id=id,

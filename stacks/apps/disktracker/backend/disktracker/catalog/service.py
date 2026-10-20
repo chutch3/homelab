@@ -6,7 +6,6 @@ commit."""
 
 from collections.abc import Callable, Sequence
 from datetime import datetime, timedelta
-from hashlib import sha256
 from typing import Any
 from uuid import UUID
 
@@ -19,10 +18,8 @@ from disktracker.catalog.schemas import (
     DriveEdit,
     DriveInput,
     DriveQuery,
-    ObservationInput,
     OfferEdit,
     OfferQuery,
-    PriceInput,
     PriceQuery,
     RangeQuery,
     ReviewDecision,
@@ -103,18 +100,6 @@ class CatalogService:
         return self.queries.offer(offer_id)
 
     # Recording a price.
-
-    def record_price(self, entry: PriceInput, request_id: UUID) -> dict[str, Any]:
-        """Record a submitted price, queue it for review, or ignore it, as one piece of work: all
-        of it is kept, or none. A retry under the same key is answered as it was the first time;
-        the key is bound to the submission by a fingerprint of its body."""
-        fingerprint = sha256(f"price:{entry.model_dump_json()}".encode()).hexdigest()
-        price = entry.model_dump(include=set(ObservationInput.model_fields))
-        if entry.provenance == "collected" and not entry.in_stock:
-            # Sold out is only a stock state: whatever price the store shows then (a placeholder,
-            # say) is not recorded, so the offer keeps the price it last had in stock.
-            price |= {"item_price_cents": None, "shipping_cents": None}
-        return self.repository.record_price(entry, price, request_id, fingerprint)
 
     # Deciding what a queued offer is.
 

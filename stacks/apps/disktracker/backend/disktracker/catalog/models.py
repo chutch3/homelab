@@ -85,6 +85,11 @@ class ReviewItem(Base):
     aliases: Mapped[list[str] | None] = mapped_column(JSONB)
     brand: Mapped[str | None] = mapped_column(String(60))
     specifications: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
+    # For an alias conflict: the MPN the page named that another drive goes by, and that drive.
+    conflict_mpn: Mapped[str | None] = mapped_column(String(100))
+    conflict_drive_id: Mapped[uuid.UUID | None] = mapped_column(
+        Uuid, ForeignKey("drives.id", ondelete="SET NULL")
+    )
     item_price_cents: Mapped[int | None] = mapped_column(Integer)
     shipping_cents: Mapped[int | None] = mapped_column(Integer)
     in_stock: Mapped[bool] = mapped_column(Boolean)

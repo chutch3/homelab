@@ -5,12 +5,14 @@ from collections.abc import Callable
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import func, select
+from sqlalchemy import func, select, update
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.orm import Session
 
 from disktracker.catalog.models import Drive, MpnAlias
-from disktracker.errors import MpnTaken
+from disktracker.catalog.rules import capacity_label, fill_unknown
+from disktracker.catalog.schemas import Specifications
+from disktracker.errors import CapacityConflict, CapacityRequired, MpnTaken
 
 
 def hold_mpn(session: Session, mpn: str) -> None:
@@ -51,3 +53,65 @@ class DriveRepository:
         if made is None or session.scalar(select(MpnAlias.alias).where(MpnAlias.alias == mpn)):
             raise MpnTaken(f"{mpn} already identifies a drive.")
         return session.get_one(Drive, made)
+
+    def owner_of(self, session: Session, mpn: str) -> UUID | None:
+        """The drive that goes by this MPN, as its own MPN or another of its MPNs; None for none."""
+        return session.scalar(select(Drive.id).where(Drive.mpn == mpn)) or session.scalar(
+            select(MpnAlias.drive_id).where(MpnAlias.alias == mpn)
+        )
+
+    def capacity_of(self, session: Session, mpn: str) -> int | None:
+        """The capacity of the drive that goes by this MPN; None when none does."""
+        owner = self.owner_of(session, mpn)
+        return None if owner is None else session.get_one(Drive, owner).capacity_gb
+
+    def register(self, session: Session, mpn: str, capacity_gb: int | None) -> UUID:
+        """The drive that goes by this MPN, held against other changes until the operation ends,
+        or a new one under it with this capacity: what collecting needs of a drive. A capacity
+        given that is not the drive's is refused; a new drive needs one."""
+        hold_mpn(session, mpn)
+        owner = self.owner_of(session, mpn)
+        if owner is None:
+            if capacity_gb is None:
+                raise CapacityRequired()
+            owner = self.create(
+                session, mpn=mpn, capacity_gb=capacity_gb, brand=None,
+                specifications=Specifications().model_dump(mode="json"),
+            ).id  # fmt: skip
+        drive = session.scalars(select(Drive).where(Drive.id == owner).with_for_update()).one()
+        if capacity_gb is not None and capacity_gb != drive.capacity_gb:
+            raise CapacityConflict(
+                f"MPN {drive.mpn} is recorded as {capacity_label(drive.capacity_gb)}."
+                " Edit the drive's specifications to change its capacity."
+            )
+        return drive.id
+
+    def describe(
+        self,
+        session: Session,
+        drive_id: UUID,
+        specifications: dict[str, Any] | None,
+        brand: str | None,
+    ) -> None:
+        """Take what a page says of a drive where nobody has said it: specifications left
+        unknown, and a brand when it has none. What was entered stands."""
+        drive = session.get_one(Drive, drive_id)
+        if specifications is not None:
+            filled = fill_unknown(
+                Specifications.model_validate(drive.specifications).model_dump(mode="json"),
+                specifications,
+            )
+            session.execute(update(Drive).where(Drive.id == drive_id).values(specifications=filled))
+        if brand is not None:
+            session.execute(
+                update(Drive).where(Drive.id == drive_id, Drive.brand.is_(None)).values(brand=brand)
+            )
+
+    def attach_alias(self, session: Session, drive_id: UUID, alias: str) -> None:
+        """Another MPN the drive goes by, one no drive goes by yet: refused otherwise, and never a
+        reason to merge drives."""
+        hold_mpn(session, alias)
+        if self.owner_of(session, alias) is not None:
+            raise MpnTaken(f"{alias} already identifies a drive.")
+        session.add(MpnAlias(alias=alias, drive_id=drive_id))
+        session.flush()

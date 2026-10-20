@@ -13,44 +13,31 @@ from sqlalchemy import delete, select, update
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.orm import Session
 
-from disktracker.catalog.drive_repository import hold_mpn
+from disktracker.catalog.drive_repository import DriveRepository, hold_mpn
 from disktracker.catalog.models import (
     ConditionRule,
     Drive,
     MpnAlias,
     Offer,
     Price,
-    Receipt,
     ReviewDecision,
     ReviewItem,
 )
-from disktracker.catalog.offer_repository import OFFER_IDENTITY, OfferRepository
+from disktracker.catalog.offer_repository import OfferRepository
 from disktracker.catalog.queries import aliases_of, canonical_mpn, offer_with_history
 from disktracker.catalog.review_repository import Listing, ReviewRepository
 from disktracker.catalog.rules import (
-    as_decided,
-    capacity_label,
     decided_again,
-    doubt,
-    fill_unknown,
     merge_plan,
-    missing_detail,
-    new_aliases,
-    queue_reason,
-    queued_fields,
-    replayed,
 )
-from disktracker.catalog.schemas import ObservationInput, PriceInput, Specifications
+from disktracker.catalog.schemas import ObservationInput, Specifications
 from disktracker.catalog.schemas import ReviewDecision as Decision
 from disktracker.catalog.views import drive_view
 from disktracker.database import SessionFactory, columns
 from disktracker.errors import (
     AliasConflict,
-    CapacityConflict,
-    CapacityRequired,
     DriveNotFound,
     OfferNotFound,
-    PriceRequired,
     ReviewItemNotFound,
 )
 
@@ -63,114 +50,12 @@ class CatalogRepository:
         next_id: Callable[[], UUID],
         offers: OfferRepository,
         reviews: ReviewRepository,
+        drives: DriveRepository,
     ) -> None:
         self.session_factory, self.now, self.next_id = session_factory, now, next_id
-        self.offers, self.reviews = offers, reviews
+        self.offers, self.reviews, self.drives = offers, reviews, drives
 
     # Recording a price.
-
-    def record_price(
-        self, entry: PriceInput, price: dict[str, Any], request_id: UUID, fingerprint: str
-    ) -> dict[str, Any]:
-        """Record a submitted price, queue it for review, or ignore it, with the receipt for its
-        save key, all in one transaction. A save key already used is answered from its receipt
-        without doing the work again; one used for a different request is refused."""
-        with self.session_factory() as session:
-            claimed = session.scalar(
-                pg_insert(Receipt)
-                .values(id=request_id, fingerprint=fingerprint)
-                .on_conflict_do_nothing(index_elements=[Receipt.id])
-                .returning(Receipt.id)
-            )
-            if claimed is None:
-                saved = session.get_one(Receipt, request_id)
-                return replayed(saved.result, saved.fingerprint, fingerprint)
-            result = self._submit(session, entry, price)
-            session.execute(update(Receipt).where(Receipt.id == request_id).values(result=result))
-            session.commit()
-            return result
-
-    def _submit(self, session: Session, entry: PriceInput, price: dict[str, Any]) -> dict[str, Any]:
-        found = _identity(session, entry)
-        collected = entry.provenance == "collected"
-        identity: dict[str, Any] | None = found
-        decided = None
-        listing = None
-        if entry.url is not None and entry.offer_id is None:
-            listing = Listing.of(
-                found["store"], str(entry.url), entry.seller, entry.mpn, entry.condition
-            )
-        if collected and listing is not None:
-            decided = self.reviews.decision_for(session, listing)
-            identity = as_decided(found, decided)
-        if identity is None:
-            return {"status": "ignored"}
-        if entry.offer_id is not None:
-            # A price for an offer already named says nothing new of what the offer is: it is
-            # recorded, held or not, and nothing else is decided of it.
-            price_id = self.offers.record(session, entry.offer_id, price, entry.provenance)
-            self._describe_drive(session, entry.offer_id, entry)
-            return _recorded(entry.offer_id, price_id)
-        reason = missing_detail(identity["mpn"], identity["condition"])
-        # What a person entered is taken as entered; a listing a person decided, as decided while
-        # its page reads as it did then. What is collected otherwise is judged as it reads.
-        judged = decided is None or entry.title != decided["reviewed_title"]
-        if reason is None and collected and judged:
-            # Its capacity is what it is recorded under: the offer's, or else its drive's (always
-            # its drive's once a person has said what it is).
-            capacity = (entry.capacity_gb if decided is None else None) or session.scalar(
-                select(Drive.capacity_gb).where(
-                    Drive.mpn == canonical_mpn(session, identity["mpn"])
-                )
-            )
-            reason = doubt(entry.title, capacity, identity["mpn"])
-            if reason is not None:
-                # What was recorded of the offer this listing is of counts for nothing until a
-                # person settles it; other offers of its page are no more in doubt than before.
-                session.execute(
-                    update(Offer)
-                    .where(
-                        Offer.mpn == canonical_mpn(session, identity["mpn"]),
-                        Offer.store == identity["store"],
-                        Offer.seller == identity["seller"],
-                        Offer.condition == identity["condition"],
-                    )
-                    .values(held_reason=reason)
-                )
-        if reason is not None:
-            return self._queue(session, entry, identity, price, reason)
-        try:
-            # Held apart, so that what it wrote before finding it cannot be recorded is undone.
-            with session.begin_nested():
-                offer_id, price_id = self._record(
-                    session,
-                    identity,
-                    price,
-                    # Once a person has said what a page is, the capacity of its drive stands,
-                    # whatever the page goes on saying.
-                    capacity_gb=entry.capacity_gb if decided is None else None,
-                    title=entry.title,
-                    url=str(entry.url) if entry.url else None,
-                    provenance=entry.provenance,
-                )
-                if collected:
-                    # Collected afresh and taken as it reads: no longer in doubt.
-                    _release(session, offer_id)
-        except PriceRequired:
-            if not collected:
-                raise
-            # Only a sold-out offer lacks a price, and one never seen in stock has no real price
-            # to track yet.
-            return {"status": "ignored"}
-        except (CapacityConflict, CapacityRequired) as error:
-            if entry.on_unmatched != "queue":
-                raise
-            return self._queue(session, entry, identity, price, queue_reason(error))
-        self._describe_drive(session, offer_id, entry)
-        if collected and listing is not None:
-            # This listing no longer waits for review; any other of its page still does.
-            self.reviews.clear(session, listing)
-        return _recorded(offer_id, price_id)
 
     def _record(
         self,
@@ -186,8 +71,7 @@ class CatalogRepository:
         """Keep a price for the offer so identified, its drive made when it is new: the offer, and
         the price made (None when it only counted as a check). Making the drive is the submission
         workflow's; the price itself goes through the one price writer."""
-        mpn = canonical_mpn(session, identity["mpn"])
-        drive_id = self._resolve_drive(session, mpn, capacity_gb)
+        drive_id = self.drives.register(session, identity["mpn"], capacity_gb)
         offer_id = self.offers.offer_for(
             session,
             drive_id=drive_id,
@@ -198,73 +82,6 @@ class CatalogRepository:
             url=url,
         )
         return offer_id, self.offers.record(session, offer_id, price, provenance)
-
-    def _resolve_drive(self, session: Session, mpn: str, capacity: int | None) -> UUID:
-        """The drive for this MPN, held against other changes; created, with unknown
-        specifications, on first sight."""
-        find = select(Drive).where(Drive.mpn == mpn).with_for_update()
-        drive = session.scalars(find).first()
-        if drive is None:
-            if capacity is None:
-                raise CapacityRequired()
-            session.execute(
-                pg_insert(Drive)
-                .values(id=self.next_id(), mpn=mpn, capacity_gb=capacity)
-                .on_conflict_do_nothing(index_elements=[Drive.mpn])
-            )
-            drive = session.scalars(find).one()
-        if capacity is not None and capacity != drive.capacity_gb:
-            raise CapacityConflict(
-                f"MPN {mpn} is recorded as {capacity_label(drive.capacity_gb)}."
-                " Edit the drive's specifications to change its capacity."
-            )
-        return drive.id
-
-    def _describe_drive(self, session: Session, offer_id: UUID, entry: PriceInput) -> None:
-        """Take what a submitter says of an offer's drive: its specifications and brand where
-        nobody has entered them, and the other MPNs it goes by."""
-        if entry.specifications is None and entry.brand is None and not entry.aliases:
-            return
-        drive = session.scalars(
-            select(Drive)
-            .join(Offer, Offer.drive_id == Drive.id)
-            .where(Offer.id == offer_id)
-            .with_for_update(of=Drive)
-        ).one()
-        if entry.specifications is not None:
-            filled = fill_unknown(
-                Specifications.model_validate(drive.specifications).model_dump(mode="json"),
-                entry.specifications.model_dump(mode="json"),
-            )
-            session.execute(update(Drive).where(Drive.id == drive.id).values(specifications=filled))
-        if entry.brand is not None:
-            # A source's brand only names a drive nobody has named yet.
-            session.execute(
-                update(Drive)
-                .where(Drive.id == drive.id, Drive.brand.is_(None))
-                .values(brand=entry.brand)
-            )
-        for alias in new_aliases(entry.aliases, drive.mpn, aliases_of(session, drive.id)):
-            try:
-                _add_alias(session, drive.id, alias)
-            except AliasConflict:
-                # Already another drive's alias; leave that for a person to sort out.
-                continue
-
-    def _queue(
-        self,
-        session: Session,
-        entry: PriceInput,
-        identity: dict[str, Any],
-        price: dict[str, Any],
-        reason: str,
-    ) -> dict[str, Any]:
-        listing = Listing.of(
-            identity["store"], str(entry.url), entry.seller, entry.mpn, entry.condition
-        )
-        fields = queued_fields(entry.model_dump(mode="json"), identity, price, reason)
-        item_id = self.reviews.queue(session, listing, fields, entry.observed_at or self.now())
-        return {"status": "queued", "review_item_id": str(item_id)}
 
     # The Review queue, and deciding what a queued offer is.
 
@@ -331,7 +148,7 @@ class CatalogRepository:
                     provenance=queued["provenance"],
                 )
                 # A person has said what it is: it is no longer in doubt.
-                _release(session, offer_id)
+                self.offers.release(session, offer_id)
                 self.reviews.remember(
                     session, _listing_of(queued), mpn=decision.mpn, condition=decision.condition,
                     ignored=False, reviewed_title=queued["title"],
@@ -412,42 +229,6 @@ class CatalogRepository:
 
 
 # What the operations above share, each on the session of the operation that calls it.
-
-
-def _identity(session: Session, entry: PriceInput) -> dict[str, Any]:
-    """What identifies the offer a price is for: that of the offer named, held against other
-    changes, or as described."""
-    if entry.offer_id is not None:
-        row = session.execute(
-            select(*OFFER_IDENTITY).where(Offer.id == entry.offer_id).with_for_update()
-        ).first()
-        if row is None:
-            raise OfferNotFound()
-        return dict(row._mapping)
-    return {
-        "mpn": entry.mpn,
-        "store": entry.store,
-        "seller": entry.seller,
-        "condition": entry.condition,
-    }
-
-
-def _recorded(offer_id: UUID, price_id: UUID | None) -> dict[str, Any]:
-    return {
-        "status": "recorded",
-        "offer_id": str(offer_id),
-        "price_id": str(price_id) if price_id else None,
-    }
-
-
-def _release(session: Session, offer_id: UUID) -> None:
-    """Count an offer in rankings, distributions and trends again: only this one, whatever else
-    shares its store page."""
-    session.execute(
-        update(Offer)
-        .where(Offer.id == offer_id, Offer.held_reason.is_not(None))
-        .values(held_reason=None)
-    )
 
 
 def _lock_drive(session: Session, drive_id: UUID) -> Drive:

@@ -16,6 +16,7 @@ const reasons: Record<ReviewReason, string> = {
   missing_price: 'No price yet',
   not_a_single_drive: 'Not one drive',
   implausible_capacity: 'Capacity too large',
+  alias_conflict: 'MPN of another drive',
 };
 
 /** The page of the review queue asked for, as the API last answered it (paging.useServedPages),
@@ -107,6 +108,7 @@ function why(item: ReviewItem, drive: Drive | null): string {
     case 'missing_capacity': return 'The store gives no capacity, and no drive is recorded for its MPN.';
     case 'missing_price': return 'The store gives no price for it yet.';
     case 'not_a_single_drive': return 'Its title reads as several drives, tape or other equipment.';
+    case 'alias_conflict': return `The store also calls it ${item.conflict_mpn}, which another drive already goes by. Nothing it said was recorded.`;
     case 'implausible_capacity': return `The store says ${said ?? 'no capacity'}: more than any drive holds.`;
     case 'capacity_conflict': return drive && said
       ? `The store says ${said}; ${drive.mpn} is recorded as ${capacityLabel(drive.capacity_gb)}.`

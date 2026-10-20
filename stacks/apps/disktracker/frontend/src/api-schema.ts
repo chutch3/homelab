@@ -1540,6 +1540,16 @@ export interface components {
              * @description As the page gave it; null where it gave none.
              */
             condition: ("new" | "manufacturer_recertified" | "refurbished" | "used") | null;
+            /**
+             * Conflict Drive Id
+             * @description For alias_conflict: that other drive.
+             */
+            conflict_drive_id: string | null;
+            /**
+             * Conflict Mpn
+             * @description For alias_conflict: the MPN the page named that another drive goes by.
+             */
+            conflict_mpn: string | null;
             /** @description The drive its MPN names as recorded now, to set what was collected beside; null when it names none. */
             drive: components["schemas"]["Drive"] | null;
             /**
@@ -1575,7 +1585,7 @@ export interface components {
              * Reason
              * @enum {string}
              */
-            reason: "missing_mpn" | "missing_condition" | "missing_capacity" | "capacity_conflict" | "missing_price" | "not_a_single_drive" | "implausible_capacity";
+            reason: "missing_mpn" | "missing_condition" | "missing_capacity" | "capacity_conflict" | "missing_price" | "alias_conflict" | "not_a_single_drive" | "implausible_capacity";
             /** Seller */
             seller: string;
             /** Shipping Cents */
@@ -3661,7 +3671,7 @@ export interface operations {
         parameters: {
             query?: {
                 store?: string | null;
-                reason?: ("missing_mpn" | "missing_condition" | "missing_capacity" | "capacity_conflict" | "missing_price" | "not_a_single_drive" | "implausible_capacity") | null;
+                reason?: ("missing_mpn" | "missing_condition" | "missing_capacity" | "capacity_conflict" | "missing_price" | "alias_conflict" | "not_a_single_drive" | "implausible_capacity") | null;
                 /** @description Maximum items; omit to return all remaining matches. */
                 limit?: number | null;
                 /** @description Number of matching items to skip. */

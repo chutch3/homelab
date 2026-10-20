@@ -10,6 +10,8 @@ from fastapi.responses import Response
 from listing_text.listing import read_listing
 from listing_text.readers import condition_rules
 
+from disktracker.catalog.ingestion_service import IngestionService
+from disktracker.catalog.price_service import PriceService
 from disktracker.catalog.schemas import (
     AliasInput,
     CatalogDrivePage,
@@ -47,6 +49,8 @@ router = APIRouter(prefix="/api")
 
 
 Catalog = Annotated[CatalogService, Depends(Provide[Container.catalog_service])]
+Prices = Annotated[PriceService, Depends(Provide[Container.price_service])]
+Ingestion = Annotated[IngestionService, Depends(Provide[Container.ingestion_service])]
 
 
 class Paging:
@@ -217,7 +221,8 @@ def list_prices(catalog: Catalog, query: Annotated[PriceQuery, Query()]) -> dict
 )
 @inject
 def record_price(
-    catalog: Catalog,
+    prices: Prices,
+    ingestion: Ingestion,
     entry: Annotated[
         PriceInput,
         Body(
@@ -285,7 +290,12 @@ def record_price(
     Collected observations also honor saved review decisions and ignore never-priced sold-out
     offers. provenance defaults to manual and on_unmatched defaults to reject.
     """
-    result = catalog.record_price(entry, idempotency_key)
+    # Until the price and the collected-observation endpoints are apart, chosen by what is sent.
+    result = (
+        prices.record(entry.offer_id, entry, idempotency_key)
+        if entry.offer_id is not None
+        else ingestion.ingest(entry, idempotency_key)
+    )
     response.status_code = {"recorded": 201, "queued": 202, "ignored": 200}[result["status"]]
     return result
 

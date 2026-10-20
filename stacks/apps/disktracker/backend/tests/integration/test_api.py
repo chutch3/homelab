@@ -4,6 +4,7 @@ from datetime import UTC, datetime, timedelta
 from typing import Any
 from uuid import UUID, uuid4
 
+import pytest
 from fastapi.testclient import TestClient
 from httpx import Response
 from sqlalchemy import create_engine, text
@@ -971,95 +972,64 @@ def test_ignoring_a_queued_offer_keeps_later_scrapes_of_it_out_of_the_queue(
         assert client.get("/api/offers").json() == []
 
 
-def test_a_scraped_offer_can_declare_other_mpns_for_its_drive(database_url: str) -> None:
+def test_a_scraped_offer_names_the_other_mpns_its_drive_goes_by(database_url: str) -> None:
+    """MPNs no drive goes by yet become its drive's; a page that later uses one is of that drive."""
     base = "https://www.serverpartdeals.com/products/"
     with TestClient(create_app()) as client:
-        oem = post(
-            client,
-            "/api/prices",
-            scraped_payload(
-                url=base + "dell-g14",
-                mpn="0HNHWC",
-                capacity_gb=16000,
-                condition="new",
-                title="Dell 0HNHWC 16TB SAS",
-            ),
-        ).json()
-        maker = post(
-            client,
-            "/api/prices",
-            scraped_payload(
-                url=base + "bare",
-                mpn="WUH721816AL5205",
-                title="WD Ultrastar WUH721816AL5205 16TB",
-                aliases=["0hnhwc"],
-                capacity_gb=16000,
-                condition="refurbished",
-            ),
-        )
-        assert maker.status_code == 201, maker.text
+        maker = post(client, "/api/prices", scraped_payload(
+            url=base + "bare", mpn="WUH721816AL5205", title="WD Ultrastar WUH721816AL5205 16TB",
+            aliases=["0hnhwc"], capacity_gb=16000, condition="refurbished",
+        ))  # fmt: skip
+        oem = post(client, "/api/prices", scraped_payload(
+            url=base + "dell-g14", mpn="0HNHWC", capacity_gb=16000, condition="new",
+            title="Dell 0HNHWC 16TB SAS",
+        ))  # fmt: skip
         offers = {o["id"]: o for o in client.get("/api/offers").json()}
-        assert {o["mpn"] for o in offers.values()} == {"WUH721816AL5205"}
-        assert offers[oem["offer_id"]]["drive"]["aliases"] == ["0HNHWC"]
-        again = post(
-            client,
-            "/api/prices",
-            scraped_payload(
-                url=base + "bare",
-                mpn="WUH721816AL5205",
-                title="WD Ultrastar WUH721816AL5205 16TB",
-                aliases=["0HNHWC"],
-                capacity_gb=16000,
-                condition="refurbished",
-                item_price_cents=35000,
-                observed_at="2026-09-22T12:00:00Z",
-            ),
-        )
-        assert again.status_code == 201, again.text
-        later_oem = saved_offer(
-            client,
-            post(
-                client,
-                "/api/prices",
-                scraped_payload(
-                    url=base + "dell-g13",
-                    mpn="0HNHWC",
-                    capacity_gb=16000,
-                    condition="used",
-                    title="Dell 0HNHWC 16TB SAS",
-                ),
-            ),
-        )
-        assert later_oem["mpn"] == ("WUH721816AL5205")
+
+    assert [maker.status_code, oem.status_code] == [201, 201]
+    assert offers[maker.json()["offer_id"]]["drive"]["aliases"] == ["0HNHWC"]
+    assert offers[oem.json()["offer_id"]]["drive"]["mpn"] == "WUH721816AL5205"
 
 
-def test_a_scraped_alias_already_claimed_by_another_drive_is_left_for_a_person(
-    database_url: str,
+@pytest.mark.parametrize("claimed_as", ["its own MPN", "another of its MPNs"])
+def test_a_scraped_offer_naming_an_mpn_another_drive_goes_by_waits_whole_for_a_person(
+    database_url: str, claimed_as: str
 ) -> None:
+    """No drive is merged, and nothing the page said is taken, not even its price for an offer
+    already recorded: what it said waits for a person, with the MPN and the drive it is."""
+    page = scraped_payload(
+        url="https://www.serverpartdeals.com/products/other", mpn="ST16000NM000J",
+        title="Seagate Exos ST16000NM000J 16TB", capacity_gb=16000,
+    )  # fmt: skip
     with TestClient(create_app()) as client:
-        claimed = saved_offer(
-            client, post(client, "/api/prices", price_payload(mpn="ST18000NM000J"))
-        )
-        drive_id = claimed["drive"]["id"]
-        assert (
-            client.post(f"/api/drives/{drive_id}/aliases", json={"mpn": "0XYZ"}).status_code == 201
-        )
+        if claimed_as == "its own MPN":
+            owner = saved_offer(
+                client, post(client, "/api/prices", price_payload(mpn="0XYZ", capacity_gb=18000))
+            )
+        else:
+            owner = saved_offer(
+                client, post(client, "/api/prices", price_payload(mpn="ST18000NM000J"))
+            )
+            client.post(f"/api/drives/{owner['drive']['id']}/aliases", json={"mpn": "0XYZ"})
+        recorded = post(client, "/api/prices", page).json()
+        conflicting = post(client, "/api/prices", {
+            **page, "aliases": ["0XYZ"], "brand": "Seagate", "item_price_cents": 30000,
+            "observed_at": "2026-09-22T12:00:00Z",
+        })  # fmt: skip
+        offer = client.get(f"/api/offers/{recorded['offer_id']}").json()
+        [item] = client.get("/api/review-items").json()
+        drives = {o["drive"]["mpn"] for o in client.get("/api/offers").json()}
 
-        scraped = post(
-            client,
-            "/api/prices",
-            scraped_payload(
-                url="https://www.serverpartdeals.com/products/other",
-                mpn="ST16000NM000J",
-                title="Seagate Exos ST16000NM000J 16TB",
-                aliases=["0XYZ"],
-                capacity_gb=16000,
-            ),
-        )
-
-        assert scraped.status_code == 201, scraped.text
-        drives = {o["mpn"]: o["drive"]["aliases"] for o in client.get("/api/offers").json()}
-        assert drives == {"ST18000NM000J": ["0XYZ"], "ST16000NM000J": []}
+    assert conflicting.json()["status"] == "queued"
+    assert [p["item_price_cents"] for p in offer["observations"]] == [36999]
+    assert (offer["drive"]["brand"], offer["drive"]["aliases"]) == (None, [])
+    assert (item["reason"], item["aliases"], item["conflict_mpn"]) == (
+        "alias_conflict",
+        ["0XYZ"],
+        "0XYZ",
+    )
+    assert item["conflict_drive_id"] == owner["drive"]["id"]
+    assert drives == {owner["drive"]["mpn"], "ST16000NM000J"}
 
 
 def test_listings_carry_each_offers_latest_price_and_history_is_fetched_per_offer(
@@ -2388,3 +2358,22 @@ def test_a_hold_is_released_only_by_fresh_evidence_of_the_offer_it_is_on(databas
     assert waiting == [("refurbished", "not_a_single_drive")]
     assert ignored.status_code == 200, ignored.text
     assert after_ignore == after_clean
+
+
+def test_a_price_for_a_named_offer_sent_twice_under_one_key_is_recorded_once(
+    database_url: str,
+) -> None:
+    """As a recheck whose answer was lost is sent again: answered as it was, one price kept."""
+    with TestClient(create_app()) as client:
+        offer_id = post(client, "/api/prices", price_payload()).json()["offer_id"]
+        recheck = {"offer_id": offer_id, "provenance": "collected", "item_price_cents": 17900,
+                   "observed_at": "2026-09-22T12:00:00Z"}  # fmt: skip
+        key = str(uuid4())
+        first = post(client, "/api/prices", recheck, key)
+        again = post(client, "/api/prices", recheck, key)
+        other = post(client, "/api/prices", {**recheck, "item_price_cents": 16900}, key)
+        prices = client.get(f"/api/offers/{offer_id}").json()["observations"]
+
+    assert (first.status_code, again.status_code, again.json()) == (201, 201, first.json())
+    assert other.status_code == 409
+    assert [price["item_price_cents"] for price in prices] == [18900, 17900]
