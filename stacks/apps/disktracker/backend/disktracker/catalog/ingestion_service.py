@@ -78,6 +78,8 @@ class IngestionService:
         identity = as_decided(said, decided)
         if identity is None:
             return {"status": "ignored"}
+        # Every MPN this may touch, before any row: the drive's, and the others its page gives.
+        self.drives.hold(session, [identity["mpn"], *entry.aliases])
         reason = missing_detail(identity["mpn"], identity["condition"])
         # What a person entered is taken as entered; a listing a person decided, as decided while
         # its page reads as it did then. What is collected otherwise is judged as it reads.

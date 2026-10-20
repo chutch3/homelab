@@ -2377,3 +2377,16 @@ def test_a_price_for_a_named_offer_sent_twice_under_one_key_is_recorded_once(
     assert (first.status_code, again.status_code, again.json()) == (201, 201, first.json())
     assert other.status_code == 409
     assert [price["item_price_cents"] for price in prices] == [18900, 17900]
+
+
+def test_a_decision_on_an_item_that_is_not_waiting_is_not_found_whatever_it_decides(
+    database_url: str,
+) -> None:
+    with TestClient(create_app()) as client:
+        ignored = client.put(f"/api/review-items/{uuid4()}/decision", json={"decision": "ignore"})
+        matched = client.put(
+            f"/api/review-items/{uuid4()}/decision",
+            json={"decision": "match", "mpn": "X", "condition": "new", "capacity_gb": 1000},
+        )
+
+    assert [ignored.status_code, matched.status_code] == [404, 404]

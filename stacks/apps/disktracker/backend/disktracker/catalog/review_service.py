@@ -34,6 +34,11 @@ class ReviewService:
             replay = self.reviews.claim_decision(session, item_id, decision.model_dump(mode="json"))
             if replay is not None:
                 return replay
+            if isinstance(decision, MatchDecision):
+                # Every MPN this may touch, before the item: the drive's, and the others its
+                # page gave (the catalog-wide lock order).
+                aliases = self.reviews.peek(session, item_id)["aliases"] or []
+                self.drives.hold(session, [decision.mpn, *aliases])
             item = self.reviews.take(session, item_id)
             if isinstance(decision, MatchDecision):
                 result = self._match(session, item, decision)

@@ -3,9 +3,10 @@ every operation's writes are kept together or not at all, and no connection or t
 left behind. Changes made by someone else between a read's queries are made from a separate
 connection, at the moment the read issues the query that would see them."""
 
+import threading
 from collections.abc import Callable, Iterator
 from concurrent.futures import ThreadPoolExecutor
-from contextlib import contextmanager
+from contextlib import contextmanager, suppress
 from datetime import UTC, datetime
 from typing import Any
 from uuid import uuid4
@@ -230,3 +231,119 @@ def test_the_database_connections_are_closed_when_the_application_stops(
         while_running = backends(database_url)
     assert while_running >= 1
     assert backends(database_url) == 0
+
+
+LOCK = "pg_advisory_xact_lock"
+
+
+@contextmanager
+def crossing(
+    assign: Callable[[str, Any], str | None], pauses: dict[str, Callable[[str, int], bool]]
+) -> Iterator[None]:
+    """Make two requests cross. Each is told apart by the first statement of its work (assign
+    names it from the statement and its parameters), and waits for the other just before the
+    statement its pause picks (given the statement and how many locks it has taken), so both
+    hold what they took first. One blocked before reaching its pause never gets there: the other
+    then waits no longer than a moment, and goes on."""
+    barrier = threading.Barrier(len(pauses))
+    seen: list[Any] = []
+
+    def pause(connection: Any, cursor: Any, statement: str, parameters: Any, *_: Any) -> None:
+        info = connection.info
+        role = assign(statement, parameters)
+        if role is not None:
+            info.update(role=role, locks=0, paused=False)
+            seen.append(info)
+        if info.get("role") not in pauses or info["paused"]:
+            return
+        info["locks"] += LOCK in statement
+        if pauses[info["role"]](statement, info["locks"]):
+            info["paused"] = True
+            with suppress(threading.BrokenBarrierError):
+                barrier.wait(timeout=2)
+
+    event.listen(Engine, "before_cursor_execute", pause)
+    try:
+        yield
+    finally:
+        event.remove(Engine, "before_cursor_execute", pause)
+        for info in seen:
+            info.pop("role", None)
+
+
+def test_two_pages_naming_each_others_mpns_at_once_are_both_taken(database_url: str) -> None:
+    """Each a new drive naming the other's MPN as another of its own: whichever is taken first,
+    the other is of the same drive. Neither waits for the other forever."""
+    page = scraped_payload(capacity_gb=16000, title="Exos 16TB", condition="new")
+    first = {
+        **page,
+        "url": "https://www.serverpartdeals.com/products/a",
+        "mpn": "AAA1",
+        "aliases": ["BBB1"],
+    }
+    second = {
+        **page,
+        "url": "https://www.serverpartdeals.com/products/b",
+        "mpn": "BBB1",
+        "aliases": ["AAA1"],
+    }
+    keys = {"a": uuid4(), "b": uuid4()}
+
+    def assign(statement: str, parameters: Any) -> str | None:
+        if not statement.startswith("INSERT INTO save_receipts"):
+            return None
+        return next((role for role, key in keys.items() if key in parameters.values()), None)
+
+    # Each waits for the other once it holds its first lock and asks for its second.
+    second_lock = {
+        role: (lambda statement, locks: LOCK in statement and locks == 2) for role in keys
+    }
+    with (
+        TestClient(create_app()) as client,
+        crossing(assign, second_lock),
+        ThreadPoolExecutor(max_workers=2) as executor,
+    ):
+        answers = [
+            executor.submit(post, client, "/api/prices", body, str(keys[role]))
+            for role, body in (("a", first), ("b", second))
+        ]
+        results = [answer.result() for answer in answers]
+    with TestClient(create_app()) as client:
+        drives = {o["drive"]["id"] for o in client.get("/api/offers").json()}
+
+    assert [result.status_code for result in results] == [201, 201], [r.text for r in results]
+    assert len(drives) == 1
+
+
+def test_a_review_decision_and_a_page_collected_again_at_once_both_finish(
+    database_url: str,
+) -> None:
+    """The reviewer decides a listing as its page is collected again, read as doubtfully as
+    before: one waits for the other, and neither forever."""
+    page = scraped_payload(title="Seagate Exos X18 ST18000NM000J 18TB 4-pack")
+    decision = {"decision": "match", "mpn": "ST18000NM000J", "condition": "manufacturer_recertified",
+                "capacity_gb": 18000}  # fmt: skip
+    pauses = {
+        # The reviewer, once it has taken the item, as it asks for the drive's MPN.
+        "review": lambda statement, locks: LOCK in statement and locks == 1,
+        # The collector, once it holds the drive's MPN, as it keeps the item again.
+        "collect": lambda statement, locks: statement.startswith("INSERT INTO unmatched"),
+    }
+    with TestClient(create_app()) as client:
+        item = post(client, "/api/prices", page).json()["review_item_id"]
+        decide = lambda: client.put(f"/api/review-items/{item}/decision", json=decision)
+        collect = lambda: post(
+            client, "/api/prices", {**page, "observed_at": "2026-09-22T12:00:00Z"}
+        )
+        roles = {"INSERT INTO review_decisions": "review", "INSERT INTO save_receipts": "collect"}
+
+        def assign(statement: str, parameters: Any) -> str | None:
+            return next(
+                (role for start, role in roles.items() if statement.startswith(start)), None
+            )
+
+        with crossing(assign, pauses), ThreadPoolExecutor(max_workers=2) as executor:
+            answers = [executor.submit(decide), executor.submit(collect)]
+            results = [answer.result() for answer in answers]
+
+    assert [result.status_code for result in results] == [200, 202], [r.text for r in results]

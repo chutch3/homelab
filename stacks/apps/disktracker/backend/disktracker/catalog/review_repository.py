@@ -145,6 +145,13 @@ class ReviewRepository:
             update(ReviewDecision).where(ReviewDecision.id == item_id).values(result=result)
         )
 
+    def peek(self, session: Session, item_id: UUID) -> dict[str, Any]:
+        """An item waiting for review, as it is now, without taking it."""
+        item = session.get(ReviewItem, item_id)
+        if item is None:
+            raise ReviewItemNotFound()
+        return columns(item)
+
     def take(self, session: Session, item_id: UUID) -> dict[str, Any]:
         """An item waiting for review, out of the queue: what its page said."""
         item = session.get(ReviewItem, item_id)

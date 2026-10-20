@@ -1,7 +1,7 @@
 """Drives and the MPNs that identify them. Each method works on the session of the operation that
 calls it and never commits: the operation decides what is kept together."""
 
-from collections.abc import Callable
+from collections.abc import Callable, Iterable
 from typing import Any
 from uuid import UUID
 
@@ -53,6 +53,13 @@ class DriveRepository:
         if made is None or session.scalar(select(MpnAlias.alias).where(MpnAlias.alias == mpn)):
             raise MpnTaken(f"{mpn} already identifies a drive.")
         return session.get_one(Drive, made)
+
+    def hold(self, session: Session, mpns: Iterable[str | None]) -> None:
+        """Hold every MPN an operation may touch, all at its start and in one order, before any
+        drive, offer or review row: two operations then never each hold what the other waits
+        for (the catalog-wide lock order)."""
+        for mpn in sorted({mpn for mpn in mpns if mpn}):
+            hold_mpn(session, mpn)
 
     def owner_of(self, session: Session, mpn: str) -> UUID | None:
         """The drive that goes by this MPN, as its own MPN or another of its MPNs; None for none."""
