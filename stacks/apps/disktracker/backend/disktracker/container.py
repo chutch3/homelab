@@ -14,6 +14,7 @@ from disktracker.catalog.price_service import PriceService
 from disktracker.catalog.queries import CatalogQueries
 from disktracker.catalog.repository import CatalogRepository
 from disktracker.catalog.review_repository import ReviewRepository
+from disktracker.catalog.review_service import ReviewService
 from disktracker.catalog.service import CatalogService
 from disktracker.collection.client import CollectorClient
 from disktracker.collection.repository import CollectionRepository
@@ -55,13 +56,7 @@ class Container(containers.DeclarativeContainer):
     offer_repository = providers.Factory(OfferRepository, now=clock, next_id=next_id)
     review_repository = providers.Factory(ReviewRepository, next_id=next_id)
     catalog_repository = providers.Factory(
-        CatalogRepository,
-        session_factory=database.provided.session,
-        now=clock,
-        next_id=next_id,
-        offers=offer_repository,
-        reviews=review_repository,
-        drives=drive_repository,
+        CatalogRepository, session_factory=database.provided.session
     )
     catalog_queries = providers.Factory(CatalogQueries, snapshot_factory=database.provided.snapshot)
     collection_repository = providers.Factory(
@@ -87,6 +82,13 @@ class Container(containers.DeclarativeContainer):
         offers=offer_repository,
         reviews=review_repository,
         now=clock,
+    )
+    review_service = providers.Factory(
+        ReviewService,
+        session_factory=database.provided.session,
+        drives=drive_repository,
+        offers=offer_repository,
+        reviews=review_repository,
     )
     catalog_service = providers.Factory(
         CatalogService,

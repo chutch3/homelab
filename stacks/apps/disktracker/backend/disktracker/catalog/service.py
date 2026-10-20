@@ -22,7 +22,6 @@ from disktracker.catalog.schemas import (
     OfferQuery,
     PriceQuery,
     RangeQuery,
-    ReviewDecision,
 )
 from disktracker.catalog.views import drive_view
 from disktracker.database import SessionFactory
@@ -101,10 +100,7 @@ class CatalogService:
 
     # Recording a price.
 
-    # Deciding what a queued offer is.
-
-    def decide(self, item_id: UUID, decision: ReviewDecision) -> dict[str, Any]:
-        return self.repository.decide(item_id, decision)
+    # The review queue.
 
     def review_items(
         self,

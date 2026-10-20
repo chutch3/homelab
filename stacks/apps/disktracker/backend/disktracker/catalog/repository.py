@@ -1,164 +1,39 @@
-"""The catalog's writes, exercised with real-database integration tests. Every operation opens
-its own session, does all of its work there, and commits once: a price with its receipt, a
-review decision with what it records, a merge of drives, are each kept whole or not at all. What
-an operation returns is plain data, complete before its session closes. What to do at each turn
-is decided by the catalog's rules; what the API reads is in catalog.queries."""
+"""The catalog's corrections not yet given to their owners: a drive's other MPNs (and merging drives
+by them), a drive or offer corrected, an offer or price removed, the condition rules. Every
+operation opens its own session and commits once. Prices are recorded by catalog.price_service
+and catalog.ingestion_service, and review decisions by catalog.review_service."""
 
-from collections.abc import Callable
-from datetime import datetime
 from typing import Any
 from uuid import UUID
 
 from sqlalchemy import delete, select, update
-from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.orm import Session
 
-from disktracker.catalog.drive_repository import DriveRepository, hold_mpn
+from disktracker.catalog.drive_repository import hold_mpn
 from disktracker.catalog.models import (
     ConditionRule,
     Drive,
     MpnAlias,
     Offer,
     Price,
-    ReviewDecision,
-    ReviewItem,
 )
-from disktracker.catalog.offer_repository import OfferRepository
-from disktracker.catalog.queries import aliases_of, canonical_mpn, offer_with_history
-from disktracker.catalog.review_repository import Listing, ReviewRepository
+from disktracker.catalog.queries import aliases_of, offer_with_history
 from disktracker.catalog.rules import (
-    decided_again,
     merge_plan,
 )
-from disktracker.catalog.schemas import ObservationInput, Specifications
-from disktracker.catalog.schemas import ReviewDecision as Decision
+from disktracker.catalog.schemas import Specifications
 from disktracker.catalog.views import drive_view
 from disktracker.database import SessionFactory, columns
 from disktracker.errors import (
     AliasConflict,
     DriveNotFound,
     OfferNotFound,
-    ReviewItemNotFound,
 )
 
 
 class CatalogRepository:
-    def __init__(
-        self,
-        session_factory: SessionFactory,
-        now: Callable[[], datetime],
-        next_id: Callable[[], UUID],
-        offers: OfferRepository,
-        reviews: ReviewRepository,
-        drives: DriveRepository,
-    ) -> None:
-        self.session_factory, self.now, self.next_id = session_factory, now, next_id
-        self.offers, self.reviews, self.drives = offers, reviews, drives
-
-    # Recording a price.
-
-    def _record(
-        self,
-        session: Session,
-        identity: dict[str, Any],
-        price: dict[str, Any],
-        *,
-        capacity_gb: int | None,
-        title: str | None,
-        url: str | None,
-        provenance: str,
-    ) -> tuple[UUID, UUID | None]:
-        """Keep a price for the offer so identified, its drive made when it is new: the offer, and
-        the price made (None when it only counted as a check). Making the drive is the submission
-        workflow's; the price itself goes through the one price writer."""
-        drive_id = self.drives.register(session, identity["mpn"], capacity_gb)
-        offer_id = self.offers.offer_for(
-            session,
-            drive_id=drive_id,
-            store=identity["store"],
-            seller=identity["seller"],
-            condition=identity["condition"],
-            title=title,
-            url=url,
-        )
-        return offer_id, self.offers.record(session, offer_id, price, provenance)
-
-    # The Review queue, and deciding what a queued offer is.
-
-    def decide(self, item_id: UUID, decision: Decision) -> dict[str, Any]:
-        """Decide what a review item is and remember it for later prices of the same store page:
-        the decision, what it records and the item leaving the queue are kept together. The same
-        decision sent again gets the first answer and changes nothing; a different one is
-        refused."""
-        body = decision.model_dump(mode="json")
-        with self.session_factory() as session:
-            claimed = session.scalar(
-                pg_insert(ReviewDecision)
-                .values(id=item_id, decision=body)
-                .on_conflict_do_nothing(index_elements=[ReviewDecision.id])
-                .returning(ReviewDecision.id)
-            )
-            if claimed is None:
-                earlier = session.get_one(ReviewDecision, item_id)
-                return decided_again(earlier.decision, earlier.result, body)
-            item = session.get(ReviewItem, item_id)
-            if item is None:
-                raise ReviewItemNotFound()
-            queued = columns(item)
-            session.execute(delete(ReviewItem).where(ReviewItem.id == item_id))
-            if decision.decision == "ignore":
-                self.reviews.remember(
-                    session, _listing_of(queued), mpn=None, condition=None, ignored=True,
-                    reviewed_title=queued["title"],
-                )  # fmt: skip
-                result: dict[str, Any] = {"status": "ignored", "offer_id": None}
-            else:
-                price = ObservationInput.model_validate(
-                    {key: queued[key] for key in ("item_price_cents", "shipping_cents", "in_stock")}
-                    | {"observed_at": queued["last_seen_at"]}
-                )
-                known = session.scalars(
-                    select(Drive)
-                    .where(Drive.mpn == canonical_mpn(session, decision.mpn))
-                    .with_for_update()
-                ).first()
-                if decision.correct_drive and known is not None:
-                    session.execute(
-                        update(Drive)
-                        .where(Drive.id == known.id)
-                        .values(capacity_gb=decision.capacity_gb)
-                    )
-                # Left unsaid, a drive already recorded keeps its capacity, whatever the offer
-                # said; a new one takes the offer's.
-                capacity = decision.capacity_gb
-                if capacity is None and known is None:
-                    capacity = queued["capacity_gb"]
-                offer_id, _ = self._record(
-                    session,
-                    {
-                        "mpn": decision.mpn,
-                        "store": queued["store"],
-                        "seller": queued["seller"],
-                        "condition": decision.condition,
-                    },
-                    price.model_dump(),
-                    capacity_gb=capacity,
-                    title=queued["title"],
-                    url=queued["url"],
-                    provenance=queued["provenance"],
-                )
-                # A person has said what it is: it is no longer in doubt.
-                self.offers.release(session, offer_id)
-                self.reviews.remember(
-                    session, _listing_of(queued), mpn=decision.mpn, condition=decision.condition,
-                    ignored=False, reviewed_title=queued["title"],
-                )  # fmt: skip
-                result = {"status": "matched", "offer_id": str(offer_id)}
-            session.execute(
-                update(ReviewDecision).where(ReviewDecision.id == item_id).values(result=result)
-            )
-            session.commit()
-            return result
+    def __init__(self, session_factory: SessionFactory) -> None:
+        self.session_factory = session_factory
 
     # Drives and the MPNs they go by.
 
@@ -289,10 +164,3 @@ def _add_alias(session: Session, drive_id: UUID, alias: str) -> Drive:
     session.add(MpnAlias(alias=alias, drive_id=drive_id))
     session.flush()
     return drive
-
-
-def _listing_of(queued: dict[str, Any]) -> Listing:
-    """The listing a queued item is of, as its page gave it."""
-    return Listing.of(
-        queued["store"], queued["url"], queued["seller"], queued["mpn"], queued["condition"]
-    )

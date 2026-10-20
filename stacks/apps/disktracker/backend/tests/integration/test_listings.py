@@ -121,3 +121,27 @@ def test_what_a_queued_listing_said_of_its_drive_is_kept_for_review(database_url
 
     assert (item["aliases"], item["brand"]) == (["0XYZ18"], "Seagate")
     assert {k: item["specifications"][k] for k in specifications} == specifications
+
+
+def test_an_accepted_listing_gives_its_drive_what_its_page_said_where_nobody_has(
+    database_url: str,
+) -> None:
+    """Its brand and specifications fill what is unknown; its other MPNs that no drive goes by
+    become the drive's. One another drive goes by stays that drive's: nothing is merged."""
+    with TestClient(create_app()) as client:
+        other = post(client, "/api/prices", scraped_payload(url=f"{PAGE}-other", mpn="ST16000NM000J",
+                     title="Exos 16TB", capacity_gb=16000)).json()  # fmt: skip
+        other_drive = client.get(f"/api/offers/{other['offer_id']}").json()["drive"]["id"]
+        client.post(f"/api/drives/{other_drive}/aliases", json={"mpn": "0TAKEN"})
+        queued = post(client, "/api/prices", listing(
+            mpn=None, aliases=["0FRESH", "0TAKEN"], brand="Seagate",
+            specifications={"interface": "sas"},
+        )).json()  # fmt: skip
+        accepted = match(client, queued["review_item_id"], condition="manufacturer_recertified")
+        drive = client.get(f"/api/offers/{accepted.json()['offer_id']}").json()["drive"]
+        taken = client.get(f"/api/drives/{other_drive}").json()["drive"]
+
+    assert accepted.status_code == 200, accepted.text
+    assert (drive["brand"], drive["specifications"]["interface"]) == ("Seagate", "sas")
+    assert drive["aliases"] == ["0FRESH"]
+    assert taken["aliases"] == ["0TAKEN"]

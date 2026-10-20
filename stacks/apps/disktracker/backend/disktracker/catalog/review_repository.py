@@ -7,12 +7,14 @@ from datetime import datetime
 from typing import Any, NamedTuple, Self
 from uuid import UUID
 
-from sqlalchemy import delete, func, literal_column
+from sqlalchemy import delete, func, literal_column, update
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.orm import Session
 
-from disktracker.catalog.models import ReviewItem, ScrapedMatch
+from disktracker.catalog.models import ReviewDecision, ReviewItem, ScrapedMatch
+from disktracker.catalog.rules import decided_again
 from disktracker.database import by_column, columns
+from disktracker.errors import ReviewItemNotFound
 
 
 class Listing(NamedTuple):
@@ -34,6 +36,11 @@ class Listing(NamedTuple):
 def _blank(column: Any) -> Any:
     # As the unique index on unmatched writes it, so that a conflict finds that index.
     return func.coalesce(column, literal_column("''"))
+
+
+def listing_of(item: dict[str, Any]) -> Listing:
+    """The listing a queued item is of, as its page gave it."""
+    return Listing.of(item["store"], item["url"], item["seller"], item["mpn"], item["condition"])
 
 
 class ReviewRepository:
@@ -115,3 +122,34 @@ class ReviewRepository:
                 set_=decision,
             )
         )  # fmt: skip
+
+    def claim_decision(
+        self, session: Session, item_id: UUID, decision: dict[str, Any]
+    ) -> dict[str, Any] | None:
+        """Take the decision of an item, held until the operation ends: None when it is the
+        first, or what the same decision was answered before (refused when it differs)."""
+        claimed = session.scalar(
+            pg_insert(ReviewDecision)
+            .values(id=item_id, decision=decision)
+            .on_conflict_do_nothing(index_elements=[ReviewDecision.id])
+            .returning(ReviewDecision.id)
+        )
+        if claimed is not None:
+            return None
+        earlier = session.get_one(ReviewDecision, item_id)
+        return decided_again(earlier.decision, earlier.result, decision)
+
+    def answer_decision(self, session: Session, item_id: UUID, result: dict[str, Any]) -> None:
+        """Keep what an item's decision was answered, to answer it again."""
+        session.execute(
+            update(ReviewDecision).where(ReviewDecision.id == item_id).values(result=result)
+        )
+
+    def take(self, session: Session, item_id: UUID) -> dict[str, Any]:
+        """An item waiting for review, out of the queue: what its page said."""
+        item = session.get(ReviewItem, item_id)
+        if item is None:
+            raise ReviewItemNotFound()
+        taken = columns(item)
+        session.execute(delete(ReviewItem).where(ReviewItem.id == item_id))
+        return taken

@@ -12,6 +12,7 @@ from listing_text.readers import condition_rules
 
 from disktracker.catalog.ingestion_service import IngestionService
 from disktracker.catalog.price_service import PriceService
+from disktracker.catalog.review_service import ReviewService
 from disktracker.catalog.schemas import (
     AliasInput,
     CatalogDrivePage,
@@ -51,6 +52,7 @@ router = APIRouter(prefix="/api")
 Catalog = Annotated[CatalogService, Depends(Provide[Container.catalog_service])]
 Prices = Annotated[PriceService, Depends(Provide[Container.price_service])]
 Ingestion = Annotated[IngestionService, Depends(Provide[Container.ingestion_service])]
+Reviews = Annotated[ReviewService, Depends(Provide[Container.review_service])]
 
 
 class Paging:
@@ -344,7 +346,7 @@ def review_items(
 )
 @inject
 def decide(
-    catalog: Catalog,
+    reviews: Reviews,
     item_id: UUID,
     # Body() would drop the union's discriminator; given here, a decision is checked as what it
     # decides.
@@ -353,7 +355,7 @@ def decide(
     """Say what a review item is. Sent again, the same decision gets the first answer without
     doing anything more, so a decision whose answer was lost can be retried; a different decision
     is refused (409)."""
-    return catalog.decide(item_id, decision)
+    return reviews.decide(item_id, decision)
 
 
 @router.get(
