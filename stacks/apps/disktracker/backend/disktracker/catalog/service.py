@@ -9,22 +9,18 @@ from datetime import datetime, timedelta
 from typing import Any
 from uuid import UUID
 
-from disktracker.catalog.drive_repository import DriveRepository
 from disktracker.catalog.queries import CatalogQueries
 from disktracker.catalog.repository import CatalogRepository
 from disktracker.catalog.schemas import (
     CatalogDriveQuery,
     ConditionRule,
     DriveEdit,
-    DriveInput,
     DriveQuery,
     OfferEdit,
     OfferQuery,
     PriceQuery,
     RangeQuery,
 )
-from disktracker.catalog.views import drive_view
-from disktracker.database import SessionFactory
 from disktracker.reporting.ranges import price_range
 
 
@@ -34,26 +30,8 @@ class CatalogService:
         repository: CatalogRepository,
         queries: CatalogQueries,
         now: Callable[[], datetime],
-        session_factory: SessionFactory,
-        drives: DriveRepository,
     ) -> None:
         self.repository, self.queries, self.now = repository, queries, now
-        self.session_factory, self.drive_repository = session_factory, drives
-
-    # Making drives.
-
-    def create_drive(self, entry: DriveInput) -> dict[str, Any]:
-        """A drive made on its own, before any price of it."""
-        with self.session_factory() as session:
-            drive = self.drive_repository.create(
-                session,
-                mpn=entry.mpn,
-                capacity_gb=entry.capacity_gb,
-                brand=entry.brand,
-                specifications=entry.specifications.model_dump(mode="json"),
-            )
-            session.commit()
-            return drive_view(drive, [])
 
     # Reading drives, offers and prices.
 

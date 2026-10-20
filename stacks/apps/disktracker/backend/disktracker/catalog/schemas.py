@@ -237,6 +237,28 @@ class DriveInput(Contract):
         return brand or None
 
 
+class MergeInput(Contract):
+    """The drive another is merged into: it survives."""
+
+    model_config = ConfigDict(extra="forbid")
+    target_drive_id: UUID
+
+
+class CombinedOffer(Contract):
+    """An offer of the absorbed drive combined into the surviving drive's offer of the same
+    store, seller and condition: its prices are that offer's now."""
+
+    absorbed_offer_id: UUID
+    offer_id: UUID
+
+
+class MergeResult(Contract):
+    status: Literal["merged"]
+    drive_id: UUID
+    absorbed_drive_id: UUID
+    combined_offers: list[CombinedOffer]
+
+
 class AliasInput(Contract):
     model_config = ConfigDict(extra="forbid")
     mpn: NormalizedMpn

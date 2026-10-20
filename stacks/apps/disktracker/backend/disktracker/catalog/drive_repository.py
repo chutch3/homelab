@@ -5,14 +5,15 @@ from collections.abc import Callable, Iterable
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import func, select, update
+from sqlalchemy import delete, func, select, update
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.orm import Session
 
 from disktracker.catalog.models import Drive, MpnAlias
 from disktracker.catalog.rules import capacity_label, fill_unknown
 from disktracker.catalog.schemas import Specifications
-from disktracker.errors import CapacityConflict, CapacityRequired, MpnTaken
+from disktracker.database import columns
+from disktracker.errors import CapacityConflict, CapacityRequired, DriveNotFound, MpnTaken
 
 
 def hold_mpn(session: Session, mpn: str) -> None:
@@ -129,4 +130,36 @@ class DriveRepository:
         if self.owner_of(session, alias) is not None:
             raise MpnTaken(f"{alias} already identifies a drive.")
         session.add(MpnAlias(alias=alias, drive_id=drive_id))
+        session.flush()
+
+    def identifiers(self, session: Session, drive_id: UUID) -> set[str]:
+        """Every MPN a drive goes by: its own, and the others."""
+        mpn = session.scalar(select(Drive.mpn).where(Drive.id == drive_id))
+        if mpn is None:
+            raise DriveNotFound()
+        aliases = session.scalars(select(MpnAlias.alias).where(MpnAlias.drive_id == drive_id))
+        return {mpn, *aliases}
+
+    def lock_drives(
+        self, session: Session, drive_ids: Iterable[UUID]
+    ) -> dict[UUID, dict[str, Any]]:
+        """Drives held against other changes until the operation ends, taken in id order, as
+        they are now."""
+        drives = session.scalars(
+            select(Drive).where(Drive.id.in_(list(drive_ids))).order_by(Drive.id).with_for_update()
+        )
+        return {drive.id: columns(drive) for drive in drives}
+
+    def absorb(
+        self, session: Session, source_id: UUID, target_id: UUID, values: dict[str, Any]
+    ) -> None:
+        """The target goes by every MPN the source went by, and is what the merge made it; the
+        source, with no offer left, is gone."""
+        source_mpn = session.scalars(select(Drive.mpn).where(Drive.id == source_id)).one()
+        session.execute(
+            update(MpnAlias).where(MpnAlias.drive_id == source_id).values(drive_id=target_id)
+        )
+        session.execute(delete(Drive).where(Drive.id == source_id))
+        session.add(MpnAlias(alias=source_mpn, drive_id=target_id))
+        session.execute(update(Drive).where(Drive.id == target_id).values(**values))
         session.flush()

@@ -8,6 +8,7 @@ from uuid import uuid4
 from dependency_injector import containers, providers
 
 from disktracker.catalog.drive_repository import DriveRepository
+from disktracker.catalog.drive_service import DriveService
 from disktracker.catalog.ingestion_service import IngestionService
 from disktracker.catalog.offer_repository import OfferRepository
 from disktracker.catalog.price_service import PriceService
@@ -90,13 +91,18 @@ class Container(containers.DeclarativeContainer):
         offers=offer_repository,
         reviews=review_repository,
     )
+    drive_service = providers.Factory(
+        DriveService,
+        session_factory=database.provided.session,
+        drives=drive_repository,
+        offers=offer_repository,
+        reviews=review_repository,
+    )
     catalog_service = providers.Factory(
         CatalogService,
         repository=catalog_repository,
         queries=catalog_queries,
         now=clock,
-        session_factory=database.provided.session,
-        drives=drive_repository,
     )
     collection_service = providers.Factory(
         CollectionService,

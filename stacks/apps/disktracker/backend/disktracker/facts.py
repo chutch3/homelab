@@ -10,12 +10,9 @@ from sqlalchemy.dialects.postgresql import aggregate_order_by
 from sqlalchemy.sql import ColumnElement, Select
 
 from disktracker.catalog.models import Drive, MpnAlias, Offer, Price
+from disktracker.catalog.rules import SCALAR_SPECIFICATIONS, UNKNOWN
 from disktracker.catalog.schemas import DriveScope
 from disktracker.collection.models import Source
-
-UNKNOWN = "unknown"
-SCALAR_SPECIFICATIONS = ("media_type", "form_factor", "interface", "recording_type")
-
 
 # An offer's prices, latest first: the latest seen, then the latest entered, then the latest made,
 # so that one of several seen and entered at one moment is the latest everywhere.

@@ -71,6 +71,18 @@ class MpnTaken(Exception):
     """An MPN already identifies a drive, as its own MPN or another of its MPNs."""
 
 
+class MergeConflict(Exception):
+    """Two drives cannot be merged as they are: the fields they differ on, or why else not."""
+
+    def __init__(self, fields: list[str], why: str = "") -> None:
+        self.fields = fields
+        super().__init__(why or f"The drives differ on {', '.join(fields)}: correct one first.")
+
+
+class SameDrive(Exception):
+    """A drive cannot be merged into itself."""
+
+
 class ReviewItemNotFound(Exception):
     pass
 
@@ -137,6 +149,7 @@ def located(issue: dict[str, Any]) -> dict[str, Any]:
 def register_error_handlers(app: FastAPI) -> None:
     @app.exception_handler(AliasConflict)
     @app.exception_handler(MpnTaken)
+    @app.exception_handler(MergeConflict)
     @app.exception_handler(CapacityConflict)
     @app.exception_handler(IdempotencyConflict)
     @app.exception_handler(DecisionConflict)
@@ -156,6 +169,12 @@ def register_error_handlers(app: FastAPI) -> None:
         return _missing(
             "item_price_cents", "Enter the item price for an offer that has no price yet."
         )
+
+    @app.exception_handler(SameDrive)
+    async def same_drive(request: Request, exc: SameDrive) -> JSONResponse:
+        issue = {"type": "value_error", "loc": ["body", "target_drive_id"],
+                 "msg": "Choose another drive to merge into."}  # fmt: skip
+        return JSONResponse(status_code=422, content={"detail": [issue]})
 
     @app.exception_handler(UnknownStore)
     async def unknown_store(request: Request, exc: UnknownStore) -> JSONResponse:

@@ -11,12 +11,12 @@ from datetime import datetime
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import func, select, update
+from sqlalchemy import delete, func, select, update
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.orm import Session
 
 from disktracker.catalog.models import Drive, Offer, Price, Receipt
-from disktracker.catalog.rules import replayed, unchanged, with_carried_price
+from disktracker.catalog.rules import combined_offer, replayed, unchanged, with_carried_price
 from disktracker.collection.models import Source
 from disktracker.database import columns
 from disktracker.errors import OfferNotFound, UnknownStore
@@ -151,3 +151,41 @@ class OfferRepository:
             .where(Offer.id == offer_id, Offer.held_reason.is_not(None))
             .values(held_reason=None)
         )
+
+    def consolidate(
+        self, session: Session, source_id: UUID, target_id: UUID
+    ) -> list[tuple[UUID, UUID]]:
+        """Move the source drive's offers to the target drive, held against other changes until
+        the operation ends. One the target already has an offer of at the same store, from the
+        same seller, in the same condition is combined into it: its prices (their ids kept) are
+        that offer's, which stays held if either was and is last checked when either was; then it
+        is gone. The pairs combined, absorbed offer first."""
+        offers = session.scalars(
+            select(Offer)
+            .where(Offer.drive_id.in_([source_id, target_id]))
+            .order_by(Offer.id)
+            .with_for_update()
+        ).all()
+        target_mpn = session.scalars(select(Drive.mpn).where(Drive.id == target_id)).one()
+        kept = {(o.store, o.seller, o.condition): o for o in offers if o.drive_id == target_id}
+        combined = []
+        for absorbed in (o for o in offers if o.drive_id == source_id):
+            survivor = kept.get((absorbed.store, absorbed.seller, absorbed.condition))
+            if survivor is None:
+                session.execute(
+                    update(Offer)
+                    .where(Offer.id == absorbed.id)
+                    .values(drive_id=target_id, mpn=target_mpn)
+                )
+                continue
+            session.execute(
+                update(Price).where(Price.offer_id == absorbed.id).values(offer_id=survivor.id)
+            )
+            session.execute(
+                update(Offer)
+                .where(Offer.id == survivor.id)
+                .values(**combined_offer(columns(survivor), columns(absorbed)))
+            )
+            session.execute(delete(Offer).where(Offer.id == absorbed.id))
+            combined.append((absorbed.id, survivor.id))
+        return combined

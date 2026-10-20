@@ -15,6 +15,7 @@ from disktracker.errors import (
     CapacityRequired,
     DecisionConflict,
     IdempotencyConflict,
+    MergeConflict,
     PriceRequired,
 )
 
@@ -242,4 +243,51 @@ def queued_fields(
         "condition": entry["condition"],
         "url": str(entry["url"]),
         "reason": reason,
+    }
+
+
+UNKNOWN = "unknown"
+SCALAR_SPECIFICATIONS = ("media_type", "form_factor", "interface", "recording_type")
+
+
+def merged_drive(target: Mapping[str, Any], source: Mapping[str, Any]) -> dict[str, Any]:
+    """What two drives merged into one are: the target's capacity, brand and specifications, with
+    what it lacks filled in from the source. A brand the target has stands, whatever the source
+    names. A capacity or a known specification both have and differ on is refused, every one of
+    them at once; intended uses are alike in any order."""
+    conflicts: list[str] = []
+    if target["capacity_gb"] != source["capacity_gb"]:
+        conflicts.append("capacity_gb")
+    specifications = dict(target["specifications"])
+    for key in SCALAR_SPECIFICATIONS:
+        had, given = specifications.get(key, UNKNOWN), source["specifications"].get(key, UNKNOWN)
+        if had == UNKNOWN:
+            specifications[key] = given
+        elif given not in (UNKNOWN, had):
+            conflicts.append(f"specifications.{key}")
+    uses, given_uses = (
+        specifications.get("intended_use", []),
+        source["specifications"].get("intended_use", []),
+    )
+    if not uses:
+        specifications["intended_use"] = given_uses
+    elif given_uses and set(given_uses) != set(uses):
+        conflicts.append("specifications.intended_use")
+    if conflicts:
+        raise MergeConflict(conflicts)
+    return {
+        "capacity_gb": target["capacity_gb"],
+        "brand": target["brand"] or source["brand"],
+        "specifications": specifications,
+    }
+
+
+def combined_offer(survivor: Mapping[str, Any], absorbed: Mapping[str, Any]) -> dict[str, Any]:
+    """What an offer combined with another of the same store, seller and condition is: held if
+    either was (with the survivor's reason if it was held), and last checked when either was.
+    A merge never releases a hold."""
+    checked = [at for at in (survivor["last_checked_at"], absorbed["last_checked_at"]) if at]
+    return {
+        "held_reason": survivor["held_reason"] or absorbed["held_reason"],
+        "last_checked_at": max(checked) if checked else None,
     }

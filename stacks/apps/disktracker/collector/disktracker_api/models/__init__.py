@@ -9,6 +9,7 @@ from .choice_literalnew_manufacturer_recertified_refurbished_used_value import C
 from .choiceint import Choiceint
 from .choicestr import Choicestr
 from .collector_status import CollectorStatus
+from .combined_offer import CombinedOffer
 from .condition_rule import ConditionRule
 from .condition_rule_condition import ConditionRuleCondition
 from .decision_result import DecisionResult
@@ -54,6 +55,8 @@ from .manual_source_view_basis import ManualSourceViewBasis
 from .manual_source_view_transport import ManualSourceViewTransport
 from .match_decision import MatchDecision
 from .match_decision_condition import MatchDecisionCondition
+from .merge_input import MergeInput
+from .merge_result import MergeResult
 from .observation import Observation
 from .observation_provenance import ObservationProvenance
 from .offer import Offer
@@ -186,6 +189,7 @@ __all__ = (
     "ChoiceLiteralnewManufacturerRecertifiedRefurbishedUsedValue",
     "Choicestr",
     "CollectorStatus",
+    "CombinedOffer",
     "ConditionRule",
     "ConditionRuleCondition",
     "DecisionResult",
@@ -231,6 +235,8 @@ __all__ = (
     "ManualSourceViewTransport",
     "MatchDecision",
     "MatchDecisionCondition",
+    "MergeInput",
+    "MergeResult",
     "Observation",
     "ObservationProvenance",
     "Offer",

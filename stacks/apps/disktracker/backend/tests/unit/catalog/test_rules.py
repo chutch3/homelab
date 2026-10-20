@@ -11,11 +11,13 @@ from disktracker.catalog.rules import (
     PriceRequired,
     as_decided,
     capacity_label,
+    combined_offer,
     comparable_price,
     decided_again,
     doubt,
     fill_unknown,
     merge_plan,
+    merged_drive,
     missing_detail,
     new_aliases,
     normalize_mpn,
@@ -27,6 +29,7 @@ from disktracker.catalog.rules import (
     unchanged,
     with_carried_price,
 )
+from disktracker.errors import MergeConflict
 
 EARLIER = datetime(2026, 9, 21, 12, tzinfo=UTC)
 LATER = datetime(2026, 9, 22, 12, tzinfo=UTC)
@@ -401,3 +404,68 @@ class TestDoubt:
     ) -> None:
         found = doubt(title, capacity_gb, mpn)
         assert found == ("implausible_capacity" if doubted else None)
+
+
+def spec(**known: Any) -> dict[str, Any]:
+    return {"media_type": "unknown", "form_factor": "unknown", "interface": "unknown",
+            "recording_type": "unknown", "intended_use": [], **known}  # fmt: skip
+
+
+def a_drive(**fields: Any) -> dict[str, Any]:
+    return {"capacity_gb": 18000, "brand": None, "specifications": spec(), **fields}
+
+
+class TestMergedDrive:
+    """What two drives merged into one are: the target's, filled in from the source."""
+
+    def test_the_target_keeps_what_it_has_and_takes_what_it_lacks(self) -> None:
+        target = a_drive(brand="Seagate", specifications=spec(interface="sas"))
+        source = a_drive(brand="SEAGATE", specifications=spec(interface="sas", media_type="hdd",
+                         intended_use=["nas"]))  # fmt: skip
+
+        assert merged_drive(target, source) == {
+            "capacity_gb": 18000,
+            # The target's brand stands, however the source spells another.
+            "brand": "Seagate",
+            "specifications": spec(interface="sas", media_type="hdd", intended_use=["nas"]),
+        }
+
+    def test_a_brand_the_target_lacks_is_the_sources(self) -> None:
+        assert merged_drive(a_drive(), a_drive(brand="Toshiba"))["brand"] == "Toshiba"
+
+    def test_intended_uses_alike_in_another_order_are_alike(self) -> None:
+        target = a_drive(specifications=spec(intended_use=["nas", "enterprise"]))
+        source = a_drive(specifications=spec(intended_use=["enterprise", "nas"]))
+
+        assert merged_drive(target, source)["specifications"]["intended_use"] == [
+            "nas",
+            "enterprise",
+        ]
+
+    def test_what_both_know_and_differ_on_is_refused_every_field_of_it(self) -> None:
+        target = a_drive(specifications=spec(interface="sas", intended_use=["nas"]))
+        source = a_drive(
+            capacity_gb=20000, specifications=spec(interface="sata", intended_use=["archive"])
+        )
+
+        with pytest.raises(MergeConflict) as refused:
+            merged_drive(target, source)
+
+        assert refused.value.fields == [
+            "capacity_gb", "specifications.interface", "specifications.intended_use",
+        ]  # fmt: skip
+
+
+def test_an_offer_combined_with_another_stays_held_if_either_was_and_was_checked_when_last_checked() -> (
+    None
+):
+    early, late = datetime(2026, 10, 3, tzinfo=UTC), datetime(2026, 10, 4, tzinfo=UTC)
+
+    assert combined_offer(
+        {"held_reason": None, "last_checked_at": late},
+        {"held_reason": "not_a_single_drive", "last_checked_at": early},
+    ) == {"held_reason": "not_a_single_drive", "last_checked_at": late}
+    assert combined_offer(
+        {"held_reason": "implausible_capacity", "last_checked_at": None},
+        {"held_reason": "not_a_single_drive", "last_checked_at": early},
+    ) == {"held_reason": "implausible_capacity", "last_checked_at": early}

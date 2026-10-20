@@ -160,3 +160,12 @@ class ReviewRepository:
         taken = columns(item)
         session.execute(delete(ReviewItem).where(ReviewItem.id == item_id))
         return taken
+
+    def repoint_conflicts(self, session: Session, from_drive: UUID, to_drive: UUID) -> None:
+        """What waits for review as conflicting with one drive conflicts with another now (the one
+        it was merged into); what was submitted is left as it was."""
+        session.execute(
+            update(ReviewItem)
+            .where(ReviewItem.conflict_drive_id == from_drive)
+            .values(conflict_drive_id=to_drive)
+        )

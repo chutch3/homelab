@@ -222,6 +222,32 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/drives/{source_id}/merge": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Merge a drive into another
+         * @description Merge the drive into the target, which survives: with every MPN the drive went by (its
+         *     own and its others), its brand where the target has none, its specifications where the
+         *     target's are unknown, and its offers. An offer of the same store, seller and condition as
+         *     one of the target's is combined into the target's: its prices are kept, it stays held if
+         *     either was, and it was last checked when either was. Drives that both know a capacity or a
+         *     specification and differ on it are not merged (409): correct one first. Sent again under the
+         *     same Idempotency-Key it is answered as it was; the answer names the offers as they were.
+         */
+        post: operations["merge_drive"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/listing-text": {
         parameters: {
             query?: never;
@@ -707,6 +733,23 @@ export interface components {
             waiting: string[];
         };
         /**
+         * CombinedOffer
+         * @description An offer of the absorbed drive combined into the surviving drive's offer of the same
+         *     store, seller and condition: its prices are that offer's now.
+         */
+        CombinedOffer: {
+            /**
+             * Absorbed Offer Id
+             * Format: uuid
+             */
+            absorbed_offer_id: string;
+            /**
+             * Offer Id
+             * Format: uuid
+             */
+            offer_id: string;
+        };
+        /**
          * ConditionRule
          * @description Text matching the pattern (a case-insensitive regular expression) names the condition;
          *     rules are read in order and the first match wins.
@@ -1134,6 +1177,37 @@ export interface components {
             decision: "match";
             /** Mpn */
             mpn: string;
+        };
+        /**
+         * MergeInput
+         * @description The drive another is merged into: it survives.
+         */
+        MergeInput: {
+            /**
+             * Target Drive Id
+             * Format: uuid
+             */
+            target_drive_id: string;
+        };
+        /** MergeResult */
+        MergeResult: {
+            /**
+             * Absorbed Drive Id
+             * Format: uuid
+             */
+            absorbed_drive_id: string;
+            /** Combined Offers */
+            combined_offers: components["schemas"]["CombinedOffer"][];
+            /**
+             * Drive Id
+             * Format: uuid
+             */
+            drive_id: string;
+            /**
+             * Status
+             * @constant
+             */
+            status: "merged";
         };
         /** Observation */
         Observation: {
@@ -3231,6 +3305,62 @@ export interface operations {
                 };
             };
             /** @description The MPN is this drive's canonical MPN or is already a registered alias */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    merge_drive: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description New UUID for each merge; sent again with the same body, it is answered as it was. */
+                "idempotency-key": string;
+            };
+            path: {
+                source_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MergeInput"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MergeResult"];
+                };
+            };
+            /** @description Drive not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description The drives differ on what both know, or the save key was used for another merge */
             409: {
                 headers: {
                     [name: string]: unknown;

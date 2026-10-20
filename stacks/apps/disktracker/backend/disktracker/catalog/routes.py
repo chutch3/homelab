@@ -10,6 +10,7 @@ from fastapi.responses import Response
 from listing_text.listing import read_listing
 from listing_text.readers import condition_rules
 
+from disktracker.catalog.drive_service import DriveService
 from disktracker.catalog.ingestion_service import IngestionService
 from disktracker.catalog.price_service import PriceService
 from disktracker.catalog.review_service import ReviewService
@@ -29,6 +30,8 @@ from disktracker.catalog.schemas import (
     ListingFacts,
     ListingText,
     MatchDecision,
+    MergeInput,
+    MergeResult,
     Offer,
     OfferEdit,
     OfferQuery,
@@ -53,6 +56,7 @@ Catalog = Annotated[CatalogService, Depends(Provide[Container.catalog_service])]
 Prices = Annotated[PriceService, Depends(Provide[Container.price_service])]
 Ingestion = Annotated[IngestionService, Depends(Provide[Container.ingestion_service])]
 Reviews = Annotated[ReviewService, Depends(Provide[Container.review_service])]
+Drives = Annotated[DriveService, Depends(Provide[Container.drive_service])]
 
 
 class Paging:
@@ -103,10 +107,45 @@ def list_drives(catalog: Catalog, query: Annotated[DriveQuery, Query()]) -> dict
     responses={409: {"model": ErrorResponse, "description": "The MPN already identifies a drive"}},
 )
 @inject
-def create_drive(catalog: Catalog, entry: DriveInput) -> dict[str, Any]:
+def create_drive(drives: Drives, entry: DriveInput) -> dict[str, Any]:
     """Make a drive before any price of it, under an MPN that no drive goes by, as its own MPN or
     another of its MPNs. A drive already going by it is never merged with this one."""
-    return catalog.create_drive(entry)
+    return drives.create(entry)
+
+
+@router.post(
+    "/drives/{source_id}/merge",
+    response_model=MergeResult,
+    tags=["Drives"],
+    summary="Merge a drive into another",
+    responses={
+        404: {"model": ErrorResponse, "description": "Drive not found"},
+        409: {
+            "model": ErrorResponse,
+            "description": "The drives differ on what both know, or the save key was used for another merge",
+        },
+    },
+)
+@inject
+def merge_drive(
+    drives: Drives,
+    source_id: UUID,
+    entry: MergeInput,
+    idempotency_key: Annotated[
+        UUID,
+        Header(
+            description="New UUID for each merge; sent again with the same body, it is answered as it was."
+        ),
+    ],
+) -> dict[str, Any]:
+    """Merge the drive into the target, which survives: with every MPN the drive went by (its
+    own and its others), its brand where the target has none, its specifications where the
+    target's are unknown, and its offers. An offer of the same store, seller and condition as
+    one of the target's is combined into the target's: its prices are kept, it stays held if
+    either was, and it was last checked when either was. Drives that both know a capacity or a
+    specification and differ on it are not merged (409): correct one first. Sent again under the
+    same Idempotency-Key it is answered as it was; the answer names the offers as they were."""
+    return drives.merge(source_id, entry, idempotency_key)
 
 
 @router.get(

@@ -1,0 +1,81 @@
+"""Drives as people make and join them: one made on its own before any price of it, and one
+merged into another, the only way two drives become one. Each is one piece of work; a merge,
+with its save key, is answered again as it was when sent again."""
+
+from hashlib import sha256
+from typing import Any
+from uuid import UUID
+
+from disktracker.catalog.drive_repository import DriveRepository
+from disktracker.catalog.offer_repository import OfferRepository
+from disktracker.catalog.review_repository import ReviewRepository
+from disktracker.catalog.rules import merged_drive
+from disktracker.catalog.schemas import DriveInput, MergeInput
+from disktracker.catalog.views import drive_view
+from disktracker.database import SessionFactory
+from disktracker.errors import MergeConflict, SameDrive
+
+
+class DriveService:
+    def __init__(
+        self,
+        session_factory: SessionFactory,
+        drives: DriveRepository,
+        offers: OfferRepository,
+        reviews: ReviewRepository,
+    ) -> None:
+        self.session_factory = session_factory
+        self.drives, self.offers, self.reviews = drives, offers, reviews
+
+    def create(self, entry: DriveInput) -> dict[str, Any]:
+        """A drive made on its own, before any price of it."""
+        with self.session_factory() as session:
+            drive = self.drives.create(
+                session,
+                mpn=entry.mpn,
+                capacity_gb=entry.capacity_gb,
+                brand=entry.brand,
+                specifications=entry.specifications.model_dump(mode="json"),
+            )
+            session.commit()
+            return drive_view(drive, [])
+
+    def merge(self, source_id: UUID, entry: MergeInput, request_id: UUID) -> dict[str, Any]:
+        """Merge the source drive into the target, which survives: with every MPN the source
+        went by, its brand where the target has none and its specifications where the target's
+        are unknown, and its offers (combined with the target's of the same store, seller and
+        condition). Drives that both know a capacity or specification and differ on it are not
+        merged. Locks are taken in the catalog-wide order: the save key, every MPN both drives
+        go by, the two drives, their offers, then what waits for review."""
+        target_id = entry.target_drive_id
+        if source_id == target_id:
+            raise SameDrive()
+        sent = sha256(f"merge:{source_id}:{entry.model_dump_json()}".encode()).hexdigest()
+        with self.session_factory() as session:
+            replay = self.offers.claim(session, request_id, sent)
+            if replay is not None:
+                return replay
+            read = {d: self.drives.identifiers(session, d) for d in (source_id, target_id)}
+            self.drives.hold(session, set().union(*read.values()))
+            held = {d: self.drives.identifiers(session, d) for d in (source_id, target_id)}
+            if held != read:
+                raise MergeConflict(
+                    [], "What the drives go by changed as they were merged: try again."
+                )
+            drives = self.drives.lock_drives(session, (source_id, target_id))
+            values = merged_drive(drives[target_id], drives[source_id])
+            combined = self.offers.consolidate(session, source_id, target_id)
+            self.reviews.repoint_conflicts(session, source_id, target_id)
+            self.drives.absorb(session, source_id, target_id, values)
+            result = {
+                "status": "merged",
+                "drive_id": str(target_id),
+                "absorbed_drive_id": str(source_id),
+                "combined_offers": [
+                    {"absorbed_offer_id": str(absorbed), "offer_id": str(survivor)}
+                    for absorbed, survivor in combined
+                ],
+            }
+            self.offers.answer(session, request_id, result)
+            session.commit()
+            return result
