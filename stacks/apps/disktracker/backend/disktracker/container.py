@@ -11,6 +11,7 @@ from disktracker.catalog.drive_repository import DriveRepository
 from disktracker.catalog.offer_repository import OfferRepository
 from disktracker.catalog.queries import CatalogQueries
 from disktracker.catalog.repository import CatalogRepository
+from disktracker.catalog.review_repository import ReviewRepository
 from disktracker.catalog.service import CatalogService
 from disktracker.collection.client import CollectorClient
 from disktracker.collection.repository import CollectionRepository
@@ -49,12 +50,14 @@ class Container(containers.DeclarativeContainer):
     database = providers.ThreadSafeSingleton(Database, url=config.database_url)
 
     offer_repository = providers.Factory(OfferRepository, now=clock, next_id=next_id)
+    review_repository = providers.Factory(ReviewRepository, next_id=next_id)
     catalog_repository = providers.Factory(
         CatalogRepository,
         session_factory=database.provided.session,
         now=clock,
         next_id=next_id,
         offers=offer_repository,
+        reviews=review_repository,
     )
     drive_repository = providers.Factory(DriveRepository, next_id=next_id)
     catalog_queries = providers.Factory(CatalogQueries, snapshot_factory=database.provided.snapshot)

@@ -20,6 +20,7 @@ import datetime
 
 if TYPE_CHECKING:
   from ..models.drive import Drive
+  from ..models.specifications_output import SpecificationsOutput
 
 
 
@@ -31,11 +32,14 @@ T = TypeVar("T", bound="ReviewItem")
 
 @_attrs_define
 class ReviewItem:
-    """ An offer waiting for a reviewer to say what it is.
+    """ A listing waiting for a reviewer to say what it is: what its page said, as it said it.
+    Several offers of one page each wait as their own.
 
         Attributes:
+            aliases (list[str] | None): Other MPNs the page gave; null where they were not kept (queued before now).
+            brand (None | str):
             capacity_gb (int | None):
-            condition (None | ReviewItemConditionType0):
+            condition (None | ReviewItemConditionType0): As the page gave it; null where it gave none.
             drive (Drive | None): The drive its MPN names as recorded now, to set what was collected beside; null when it
                 names none.
             first_seen_at (datetime.datetime):
@@ -43,16 +47,19 @@ class ReviewItem:
             in_stock (bool):
             item_price_cents (int | None):
             last_seen_at (datetime.datetime):
-            mpn (None | str):
+            mpn (None | str): The MPN as the page gave it; null where it gave none.
             provenance (ReviewItemProvenance):
             reason (ReviewItemReason):
             seller (str):
             shipping_cents (int | None):
+            specifications (None | SpecificationsOutput): What the page said of the drive; null where nothing was kept.
             store (str):
             title (str):
             url (str):
      """
 
+    aliases: list[str] | None
+    brand: None | str
     capacity_gb: int | None
     condition: None | ReviewItemConditionType0
     drive: Drive | None
@@ -66,6 +73,7 @@ class ReviewItem:
     reason: ReviewItemReason
     seller: str
     shipping_cents: int | None
+    specifications: None | SpecificationsOutput
     store: str
     title: str
     url: str
@@ -77,6 +85,18 @@ class ReviewItem:
 
     def to_dict(self) -> dict[str, Any]:
         from ..models.drive import Drive # noqa: PLC0415
+        from ..models.specifications_output import SpecificationsOutput # noqa: PLC0415
+        aliases: list[str] | None
+        if isinstance(self.aliases, list):
+            aliases = self.aliases
+
+
+        else:
+            aliases = self.aliases
+
+        brand: None | str
+        brand = self.brand
+
         capacity_gb: int | None
         capacity_gb = self.capacity_gb
 
@@ -115,6 +135,12 @@ class ReviewItem:
         shipping_cents: int | None
         shipping_cents = self.shipping_cents
 
+        specifications: dict[str, Any] | None
+        if isinstance(self.specifications, SpecificationsOutput):
+            specifications = self.specifications.to_dict()
+        else:
+            specifications = self.specifications
+
         store = self.store
 
         title = self.title
@@ -125,6 +151,8 @@ class ReviewItem:
         field_dict: dict[str, Any] = {}
         field_dict.update(self.additional_properties)
         field_dict.update({
+            "aliases": aliases,
+            "brand": brand,
             "capacity_gb": capacity_gb,
             "condition": condition,
             "drive": drive,
@@ -138,6 +166,7 @@ class ReviewItem:
             "reason": reason,
             "seller": seller,
             "shipping_cents": shipping_cents,
+            "specifications": specifications,
             "store": store,
             "title": title,
             "url": url,
@@ -150,7 +179,32 @@ class ReviewItem:
     @classmethod
     def from_dict(cls: type[T], src_dict: Mapping[str, Any]) -> T:
         from ..models.drive import Drive # noqa: PLC0415
+        from ..models.specifications_output import SpecificationsOutput # noqa: PLC0415
         d = dict(src_dict)
+        def _parse_aliases(data: object) -> list[str] | None:
+            if data is None:
+                return data
+            try:
+                if not isinstance(data, list):
+                    raise TypeError()
+                aliases_type_0 = cast(list[str], data)
+
+                return aliases_type_0
+            except (TypeError, ValueError, AttributeError, KeyError):
+                pass
+            return cast(list[str] | None, data)
+
+        aliases = _parse_aliases(d.pop("aliases"))
+
+
+        def _parse_brand(data: object) -> None | str:
+            if data is None:
+                return data
+            return cast(None | str, data)
+
+        brand = _parse_brand(d.pop("brand"))
+
+
         def _parse_capacity_gb(data: object) -> int | None:
             if data is None:
                 return data
@@ -248,6 +302,24 @@ class ReviewItem:
         shipping_cents = _parse_shipping_cents(d.pop("shipping_cents"))
 
 
+        def _parse_specifications(data: object) -> None | SpecificationsOutput:
+            if data is None:
+                return data
+            try:
+                if not isinstance(data, dict):
+                    raise TypeError()
+                specifications_type_0 = SpecificationsOutput.from_dict(data)
+
+
+
+                return specifications_type_0
+            except (TypeError, ValueError, AttributeError, KeyError):
+                pass
+            return cast(None | SpecificationsOutput, data)
+
+        specifications = _parse_specifications(d.pop("specifications"))
+
+
         store = d.pop("store")
 
         title = d.pop("title")
@@ -255,6 +327,8 @@ class ReviewItem:
         url = d.pop("url")
 
         review_item = cls(
+            aliases=aliases,
+            brand=brand,
             capacity_gb=capacity_gb,
             condition=condition,
             drive=drive,
@@ -268,6 +342,7 @@ class ReviewItem:
             reason=reason,
             seller=seller,
             shipping_cents=shipping_cents,
+            specifications=specifications,
             store=store,
             title=title,
             url=url,

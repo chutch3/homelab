@@ -217,31 +217,29 @@ def decided_again(
 def as_decided(
     identity: dict[str, Any], decided: Mapping[str, Any] | None
 ) -> dict[str, Any] | None:
-    """What identifies a collected offer once what a reviewer decided of its store page is
-    applied: the MPN and condition the reviewer gave, where the offer gives none. None when the
-    page was decided to be nothing to track."""
+    """What identifies a collected offer once what a reviewer decided of its listing is applied:
+    the MPN and condition the reviewer gave, whatever the page says. None when the listing was
+    decided to be nothing to track."""
     if decided is None:
         return identity
     if decided["ignored"]:
         return None
-    return {
-        **identity,
-        "mpn": identity["mpn"] or decided["mpn"],
-        "condition": identity["condition"] or decided["condition"],
-    }
+    return {**identity, "mpn": decided["mpn"], "condition": decided["condition"]}
 
 
 def queued_fields(
     entry: Mapping[str, Any], identity: Mapping[str, Any], price: Mapping[str, Any], reason: str
 ) -> dict[str, Any]:
-    """What is kept of an offer waiting for review: its title, seller, capacity and who submitted
-    it, its price, and what identifies it so far."""
+    """What is kept of an offer waiting for review: what its page said, as it said it (its title,
+    seller, capacity, the MPN and condition it gave, and what it said of the drive) and who
+    submitted it, its price, its store and why it waits."""
     return {
+        **{key: entry[key] for key in ("aliases", "brand", "specifications")},
         **{key: entry[key] for key in ("title", "seller", "capacity_gb", "provenance")},
         **{key: price[key] for key in ("item_price_cents", "shipping_cents", "in_stock")},
         "store": identity["store"],
-        "mpn": identity["mpn"],
-        "condition": identity["condition"],
+        "mpn": entry["mpn"],
+        "condition": entry["condition"],
         "url": str(entry["url"]),
         "reason": reason,
     }

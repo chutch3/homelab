@@ -97,7 +97,10 @@ def offer(
         )
 
 
-def queued(db: Connection, url: str, mpn: str | None, price: int) -> None:
+def queued(
+    db: Connection, url: str, mpn: str | None, price: int, condition: str | None = None
+) -> None:
+    """A listing of serverorbit's waiting for review: for its condition, unless it gave one."""
     db.execute(
         insert(unmatched).values(
             id=uuid4(),
@@ -106,9 +109,10 @@ def queued(db: Connection, url: str, mpn: str | None, price: int) -> None:
             title="Drive",
             seller="",
             mpn=mpn,
+            condition=condition,
             item_price_cents=price,
             in_stock=True,
-            reason="missing_condition",
+            reason="missing_condition" if condition is None else "implausible_capacity",
             provenance="collected",
             first_seen_at=NOW,
             last_seen_at=NOW,
@@ -320,7 +324,7 @@ class TestHoldDoubtedOffers:
             # Under any ceiling, but its own title says 3.2TB; already waiting for a person.
             collected(db, "misread", "P09094-H21", "HPE P09094-H213.2TB SAS 12GBPS Smart Carrier",
                       213200)  # fmt: skip
-            queued(db, f"{BASE}misread", "P09094-H21", 7450)
+            queued(db, f"{BASE}misread", "P09094-H21", 7450, condition="refurbished")
             # As a person entered it.
             collected(db, "entered", "R0Q67A", "HPE R0Q67A 14.4TB (2.4TB x6)", 14400,
                       provenance="manual")  # fmt: skip

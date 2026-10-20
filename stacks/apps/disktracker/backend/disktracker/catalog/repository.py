@@ -9,7 +9,7 @@ from datetime import datetime
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import delete, or_, select, update
+from sqlalchemy import delete, select, update
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.orm import Session
 
@@ -23,10 +23,10 @@ from disktracker.catalog.models import (
     Receipt,
     ReviewDecision,
     ReviewItem,
-    ScrapedMatch,
 )
 from disktracker.catalog.offer_repository import OFFER_IDENTITY, OfferRepository
 from disktracker.catalog.queries import aliases_of, canonical_mpn, offer_with_history
+from disktracker.catalog.review_repository import Listing, ReviewRepository
 from disktracker.catalog.rules import (
     as_decided,
     capacity_label,
@@ -43,7 +43,7 @@ from disktracker.catalog.rules import (
 from disktracker.catalog.schemas import ObservationInput, PriceInput, Specifications
 from disktracker.catalog.schemas import ReviewDecision as Decision
 from disktracker.catalog.views import drive_view
-from disktracker.database import SessionFactory, by_column, columns
+from disktracker.database import SessionFactory, columns
 from disktracker.errors import (
     AliasConflict,
     CapacityConflict,
@@ -62,9 +62,10 @@ class CatalogRepository:
         now: Callable[[], datetime],
         next_id: Callable[[], UUID],
         offers: OfferRepository,
+        reviews: ReviewRepository,
     ) -> None:
         self.session_factory, self.now, self.next_id = session_factory, now, next_id
-        self.offers = offers
+        self.offers, self.reviews = offers, reviews
 
     # Recording a price.
 
@@ -94,9 +95,14 @@ class CatalogRepository:
         collected = entry.provenance == "collected"
         identity: dict[str, Any] | None = found
         decided = None
-        if collected and entry.url is not None:
-            decided = session.get(ScrapedMatch, (found["store"], str(entry.url)))
-            identity = as_decided(found, None if decided is None else columns(decided))
+        listing = None
+        if entry.url is not None and entry.offer_id is None:
+            listing = Listing.of(
+                found["store"], str(entry.url), entry.seller, entry.mpn, entry.condition
+            )
+        if collected and listing is not None:
+            decided = self.reviews.decision_for(session, listing)
+            identity = as_decided(found, decided)
         if identity is None:
             return {"status": "ignored"}
         if entry.offer_id is not None:
@@ -106,20 +112,29 @@ class CatalogRepository:
             self._describe_drive(session, entry.offer_id, entry)
             return _recorded(entry.offer_id, price_id)
         reason = missing_detail(identity["mpn"], identity["condition"])
-        if reason is None and collected and decided is None:
-            # What a person has said an offer is, or entered, is taken as said. Its capacity is
-            # what it is recorded under: the offer's, or else its drive's.
-            capacity = entry.capacity_gb or session.scalar(
+        # What a person entered is taken as entered; a listing a person decided, as decided while
+        # its page reads as it did then. What is collected otherwise is judged as it reads.
+        judged = decided is None or entry.title != decided["reviewed_title"]
+        if reason is None and collected and judged:
+            # Its capacity is what it is recorded under: the offer's, or else its drive's (always
+            # its drive's once a person has said what it is).
+            capacity = (entry.capacity_gb if decided is None else None) or session.scalar(
                 select(Drive.capacity_gb).where(
                     Drive.mpn == canonical_mpn(session, identity["mpn"])
                 )
             )
             reason = doubt(entry.title, capacity, identity["mpn"])
-            if reason is not None and entry.url is not None:
-                # What was recorded of its page counts for nothing until a person settles it.
+            if reason is not None:
+                # What was recorded of the offer this listing is of counts for nothing until a
+                # person settles it; other offers of its page are no more in doubt than before.
                 session.execute(
                     update(Offer)
-                    .where(Offer.store == identity["store"], Offer.url == str(entry.url))
+                    .where(
+                        Offer.mpn == canonical_mpn(session, identity["mpn"]),
+                        Offer.store == identity["store"],
+                        Offer.seller == identity["seller"],
+                        Offer.condition == identity["condition"],
+                    )
                     .values(held_reason=reason)
                 )
         if reason is not None:
@@ -152,21 +167,9 @@ class CatalogRepository:
                 raise
             return self._queue(session, entry, identity, price, queue_reason(error))
         self._describe_drive(session, offer_id, entry)
-        if collected and entry.url is not None:
-            # This offer is no longer waiting for review: what waits of its page for another of
-            # its offers still does.
-            mpn = canonical_mpn(session, identity["mpn"])
-            session.execute(
-                delete(ReviewItem).where(
-                    ReviewItem.store == identity["store"],
-                    ReviewItem.url == str(entry.url),
-                    or_(
-                        ReviewItem.condition.is_(None),
-                        ReviewItem.condition == identity["condition"],
-                    ),
-                    or_(ReviewItem.mpn.is_(None), ReviewItem.mpn.in_([identity["mpn"], mpn])),
-                )
-            )
+        if collected and listing is not None:
+            # This listing no longer waits for review; any other of its page still does.
+            self.reviews.clear(session, listing)
         return _recorded(offer_id, price_id)
 
     def _record(
@@ -256,23 +259,11 @@ class CatalogRepository:
         price: dict[str, Any],
         reason: str,
     ) -> dict[str, Any]:
-        seen_at = entry.observed_at or self.now()
-        fields = {
-            **queued_fields(entry.model_dump(), identity, price, reason),
-            "last_seen_at": seen_at,
-        }
-        # Kept in place of what was kept of the same store page before.
-        table = ReviewItem.__table__
-        item_id: UUID = session.scalars(
-            pg_insert(table)
-            .values(
-                by_column(ReviewItem, {"id": self.next_id(), "first_seen_at": seen_at, **fields})
-            )
-            .on_conflict_do_update(
-                index_elements=[table.c.source, table.c.url], set_=by_column(ReviewItem, fields)
-            )
-            .returning(table.c.id)
-        ).one()
+        listing = Listing.of(
+            identity["store"], str(entry.url), entry.seller, entry.mpn, entry.condition
+        )
+        fields = queued_fields(entry.model_dump(mode="json"), identity, price, reason)
+        item_id = self.reviews.queue(session, listing, fields, entry.observed_at or self.now())
         return {"status": "queued", "review_item_id": str(item_id)}
 
     # The Review queue, and deciding what a queued offer is.
@@ -299,7 +290,10 @@ class CatalogRepository:
             queued = columns(item)
             session.execute(delete(ReviewItem).where(ReviewItem.id == item_id))
             if decision.decision == "ignore":
-                _remember(session, queued, mpn=None, condition=None, ignored=True)
+                self.reviews.remember(
+                    session, _listing_of(queued), mpn=None, condition=None, ignored=True,
+                    reviewed_title=queued["title"],
+                )  # fmt: skip
                 result: dict[str, Any] = {"status": "ignored", "offer_id": None}
             else:
                 price = ObservationInput.model_validate(
@@ -338,9 +332,10 @@ class CatalogRepository:
                 )
                 # A person has said what it is: it is no longer in doubt.
                 _release(session, offer_id)
-                _remember(
-                    session, queued, mpn=decision.mpn, condition=decision.condition, ignored=False
-                )
+                self.reviews.remember(
+                    session, _listing_of(queued), mpn=decision.mpn, condition=decision.condition,
+                    ignored=False, reviewed_title=queued["title"],
+                )  # fmt: skip
                 result = {"status": "matched", "offer_id": str(offer_id)}
             session.execute(
                 update(ReviewDecision).where(ReviewDecision.id == item_id).values(result=result)
@@ -515,13 +510,8 @@ def _add_alias(session: Session, drive_id: UUID, alias: str) -> Drive:
     return drive
 
 
-def _remember(session: Session, queued: dict[str, Any], **decision: Any) -> None:
-    """Keep what was decided about a store page, for later collected prices of it."""
-    table = ScrapedMatch.__table__
-    session.execute(
-        pg_insert(table)
-        .values(
-            by_column(ScrapedMatch, {"store": queued["store"], "url": queued["url"], **decision})
-        )
-        .on_conflict_do_update(index_elements=[table.c.source, table.c.url], set_=decision)
+def _listing_of(queued: dict[str, Any]) -> Listing:
+    """The listing a queued item is of, as its page gave it."""
+    return Listing.of(
+        queued["store"], queued["url"], queued["seller"], queued["mpn"], queued["condition"]
     )

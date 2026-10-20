@@ -103,7 +103,7 @@ export const historyPrices: Observation[] = [
 export function makeReviewItem(id: string, fields: Partial<ReviewItem> = {}): ReviewItem {
   return {
     id, store: 'serverpartdeals', url: `https://www.serverpartdeals.com/products/${id}`, title: id,
-    seller: '', mpn: null, condition: null, capacity_gb: null,
+    seller: '', mpn: null, condition: null, capacity_gb: null, aliases: [], brand: null, specifications: null,
     item_price_cents: 36999, shipping_cents: 0, in_stock: true, reason: 'missing_mpn',
     provenance: 'collected', first_seen_at: checkedAt.toISOString(), last_seen_at: checkedAt.toISOString(), drive: null, ...fields,
   };

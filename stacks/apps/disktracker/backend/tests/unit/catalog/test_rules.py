@@ -293,23 +293,35 @@ def test_a_page_decided_to_be_nothing_to_track_identifies_nothing() -> None:
     assert as_decided(IDENTITY, {"ignored": True, "mpn": None, "condition": None}) is None
 
 
-def test_what_a_reviewer_decided_fills_in_only_what_the_offer_does_not_say() -> None:
+def test_what_a_reviewer_decided_a_listing_is_stands_whatever_its_page_says() -> None:
     decided = {"ignored": False, "mpn": "ST18000NM000J", "condition": "used"}
-    assert as_decided(IDENTITY, decided) == {**IDENTITY, "mpn": "ST18000NM000J"}
+    page = {**IDENTITY, "mpn": "ST1", "condition": "new"}
+    assert as_decided(page, decided) == {**IDENTITY, "mpn": "ST18000NM000J", "condition": "used"}
 
 
 def test_an_offer_waiting_for_review_keeps_what_a_reviewer_is_shown() -> None:
+    """What the page said, as it said it: its MPN and condition as read, not as decided, and what
+    it said of the drive."""
     entry = {
         "title": "Exos X18",
         "seller": "",
+        "mpn": None,
+        "condition": "new",
         "capacity_gb": None,
         "provenance": "collected",
         "url": "https://store.test/p/1",
         "notes": "not kept",
+        "aliases": ["0XYZ18"],
+        "brand": "Seagate",
+        "specifications": {"interface": "sas"},
     }
     price = {"item_price_cents": 18900, "shipping_cents": None, "in_stock": True}
+    decided = {**IDENTITY, "mpn": "ST18000NM000J", "condition": "used"}
 
-    assert queued_fields(entry, {**IDENTITY, "mpn": None}, price, "missing_mpn") == {
+    assert queued_fields(entry, decided, price, "missing_mpn") == {
+        "aliases": ["0XYZ18"],
+        "brand": "Seagate",
+        "specifications": {"interface": "sas"},
         "title": "Exos X18",
         "seller": "",
         "capacity_gb": None,

@@ -67,18 +67,24 @@ class MpnAlias(Base):
 
 
 class ReviewItem(Base):
-    """An offer waiting for a reviewer to say what it is."""
+    """A listing waiting for a reviewer to say what it is: what one store page said one offer is,
+    as it said it. One for each listing (catalog.review_repository.Listing), however many share
+    the page."""
 
     __tablename__ = "unmatched"
-    __table_args__ = (Index("uq_unmatched_source_url", "source", "url", unique=True),)
     id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True)
     store: Mapped[str] = mapped_column("source", String(40))
     url: Mapped[str] = mapped_column(Text)
     title: Mapped[str] = mapped_column(String(160))
     seller: Mapped[str] = mapped_column(String(120))
+    # The MPN and condition as the page gave them, None where it gave none.
     mpn: Mapped[str | None] = mapped_column(String(100))
     condition: Mapped[str | None] = mapped_column(String(40))
     capacity_gb: Mapped[int | None] = mapped_column(Integer)
+    # What the page said of the drive; None where it was not kept (items queued before 0037).
+    aliases: Mapped[list[str] | None] = mapped_column(JSONB)
+    brand: Mapped[str | None] = mapped_column(String(60))
+    specifications: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
     item_price_cents: Mapped[int | None] = mapped_column(Integer)
     shipping_cents: Mapped[int | None] = mapped_column(Integer)
     in_stock: Mapped[bool] = mapped_column(Boolean)
@@ -89,14 +95,21 @@ class ReviewItem(Base):
 
 
 class ScrapedMatch(Base):
-    """What a reviewer decided a store page is, applied to later collected prices of it."""
+    """What a reviewer decided a listing is (the MPN and condition it was resolved to, or nothing
+    to track), applied to later collected prices of that listing only; with the title it was
+    decided on, so that a page that reads otherwise is judged again."""
 
     __tablename__ = "scraped_matches"
     store: Mapped[str] = mapped_column("source", String(40), primary_key=True)
     url: Mapped[str] = mapped_column(Text, primary_key=True)
+    seller: Mapped[str] = mapped_column(String(120), primary_key=True, server_default="")
+    # The listing's MPN and condition as read: "" where the page gave none.
+    read_mpn: Mapped[str] = mapped_column(String(100), primary_key=True, server_default="")
+    read_condition: Mapped[str] = mapped_column(String(40), primary_key=True, server_default="")
     mpn: Mapped[str | None] = mapped_column(String(100))
     condition: Mapped[str | None] = mapped_column(String(40))
     ignored: Mapped[bool] = mapped_column(Boolean, server_default="false")
+    reviewed_title: Mapped[str | None] = mapped_column(String(160))
 
 
 class ConditionRule(Base):

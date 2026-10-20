@@ -1522,12 +1522,23 @@ export interface components {
         };
         /**
          * ReviewItem
-         * @description An offer waiting for a reviewer to say what it is.
+         * @description A listing waiting for a reviewer to say what it is: what its page said, as it said it.
+         *     Several offers of one page each wait as their own.
          */
         ReviewItem: {
+            /**
+             * Aliases
+             * @description Other MPNs the page gave; null where they were not kept (queued before now).
+             */
+            aliases: string[] | null;
+            /** Brand */
+            brand: string | null;
             /** Capacity Gb */
             capacity_gb: number | null;
-            /** Condition */
+            /**
+             * Condition
+             * @description As the page gave it; null where it gave none.
+             */
             condition: ("new" | "manufacturer_recertified" | "refurbished" | "used") | null;
             /** @description The drive its MPN names as recorded now, to set what was collected beside; null when it names none. */
             drive: components["schemas"]["Drive"] | null;
@@ -1550,7 +1561,10 @@ export interface components {
              * Format: date-time
              */
             last_seen_at: string;
-            /** Mpn */
+            /**
+             * Mpn
+             * @description The MPN as the page gave it; null where it gave none.
+             */
             mpn: string | null;
             /**
              * Provenance
@@ -1566,6 +1580,8 @@ export interface components {
             seller: string;
             /** Shipping Cents */
             shipping_cents: number | null;
+            /** @description What the page said of the drive; null where nothing was kept. */
+            specifications: components["schemas"]["Specifications-Output"] | null;
             /** Store */
             store: string;
             /** Title */

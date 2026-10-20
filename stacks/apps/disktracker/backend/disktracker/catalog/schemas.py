@@ -395,16 +395,24 @@ ReviewReason = Literal[
 
 
 class ReviewItem(Contract):
-    """An offer waiting for a reviewer to say what it is."""
+    """A listing waiting for a reviewer to say what it is: what its page said, as it said it.
+    Several offers of one page each wait as their own."""
 
     id: UUID
     store: str
     url: str
     title: str
     seller: str
-    mpn: str | None
-    condition: Condition | None
+    mpn: str | None = Field(description="The MPN as the page gave it; null where it gave none.")
+    condition: Condition | None = Field(description="As the page gave it; null where it gave none.")
     capacity_gb: int | None
+    aliases: list[str] | None = Field(
+        description="Other MPNs the page gave; null where they were not kept (queued before now)."
+    )
+    brand: str | None
+    specifications: Specifications | None = Field(
+        description="What the page said of the drive; null where nothing was kept."
+    )
     item_price_cents: int | None
     shipping_cents: int | None
     in_stock: bool

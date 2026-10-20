@@ -839,18 +839,25 @@ def test_a_collected_offer_no_single_drive_could_be_waits_for_a_person_to_say_wh
     assert entered.status_code == 201, entered.text
 
 
-def test_a_queued_offer_leaves_the_review_queue_once_a_later_scrape_of_it_is_recorded(
+def test_a_queued_listing_leaves_the_review_queue_once_a_later_scrape_of_it_is_recorded(
     database_url: str,
 ) -> None:
+    """Read as it was queued, and recorded: no longer waiting. Read with an MPN it lacked, it is
+    another listing, and the one that lacked it still waits: saying more is no evidence that the
+    two are one product."""
     base = "https://www.serverpartdeals.com/products/"
     with TestClient(create_app()) as client:
-        post(client, "/api/prices", scraped_payload(mpn=None, url=base + "mystery"))
+        queued = post(
+            client, "/api/prices", scraped_payload(url=base + "mystery", title="Exos 4-pack")
+        )
         post(client, "/api/prices", scraped_payload(mpn=None, url=base + "another"))
+        fuller = post(client, "/api/prices", scraped_payload(url=base + "another"))
         later = post(client, "/api/prices", scraped_payload(url=base + "mystery"))
-        assert later.status_code == 201, later.text
-        assert [item["url"] for item in client.get("/api/review-items").json()] == [
-            base + "another"
-        ]
+        waiting = [(item["url"], item["mpn"]) for item in client.get("/api/review-items").json()]
+
+    assert queued.json()["status"] == "queued"
+    assert [fuller.status_code, later.status_code] == [201, 201]
+    assert waiting == [(base + "another", None)]
 
 
 def test_a_capacity_conflict_is_shown_with_the_drive_and_settled_either_way(
