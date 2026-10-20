@@ -526,18 +526,14 @@ describe('Admin page', () => {
     expect(screen.getByText('Offer deleted.')).toBeVisible();
   });
 
-  it('adds another MPN for a drive so variant listings join it', async () => {
+  it('adds another MPN a drive goes by, and shows it among its MPNs', async () => {
     at('drives');
     const user = userEvent.setup();
     let drive = makeDrive('ST18000NM000J');
-    const variantDrive = makeDrive('ST18000NM000J-2E3101');
-    let listings = [
-      makeOffer('Exos X18', { drive, mpn: drive.mpn, seller: 'Shop A' }),
-      makeOffer('Exos X18 variant', { drive: variantDrive, mpn: variantDrive.mpn, seller: 'Shop B' }),
-    ];
+    const listings = [makeOffer('Exos X18', { drive, mpn: drive.mpn, seller: 'Shop A' })];
+    // As the server adds it: another MPN of this drive, joining no other (that is a merge).
     const addAlias = vi.fn<DisktrackerApi['addAlias']>(async (_id, mpn) => {
       drive = { ...drive, aliases: [mpn.toUpperCase()] };
-      listings = listings.map(listing => ({ ...listing, drive, mpn: drive.mpn }));
       return drive;
     });
     renderApp({ listOffers: async () => listings, addAlias });
@@ -548,7 +544,6 @@ describe('Admin page', () => {
     await user.click(form.getByRole('button', { name: 'Add MPN' }));
     expect(addAlias).toHaveBeenCalledWith(drive.id, 'st18000nm000j-2e3101');
     expect(await form.findByText('ST18000NM000J-2E3101')).toBeVisible();
-    await waitFor(() => expect(screen.getByText('ST18000NM000J, 2 stores')).toBeVisible());
   });
 
   it('leaves the page message alone when another MPN is added', async () => {

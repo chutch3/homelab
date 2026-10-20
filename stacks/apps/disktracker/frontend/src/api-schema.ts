@@ -209,11 +209,10 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * Add an alternate MPN or merge drives
-         * @description Declare another MPN for this drive. If it is another drive's canonical MPN, merge that
-         *     drive's offers, price history and aliases into this drive, retaining this drive's capacity
-         *     and specifications. Matching offers combine their histories. The target's own canonical
-         *     MPN or an already registered alias returns 409.
+         * Add an alternate MPN
+         * @description Declare another MPN this drive goes by: one no drive goes by yet. An MPN any drive already
+         *     goes by, as its own or another of its MPNs, is refused (409) naming that drive, and nothing
+         *     changes. To join two drives, merge one into the other (POST /drives/{source_id}/merge).
          */
         post: operations["add_alias"];
         delete?: never;
@@ -3304,7 +3303,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description The MPN is this drive's canonical MPN or is already a registered alias */
+            /** @description A drive already goes by the MPN */
             409: {
                 headers: {
                     [name: string]: unknown;

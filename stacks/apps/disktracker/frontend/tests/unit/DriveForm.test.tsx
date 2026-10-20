@@ -94,11 +94,11 @@ it('adds another MPN for the drive and lists its aliases', async () => {
 it('explains why an MPN could not be added', async () => {
   const user = userEvent.setup();
   const drive = makeDrive('ST18000NM000J');
-  const addAlias = vi.fn(async (): Promise<Drive> => { throw new Error('ST18000NM000J already identifies a drive.'); });
+  const addAlias = vi.fn(async (): Promise<Drive> => { throw new Error('ST18000NM000J already identifies drive ST18000NM000J.'); });
   render(<MantineProvider env="test"><DriveForm drive={drive} api={{ ...unusedWrites, addAlias }}
     onClose={() => {}} onSaved={() => {}} onAliasAdded={async () => {}} /></MantineProvider>);
   const form = within(screen.getByRole('dialog', { name: 'Edit specifications' }));
   await user.type(form.getByRole('textbox', { name: 'Other MPN' }), 'ST18000NM000J');
   await user.click(form.getByRole('button', { name: 'Add MPN' }));
-  expect(await form.findByText('ST18000NM000J already identifies a drive.')).toBeVisible();
+  expect(await form.findByText('ST18000NM000J already identifies drive ST18000NM000J.')).toBeVisible();
 });

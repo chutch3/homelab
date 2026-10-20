@@ -526,53 +526,52 @@ def test_mpns_are_normalized_so_spacing_and_case_do_not_split_a_drive(database_u
         assert first["drive"]["aliases"] == []
 
 
-def test_an_alias_merges_a_variant_mpn_into_its_drive_and_routes_later_prices(
+def test_another_mpn_no_drive_goes_by_is_its_drives_and_routes_later_prices(
     database_url: str,
 ) -> None:
     with TestClient(create_app()) as client:
-        variant = post(
-            client, "/api/prices", price_payload(mpn="ST18000NM000J-2E3101", seller="Shop A")
-        ).json()
-        post(
-            client,
-            "/api/prices",
-            price_payload(mpn="ST18000NM000J-2E3101", item_price_cents=17000, seller="Shop B"),
-        )
-        canonical = saved_offer(
-            client,
-            post(
-                client,
-                "/api/prices",
-                price_payload(seller="Shop B", observed_at="2026-09-20T12:00:00Z"),
-            ),
-        )
+        canonical = saved_offer(client, post(client, "/api/prices", price_payload(seller="Shop B")))
         path = f"/api/drives/{canonical['drive']['id']}/aliases"
         added = client.post(path, json={"mpn": "st18000nm000j-2e3101"})
-        assert added.status_code == 201, added.text
-        assert added.json()["aliases"] == ["ST18000NM000J-2E3101"]
-        offers = {o["seller"]: o for o in with_history(client)}
-        assert set(offers) == {"Shop A", "Shop B"}
-        assert {o["mpn"] for o in offers.values()} == {"ST18000NM000J"}
-        assert {o["drive"]["id"] for o in offers.values()} == {canonical["drive"]["id"]}
-        assert [o["item_price_cents"] for o in offers["Shop B"]["observations"]] == [18900, 17000]
         later = saved_offer(
             client,
-            post(
-                client,
-                "/api/prices",
-                price_payload(
-                    mpn="ST18000NM000J-2E3101",
-                    item_price_cents=16000,
-                    seller="Shop A",
-                    observed_at="2026-09-25T12:00:00Z",
-                ),
-            ),
+            post(client, "/api/prices", price_payload(mpn="ST18000NM000J-2E3101", seller="Shop A")),
         )
-        assert later["id"] == variant["offer_id"]
-        assert later["mpn"] == "ST18000NM000J"
-        assert client.post(path, json={"mpn": "ST18000NM000J"}).status_code == 409
         missing = client.post(f"/api/drives/{uuid4()}/aliases", json={"mpn": "X"})
-        assert missing.status_code == 404
+
+    assert added.status_code == 201, added.text
+    assert added.json()["aliases"] == ["ST18000NM000J-2E3101"]
+    assert (later["drive"]["id"], later["mpn"]) == (canonical["drive"]["id"], "ST18000NM000J")
+    assert missing.status_code == 404
+
+
+@pytest.mark.parametrize("taken_as", ["its own MPN", "another of its MPNs"])
+def test_an_mpn_another_drive_goes_by_is_refused_naming_that_drive_and_nothing_merges(
+    database_url: str, taken_as: str
+) -> None:
+    """Joining two drives is a merge, asked for as one (tests/integration/test_merge.py)."""
+    with TestClient(create_app()) as client:
+        owner = saved_offer(
+            client,
+            post(client, "/api/prices", price_payload(mpn="ST18000NM000J-2E3101", seller="Shop A")),
+        )
+        taken = "ST18000NM000J-2E3101"
+        if taken_as == "another of its MPNs":
+            client.post(f"/api/drives/{owner['drive']['id']}/aliases", json={"mpn": "0XYZ"})
+            taken = "0XYZ"
+        other = saved_offer(client, post(client, "/api/prices", price_payload(seller="Shop B")))
+        refused = client.post(f"/api/drives/{other['drive']['id']}/aliases", json={"mpn": taken})
+        itself = client.post(
+            f"/api/drives/{other['drive']['id']}/aliases", json={"mpn": "ST18000NM000J"}
+        )
+        drives = {o["seller"]: o["drive"] for o in client.get("/api/offers").json()}
+
+    assert (refused.status_code, refused.json()) == (
+        409, {"detail": f"{taken} already identifies drive ST18000NM000J-2E3101."},
+    )  # fmt: skip
+    assert itself.status_code == 409
+    assert drives["Shop A"]["id"] != drives["Shop B"]["id"]
+    assert drives["Shop B"]["aliases"] == []
 
 
 def scraped_payload(**fields: Any) -> dict[str, Any]:
@@ -2259,7 +2258,9 @@ def test_a_kept_trend_is_worked_out_again_once_a_drive_or_what_it_is_changes(
         kept_trend_poisoned(engine)
         # Its only offer is at a store the drive it joins has none at, so the offer moves whole.
         merged = client.post(
-            f"/api/drives/{drives['ST10000NM003G']}/aliases", json={"mpn": "ST10000NM004G"}
+            f"/api/drives/{drives['ST10000NM004G']}/merge",
+            json={"target_drive_id": drives["ST10000NM003G"]},
+            headers={"Idempotency-Key": str(uuid4())},
         )
         after_merge = client.get("/api/trends", params={"days": 30}).json()
 
@@ -2269,7 +2270,7 @@ def test_a_kept_trend_is_worked_out_again_once_a_drive_or_what_it_is_changes(
         deleted = client.delete(f"/api/prices/{offer['observations'][0]['id']}")
         after_deletion = client.get("/api/trends", params={"days": 30}).json()
     engine.dispose()
-    assert (resized.status_code, merged.status_code) == (200, 201)
+    assert (resized.status_code, merged.status_code) == (200, 200)
     assert first["market"]["counted"] == 4
     assert after_capacity["market"]["counted"] == 4
     assert after_capacity["market"]["points"] != first["market"]["points"]

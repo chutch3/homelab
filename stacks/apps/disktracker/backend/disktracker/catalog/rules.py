@@ -20,7 +20,6 @@ from disktracker.errors import (
 )
 
 COMPARED = ("item_price_cents", "shipping_cents", "in_stock")
-IDENTITY = ("store", "seller", "condition")
 
 
 def normalize_mpn(raw: str) -> str:
@@ -164,18 +163,6 @@ def new_aliases(aliases: Iterable[str], mpn: str, known: Iterable[str]) -> list[
             seen.add(alias)
             fresh.append(alias)
     return fresh
-
-
-def merge_plan(
-    variant_offers: Iterable[Mapping[str, Any]], drive_offers: Iterable[Mapping[str, Any]]
-) -> list[tuple[Any, Any | None]]:
-    """For each offer of a drive being merged away: the matching offer it combines into,
-    or None when it simply moves to the surviving drive."""
-    by_identity = {tuple(offer[key] for key in IDENTITY): offer["id"] for offer in drive_offers}
-    return [
-        (offer["id"], by_identity.get(tuple(offer[key] for key in IDENTITY)))
-        for offer in variant_offers
-    ]
 
 
 def fill_unknown(current: Mapping[str, Any], found: Mapping[str, Any]) -> dict[str, Any]:

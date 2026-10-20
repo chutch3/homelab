@@ -12,6 +12,7 @@ from sqlalchemy.orm import Session
 from disktracker.catalog.models import Drive, MpnAlias
 from disktracker.catalog.rules import capacity_label, fill_unknown
 from disktracker.catalog.schemas import Specifications
+from disktracker.catalog.views import drive_view
 from disktracker.database import columns
 from disktracker.errors import CapacityConflict, CapacityRequired, DriveNotFound, MpnTaken
 
@@ -127,10 +128,20 @@ class DriveRepository:
         """Another MPN the drive goes by, one no drive goes by yet: refused otherwise, and never a
         reason to merge drives."""
         hold_mpn(session, alias)
-        if self.owner_of(session, alias) is not None:
-            raise MpnTaken(f"{alias} already identifies a drive.")
+        owner = self.owner_of(session, alias)
+        if owner is not None:
+            owning = session.scalars(select(Drive.mpn).where(Drive.id == owner)).one()
+            raise MpnTaken(f"{alias} already identifies drive {owning}.")
         session.add(MpnAlias(alias=alias, drive_id=drive_id))
         session.flush()
+
+    def view(self, session: Session, drive_id: UUID) -> dict[str, Any]:
+        """A drive (one that exists) as the API shows it, with every other MPN it goes by."""
+        drive = session.get_one(Drive, drive_id)
+        aliases = session.scalars(
+            select(MpnAlias.alias).where(MpnAlias.drive_id == drive_id).order_by(MpnAlias.alias)
+        )
+        return drive_view(drive, list(aliases))
 
     def identifiers(self, session: Session, drive_id: UUID) -> set[str]:
         """Every MPN a drive goes by: its own, and the others."""

@@ -1,5 +1,5 @@
-"""Drives as people make and join them: one made on its own before any price of it, and one
-merged into another, the only way two drives become one. Each is one piece of work; a merge,
+"""Drives as people make and join them: one made on its own before any price of it, another MPN
+it goes by, and one merged into another, the only way two drives become one. Each is one piece of work; a merge,
 with its save key, is answered again as it was when sent again."""
 
 from hashlib import sha256
@@ -13,7 +13,7 @@ from disktracker.catalog.rules import merged_drive
 from disktracker.catalog.schemas import DriveInput, MergeInput
 from disktracker.catalog.views import drive_view
 from disktracker.database import SessionFactory
-from disktracker.errors import MergeConflict, SameDrive
+from disktracker.errors import DriveNotFound, MergeConflict, SameDrive
 
 
 class DriveService:
@@ -39,6 +39,17 @@ class DriveService:
             )
             session.commit()
             return drive_view(drive, [])
+
+    def add_alias(self, drive_id: UUID, alias: str) -> dict[str, Any]:
+        """Another MPN the drive goes by: one no drive goes by yet. One any drive goes by is
+        refused, naming that drive, and nothing changes; joining two drives is a merge."""
+        with self.session_factory() as session:
+            self.drives.hold(session, [alias])
+            if not self.drives.lock_drives(session, [drive_id]):
+                raise DriveNotFound()
+            self.drives.attach_alias(session, drive_id, alias)
+            session.commit()
+            return self.drives.view(session, drive_id)
 
     def merge(self, source_id: UUID, entry: MergeInput, request_id: UUID) -> dict[str, Any]:
         """Merge the source drive into the target, which survives: with every MPN the source

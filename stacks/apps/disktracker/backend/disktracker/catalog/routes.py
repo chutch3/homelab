@@ -493,22 +493,21 @@ def replace_condition_rules(catalog: Catalog, rules: list[ConditionRule]) -> lis
     status_code=201,
     response_model=Drive,
     tags=["Drives"],
-    summary="Add an alternate MPN or merge drives",
+    summary="Add an alternate MPN",
     responses={
         404: {"model": ErrorResponse, "description": "Drive not found"},
         409: {
             "model": ErrorResponse,
-            "description": "The MPN is this drive's canonical MPN or is already a registered alias",
+            "description": "A drive already goes by the MPN",
         },
     },
 )
 @inject
-def add_alias(catalog: Catalog, drive_id: UUID, entry: AliasInput) -> dict[str, Any]:
-    """Declare another MPN for this drive. If it is another drive's canonical MPN, merge that
-    drive's offers, price history and aliases into this drive, retaining this drive's capacity
-    and specifications. Matching offers combine their histories. The target's own canonical
-    MPN or an already registered alias returns 409."""
-    return catalog.add_alias(drive_id, entry.mpn)
+def add_alias(drives: Drives, drive_id: UUID, entry: AliasInput) -> dict[str, Any]:
+    """Declare another MPN this drive goes by: one no drive goes by yet. An MPN any drive already
+    goes by, as its own or another of its MPNs, is refused (409) naming that drive, and nothing
+    changes. To join two drives, merge one into the other (POST /drives/{source_id}/merge)."""
+    return drives.add_alias(drive_id, entry.mpn)
 
 
 @router.patch(

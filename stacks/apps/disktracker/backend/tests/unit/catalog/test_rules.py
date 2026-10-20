@@ -16,7 +16,6 @@ from disktracker.catalog.rules import (
     decided_again,
     doubt,
     fill_unknown,
-    merge_plan,
     merged_drive,
     missing_detail,
     new_aliases,
@@ -106,15 +105,6 @@ def test_new_aliases_skips_the_drives_own_mpn_and_existing_aliases() -> None:
     assert new_aliases(
         ["WUH721816AL5205", "0HNHWC", "0F38376", "0HNHWC"], "WUH721816AL5205", ["0F38376"]
     ) == ["0HNHWC"]
-
-
-def test_merge_plan_combines_matching_offers_and_moves_the_rest() -> None:
-    def offer(offer_id: str, seller: str, condition: str = "new") -> dict[str, Any]:
-        return {"id": offer_id, "store": "ebay", "seller": seller, "condition": condition}
-
-    variant = [offer("v1", "Shop A"), offer("v2", "Shop B"), offer("v3", "Shop B", "used")]
-    drive = [offer("d1", "Shop B"), offer("d2", "Shop C")]
-    assert merge_plan(variant, drive) == [("v1", None), ("v2", "d1"), ("v3", None)]
 
 
 def test_found_specifications_fill_only_what_is_still_unknown() -> None:

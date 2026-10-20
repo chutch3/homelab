@@ -91,9 +91,6 @@ class CatalogService:
 
     # Drives and the MPNs they go by.
 
-    def add_alias(self, drive_id: UUID, alias: str) -> dict[str, Any]:
-        return self.repository.add_alias(drive_id, alias)
-
     def edit_drive(self, drive_id: UUID, entry: DriveEdit) -> dict[str, Any]:
         """Correct what is given of a drive, and leave the rest as it is."""
         given = entry.model_dump(mode="json", exclude_unset=True)
