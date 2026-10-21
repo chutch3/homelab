@@ -37,15 +37,15 @@ SAID = {
 # listing (another offer of its page settles nothing of it); held against being recorded
 # meanwhile.
 OFFERS = text(
-    "SELECT l.id, l.store, l.url, l.seller, l.mpn, l.condition, l.title, l.held_reason,"
+    "SELECT l.id, l.store, l.url, l.seller, d.mpn, l.condition, l.title, l.held_reason,"
     " l.last_checked_at, d.capacity_gb, latest.acquisition_method AS provenance,"
     " latest.item_price_cents, latest.shipping_cents, latest.in_stock,"
     " latest.observed_at AS latest_at, prices.counted, prices.first_at, prices.last_at,"
     " EXISTS (SELECT 1 FROM scraped_matches m WHERE m.source = l.store AND m.url = l.url"
-    "  AND m.seller = l.seller AND m.mpn = l.mpn AND m.condition = l.condition"
+    "  AND m.seller = l.seller AND m.mpn = d.mpn AND m.condition = l.condition"
     "  AND NOT m.ignored) AS settled,"
     " EXISTS (SELECT 1 FROM unmatched u WHERE u.source = l.store AND u.url = l.url"
-    "  AND u.seller = l.seller AND u.mpn = l.mpn AND u.condition = l.condition) AS queued"
+    "  AND u.seller = l.seller AND u.mpn = d.mpn AND u.condition = l.condition) AS queued"
     " FROM listings l JOIN drives d ON d.id = l.drive_id"
     " JOIN LATERAL (SELECT * FROM observations o WHERE o.listing_id = l.id"
     "  ORDER BY o.observed_at DESC, o.entered_at DESC, o.id DESC LIMIT 1) latest ON true"

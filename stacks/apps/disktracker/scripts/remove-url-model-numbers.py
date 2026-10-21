@@ -29,7 +29,9 @@ with engine.connect() as connection:
     connection.execute(
         text(
             "CREATE TEMPORARY TABLE mistaken ON COMMIT DROP AS"
-            f" SELECT id, drive_id FROM listings WHERE store = :store AND mpn = {FROM_URL}"
+            " SELECT listings.id, listings.drive_id FROM listings"
+            " JOIN drives ON drives.id = listings.drive_id"
+            f" WHERE listings.store = :store AND drives.mpn = {FROM_URL}"
         ),
         {"store": STORE},
     )

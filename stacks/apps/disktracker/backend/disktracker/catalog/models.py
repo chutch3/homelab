@@ -24,15 +24,14 @@ class Drive(Base):
 
 
 class Offer(Base):
-    """One store (and marketplace seller) selling one MPN in one condition."""
+    """One store (and marketplace seller) selling one drive in one condition."""
 
     __tablename__ = "listings"
     __table_args__ = (
-        Index("uq_listings_offer", "mpn", "store", "seller", "condition", unique=True),
+        Index("uq_listings_drive_offer", "drive_id", "store", "seller", "condition", unique=True),
     )
     id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True)
     title: Mapped[str] = mapped_column(String(160))
-    mpn: Mapped[str] = mapped_column(String(100))
     store: Mapped[str] = mapped_column(String(20))
     seller: Mapped[str] = mapped_column(String(120))
     url: Mapped[str | None] = mapped_column(Text)

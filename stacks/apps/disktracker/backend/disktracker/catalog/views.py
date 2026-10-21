@@ -59,7 +59,7 @@ def summary_view(
     return {
         "id": str(offer.id),
         "title": offer.title,
-        "mpn": offer.mpn,
+        "mpn": drive.mpn,
         "store": offer.store,
         "store_name": store_name,
         "seller": offer.seller,

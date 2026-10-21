@@ -66,7 +66,7 @@ def every_offer_facts() -> Select[Any]:
             func.greatest(
                 latest.c.observed_at, func.coalesce(Offer.last_checked_at, latest.c.observed_at)
             ).label("checked"),
-            func.concat_ws(" ", Offer.title, Offer.mpn, aliases.c.aliases, seller).label("names"),
+            func.concat_ws(" ", Offer.title, Drive.mpn, aliases.c.aliases, seller).label("names"),
             Drive.capacity_gb,
             Drive.brand,
             Drive.specifications,

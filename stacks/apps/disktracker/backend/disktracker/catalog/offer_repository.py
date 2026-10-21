@@ -22,7 +22,7 @@ from disktracker.database import columns
 from disktracker.errors import OfferNotFound, UnknownStore
 from disktracker.facts import LATEST_FIRST
 
-OFFER_IDENTITY = (Offer.mpn, Offer.store, Offer.seller, Offer.condition)
+OFFER_IDENTITY = (Offer.drive_id, Offer.store, Offer.seller, Offer.condition)
 
 
 class OfferRepository:
@@ -46,10 +46,10 @@ class OfferRepository:
         if session.scalar(select(Source.key).where(Source.key == store)) is None:
             raise UnknownStore()
         mpn = session.scalars(select(Drive.mpn).where(Drive.id == drive_id)).one()
-        identity = {"mpn": mpn, "store": store, "seller": seller, "condition": condition}
+        identity = {"drive_id": drive_id, "store": store, "seller": seller, "condition": condition}
         session.execute(
             pg_insert(Offer)
-            .values(id=self.next_id(), drive_id=drive_id, **identity, title=title or mpn, url=url)
+            .values(id=self.next_id(), **identity, title=title or mpn, url=url)
             .on_conflict_do_nothing(index_elements=[column.key for column in OFFER_IDENTITY])
         )
         offer_id: UUID = session.scalars(
@@ -166,16 +166,13 @@ class OfferRepository:
             .order_by(Offer.id)
             .with_for_update()
         ).all()
-        target_mpn = session.scalars(select(Drive.mpn).where(Drive.id == target_id)).one()
         kept = {(o.store, o.seller, o.condition): o for o in offers if o.drive_id == target_id}
         combined = []
         for absorbed in (o for o in offers if o.drive_id == source_id):
             survivor = kept.get((absorbed.store, absorbed.seller, absorbed.condition))
             if survivor is None:
                 session.execute(
-                    update(Offer)
-                    .where(Offer.id == absorbed.id)
-                    .values(drive_id=target_id, mpn=target_mpn)
+                    update(Offer).where(Offer.id == absorbed.id).values(drive_id=target_id)
                 )
                 continue
             session.execute(

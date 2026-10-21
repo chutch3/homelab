@@ -75,7 +75,6 @@ def offer(
         insert(listings).values(
             id=listing,
             title="Drive",
-            mpn=mpn,
             store=store,
             seller="",
             url=url,
@@ -126,7 +125,13 @@ def left(database_url: str) -> dict[str, list[object]]:
     engine = create_engine(database_url)
     with engine.connect() as db:
         found = {
-            "offers": sorted(db.execute(select(listings.c.store, listings.c.mpn)).tuples()),
+            "offers": sorted(
+                db.execute(
+                    select(listings.c.store, drives.c.mpn).join(
+                        drives, drives.c.id == listings.c.drive_id
+                    )
+                ).tuples()
+            ),
             "drives": sorted(db.execute(select(drives.c.mpn)).scalars()),
             "prices": sorted(db.execute(select(observations.c.item_price_cents)).scalars()),
             "queued": sorted(db.execute(select(unmatched.c.url)).scalars()),
@@ -419,7 +424,7 @@ def collected(
     listing = uuid4()
     db.execute(
         insert(listings).values(
-            id=listing, title=title, mpn=mpn, store="serverorbit", seller="", url=BASE + page,
+            id=listing, title=title, store="serverorbit", seller="", url=BASE + page,
             condition="refurbished", drive_id=drive,
         )
     )  # fmt: skip
@@ -439,9 +444,9 @@ def held(database_url: str) -> dict[str, str]:
     with engine.connect() as db:
         found = dict(
             db.execute(
-                select(listings.c.mpn, listings.c.held_reason).where(
-                    listings.c.held_reason.is_not(None)
-                )
+                select(drives.c.mpn, listings.c.held_reason)
+                .join(drives, drives.c.id == listings.c.drive_id)
+                .where(listings.c.held_reason.is_not(None))
             )
             .tuples()
             .all()
