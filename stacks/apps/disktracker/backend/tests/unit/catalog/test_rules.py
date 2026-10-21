@@ -262,7 +262,11 @@ def test_a_key_kept_before_prices_were_unified_is_never_replayed(fingerprint: st
         replayed(legacy, "kept", fingerprint)
 
 
-MATCHED = {"decision": "match", "mpn": "ST18000NM000J", "condition": "new", "capacity_gb": None}
+MATCHED = {
+    "decision": "match",
+    "drive_id": "22222222-2222-4222-8222-222222222222",
+    "condition": "new",
+}
 
 
 def test_the_same_decision_sent_again_gets_the_first_answer() -> None:

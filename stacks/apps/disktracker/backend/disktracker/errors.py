@@ -158,12 +158,6 @@ def register_error_handlers(app: FastAPI) -> None:
     async def conflict(request: Request, exc: Exception) -> JSONResponse:
         return JSONResponse(status_code=409, content={"detail": str(exc)})
 
-    @app.exception_handler(CapacityRequired)
-    async def capacity_required(request: Request, exc: CapacityRequired) -> JSONResponse:
-        return _missing(
-            "capacity_gb", "Enter the capacity for a drive that has not been recorded yet."
-        )
-
     @app.exception_handler(PriceRequired)
     async def price_required(request: Request, exc: PriceRequired) -> JSONResponse:
         return _missing(

@@ -7,7 +7,6 @@ from pydantic import TypeAdapter, ValidationError
 from disktracker.catalog.schemas import (
     ConditionRule,
     DriveEdit,
-    IgnoreDecision,
     IngestionInput,
     ListingText,
     MatchDecision,
@@ -214,11 +213,15 @@ def test_a_price_at_a_one_off_store_names_its_seller(
 @pytest.mark.parametrize(
     "decision",
     [
-        {"decision": "ignore", "mpn": "ST18000NM000J"},
+        {"decision": "ignore", "drive_id": DRIVE},
         {"decision": "ignore", "condition": "new"},
         {"decision": "match", "condition": "new"},
-        {"decision": "match", "mpn": "ST18000NM000J"},
+        {"decision": "match", "drive_id": DRIVE},
         {"decision": "keep"},
+        # A decision never says what a drive is: it is made or corrected beforehand.
+        {"decision": "match", "drive_id": DRIVE, "condition": "new", "mpn": "ST18000NM000J"},
+        {"decision": "match", "drive_id": DRIVE, "condition": "new", "capacity_gb": 3200},
+        {"decision": "match", "drive_id": DRIVE, "condition": "new", "correct_drive": True},
     ],
 )
 def test_a_review_decision_must_say_what_it_decides_and_nothing_else(
@@ -227,12 +230,12 @@ def test_a_review_decision_must_say_what_it_decides_and_nothing_else(
     assert refused(ReviewDecision, decision)
 
 
-def test_a_match_decision_names_its_drive_by_its_canonical_mpn() -> None:
-    decided: MatchDecision = TypeAdapter(ReviewDecision).validate_python(
-        {"decision": "match", "mpn": " st18000nm000j", "condition": "new"}
+def test_a_match_decision_names_its_drive_by_id() -> None:
+    decided = TypeAdapter(ReviewDecision).validate_python(
+        {"decision": "match", "drive_id": DRIVE, "condition": "new"}
     )
     assert isinstance(decided, MatchDecision)
-    assert decided.mpn == "ST18000NM000J"
+    assert (str(decided.drive_id), decided.condition) == (DRIVE, "new")
 
 
 @pytest.mark.parametrize(
@@ -275,16 +278,3 @@ def test_a_condition_rule_that_cannot_work_is_refused_on_its_field(
 @pytest.mark.parametrize("text", ["", "  \n "])
 def test_listing_text_with_nothing_in_it_is_refused(text: str) -> None:
     assert [loc for loc, _ in refused(ListingText, {"text": text})] == [("text",)]
-
-
-def test_a_match_that_corrects_its_drive_says_the_capacity_to_correct_it_to() -> None:
-    match = {"decision": "match", "mpn": "P09094-H21", "condition": "refurbished"}
-
-    assert refused(ReviewDecision, {**match, "correct_drive": True}) == [
-        (("match", "capacity_gb"), "Value error, Enter the capacity to correct the drive to.")
-    ]
-    decided: MatchDecision | IgnoreDecision = TypeAdapter(ReviewDecision).validate_python(
-        {**match, "capacity_gb": 3200, "correct_drive": True}
-    )
-    assert isinstance(decided, MatchDecision) and decided.correct_drive
-    assert TypeAdapter(ReviewDecision).validate_python(match).correct_drive is False

@@ -52,25 +52,44 @@ def price_payload(**fields: Any) -> dict[str, Any]:
 DRIVE_FIELDS = ("mpn", "capacity_gb", "brand", "specifications")
 
 
+def drive_of(client: TestClient, mpn: str, capacity_gb: int | None = None, **drive: Any) -> str:
+    """The drive that goes by this MPN, or one made under it, as a person finds or makes one
+    before saying anything of it."""
+    made = client.post("/api/drives", json={"mpn": mpn, "capacity_gb": capacity_gb, **drive})
+    if made.status_code == 201:
+        made_id: str = made.json()["id"]
+        return made_id
+    assert made.status_code in (409, 422), made.text
+    found = client.get("/api/catalog-drives", params={"q": mpn}).json()["items"]
+    [drive_id] = [
+        item["drive"]["id"]
+        for item in found
+        if mpn.upper() in (item["drive"]["mpn"], *item["drive"]["aliases"])
+    ]
+    found_id: str = drive_id
+    return found_id
+
+
 def entered(client: TestClient, described: dict[str, Any]) -> dict[str, Any]:
     """A price described by its drive's MPN, as a person enters it: the drive found by that MPN,
     or made first, and the price then of that drive. One that names its offer is as it is."""
     if "offer_id" in described:
         return described
     drive = {key: described[key] for key in DRIVE_FIELDS if described.get(key) is not None}
-    made = client.post("/api/drives", json=drive)
-    if made.status_code == 201:
-        drive_id = made.json()["id"]
-    else:
-        assert made.status_code in (409, 422), made.text
-        found = client.get("/api/catalog-drives", params={"q": drive["mpn"]}).json()["items"]
-        [drive_id] = [
-            item["drive"]["id"]
-            for item in found
-            if drive["mpn"] in (item["drive"]["mpn"], *item["drive"]["aliases"])
-        ]
     price = {key: value for key, value in described.items() if key not in DRIVE_FIELDS}
-    return {"drive_id": drive_id, **price}
+    return {"drive_id": drive_of(client, **drive), **price}
+
+
+def match(
+    client: TestClient, mpn: str, condition: str, capacity_gb: int | None = None
+) -> dict[str, Any]:
+    """A reviewer's decision that an item is the drive that goes by this MPN, found or made
+    first, in this condition."""
+    return {
+        "decision": "match",
+        "drive_id": drive_of(client, mpn, capacity_gb),
+        "condition": condition,
+    }
 
 
 def test_offers_are_identified_by_store_and_optional_marketplace_seller(
@@ -872,9 +891,8 @@ def test_an_offer_whose_page_comes_to_be_doubted_is_held_out_of_every_report_unt
         kept = len(client.get(f"/api/offers/{offer_id}").json()["observations"])
         decided = client.put(
             f"/api/review-items/{queued.json()['review_item_id']}/decision",
-            json={"decision": "match", "mpn": "ST18000NM000J",
-                  "condition": "manufacturer_recertified", "capacity_gb": 18000},
-        )  # fmt: skip
+            json=match(client, "ST18000NM000J", "manufacturer_recertified"),
+        )
         settled = reports()
         managed_after = {o["id"]: o["doubt"] for o in client.get("/api/offers").json()}
 
@@ -909,12 +927,11 @@ def test_a_collected_offer_no_single_drive_could_be_waits_for_a_person_to_say_wh
     with TestClient(create_app()) as client:
         queued = [post(client, "/api/ingestions", entry) for entry in (bundle, huge, misread)]
         queue = {item["url"]: item["reason"] for item in client.get("/api/review-items").json()}
-        # A person says what the second one is: a 960 GB drive.
+        # A person says what the second one is: a 960 GB drive, made as one first.
         decided = client.put(
             f"/api/review-items/{queued[1].json()['review_item_id']}/decision",
-            json={"decision": "match", "mpn": "KPM7XVUG960G", "condition": "new",
-                  "capacity_gb": 960},
-        )  # fmt: skip
+            json=match(client, "KPM7XVUG960G", "new", 960),
+        )
         later = post(client, "/api/ingestions", {**huge, "observed_at": "2026-09-22T12:00:00Z"})
         # Entered by hand, it is what the person says it is.
         by_hand = post(
@@ -965,7 +982,8 @@ def test_a_capacity_conflict_is_shown_with_the_drive_and_settled_either_way(
 ) -> None:
     """A reviewer sees the drive an offer's MPN names beside what was collected, and says which
     capacity is right: the drive's, so the offer is recorded as that drive; or the offer's, so
-    the drive is corrected for every offer of it, in the same decision."""
+    the drive is corrected first (PATCH /drives/{id}), for every offer of it, and the offer then
+    recorded as that drive. A decision never says what a drive is."""
     base = "https://www.serverorbit.com/products/"
     mpn = "P09094-H21"
     with TestClient(create_app()) as client:
@@ -977,29 +995,25 @@ def test_a_capacity_conflict_is_shown_with_the_drive_and_settled_either_way(
             post(client, "/api/ingestions", scraped_payload(url=base + name, mpn=mpn,
                  title=f"HPE {mpn} 3.2TB SAS", capacity_gb=3200, condition="refurbished",
                  seller=name)).json()["review_item_id"]
-            for name in ("kept", "corrected", "refused")
+            for name in ("kept", "corrected")
         ]  # fmt: skip
         unnamed = post(client, "/api/ingestions", scraped_payload(url=base + "unnamed", mpn=None))
         queue = {item["id"]: item for item in client.get("/api/review-items").json()}
+        drive_id = queue[conflicts[0]]["drive"]["id"]
 
-        def decide(item: str, **decision: Any) -> Any:
-            body = {"decision": "match", "mpn": mpn, "condition": "refurbished", **decision}
+        def decide(item: str) -> Any:
+            body = {"decision": "match", "drive_id": drive_id, "condition": "refurbished"}
             return client.put(f"/api/review-items/{item}/decision", json=body)
 
-        refused = decide(conflicts[2], capacity_gb=3200)
-        unsaid = decide(conflicts[2], correct_drive=True)
         kept = decide(conflicts[0])
         drive_kept = client.get(f"/api/offers/{kept.json()['offer_id']}").json()["drive"]
-        corrected = decide(conflicts[1], capacity_gb=3200, correct_drive=True)
+        client.patch(f"/api/drives/{drive_id}", json={"capacity_gb": 3200})
+        corrected = decide(conflicts[1])
         first = client.get(f"/api/offers/{stored.json()['offer_id']}").json()
 
     assert queue[conflicts[0]]["drive"]["mpn"] == mpn
     assert queue[conflicts[0]]["drive"]["capacity_gb"] == 213200
     assert queue[unnamed.json()["review_item_id"]]["drive"] is None
-    # A capacity other than the drive's is refused unless the drive is to be corrected.
-    assert refused.status_code == 409, refused.text
-    assert unsaid.status_code == 422
-    assert [issue["loc"] for issue in unsaid.json()["detail"]] == [["body", "capacity_gb"]]
     assert kept.status_code == 200, kept.text
     assert drive_kept["capacity_gb"] == 213200
     assert corrected.status_code == 200, corrected.text
@@ -1016,12 +1030,7 @@ def test_resolving_a_queued_offer_records_it_and_later_scrapes_match_directly(
         item_id = queued.json()["review_item_id"]
         resolved = client.put(
             f"/api/review-items/{item_id}/decision",
-            json={
-                "decision": "match",
-                "mpn": "st18000nm000j",
-                "condition": "manufacturer_recertified",
-                "capacity_gb": 18000,
-            },
+            json=match(client, "ST18000NM000J", "manufacturer_recertified", 18000),
         )
         assert resolved.status_code == 200, resolved.text
         offer = client.get(f"/api/offers/{resolved.json()['offer_id']}").json()
@@ -1044,8 +1053,7 @@ def test_resolving_a_queued_offer_records_it_and_later_scrapes_match_directly(
         saved = client.get(f"/api/offers/{offer['id']}").json()
         assert [o["item_price_cents"] for o in saved["observations"]] == [36999, 34999]
         missing = client.put(
-            f"/api/review-items/{uuid4()}/decision",
-            json={"decision": "match", "mpn": "X", "condition": "new", "capacity_gb": 1000},
+            f"/api/review-items/{uuid4()}/decision", json=match(client, "X", "new", 1000)
         )
         assert missing.status_code == 404
 
@@ -2131,12 +2139,8 @@ def test_a_save_key_spent_before_prices_were_unified_is_refused_without_writing(
     assert offers == []
 
 
-MATCH = {
-    "decision": "match",
-    "mpn": "ST18000NM000J",
-    "condition": "manufacturer_recertified",
-    "capacity_gb": 18000,
-}
+def a_match(client: TestClient) -> dict[str, Any]:
+    return match(client, "ST18000NM000J", "manufacturer_recertified", 18000)
 
 
 def queued_item(client: TestClient, **fields: Any) -> str:
@@ -2153,11 +2157,9 @@ def test_a_review_decision_is_answered_again_when_repeated_without_doing_it_twic
     and records nothing more, while a different one is refused."""
     with TestClient(create_app()) as client:
         item_id = queued_item(client)
-        decided = client.put(f"/api/review-items/{item_id}/decision", json=MATCH)
+        decided = client.put(f"/api/review-items/{item_id}/decision", json=a_match(client))
         waiting = client.get("/api/review-items").json()
-        repeated = client.put(
-            f"/api/review-items/{item_id}/decision", json={**MATCH, "mpn": "st18000nm000j"}
-        )
+        repeated = client.put(f"/api/review-items/{item_id}/decision", json=a_match(client))
         changed = client.put(f"/api/review-items/{item_id}/decision", json={"decision": "ignore"})
         offer = client.get(f"/api/offers/{decided.json()['offer_id']}").json()
     assert decided.status_code == 200, decided.text
@@ -2176,7 +2178,7 @@ def test_an_ignore_decision_names_no_offer_and_is_answered_again_when_repeated(
         item_id = queued_item(client)
         ignored = client.put(f"/api/review-items/{item_id}/decision", json={"decision": "ignore"})
         repeated = client.put(f"/api/review-items/{item_id}/decision", json={"decision": "ignore"})
-        changed = client.put(f"/api/review-items/{item_id}/decision", json=MATCH)
+        changed = client.put(f"/api/review-items/{item_id}/decision", json=a_match(client))
         offers = client.get("/api/offers").json()
     assert (ignored.status_code, ignored.json()) == (200, {"status": "ignored", "offer_id": None})
     assert (repeated.status_code, repeated.json()) == (200, ignored.json())
@@ -2189,7 +2191,7 @@ def test_a_review_decision_must_say_what_it_decides_and_nothing_else(database_ur
         item_id = queued_item(client)
         # What a decision may say is the schema's (tests/unit/catalog/test_schemas.py).
         unclear = client.put(f"/api/review-items/{item_id}/decision", json={"decision": "keep"})
-        unknown = client.put(f"/api/review-items/{uuid4()}/decision", json=MATCH)
+        unknown = client.put(f"/api/review-items/{uuid4()}/decision", json=a_match(client))
         still_waiting = [item["id"] for item in client.get("/api/review-items").json()]
     assert unclear.status_code == 422
     assert [issue["loc"] for issue in unclear.json()["detail"]] == [["body", "decision"]]
@@ -2213,11 +2215,11 @@ def test_a_review_decision_that_fails_partway_leaves_no_decision_and_can_be_made
                     " FOR EACH ROW EXECUTE FUNCTION refuse();"
                 )
             )
-        failed = client.put(f"/api/review-items/{item_id}/decision", json=MATCH)
+        failed = client.put(f"/api/review-items/{item_id}/decision", json=a_match(client))
         offers = client.get("/api/offers").json()
         with engine.begin() as connection:
             connection.execute(text("DROP TRIGGER refuse ON scraped_matches"))
-        retried = client.put(f"/api/review-items/{item_id}/decision", json=MATCH)
+        retried = client.put(f"/api/review-items/{item_id}/decision", json=a_match(client))
     engine.dispose()
     assert (failed.status_code, offers) == (500, [])
     assert (retried.status_code, retried.json()["status"]) == (200, "matched")
@@ -2491,8 +2493,14 @@ def test_a_decision_on_an_item_that_is_not_waiting_is_not_found_whatever_it_deci
     with TestClient(create_app()) as client:
         ignored = client.put(f"/api/review-items/{uuid4()}/decision", json={"decision": "ignore"})
         matched = client.put(
-            f"/api/review-items/{uuid4()}/decision",
-            json={"decision": "match", "mpn": "X", "condition": "new", "capacity_gb": 1000},
+            f"/api/review-items/{uuid4()}/decision", json=match(client, "X", "new", 1000)
         )
+        no_drive = client.put(
+            f"/api/review-items/{queued_item(client)}/decision",
+            json={"decision": "match", "drive_id": str(uuid4()), "condition": "new"},
+        )
+        still = [item["id"] for item in client.get("/api/review-items").json()]
 
-    assert [ignored.status_code, matched.status_code] == [404, 404]
+    assert [ignored.status_code, matched.status_code, no_drive.status_code] == [404, 404, 404]
+    # Refused for a drive not known, the item still waits.
+    assert len(still) == 1

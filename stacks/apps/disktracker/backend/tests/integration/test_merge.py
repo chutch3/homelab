@@ -210,10 +210,9 @@ def test_a_merge_is_refused_if_what_the_source_goes_by_changes_as_it_starts(
 
 def test_a_merge_and_a_review_decision_at_once_both_finish(database_url: str) -> None:
     """A page naming another MPN of the drive being merged waits for review as a conflict with
-    it; the reviewer settles it as that very drive as the merge runs. Both want what the drive
-    goes by, and the merge wants the waiting item too: whichever goes first, neither waits for
-    the other forever, and the listing is of the drive the absorbed one became."""
-    decision = {"decision": "match", "mpn": "BBB1", "condition": "new", "capacity_gb": 16000}
+    it; the reviewer settles it as the drive it is merged into as the merge runs. Both want what
+    the drive goes by, and the merge wants the waiting item too: whichever goes first, neither
+    waits for the other forever, and the listing is of the drive that survives."""
     pauses = {
         # The merge, once it holds what both drives go by, as it reaches the review queue.
         "merge": lambda statement, locks: statement.startswith("UPDATE unmatched"),
@@ -233,6 +232,7 @@ def test_a_merge_and_a_review_decision_at_once_both_finish(database_url: str) ->
             url="https://spd.test/c", mpn="CCC1", condition="new", title="Drive 16TB",
             capacity_gb=16000, aliases=["0XYZ"],
         )).json()["review_item_id"]  # fmt: skip
+        decision = {"decision": "match", "drive_id": target["id"], "condition": "new"}
         with crossing(assign, pauses), ThreadPoolExecutor(max_workers=2) as executor:
             merging = executor.submit(merge, client, source["id"], target["id"])
             deciding = executor.submit(
@@ -245,3 +245,57 @@ def test_a_merge_and_a_review_decision_at_once_both_finish(database_url: str) ->
     assert [result.status_code for result in results] == [200, 200], [r.text for r in results]
     assert sorted(merged["drive"]["aliases"]) == ["0XYZ", "BBB1"]
     assert decided in [offer["id"] for offer in merged["offers"]]
+
+
+def test_a_decision_naming_a_drive_merged_away_is_refused_and_its_item_still_waits(
+    database_url: str,
+) -> None:
+    """A drive absorbed is gone: the reviewer chooses the drive it became."""
+    with TestClient(create_app()) as client:
+        target = drive(client, "AAA1")
+        source = drive(client, "BBB1")
+        item = post(client, "/api/ingestions", scraped_payload(
+            url="https://spd.test/c", mpn=None, title="Drive 16TB", capacity_gb=16000,
+        )).json()["review_item_id"]  # fmt: skip
+        merge(client, source["id"], target["id"])
+        refused = client.put(
+            f"/api/review-items/{item}/decision",
+            json={"decision": "match", "drive_id": source["id"], "condition": "new"},
+        )
+        waiting = [i["id"] for i in client.get("/api/review-items").json()]
+
+    assert refused.status_code == 404
+    assert waiting == [item]
+
+
+def test_a_decision_on_a_drive_merged_away_as_it_waits_is_refused_and_its_item_still_waits(
+    database_url: str,
+) -> None:
+    """The reviewer names the drive being merged away, and waits for what it goes by while the
+    merge holds it: once the merge is done, the drive is gone."""
+    pauses = {
+        "merge": lambda statement, locks: statement.startswith("UPDATE unmatched"),
+        "review": lambda statement, locks: LOCK in statement and locks == 1,
+    }
+    roles = {"INSERT INTO save_receipts": "merge", "INSERT INTO review_decisions": "review"}
+
+    def assign(statement: str, parameters: Any) -> str | None:
+        return next((role for start, role in roles.items() if statement.startswith(start)), None)
+
+    with TestClient(create_app()) as client:
+        target = drive(client, "AAA1")
+        source = drive(client, "BBB1")
+        item = post(client, "/api/ingestions", scraped_payload(
+            url="https://spd.test/c", mpn=None, title="Drive 16TB", capacity_gb=16000,
+        )).json()["review_item_id"]  # fmt: skip
+        decision = {"decision": "match", "drive_id": source["id"], "condition": "new"}
+        with crossing(assign, pauses), ThreadPoolExecutor(max_workers=2) as executor:
+            merging = executor.submit(merge, client, source["id"], target["id"])
+            deciding = executor.submit(
+                client.put, f"/api/review-items/{item}/decision", json=decision
+            )
+            results = [merging.result(), deciding.result()]
+        waiting = [i["id"] for i in client.get("/api/review-items").json()]
+
+    assert [result.status_code for result in results] == [200, 404], [r.text for r in results]
+    assert waiting == [item]

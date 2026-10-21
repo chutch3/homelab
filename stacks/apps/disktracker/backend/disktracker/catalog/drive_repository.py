@@ -95,14 +95,6 @@ class DriveRepository:
             )
         return drive.id
 
-    def correct_capacity(self, session: Session, mpn: str, capacity_gb: int) -> None:
-        """Correct the capacity of the drive that goes by this MPN, if one does, for every offer
-        of it."""
-        hold_mpn(session, mpn)
-        owner = self.owner_of(session, mpn)
-        if owner is not None:
-            session.execute(update(Drive).where(Drive.id == owner).values(capacity_gb=capacity_gb))
-
     def correct(
         self,
         session: Session,

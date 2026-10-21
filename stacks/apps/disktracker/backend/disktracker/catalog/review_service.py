@@ -1,8 +1,8 @@
-"""Deciding what a listing waiting for review is: nothing to track, or a drive in a condition. As
-one piece of work: the decision and its answer, the item leaving the queue, what is recorded of
-it through the one price writer, the drive corrected when the reviewer says so and given what the
-page said of it where nobody has, the offer no longer held, and the decision remembered for later
-prices of that listing. The same decision sent again gets the first answer and changes nothing; a
+"""Deciding what a listing waiting for review is: nothing to track, or a drive already recorded
+in a condition. As one piece of work: the decision and its answer, the item leaving the queue,
+what is recorded of it through the one price writer, the drive given what the page said of it
+where nobody has, the offer no longer held, and the decision remembered for later prices of
+that listing. The same decision sent again gets the first answer and changes nothing; a
 different one is refused."""
 
 from typing import Any
@@ -16,6 +16,7 @@ from disktracker.catalog.review_repository import ReviewRepository, listing_of
 from disktracker.catalog.schemas import MatchDecision, ObservationInput
 from disktracker.catalog.schemas import ReviewDecision as Decision
 from disktracker.database import SessionFactory
+from disktracker.errors import DriveNotFound
 
 
 class ReviewService:
@@ -34,14 +35,21 @@ class ReviewService:
             replay = self.reviews.claim_decision(session, item_id, decision.model_dump(mode="json"))
             if replay is not None:
                 return replay
+            drive = None
             if isinstance(decision, MatchDecision):
-                # Every MPN this may touch, before the item: the drive's, and the others its
-                # page gave (the catalog-wide lock order).
+                # Every MPN this may touch, then the drive, before the item: what the drive goes
+                # by, and the others its page gave (the catalog-wide lock order).
                 aliases = self.reviews.peek(session, item_id)["aliases"] or []
-                self.drives.hold(session, [decision.mpn, *aliases])
+                goes_by = self.drives.identifiers(session, decision.drive_id)
+                self.drives.hold(session, [*goes_by, *aliases])
+                # Merged away while its MPNs were awaited, it is gone.
+                drive = self.drives.lock_drives(session, [decision.drive_id]).get(decision.drive_id)
+                if drive is None:
+                    raise DriveNotFound()
             item = self.reviews.take(session, item_id)
             if isinstance(decision, MatchDecision):
-                result = self._match(session, item, decision)
+                assert drive is not None
+                result = self._match(session, item, decision, drive["mpn"])
             else:
                 self.reviews.remember(
                     session, listing_of(item), mpn=None, condition=None, ignored=True,
@@ -53,17 +61,9 @@ class ReviewService:
             return result
 
     def _match(
-        self, session: Session, item: dict[str, Any], decision: MatchDecision
+        self, session: Session, item: dict[str, Any], decision: MatchDecision, mpn: str
     ) -> dict[str, Any]:
-        known = self.drives.capacity_of(session, decision.mpn)
-        if decision.correct_drive and known is not None and decision.capacity_gb is not None:
-            self.drives.correct_capacity(session, decision.mpn, decision.capacity_gb)
-        # Left unsaid, a drive already recorded keeps its capacity, whatever the page said; a new
-        # one takes the page's.
-        capacity = decision.capacity_gb
-        if capacity is None and known is None:
-            capacity = item["capacity_gb"]
-        drive_id = self.drives.register(session, decision.mpn, capacity)
+        drive_id = decision.drive_id
         price = ObservationInput.model_validate(
             {key: item[key] for key in ("item_price_cents", "shipping_cents", "in_stock")}
             | {"observed_at": item["last_seen_at"]}
@@ -82,7 +82,7 @@ class ReviewService:
             if self.drives.owner_of(session, alias) is None:
                 self.drives.attach_alias(session, drive_id, alias)
         self.reviews.remember(
-            session, listing_of(item), mpn=decision.mpn, condition=decision.condition,
+            session, listing_of(item), mpn=mpn, condition=decision.condition,
             ignored=False, reviewed_title=item["title"],
         )  # fmt: skip
         return {"status": "matched", "offer_id": str(offer_id)}

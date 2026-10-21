@@ -1247,32 +1247,27 @@ export interface components {
         };
         /**
          * MatchDecision
-         * @description A reviewer's decision that a queued offer is this drive in this condition: its price is
-         *     recorded, and later prices of it are matched the same way. capacity_gb: the drive's, needed
-         *     when the MPN is new; left out, a drive already recorded keeps its own. correct_drive: the
-         *     drive recorded has the wrong capacity, and is corrected to capacity_gb, for every offer of
-         *     it.
+         * @description A reviewer's decision that a queued offer is this drive (one already recorded) in this
+         *     condition: its price is recorded, and later prices of it are matched the same way. It never
+         *     says what the drive is: a drive is made (POST /drives) or corrected (PATCH /drives/{id})
+         *     beforehand.
          */
         MatchDecision: {
-            /** Capacity Gb */
-            capacity_gb?: number | null;
             /**
              * Condition
              * @enum {string}
              */
             condition: "new" | "manufacturer_recertified" | "refurbished" | "used";
             /**
-             * Correct Drive
-             * @default false
-             */
-            correct_drive?: boolean;
-            /**
              * @description discriminator enum property added by openapi-typescript
              * @enum {string}
              */
             decision: "match";
-            /** Mpn */
-            mpn: string;
+            /**
+             * Drive Id
+             * Format: uuid
+             */
+            drive_id: string;
         };
         /**
          * MergeInput

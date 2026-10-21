@@ -4,8 +4,9 @@ import userEvent from '@testing-library/user-event';
 import { MantineProvider } from '@mantine/core';
 import { ReviewQueue } from '../../src/ReviewQueue';
 import type { DisktrackerApi, ReviewItem } from '../../src/api';
-import { knownStores, makeOffer, makeReviewItem, unusedWrites } from '../fixtures/listings';
+import { knownStores, makeDrive, makeOffer, makeReviewItem, unusedWrites } from '../fixtures/listings';
 import { memoryStorage } from '../fixtures/render-app';
+import { catalogPage, rowsOf } from '../fixtures/responses';
 
 afterEach(cleanup);
 
@@ -71,10 +72,11 @@ it('says the offers could not be loaded instead of that there are none, with a w
   expect(review.queryByRole('alert')).not.toBeInTheDocument();
 });
 
-it('resolves an offer with the details the scraper found filled in', async () => {
+it('resolves an offer with the details the scraper found filled in, making the drive it names first', async () => {
   const decide = vi.fn<DisktrackerApi['decide']>(async () => ({ status: 'matched', offer_id: 'x' }));
+  const createDrive = vi.fn<DisktrackerApi['createDrive']>(async () => makeDrive('ST18000NM000J'));
   const item = makeReviewItem('a', { mpn: 'ST18000NM000J', condition: null, capacity_gb: 18000, reason: 'missing_condition' });
-  const { review, user, handlers } = await renderQueue([item], { decide });
+  const { review, user, handlers } = await renderQueue([item], { decide, createDrive });
   await user.click(review.getByRole('button', { name: 'Resolve' }));
   const form = within(screen.getByRole('dialog', { name: 'Resolve offer' }));
   expect(form.getByRole('textbox', { name: 'Drive' })).toHaveValue('ST18000NM000J');
@@ -83,17 +85,34 @@ it('resolves an offer with the details the scraper found filled in', async () =>
   expect(form.getByLabelText('Condition', { exact: true })).toHaveAccessibleDescription(expect.stringContaining('Choose a condition.'));
   await user.selectOptions(form.getByLabelText('Condition', { exact: true }), 'used');
   await user.click(form.getByRole('button', { name: 'Save' }));
-  expect(decide).toHaveBeenCalledWith('a', { decision: 'match', mpn: 'ST18000NM000J', condition: 'used', capacity_gb: 18000, correct_drive: false });
+  expect(createDrive).toHaveBeenCalledWith({ mpn: 'ST18000NM000J', capacity_gb: 18000 });
+  expect(decide).toHaveBeenCalledWith('a', { decision: 'match', drive_id: 'drive-ST18000NM000J', condition: 'used' });
   expect(handlers.onChanged).toHaveBeenCalled();
 });
 
+it('refuses a capacity for a typed MPN recorded at another, and decides nothing', async () => {
+  const decide = vi.fn<DisktrackerApi['decide']>(async () => ({ status: 'matched', offer_id: 'x' }));
+  const drive = makeDrive('ST18000NM000J');
+  // Not chosen from the suggestions: found only as the decision is saved.
+  const catalogDrives = vi.fn<DisktrackerApi['catalogDrives']>(async () => catalogPage(rowsOf([makeOffer('Exos X18', { drive, mpn: drive.mpn })])));
+  const item = makeReviewItem('a', { mpn: null, condition: 'new', capacity_gb: 20000 });
+  const { review, user } = await renderQueue([item], { decide, catalogDrives });
+  await user.click(review.getByRole('button', { name: 'Resolve' }));
+  const form = within(screen.getByRole('dialog', { name: 'Resolve offer' }));
+  await user.type(form.getByRole('textbox', { name: 'Drive' }), 'ST18000NM000J');
+  await user.click(form.getByRole('button', { name: 'Save' }));
+  expect(await form.findByText('ST18000NM000J is recorded as 18 TB. Choose it to record the offer as that drive.')).toBeVisible();
+  expect(decide).not.toHaveBeenCalled();
+});
+
 it('keeps the resolve form open and explains a server rejection', async () => {
-  const decide = vi.fn(async () => { throw new Error('MPN ST18000NM000J is recorded as 18 TB.'); });
-  const { review, user } = await renderQueue([makeReviewItem('a', { mpn: 'ST18000NM000J', condition: 'new', capacity_gb: 20000 })], { decide });
+  const decide = vi.fn(async () => { throw new Error('Drive not found.'); });
+  const drive = makeDrive('ST18000NM000J', { capacity_gb: 20000 });
+  const { review, user } = await renderQueue([makeReviewItem('a', { mpn: 'ST18000NM000J', condition: 'new', capacity_gb: 20000, drive })], { decide });
   await user.click(review.getByRole('button', { name: 'Resolve' }));
   const form = within(screen.getByRole('dialog', { name: 'Resolve offer' }));
   await user.click(form.getByRole('button', { name: 'Save' }));
-  expect(await form.findByRole('alert')).toHaveTextContent('MPN ST18000NM000J is recorded as 18 TB.');
+  expect(await form.findByRole('alert')).toHaveTextContent('Drive not found.');
 });
 
 it('asks for the last page there is, worked out from the total, when the one shown is left empty', async () => {

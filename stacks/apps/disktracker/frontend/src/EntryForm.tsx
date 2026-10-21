@@ -4,12 +4,11 @@ import { useDebouncedValue } from '@mantine/hooks';
 import { useForm } from '@mantine/form';
 import { ApiValidationError, type CatalogDrive, type Condition, type Drive, type Offer, type DisktrackerApi, type ObservationInput, type Store } from './api';
 import { CapacityField } from './CapacityField';
+import { driveFor, goesBy } from './drive-lookup';
 import { parseDollars } from './money';
 import { formFieldErrors, validateEntry, type EntryDefaults, type EntryValues } from './entry-validation';
 import { asksForSeller, capacityLabel, conditions, conditionLabel, dollars, sellerLabel } from './listing-display';
 
-/** Whether a drive goes by this MPN, as its own or another of its MPNs, in any case. */
-const goesBy = (drive: Drive, mpn: string) => [drive.mpn, ...drive.aliases].some(name => name.toUpperCase() === mpn.toUpperCase());
 /** The drives the server finds by an MPN typed, and the one recorded under it, if any is. */
 type Found = { mpn: string; drives: CatalogDrive[] };
 const recordedUnder = ({ mpn, drives }: Found) => drives.find(row => goesBy(row.drive, mpn))?.drive;
@@ -106,19 +105,6 @@ export function EntryForm({ listing, stores = [], defaults = { store: '', condit
       setFills(count => count + 1);
     } catch (err) { setError(err instanceof Error ? err.message : 'The text could not be read.'); }
   };
-  /** The drive a new offer is of: the one recorded under its MPN, found now if the lookup has not said, or else
-   * one made under it with the capacity entered. None, with the capacity field told why, when the MPN is recorded
-   * at another capacity than the one entered: a price never changes what a drive is. */
-  const driveFor = async (mpn: string, capacity: string): Promise<string | null> => {
-    const known = recorded ?? recordedUnder(await lookUp(mpn).catch(() => ({ mpn, drives: [] })));
-    if (!known) return (await api.createDrive({ mpn, capacity_gb: Number(capacity) })).id;
-    if (!recorded && capacity && Number(capacity) !== known.capacity_gb) {
-      form.setFieldError('capacity', `${known.mpn} is recorded as ${capacityLabel(known.capacity_gb)}. Edit the drive to change its capacity.`);
-      focusFirstError({ capacity: true });
-      return null;
-    }
-    return known.id;
-  };
   const submit = form.onSubmit(async values => {
     setError(''); setSaving(true);
     try {
@@ -129,10 +115,15 @@ export function EntryForm({ listing, stores = [], defaults = { store: '', condit
       let saved;
       if (listing) saved = await api.recordPrice({ offer_id: listing.id, ...observation }, requestId);
       else {
-        const driveId = await driveFor(values.mpn.trim(), values.capacity.trim());
-        if (driveId === null) return;
+        const mpn = values.mpn.trim();
+        const found = await driveFor(api, mpn, recorded ? null : Number(values.capacity.trim()), recorded);
+        if ('recordedAs' in found) {
+          form.setFieldError('capacity', `${found.recordedAs.mpn} is recorded as ${capacityLabel(found.recordedAs.capacity_gb)}. Edit the drive to change its capacity.`);
+          focusFirstError({ capacity: true });
+          return;
+        }
         saved = await api.recordPrice({
-          drive_id: driveId, store: values.store, seller: seller ? values.seller.trim() : '', condition: values.condition as Condition,
+          drive_id: found.drive.id, store: values.store, seller: seller ? values.seller.trim() : '', condition: values.condition as Condition,
           title: values.title.trim() || null, url: values.url.trim() || null, ...observation,
         }, requestId);
         onEntered?.({ store: values.store, condition: values.condition });

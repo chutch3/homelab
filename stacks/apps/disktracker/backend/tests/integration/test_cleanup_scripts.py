@@ -12,6 +12,7 @@ from uuid import uuid4
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import Connection, create_engine, insert, select
+from test_api import match
 
 from disktracker.catalog.models import Drive, MpnAlias, Offer, Price, ReviewItem, ScrapedMatch
 from disktracker.main import create_app
@@ -388,9 +389,8 @@ class TestHoldDoubtedOffers:
             ]
             decided = client.put(
                 f"/api/review-items/{item['id']}/decision",
-                json={"decision": "match", "mpn": "R0P90A", "condition": "refurbished",
-                      "capacity_gb": 6000},
-            )  # fmt: skip
+                json=match(client, "R0P90A", "refurbished", 6000),
+            )
             settled = {o["mpn"] for o in client.get("/api/drives", params=asked).json()["items"]
                        for o in o["offers"]}  # fmt: skip
 

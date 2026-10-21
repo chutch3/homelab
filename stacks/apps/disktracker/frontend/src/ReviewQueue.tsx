@@ -4,6 +4,7 @@ import { useDebouncedValue } from '@mantine/hooks';
 import { useForm } from '@mantine/form';
 import type { Condition, DisktrackerApi, Drive, ReviewFilter, ReviewItem, ReviewReason, Store } from './api';
 import { CapacityField } from './CapacityField';
+import { driveFor } from './drive-lookup';
 import { capacityLabel, conditions, dollars } from './listing-display';
 import { Pager } from './Pager';
 import { useServedPages } from './paging';
@@ -158,12 +159,14 @@ function ResolveForm({ item, next, api, onClose, onNext, onResolved }: ResolvePr
     if (Object.keys(problems).length) return;
     setSaving(true); setError('');
     try {
-      const correct = disputed && right === 'store';
-      await api.decide(item.id, {
-        decision: 'match', mpn, condition: condition as Condition,
-        capacity_gb: drive ? (correct ? item.capacity_gb : null) : Number(capacity.trim()),
-        correct_drive: correct,
-      });
+      // The drive is found or made, and corrected when the store is right, before the decision names it.
+      const found = await driveFor(api, mpn, drive ? null : Number(capacity.trim()), drive ?? undefined);
+      if ('recordedAs' in found) {
+        setErrors({ capacity: `${found.recordedAs.mpn} is recorded as ${capacityLabel(found.recordedAs.capacity_gb)}. Choose it to record the offer as that drive.` });
+        return;
+      }
+      if (disputed && right === 'store' && item.capacity_gb !== null) await api.editDrive(found.drive.id, { capacity_gb: item.capacity_gb });
+      await api.decide(item.id, { decision: 'match', drive_id: found.drive.id, condition: condition as Condition });
       await onResolved();
       if (then) onNext(then); else onClose();
     } catch (err) {

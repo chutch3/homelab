@@ -1498,7 +1498,7 @@ describe('Admin page', () => {
     const decide = vi.fn<DisktrackerApi['decide']>(async (id, decision) => {
       queue = queue.filter(item => item.id !== id);
       if (decision.decision === 'ignore') return { status: 'ignored', offer_id: null };
-      listings = [makeOffer('Mystery 18TB drive', { mpn: decision.mpn })];
+      listings = [makeOffer('Mystery 18TB drive', { mpn: 'ST18000NM000J', drive: makeDrive('ST18000NM000J') })];
       return { status: 'matched', offer_id: 'Mystery 18TB drive' };
     });
     renderApp({ listOffers: async () => listings, reviewItems: async () => queue, decide });
@@ -1513,7 +1513,8 @@ describe('Admin page', () => {
     await user.selectOptions(form.getByLabelText('Condition', { exact: true }), 'manufacturer_recertified');
     await user.selectOptions(form.getByLabelText('Capacity', { exact: true }), '18000');
     await user.click(form.getByRole('button', { name: 'Save' }));
-    expect(decide).toHaveBeenCalledWith('mystery', { decision: 'match', mpn: 'ST18000NM000J', condition: 'manufacturer_recertified', capacity_gb: 18000, correct_drive: false });
+    // A new MPN is made a drive first; the decision names it.
+    expect(decide).toHaveBeenCalledWith('mystery', { decision: 'match', drive_id: 'drive-ST18000NM000J', condition: 'manufacturer_recertified' });
     await waitFor(() => expect(review.getAllByRole('row')).toHaveLength(2));
     // Ignoring cannot be taken back here, so it asks first.
     const caddy = within(review.getAllByRole('row')[1]);
@@ -1536,7 +1537,8 @@ describe('Admin page', () => {
       mpn: 'P09094-H21', condition: 'refurbished', capacity_gb: 3200, drive });
     let queue = [conflict('first'), conflict('second'), makeReviewItem('third', { title: 'Mystery drive' })];
     const decide = vi.fn<DisktrackerApi['decide']>(async id => { queue = queue.filter(item => item.id !== id); return { status: 'matched', offer_id: 'o' }; });
-    renderApp({ listOffers: async () => catalogue(), reviewItems: async () => queue, decide });
+    const editDrive = vi.fn<DisktrackerApi['editDrive']>(async (_, input) => ({ ...drive, capacity_gb: input.capacity_gb ?? drive.capacity_gb }));
+    renderApp({ listOffers: async () => catalogue(), reviewItems: async () => queue, decide, editDrive });
     const review = within(await screen.findByRole('region', { name: /Needs matching/ }));
     await user.click(within((await review.findAllByRole('row'))[1]).getByRole('button', { name: 'Resolve' }));
     const form = within(screen.getByRole('dialog', { name: 'Resolve offer' }));
@@ -1551,7 +1553,8 @@ describe('Admin page', () => {
     expect(form.getByRole('radio', { name: 'The drive is right: record it as 213.2 TB' })).toBeChecked();
     expect(form.queryByText(/every offer of/)).not.toBeInTheDocument();
     await user.click(form.getByRole('button', { name: 'Save and next' }));
-    expect(decide).toHaveBeenLastCalledWith('first', { decision: 'match', mpn: 'P09094-H21', condition: 'refurbished', capacity_gb: null, correct_drive: false });
+    expect(decide).toHaveBeenLastCalledWith('first', { decision: 'match', drive_id: drive.id, condition: 'refurbished' });
+    expect(editDrive).not.toHaveBeenCalled();
 
     // The next offer on the page opens straight away.
     const next = within(await screen.findByRole('dialog', { name: 'Resolve offer' }));
@@ -1559,7 +1562,10 @@ describe('Admin page', () => {
     await user.click(next.getByRole('radio', { name: 'The store is right: correct the drive to 3.2 TB' }));
     expect(next.getByText('This changes the capacity of every offer of P09094-H21.')).toBeVisible();
     await user.click(next.getByRole('button', { name: 'Save' }));
-    expect(decide).toHaveBeenLastCalledWith('second', { decision: 'match', mpn: 'P09094-H21', condition: 'refurbished', capacity_gb: 3200, correct_drive: true });
+    // The drive is corrected first, for every offer of it; the decision then names it.
+    expect(editDrive).toHaveBeenCalledWith(drive.id, { capacity_gb: 3200 });
+    expect(decide).toHaveBeenLastCalledWith('second', { decision: 'match', drive_id: drive.id, condition: 'refurbished' });
+    expect(editDrive.mock.invocationCallOrder[0]).toBeLessThan(decide.mock.invocationCallOrder[1]);
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
   }, 20000);
 
@@ -1586,7 +1592,7 @@ describe('Admin page', () => {
     expect(form.queryByLabelText('Capacity', { exact: true })).not.toBeInTheDocument();
     await user.selectOptions(form.getByLabelText('Condition', { exact: true }), 'new');
     await user.click(form.getByRole('button', { name: 'Save' }));
-    expect(decide).toHaveBeenCalledWith('mystery', { decision: 'match', mpn: 'ST18000NM000J', condition: 'new', capacity_gb: null, correct_drive: false });
+    expect(decide).toHaveBeenCalledWith('mystery', { decision: 'match', drive_id: 'drive-ST18000NM000J', condition: 'new' });
   }, 20000);
 
   it('says that ignoring an offer skips its page in later collections too', async () => {

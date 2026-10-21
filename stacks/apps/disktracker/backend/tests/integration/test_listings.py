@@ -5,6 +5,7 @@ own, though several share a page."""
 from typing import Any
 
 from fastapi.testclient import TestClient
+from test_api import match as decided_as
 from test_api import post, scraped_payload
 
 from disktracker.main import create_app
@@ -25,9 +26,9 @@ def waiting(client: TestClient) -> list[tuple[str | None, str | None, str]]:
     )  # fmt: skip
 
 
-def match(client: TestClient, item: str, **decision: Any) -> Any:
-    body = {"decision": "match", "mpn": "ST18000NM000J", "condition": "new", "capacity_gb": 18000}
-    return client.put(f"/api/review-items/{item}/decision", json={**body, **decision})
+def match(client: TestClient, item: str, condition: str = "new") -> Any:
+    body = decided_as(client, "ST18000NM000J", condition, 18000)
+    return client.put(f"/api/review-items/{item}/decision", json=body)
 
 
 def test_two_offers_of_one_page_wait_for_review_and_are_decided_each_on_its_own(

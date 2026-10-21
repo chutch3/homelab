@@ -54,7 +54,8 @@ it('reads and changes offers, prices, drives and review items at their own addre
   await api.deleteOffer('a');
   expect(await api.deletePrice('p')).toBeNull();
   await api.editDrive('d', { capacity_gb: 18000 });
-  await api.decide('r', { decision: 'match', mpn: 'ST18000NM000J', condition: 'new', capacity_gb: 18000 });
+  await api.createDrive({ mpn: 'ST18000NM000J', capacity_gb: 18000 });
+  await api.decide('r', { decision: 'match', drive_id: 'd', condition: 'new' });
   await api.decide('r', { decision: 'ignore' });
 
   expect(sent).toEqual([
@@ -62,7 +63,8 @@ it('reads and changes offers, prices, drives and review items at their own addre
     'DELETE /api/offers/a',
     'DELETE /api/prices/p',
     'PATCH /api/drives/d {"capacity_gb":18000}',
-    'PUT /api/review-items/r/decision {"decision":"match","mpn":"ST18000NM000J","condition":"new","capacity_gb":18000}',
+    'POST /api/drives {"mpn":"ST18000NM000J","capacity_gb":18000}',
+    'PUT /api/review-items/r/decision {"decision":"match","drive_id":"d","condition":"new"}',
     'PUT /api/review-items/r/decision {"decision":"ignore"}',
   ]);
 });

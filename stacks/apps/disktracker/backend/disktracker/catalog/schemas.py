@@ -202,25 +202,15 @@ class IngestionInput(ObservationInput):
 
 
 class MatchDecision(Contract):
-    """A reviewer's decision that a queued offer is this drive in this condition: its price is
-    recorded, and later prices of it are matched the same way. capacity_gb: the drive's, needed
-    when the MPN is new; left out, a drive already recorded keeps its own. correct_drive: the
-    drive recorded has the wrong capacity, and is corrected to capacity_gb, for every offer of
-    it."""
+    """A reviewer's decision that a queued offer is this drive (one already recorded) in this
+    condition: its price is recorded, and later prices of it are matched the same way. It never
+    says what the drive is: a drive is made (POST /drives) or corrected (PATCH /drives/{id})
+    beforehand."""
 
     model_config = ConfigDict(extra="forbid")
     decision: Literal["match"]
-    mpn: NormalizedMpn
+    drive_id: UUID
     condition: Condition
-    correct_drive: bool = False
-    capacity_gb: Capacity | None = Field(default=None, validate_default=True)
-
-    @field_validator("capacity_gb")
-    @classmethod
-    def a_capacity_to_correct_to(cls, capacity_gb: int | None, info: ValidationInfo) -> int | None:
-        if capacity_gb is None and info.data.get("correct_drive"):
-            raise ValueError("Enter the capacity to correct the drive to.")
-        return capacity_gb
 
 
 class IgnoreDecision(Contract):

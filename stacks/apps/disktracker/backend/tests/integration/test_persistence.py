@@ -13,7 +13,15 @@ from uuid import uuid4
 
 from fastapi.testclient import TestClient
 from sqlalchemy import Engine, create_engine, event, text
-from test_api import entered, followed_drives, post, price_payload, scraped_payload, source_input
+from test_api import (
+    entered,
+    followed_drives,
+    match,
+    post,
+    price_payload,
+    scraped_payload,
+    source_input,
+)
 
 from disktracker.main import create_app
 
@@ -178,13 +186,8 @@ def test_deleting_a_source_is_undone_in_every_area_when_any_part_of_it_fails(
 
 
 def test_the_same_review_decision_sent_twice_at_once_records_one_price(database_url: str) -> None:
-    decision = {
-        "decision": "match",
-        "mpn": "ST18000NM000J",
-        "condition": "manufacturer_recertified",
-        "capacity_gb": 18000,
-    }
     with TestClient(create_app()) as client:
+        decision = match(client, "ST18000NM000J", "manufacturer_recertified", 18000)
         queued = post(client, "/api/ingestions", scraped_payload(mpn=None, condition=None))
         path = f"/api/review-items/{queued.json()['review_item_id']}/decision"
         with ThreadPoolExecutor(max_workers=2) as executor:
@@ -325,15 +328,14 @@ def test_a_review_decision_and_a_page_collected_again_at_once_both_finish(
     """The reviewer decides a listing as its page is collected again, read as doubtfully as
     before: one waits for the other, and neither forever."""
     page = scraped_payload(title="Seagate Exos X18 ST18000NM000J 18TB 4-pack")
-    decision = {"decision": "match", "mpn": "ST18000NM000J", "condition": "manufacturer_recertified",
-                "capacity_gb": 18000}  # fmt: skip
     pauses = {
-        # The reviewer, once it has taken the item, as it asks for the drive's MPN.
+        # The reviewer, once it has its decision, as it asks for the drive's MPN.
         "review": lambda statement, locks: LOCK in statement and locks == 1,
         # The collector, once it holds the drive's MPN, as it keeps the item again.
         "collect": lambda statement, locks: statement.startswith("INSERT INTO unmatched"),
     }
     with TestClient(create_app()) as client:
+        decision = match(client, "ST18000NM000J", "manufacturer_recertified", 18000)
         item = post(client, "/api/ingestions", page).json()["review_item_id"]
         decide = lambda: client.put(f"/api/review-items/{item}/decision", json=decision)
         collect = lambda: post(
