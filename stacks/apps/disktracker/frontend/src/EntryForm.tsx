@@ -2,16 +2,15 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { Alert, Autocomplete, Button, Group, Modal, NativeSelect, SegmentedControl, Stack, Text, TextInput, Textarea } from '@mantine/core';
 import { useDebouncedValue } from '@mantine/hooks';
 import { useForm } from '@mantine/form';
-import { ApiValidationError, type CatalogDrive, type Condition, type Drive, type Offer, type DisktrackerApi, type ObservationInput, type Store } from './api';
+import { ApiValidationError, type FoundDrive, type Condition, type Drive, type Offer, type DisktrackerApi, type ObservationInput, type Store } from './api';
 import { CapacityField } from './CapacityField';
-import { driveFor, goesBy } from './drive-lookup';
+import { driveFor, findDrive } from './drive-lookup';
 import { parseDollars } from './money';
 import { formFieldErrors, validateEntry, type EntryDefaults, type EntryValues } from './entry-validation';
 import { asksForSeller, capacityLabel, conditions, conditionLabel, dollars, sellerLabel } from './listing-display';
 
-/** The drives the server finds by an MPN typed, and the one recorded under it, if any is. */
-type Found = { mpn: string; drives: CatalogDrive[] };
-const recordedUnder = ({ mpn, drives }: Found) => drives.find(row => goesBy(row.drive, mpn))?.drive;
+/** The drives the server suggests for an MPN typed, and the one recorded under it, if any is. */
+type Found = { mpn: string; drives: FoundDrive[]; recorded: Drive | undefined };
 
 const localTime = (date: Date) => new Date(date.getTime() - date.getTimezoneOffset() * 60_000).toISOString().slice(0, 19);
 type EntryProps = {
@@ -54,8 +53,9 @@ export function EntryForm({ listing, stores = [], defaults = { store: '', condit
     },
   });
   // Drives already recorded, found by the MPN as it is typed, once it stops changing.
-  const lookUp = useCallback((mpn: string) =>
-    api.catalogDrives({ q: mpn, limit: 8, offset: 0 }).then(page => ({ mpn, drives: page.items })), [api]);
+  const lookUp = useCallback((mpn: string): Promise<Found> => Promise.all([
+    api.findDrives({ q: mpn, limit: 8, offset: 0 }), findDrive(api, mpn),
+  ]).then(([page, recorded]) => ({ mpn, drives: page.items, recorded })), [api]);
   const [found, setFound] = useState<Found | null>(null);
   const typedMpn = form.values.mpn.trim();
   const [settledMpn] = useDebouncedValue(typedMpn, 250);
@@ -67,7 +67,7 @@ export function EntryForm({ listing, stores = [], defaults = { store: '', condit
     return () => { current = false; };
   }, [lookUp, settledMpn, priceOnly]);
   /** The capacity of the drive recorded under the MPN as it is now, once the server has said. */
-  const recorded = found && found.mpn.toUpperCase() === typedMpn.toUpperCase() ? recordedUnder(found) : undefined;
+  const recorded = found && found.mpn.toUpperCase() === typedMpn.toUpperCase() ? found.recorded : undefined;
   const knownCapacity = useRef<number | undefined>(undefined);
   knownCapacity.current = recorded?.capacity_gb;
   const seller = asksForSeller(form.values.store);
@@ -95,7 +95,7 @@ export function EntryForm({ listing, stores = [], defaults = { store: '', condit
       // A drive already recorded brings its own capacity, so none is asked of the text.
       const named = facts.mpn?.trim() ? await lookUp(facts.mpn.trim()) : null;
       if (named) setFound(named);
-      const capacityKnown = Boolean(facts.capacity_gb) || Boolean(named && recordedUnder(named));
+      const capacityKnown = Boolean(facts.capacity_gb) || Boolean(named?.recorded);
       const read: [name: string, path: string | null, found: boolean][] = [
         ['title', null, Boolean(facts.title)], ['MPN', 'mpn', Boolean(facts.mpn)], ['capacity', 'capacity', capacityKnown],
         ['condition', 'condition', Boolean(facts.condition)], ['price', 'item', facts.item_price_cents !== null],

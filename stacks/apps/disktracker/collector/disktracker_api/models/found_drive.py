@@ -12,32 +12,27 @@ from typing import cast
 
 if TYPE_CHECKING:
   from ..models.drive import Drive
-  from ..models.drive_detail_ranges import DriveDetailRanges
-  from ..models.offer_summary import OfferSummary
 
 
 
 
 
-T = TypeVar("T", bound="DriveDetail")
+T = TypeVar("T", bound="FoundDrive")
 
 
 
 @_attrs_define
-class DriveDetail:
-    """ A drive with every offer of it, in every condition, and in each condition it is offered
-    in, the range of its lowest item price over the days asked for (null when no offer of it was
-    in stock then).
+class FoundDrive:
+    """ A drive found, named by the title of its cheapest offer in stock, else its cheapest offer,
+    else its MPN.
 
         Attributes:
             drive (Drive):
-            offers (list[OfferSummary]):
-            ranges (DriveDetailRanges):
+            title (str):
      """
 
     drive: Drive
-    offers: list[OfferSummary]
-    ranges: DriveDetailRanges
+    title: str
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
 
@@ -46,26 +41,16 @@ class DriveDetail:
 
     def to_dict(self) -> dict[str, Any]:
         from ..models.drive import Drive # noqa: PLC0415
-        from ..models.drive_detail_ranges import DriveDetailRanges # noqa: PLC0415
-        from ..models.offer_summary import OfferSummary # noqa: PLC0415
         drive = self.drive.to_dict()
 
-        offers = []
-        for offers_item_data in self.offers:
-            offers_item = offers_item_data.to_dict()
-            offers.append(offers_item)
-
-
-
-        ranges = self.ranges.to_dict()
+        title = self.title
 
 
         field_dict: dict[str, Any] = {}
         field_dict.update(self.additional_properties)
         field_dict.update({
             "drive": drive,
-            "offers": offers,
-            "ranges": ranges,
+            "title": title,
         })
 
         return field_dict
@@ -75,38 +60,22 @@ class DriveDetail:
     @classmethod
     def from_dict(cls: type[T], src_dict: Mapping[str, Any]) -> T:
         from ..models.drive import Drive # noqa: PLC0415
-        from ..models.drive_detail_ranges import DriveDetailRanges # noqa: PLC0415
-        from ..models.offer_summary import OfferSummary # noqa: PLC0415
         d = dict(src_dict)
         drive = Drive.from_dict(d.pop("drive"))
 
 
 
 
-        offers = []
-        _offers = d.pop("offers")
-        for offers_item_data in (_offers):
-            offers_item = OfferSummary.from_dict(offers_item_data)
+        title = d.pop("title")
 
-
-
-            offers.append(offers_item)
-
-
-        ranges = DriveDetailRanges.from_dict(d.pop("ranges"))
-
-
-
-
-        drive_detail = cls(
+        found_drive = cls(
             drive=drive,
-            offers=offers,
-            ranges=ranges,
+            title=title,
         )
 
 
-        drive_detail.additional_properties = d
-        return drive_detail
+        found_drive.additional_properties = d
+        return found_drive
 
     @property
     def additional_keys(self) -> list[str]:

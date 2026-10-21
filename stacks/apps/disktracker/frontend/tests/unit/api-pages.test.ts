@@ -105,16 +105,20 @@ it('asks the server for a page of the drives to manage by words and need, leavin
   ]);
 });
 
-it('reads a drive, its prices a page at a time, the offers due a check, and what drives cost today', async () => {
+it('reads a drive, its offers, its ranges, its prices a page at a time, drives found, the offers due a check, and what drives cost today', async () => {
   const asked: string[] = [];
   const api = new HttpDisktrackerApi(async url => {
     asked.push(String(url));
     const path = String(url);
     if (path.startsWith('/api/prices')) return new Response(JSON.stringify({ items: [], total: 0, limit: 500, offset: 0 }));
-    return new Response(path.startsWith('/api/drives/') ? '{"drive":null,"offers":[]}' : '[]');
+    return new Response(path.startsWith('/api/reports/price-ranges') || path.startsWith('/api/drives') ? '{}' : '[]');
   }, '/api');
 
-  await api.drive('d', 30, 7);
+  await api.drive('d');
+  await api.driveOffers('d');
+  await api.priceRanges('d', 30, 7);
+  await api.findDrives({ mpn: 'st18000nm000j', limit: 1, offset: 0 });
+  await api.findDrives({ q: 'exos x18', limit: 8, offset: 0 });
   await api.offer('o');
   await api.prices({ driveId: 'd' });
   await api.prices({ offerId: 'o', since: '2026-06-24T12:00:00Z', limit: 100, offset: 200 });
@@ -122,7 +126,11 @@ it('reads a drive, its prices a page at a time, the offers due a check, and what
   await api.pricesToday(14, {});
 
   expect(asked).toEqual([
-    '/api/drives/d?range_days=30&recent_days=7',
+    '/api/drives/d',
+    '/api/offers?drive_id=d',
+    '/api/reports/price-ranges?drive_id=d&range_days=30&recent_days=7',
+    '/api/drives?mpn=st18000nm000j&limit=1&offset=0',
+    '/api/drives?q=exos+x18&limit=8&offset=0',
     '/api/offers/o',
     '/api/prices?drive_id=d&limit=500&offset=0',
     '/api/prices?offer_id=o&since=2026-06-24T12%3A00%3A00Z&limit=100&offset=200',

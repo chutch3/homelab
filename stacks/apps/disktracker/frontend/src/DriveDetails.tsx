@@ -1,7 +1,7 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { Alert, Button, CloseButton, Drawer, Group, Text } from '@mantine/core';
 import { useMediaQuery } from '@mantine/hooks';
-import type { Condition, Drive, DriveDetail, Offer, DisktrackerApi, OfferSummary, Observation, PriceRow, RecordedPrice } from './api';
+import type { Condition, Drive, Offer, DisktrackerApi, OfferSummary, Observation, PriceRanges, PriceRow, RecordedPrice } from './api';
 import { bestOffer } from './best-offer';
 import { conditionChoices, priceLabel, startingCondition } from './drive-conditions';
 import { DeleteOfferDialog } from './DeleteOfferDialog';
@@ -49,9 +49,10 @@ export const driveIdOf = (key: string) => key.replace(/^(drive|listing):/, '');
  * and history, loaded when the drive is opened. Conditions are not mixed, as they are different
  * things to buy; each choice of condition says what it costs now, so they can still be compared. */
 export function DriveDetails({ api, now, nextId, driveKey, title: named, sort, revision, condition: opensOn, manage, besideTable, recentDays, days, onClose, onRecorded, onChanged }: Props) {
-  /** The drive's offers, each with its latest price, and its ranges; null until they have loaded. */
+  /** The drive, its offers, each with its latest price, and its ranges; null until they have loaded. */
+  const [loaded, setLoaded] = useState<Drive | null>(null);
   const [summaries, setSummaries] = useState<OfferSummary[] | null>(null);
-  const [ranges, setRanges] = useState<DriveDetail['ranges']>({});
+  const [ranges, setRanges] = useState<PriceRanges>({});
   /** The period the price trend looks back over: chosen here, and what is asked for. */
   const [period, setPeriod] = useState<Period>(days);
   // null until the first answer, so a drive still loading is told apart from one with no prices.
@@ -65,15 +66,15 @@ export function DriveDetails({ api, now, nextId, driveKey, title: named, sort, r
   const [editing, setEditing] = useState<Offer | null>(null);
   const [deletingOffer, setDeletingOffer] = useState<Offer | null>(null);
   const [deletingPrice, setDeletingPrice] = useState<{ listing: Offer; observation: Observation } | null>(null);
-  // The drive, with its ranges over the period, and the prices of its offers in effect over it: asked
-  // for by the drive, again when the period changes and after every change the app makes.
+  // The drive, its offers, its ranges over the period, and the prices of its offers in effect over it:
+  // asked for by the drive, again when the period changes and after every change the app makes.
   useEffect(() => {
     const id = driveIdOf(driveKey);
     const since = new Date(now().getTime() - period * DAY).toISOString();
     let active = true;
-    api.drive(id, period, recentDays).then(async found => {
+    Promise.all([api.drive(id), api.driveOffers(id), api.priceRanges(id, period, recentDays)]).then(async ([found, of, ranged]) => {
       if (!active) return;
-      setSummaries(found.offers); setRanges(found.ranges);
+      setLoaded(found); setSummaries(of); setRanges(ranged);
       const prices: PriceRow[] = [];
       for (let offset = 0; ; offset += PRICES_PER_REQUEST) {
         const page = await api.prices({ driveId: id, since, limit: PRICES_PER_REQUEST, offset });
@@ -81,12 +82,12 @@ export function DriveDetails({ api, now, nextId, driveKey, title: named, sort, r
         if (offset + PRICES_PER_REQUEST >= page.total) break;
       }
       if (!active) return;
-      setHistory(found.offers.map(offer => ({ ...offer, observations: prices.filter(price => price.offer_id === offer.id)
+      setHistory(of.map(offer => ({ ...offer, observations: prices.filter(price => price.offer_id === offer.id)
         .map(({ offer_id: _offer, ...price }) => price) })));
       setError('');
     }).catch(err => {
       if (!active) return;
-      // A drive whose last offer was just deleted is gone, and so is its panel.
+      // A drive merged into another is gone, and so is its panel.
       if (err instanceof Error && err.message === 'Drive not found') onClose();
       else setError(err instanceof Error ? err.message : 'Prices could not be loaded.');
     });
@@ -98,9 +99,9 @@ export function DriveDetails({ api, now, nextId, driveKey, title: named, sort, r
   const condition = choices.length ? startingCondition(choices, chosen) : opensOn;
   const stores = new Set((summaries ?? []).map(sellerLabel)).size;
   const offers = (history ?? []).filter(listing => listing.condition === condition).sort(compareListings(sort));
-  const drive = summaries?.[0]?.drive ?? null;
+  const drive = loaded;
   const lowest = bestOffer(offers);
-  const title = summaries?.[0] ? driveName(summaries[0].drive) : named;
+  const title = loaded ? driveName(loaded) : named;
   const wide = useMediaQuery('(min-width: 1500px)', false, { getInitialValueInEffect: false }) && besideTable;
   /** The panel's frame: a region beside the table, which stays in reach, or a dialog over the page. */
   const frame = (body: ReactNode) => wide

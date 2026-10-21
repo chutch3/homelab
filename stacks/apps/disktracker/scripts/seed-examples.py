@@ -122,10 +122,8 @@ def drive_for(listing: dict) -> str:
     """The drive recorded under the listing's MPN, or one made under it. Specs belong to the
     drive, so only the first listing seeded for an MPN sets them."""
     mpn = listing["mpn"]
-    found = get(f"/api/catalog-drives?q={mpn}")["items"]
-    for row in found:
-        if mpn in (row["drive"]["mpn"], *row["drive"]["aliases"]):
-            return row["drive"]["id"]
+    for row in get(f"/api/drives?mpn={mpn}")["items"]:
+        return row["drive"]["id"]
     made = send("POST", "/api/drives", {
         "mpn": mpn, "capacity_gb": round(float(listing["capacity"]) * 1000),
         "specifications": specification(listing),

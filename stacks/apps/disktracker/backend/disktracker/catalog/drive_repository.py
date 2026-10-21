@@ -5,7 +5,7 @@ from collections.abc import Callable, Iterable
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import delete, func, select, update
+from sqlalchemy import delete, func, or_, select, union, update
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.orm import Session
 
@@ -15,6 +15,7 @@ from disktracker.catalog.schemas import Specifications
 from disktracker.catalog.views import drive_view
 from disktracker.database import columns
 from disktracker.errors import CapacityConflict, CapacityRequired, DriveNotFound, MpnTaken
+from disktracker.facts import escaped, every_offer_facts
 
 
 def hold_mpn(session: Session, mpn: str) -> None:
@@ -147,8 +148,10 @@ class DriveRepository:
         session.flush()
 
     def view(self, session: Session, drive_id: UUID) -> dict[str, Any]:
-        """A drive (one that exists) as the API shows it, with every other MPN it goes by."""
-        drive = session.get_one(Drive, drive_id)
+        """A drive as the API shows it, with every other MPN it goes by."""
+        drive = session.get(Drive, drive_id)
+        if drive is None:
+            raise DriveNotFound()
         aliases = session.scalars(
             select(MpnAlias.alias).where(MpnAlias.drive_id == drive_id).order_by(MpnAlias.alias)
         )
@@ -185,3 +188,50 @@ class DriveRepository:
         session.add(MpnAlias(alias=source_mpn, drive_id=target_id))
         session.execute(update(Drive).where(Drive.id == target_id).values(**values))
         session.flush()
+
+    def named(
+        self, session: Session, words: str, limit: int, offset: int
+    ) -> tuple[list[UUID], int]:
+        """The drives any name of which has these words, as typed: its MPN, another of its MPNs,
+        or any name an offer of it goes by (catalog offers, held ones too); those the words are
+        an MPN of first, then by MPN. A part of them, and how many there are."""
+        pattern = f"%{escaped(words)}%"
+        facts = every_offer_facts().subquery()
+        found = union(
+            select(Drive.id).where(Drive.mpn.ilike(pattern, escape="\\")),
+            select(MpnAlias.drive_id).where(MpnAlias.alias.ilike(pattern, escape="\\")),
+            select(facts.c.drive_id).where(facts.c.names.ilike(pattern, escape="\\")),
+        ).subquery()
+        exact = or_(
+            func.upper(Drive.mpn) == words.upper(),
+            Drive.id.in_(
+                select(MpnAlias.drive_id).where(func.upper(MpnAlias.alias) == words.upper())
+            ),
+        )
+        chosen = select(Drive.id).join(found, found.c.id == Drive.id)
+        total = session.scalar(select(func.count()).select_from(chosen.subquery())) or 0
+        ids = session.scalars(
+            chosen.order_by(exact.desc(), Drive.mpn, Drive.id).limit(limit).offset(offset)
+        )
+        return list(ids), total
+
+    def titles(self, session: Session, drive_ids: list[UUID]) -> dict[UUID, str]:
+        """What each of these drives is called: the title of its cheapest offer in stock, else
+        of its cheapest offer, else its MPN."""
+        facts = every_offer_facts().subquery()
+        first = func.row_number().over(
+            partition_by=facts.c.drive_id,
+            order_by=(facts.c.in_stock.desc(), facts.c.per_tb, facts.c.id),
+        )
+        ranked = (
+            select(facts.c.drive_id, facts.c.title, first.label("rank"))
+            .where(facts.c.drive_id.in_(drive_ids))
+            .subquery()
+        )
+        offered = dict(
+            session.execute(select(ranked.c.drive_id, ranked.c.title).where(ranked.c.rank == 1))
+            .tuples()
+            .all()
+        )
+        mpns = session.execute(select(Drive.id, Drive.mpn).where(Drive.id.in_(drive_ids)))
+        return {drive_id: offered.get(drive_id, mpn) for drive_id, mpn in mpns.tuples()}

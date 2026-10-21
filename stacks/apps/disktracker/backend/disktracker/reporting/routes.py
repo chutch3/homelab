@@ -5,11 +5,14 @@ from typing import Annotated, Any
 from dependency_injector.wiring import Provide, inject
 from fastapi import APIRouter, Depends, Query
 
+from disktracker.catalog.schemas import Condition
 from disktracker.container import Container
 from disktracker.reporting.schemas import (
     Market,
     MarketQuery,
     PriceMark,
+    PriceRange,
+    PriceRangeQuery,
     StoreFreshness,
     TodayQuery,
     TrendQuery,
@@ -56,6 +59,24 @@ def market(reporting: Reporting, query: Annotated[MarketQuery, Query()]) -> dict
     among the matches.
     """
     return reporting.market(query)
+
+
+@router.get(
+    "/reports/price-ranges",
+    response_model=dict[Condition, PriceRange | None],
+    tags=["Reports"],
+    summary="Read a drive's price range in each condition",
+)
+@inject
+def price_ranges(
+    reporting: Reporting, query: Annotated[PriceRangeQuery, Query()]
+) -> dict[str, Any]:
+    """Where a drive's lowest item price in each condition it is offered in has been over
+    range_days (30, 90 or 180), from the offers that count (none held for review): null in a
+    condition no offer of it was in stock in then. An offer unchecked for longer than
+    recent_days is taken to have ended at its last check. A drive with no such offer, or none at
+    all, has no range in any condition."""
+    return reporting.price_ranges(query)
 
 
 @router.get(

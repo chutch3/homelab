@@ -5,7 +5,7 @@ import type { Condition, DisktrackerApi, Market, MarketQuery, Observation } from
 import { emptySpecifications, type SpecValue } from '../../src/specifications';
 import { checkedAt, historyPrices, makeDrive, makeOffer, makeReviewItem, recordedOn, shoppingListings } from '../fixtures/listings';
 import { memoryStorage, namesIn, renderApp } from '../fixtures/render-app';
-import { catalogPage, detailOf, marketPage, noOptions, pricesOf, rowsOf } from '../fixtures/responses';
+import { catalogPage, foundPage, marketPage, noOptions, pricesOf, rowsOf } from '../fixtures/responses';
 
 afterEach(() => { cleanup(); window.history.replaceState(null, '', '/'); });
 
@@ -470,8 +470,8 @@ describe('App shopping view', () => {
       30: { today: 18000, low: 17000, high: 18000, average: 17333, days: 30 },
       90: { today: 18000, low: 17000, high: 19000, average: 18222, days: 90 },
     };
-    const drive_ = vi.fn<DisktrackerApi['drive']>(async (_id, days) => detailOf(offers, { new: ranges[days as 30 | 90] }));
-    renderApp({ listOffers: async () => offers, drive: drive_ });
+    const priceRanges = vi.fn<DisktrackerApi['priceRanges']>(async (_id, days) => ({ new: ranges[days as 30 | 90] }));
+    renderApp({ listOffers: async () => offers, priceRanges });
     await user.click(await screen.findByTitle('Exos X18'));
     const region = await screen.findByRole('region', { name: 'Price trend' });
     const trend = within(region);
@@ -490,7 +490,7 @@ describe('App shopping view', () => {
     // The panel looks back over a period of its own, starting from the table's, and asks the server for it.
     expect(trend.getByRole('button', { name: '90 days' })).toHaveAttribute('aria-pressed', 'true');
     await user.click(trend.getByRole('button', { name: '30 days' }));
-    expect(drive_).toHaveBeenLastCalledWith(drive.id, 30, 7);
+    expect(priceRanges).toHaveBeenLastCalledWith(drive.id, 30, 7);
     await waitFor(() => expect(figures()).toEqual(['$180.00' + '$10.00 above low', '$170.00' + `GoHardDrive, ${lowDay}`, '$173.33' + 'over 30 days']));
     expect(screen.getByRole('combobox', { name: 'Days the range looks back over', hidden: true })).toHaveValue('90');
   });
@@ -556,7 +556,7 @@ describe('App shopping view', () => {
     const marketplace = makeOffer('marketplace', { drive, mpn: drive.mpn, title: 'Seagate Exos X18', store: 'other', seller: 'Beach Audio' },
       { total_cents: 88453, price_per_tb: '49.14' });
     const range = { today: 18000, low: 18000, high: 18000, average: 18000, days: 0 };
-    renderApp({ listOffers: async () => [direct, marketplace], drive: async () => detailOf([direct, marketplace], { new: range }) });
+    renderApp({ listOffers: async () => [direct, marketplace], priceRanges: async () => ({ new: range }) });
     const table = within(await screen.findByRole('table', { name: 'Drive prices' }));
     expect(table.getByText('ServerPartDeals +1 more')).toBeVisible();
     await user.click(table.getByTitle('Seagate Exos X18'));
@@ -579,13 +579,13 @@ describe('App shopping view', () => {
       makeOffer('Unrelated drive', { observations: historyPrices, latest: historyPrices[1] }),
     ];
     const market = vi.fn<DisktrackerApi['market']>(async query => marketPage(rowsOf(offers), {}, query));
-    const opened = vi.fn<DisktrackerApi['drive']>(async () => detailOf(offers.slice(0, 2)));
+    const opened = vi.fn<DisktrackerApi['driveOffers']>(async () => offers.slice(0, 2));
     const prices = vi.fn<DisktrackerApi['prices']>(async request => pricesOf(offers.slice(0, 2), request));
-    renderApp({ listOffers: async () => offers, market, drive: opened, prices });
+    renderApp({ listOffers: async () => offers, market, driveOffers: opened, prices });
     await user.click(await screen.findByTitle('Exos X20'));
     expect(market).toHaveBeenCalledWith({ condition: ['new'], recent_days: 7, sort: 'total-desc', range_days: 30, limit: 50, offset: 0 });
     // Nothing is asked of a drive's prices until it is opened, and then by the drive, over the period shown.
-    expect(opened).toHaveBeenCalledWith(drive.id, 30, 7);
+    expect(opened).toHaveBeenCalledWith(drive.id);
     expect(prices).toHaveBeenCalledWith({ driveId: drive.id, since: new Date(checkedAt.getTime() - 30 * 86_400_000).toISOString(), limit: 500, offset: 0 });
     expect(await screen.findByRole('button', { name: 'Price history (2)' })).toBeVisible();
   });
@@ -676,7 +676,7 @@ describe('App shopping view', () => {
         ? [olderRecertified] : [refurbishedGhd, fresh, olderRecertified, refurbishedSpd]), {
         filter_options: { ...noOptions(), conditions: [{ value: 'manufacturer_recertified', drives: 1 }] },
       }, query),
-      drive: async () => detailOf(listings, ranges),
+      priceRanges: async () => ranges,
     });
     // Four offers from two stores: the row counts stores, as it says.
     expect(await screen.findByText('GoHardDrive +1 more')).toBeVisible();
@@ -799,16 +799,19 @@ describe('App shopping view', () => {
       makeOffer('Exos X18', { drive, mpn: drive.mpn, capacity_gb: 18000 }),
       makeOffer('Exos X20', { drive: makeDrive('ST20000NM007D'), mpn: 'ST20000NM007D', capacity_gb: 20000 }),
     ];
-    // The drives the server finds by the MPN typed so far: here, only the Exos X18.
-    const catalogDrives = vi.fn<DisktrackerApi['catalogDrives']>(async query => catalogPage(rowsOf(listings.slice(0, 1)), {}, query));
-    renderApp({ listOffers: async () => listings, catalogDrives });
+    // The drives the server finds by the MPN typed so far: here, only the Exos X18; and the one that goes by
+    // the MPN exactly, if any does.
+    const findDrives = vi.fn<DisktrackerApi['findDrives']>(async query => foundPage(query.mpn
+      ? rowsOf(listings).filter(row => row.drive.mpn === query.mpn!.toUpperCase()) : rowsOf(listings.slice(0, 1)), query));
+    renderApp({ listOffers: async () => listings, findDrives });
     await screen.findByRole('table', { name: 'Drive prices' });
     await user.click(within(screen.getByRole('banner')).getByRole('button', { name: 'Record price' }));
     const form = within(screen.getByRole('dialog', { name: 'Record price' }));
     await user.type(form.getByLabelText('MPN', { exact: true }), 'st18');
     // Asked for once the MPN stops changing, not at every letter.
-    await waitFor(() => expect(catalogDrives).toHaveBeenLastCalledWith({ q: 'st18', limit: 8, offset: 0 }));
-    expect(catalogDrives).toHaveBeenCalledTimes(1);
+    // Suggested by words, and looked up exactly, once typing pauses.
+    await waitFor(() => expect(findDrives).toHaveBeenCalledWith({ q: 'st18', limit: 8, offset: 0 }));
+    expect(findDrives.mock.calls).toEqual([[{ q: 'st18', limit: 8, offset: 0 }], [{ mpn: 'st18', limit: 1, offset: 0 }]]);
     await waitFor(() => expect(within(screen.getByRole('listbox')).getAllByRole('option').map(option => option.textContent))
       .toEqual(['ST18000NM000J · Exos X18']));
     // Like but not the same: no capacity is taken from it.

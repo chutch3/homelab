@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Alert, Autocomplete, Button, Group, Modal, Stack, Text } from '@mantine/core';
 import { useDebouncedValue } from '@mantine/hooks';
-import type { CatalogDrive, DisktrackerApi, Drive } from './api';
+import type { DisktrackerApi, Drive, FoundDrive } from './api';
 import { capacityLabel } from './listing-display';
 
 type Props = {
@@ -16,7 +16,7 @@ const listed = (names: string[]) => names.length < 2 ? names.join('') : `${names
  * offer of it goes by, and what becomes of both is said before anything is merged. */
 export function MergeDriveForm({ drive, api, nextId, onClose, onMerged }: Props) {
   const [typed, setTyped] = useState('');
-  const [found, setFound] = useState<CatalogDrive[]>([]);
+  const [found, setFound] = useState<FoundDrive[]>([]);
   /** The drive chosen, with the save key its merge goes under: a retry of the same merge sends the same one. */
   const [source, setSource] = useState<{ drive: Drive; key: string } | null>(null);
   const [saving, setSaving] = useState(false);
@@ -25,7 +25,7 @@ export function MergeDriveForm({ drive, api, nextId, onClose, onMerged }: Props)
   useEffect(() => {
     if (search.length < 2) { setFound([]); return; }
     let active = true;
-    api.catalogDrives({ q: search, limit: 8, offset: 0 })
+    api.findDrives({ q: search, limit: 8, offset: 0 })
       // Never this drive itself.
       .then(page => { if (active) setFound(page.items.filter(row => row.drive.id !== drive.id)); })
       .catch(() => { if (active) setFound([]); });

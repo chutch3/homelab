@@ -3,7 +3,7 @@ the owner of the question it answers, and this goes with the last of them. Every
 own service (catalog.*_service)."""
 
 from collections.abc import Callable
-from datetime import datetime, timedelta
+from datetime import datetime
 from typing import Any
 from uuid import UUID
 
@@ -12,9 +12,7 @@ from disktracker.catalog.schemas import (
     CatalogDriveQuery,
     OfferQuery,
     PriceQuery,
-    RangeQuery,
 )
-from disktracker.reporting.ranges import price_range
 
 
 class CatalogService:
@@ -26,20 +24,6 @@ class CatalogService:
     def catalog_drives(self, query: CatalogDriveQuery) -> dict[str, Any]:
         """A page of every drive to manage, with what each needs."""
         return self.queries.catalog_drives(query, self.now())
-
-    def drive(self, drive_id: UUID, query: RangeQuery) -> dict[str, Any]:
-        """A drive with its offers, and the range of its price in each condition it is offered
-        in over the days asked for."""
-        now = self.now()
-        found = self.queries.drive_detail(drive_id, now - timedelta(days=query.range_days))
-        by_condition: dict[str, list[Any]] = {}
-        for condition, prices, checked in found.pop("kin"):
-            by_condition.setdefault(condition, []).append((prices, checked))
-        found["ranges"] = {
-            condition: price_range(offers, now, query.range_days, query.recent_days)
-            for condition, offers in by_condition.items()
-        }
-        return found
 
     def list_offers(self, query: OfferQuery) -> list[dict[str, Any]]:
         if query.needs_recheck:

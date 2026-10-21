@@ -54,6 +54,7 @@ def test_a_drive_merged_into_another_gives_it_every_mpn_it_went_by_and_its_offer
         moved = offer(client, "0HNHWC", store="serverpartdeals", seller="", condition="new")
         merged = merge(client, source["id"], target["id"])
         after = client.get(f"/api/drives/{target['id']}").json()
+        offers = client.get("/api/offers", params={"drive_id": target["id"]}).json()
         gone = client.get(f"/api/drives/{source['id']}")
 
     assert merged.status_code == 200, merged.text
@@ -61,9 +62,9 @@ def test_a_drive_merged_into_another_gives_it_every_mpn_it_went_by_and_its_offer
         "status": "merged", "drive_id": target["id"], "absorbed_drive_id": source["id"],
         "combined_offers": [],
     }  # fmt: skip
-    assert sorted(after["drive"]["aliases"]) == ["0HNHWC", "0HNHWC-G14"]
-    assert sorted(o["id"] for o in after["offers"]) == sorted([kept, moved])
-    assert {o["mpn"] for o in after["offers"]} == {"WUH721816AL5205"}
+    assert sorted(after["aliases"]) == ["0HNHWC", "0HNHWC-G14"]
+    assert sorted(o["id"] for o in offers) == sorted([kept, moved])
+    assert {o["mpn"] for o in offers} == {"WUH721816AL5205"}
     assert gone.status_code == 404
 
 
@@ -116,7 +117,7 @@ def test_drives_that_differ_on_what_both_know_are_not_merged_and_nothing_changes
             client, "ST16000NM000J", capacity_gb=18000, specifications={"interface": "sata"}
         )
         refused = merge(client, source["id"], target["id"])
-        both = [client.get(f"/api/drives/{d['id']}").json()["drive"] for d in (target, source)]
+        both = [client.get(f"/api/drives/{d['id']}").json() for d in (target, source)]
 
     assert refused.status_code == 409
     assert (
@@ -135,7 +136,7 @@ def test_the_targets_brand_stands_and_what_it_lacks_comes_from_the_source(
             client, "ST16000NM000J", brand="SEAGATE", specifications={"interface": "sas"}
         )
         merge(client, source["id"], target["id"])
-        merged = client.get(f"/api/drives/{target['id']}").json()["drive"]
+        merged = client.get(f"/api/drives/{target['id']}").json()
 
     assert (merged["brand"], merged["specifications"]["interface"]) == ("Seagate", "sas")
 
@@ -240,11 +241,12 @@ def test_a_merge_and_a_review_decision_at_once_both_finish(database_url: str) ->
             )
             results = [merging.result(), deciding.result()]
         merged = client.get(f"/api/drives/{target['id']}").json()
+        offers = client.get("/api/offers", params={"drive_id": target["id"]}).json()
         decided = results[1].json()["offer_id"]
 
     assert [result.status_code for result in results] == [200, 200], [r.text for r in results]
-    assert sorted(merged["drive"]["aliases"]) == ["0XYZ", "BBB1"]
-    assert decided in [offer["id"] for offer in merged["offers"]]
+    assert sorted(merged["aliases"]) == ["0XYZ", "BBB1"]
+    assert decided in [offer["id"] for offer in offers]
 
 
 def test_a_decision_naming_a_drive_merged_away_is_refused_and_its_item_still_waits(

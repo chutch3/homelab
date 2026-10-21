@@ -72,7 +72,12 @@ export type MarketRow = Schemas['MarketRow'];
 export type ConditionPrices = Schemas['ConditionPrices'];
 export type FilterOptions = Schemas['FilterOptions'];
 export type Market = Schemas['Market'];
-export type DriveDetail = Schemas['DriveDetail'];
+/** A drive's price range in each condition it is offered in: null in one none was in stock in. */
+export type PriceRanges = Partial<Record<Condition, PriceRange | null>>;
+/** Which drives to find: the one an MPN names, or those words name. */
+export type DriveLookup = NonNullable<operations['find_drives']['parameters']['query']>;
+export type FoundDrive = Schemas['FoundDrive'];
+export type FoundDrives = Schemas['FoundDrives'];
 /** Which of every drive to manage: by any name an offer of it goes by, and by what it needs. */
 export type CatalogDriveQuery = NonNullable<operations['list_catalog_drives']['parameters']['query']>;
 export type CatalogDrive = Schemas['CatalogDrive'];
@@ -91,8 +96,14 @@ export interface DisktrackerApi {
   market(query: MarketQuery): Promise<Market>;
   /** A page of every drive to manage, held offers and all, with what each needs and how many of every drive need each thing. */
   catalogDrives(query: CatalogDriveQuery): Promise<CatalogDrivePage>;
-  /** A drive with every offer of it, in every condition, with its ranges over rangeDays. */
-  drive(id: string, rangeDays: number, recentDays: number): Promise<DriveDetail>;
+  /** A drive, with every other MPN it goes by. */
+  drive(id: string): Promise<Drive>;
+  /** Every offer of a drive, in every condition, held ones too. */
+  driveOffers(id: string): Promise<OfferSummary[]>;
+  /** A drive's price range in each condition over rangeDays, from the offers that count. */
+  priceRanges(id: string, rangeDays: number, recentDays: number): Promise<PriceRanges>;
+  /** The drive that goes by an MPN, or those words name, a part at a time. */
+  findDrives(lookup: DriveLookup): Promise<FoundDrives>;
   /** One offer with every price it has had. */
   offer(id: string): Promise<Offer>;
   /** A part of the prices of a drive's offers or of one offer, oldest first. */
@@ -234,9 +245,12 @@ export class HttpDisktrackerApi implements DisktrackerApi {
   storeFreshness(): Promise<StoreFreshness[]> { return this.send('/reports/store-freshness'); }
   market(query: MarketQuery): Promise<Market> { return this.send(`/reports/market?${searchOf(query)}`); }
   catalogDrives(query: CatalogDriveQuery): Promise<CatalogDrivePage> { return this.send(`/catalog-drives?${searchOf(query)}`); }
-  drive(id: string, rangeDays: number, recentDays: number): Promise<DriveDetail> {
-    return this.send(`/drives/${id}?range_days=${rangeDays}&recent_days=${recentDays}`);
+  drive(id: string): Promise<Drive> { return this.send(`/drives/${id}`); }
+  driveOffers(id: string): Promise<OfferSummary[]> { return this.send(`/offers?drive_id=${id}`); }
+  priceRanges(id: string, rangeDays: number, recentDays: number): Promise<PriceRanges> {
+    return this.send(`/reports/price-ranges?drive_id=${id}&range_days=${rangeDays}&recent_days=${recentDays}`);
   }
+  findDrives(lookup: DriveLookup): Promise<FoundDrives> { return this.send(`/drives?${searchOf(lookup)}`); }
   offer(id: string): Promise<Offer> { return this.send(`/offers/${id}`); }
   prices({ driveId, offerId, since, limit = 500, offset = 0 }: PriceRequest): Promise<PricePage> {
     const params = new URLSearchParams(driveId ? { drive_id: driveId } : { offer_id: offerId! });

@@ -1,6 +1,7 @@
-"""Drives as people make, correct and join them: one made on its own before any price of it, what
-is given of one corrected, another MPN it goes by, and one merged into another, the only way two
-drives become one. Each is one piece of work; a merge, with its save key, is answered again as it
+"""Drives as people find, make, correct and join them: a drive read, or found by an MPN it goes by
+or words any name of it has; one made on its own before any price of it, what is given of one
+corrected, another MPN it goes by, and one merged into another, the only way two drives become
+one. Each is one piece of work; a merge, with its save key, is answered again as it
 was when sent again."""
 
 from hashlib import sha256
@@ -11,7 +12,7 @@ from disktracker.catalog.drive_repository import DriveRepository
 from disktracker.catalog.offer_repository import OfferRepository
 from disktracker.catalog.review_repository import ReviewRepository
 from disktracker.catalog.rules import merged_drive
-from disktracker.catalog.schemas import DriveEdit, DriveInput, MergeInput
+from disktracker.catalog.schemas import DriveEdit, DriveInput, DriveLookup, MergeInput
 from disktracker.catalog.views import drive_view
 from disktracker.database import SessionFactory
 from disktracker.errors import DriveNotFound, MergeConflict, SameDrive
@@ -21,12 +22,33 @@ class DriveService:
     def __init__(
         self,
         session_factory: SessionFactory,
+        snapshot_factory: SessionFactory,
         drives: DriveRepository,
         offers: OfferRepository,
         reviews: ReviewRepository,
     ) -> None:
-        self.session_factory = session_factory
+        self.session_factory, self.snapshot_factory = session_factory, snapshot_factory
         self.drives, self.offers, self.reviews = drives, offers, reviews
+
+    def get(self, drive_id: UUID) -> dict[str, Any]:
+        with self.snapshot_factory() as session:
+            return self.drives.view(session, drive_id)
+
+    def find(self, lookup: DriveLookup) -> dict[str, Any]:
+        """The drive that goes by an MPN, or those words name, a part at a time, each named."""
+        with self.snapshot_factory() as session:
+            if lookup.mpn is not None:
+                owner = self.drives.owner_of(session, lookup.mpn)
+                found = [] if owner is None else [owner]
+                ids, total = found[lookup.offset :][: lookup.limit], len(found)
+            else:
+                ids, total = self.drives.named(session, lookup.q, lookup.limit, lookup.offset)
+            titles = self.drives.titles(session, ids)
+            items = [
+                {"drive": self.drives.view(session, drive_id), "title": titles[drive_id]}
+                for drive_id in ids
+            ]
+            return {"items": items, "total": total, "limit": lookup.limit, "offset": lookup.offset}
 
     def create(self, entry: DriveInput) -> dict[str, Any]:
         """A drive made on its own, before any price of it."""

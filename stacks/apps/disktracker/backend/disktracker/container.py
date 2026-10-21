@@ -100,6 +100,7 @@ class Container(containers.DeclarativeContainer):
     drive_service = providers.Factory(
         DriveService,
         session_factory=database.provided.session,
+        snapshot_factory=database.provided.snapshot,
         drives=drive_repository,
         offers=offer_repository,
         reviews=review_repository,

@@ -3,7 +3,7 @@ import { cleanup, render, screen, waitFor, within } from '@testing-library/react
 import userEvent from '@testing-library/user-event';
 import { MantineProvider } from '@mantine/core';
 import { knownStores, makeDrive, makeOffer, recordedOn, unusedWrites } from '../fixtures/listings';
-import { catalogPage, rowsOf } from '../fixtures/responses';
+import { foundPage, rowsOf } from '../fixtures/responses';
 import { EntryForm } from '../../src/EntryForm';
 import { ApiValidationError, type Offer, type DisktrackerApi } from '../../src/api';
 
@@ -90,9 +90,9 @@ describe('EntryForm', () => {
     const user = userEvent.setup();
     // The server finds the drive recorded under another of its MPNs.
     const drive = makeDrive('ST18000NM000J', { aliases: ['0HNHWC'] });
-    const catalogDrives = vi.fn<DisktrackerApi['catalogDrives']>(async () => catalogPage(rowsOf([makeOffer('Exos X18', { drive, mpn: drive.mpn })])));
+    const findDrives = vi.fn<DisktrackerApi['findDrives']>(async () => foundPage(rowsOf([makeOffer('Exos X18', { drive, mpn: drive.mpn })])));
     const recordPrice = vi.fn<DisktrackerApi['recordPrice']>(async () => recordedOn(listing));
-    render(<MantineProvider env="test"><EntryForm stores={knownStores} api={{ ...unusedWrites, catalogDrives, recordPrice }} listing={null}
+    render(<MantineProvider env="test"><EntryForm stores={knownStores} api={{ ...unusedWrites, findDrives, recordPrice }} listing={null}
       now={() => new Date('2026-09-21T12:00:00Z')} nextId={() => 'save-key'}
       onClose={() => {}} onSaved={async () => {}} /></MantineProvider>);
     const form = within(screen.getByRole('dialog', { name: 'Record price' }));
@@ -111,9 +111,9 @@ describe('EntryForm', () => {
     const user = userEvent.setup();
     const drive = makeDrive('ST18000NM000J');
     // The drive is found only once the form is saved: typed and saved before the lookup settles.
-    const catalogDrives = vi.fn<DisktrackerApi['catalogDrives']>(async () => catalogPage(rowsOf([makeOffer('Exos X18', { drive, mpn: drive.mpn })])));
+    const findDrives = vi.fn<DisktrackerApi['findDrives']>(async () => foundPage(rowsOf([makeOffer('Exos X18', { drive, mpn: drive.mpn })])));
     const recordPrice = vi.fn<DisktrackerApi['recordPrice']>(async () => recordedOn(listing));
-    render(<MantineProvider env="test"><EntryForm stores={knownStores} api={{ ...unusedWrites, catalogDrives, recordPrice }} listing={null}
+    render(<MantineProvider env="test"><EntryForm stores={knownStores} api={{ ...unusedWrites, findDrives, recordPrice }} listing={null}
       now={() => new Date('2026-09-21T12:00:00Z')} nextId={() => 'save-key'}
       onClose={() => {}} onSaved={async () => {}} /></MantineProvider>);
     const form = within(screen.getByRole('dialog', { name: 'Record price' }));

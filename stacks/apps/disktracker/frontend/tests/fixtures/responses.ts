@@ -1,4 +1,4 @@
-import type { CatalogDrive, Condition, CatalogDrivePage, CatalogDriveQuery, ConditionPrices, DriveDetail, FilterOptions, Market, MarketQuery, MarketRow, Offer, OfferSummary, PricePage, PriceRequest } from '../../src/api';
+import type { CatalogDrive, Condition, CatalogDrivePage, CatalogDriveQuery, ConditionPrices, FilterOptions, FoundDrives, Market, MarketQuery, MarketRow, Offer, OfferSummary, PricePage, PriceRequest } from '../../src/api';
 import { groupOf, type DriveGroup } from '../../src/drive-groups';
 import { conditions, sellerLabel } from '../../src/listing-display';
 import { checkedAt } from './listings';
@@ -6,7 +6,7 @@ import { checkedAt } from './listings';
 /** Responses as the server gives them, written out by each test: nothing here filters, orders,
  * groups by price or works anything out. The server's own tests say what it works out. */
 
-const summary = ({ observations: _history, ...rest }: Offer | OfferSummary & { observations?: unknown }) => rest as OfferSummary;
+export const summary = ({ observations: _history, ...rest }: Offer | OfferSummary & { observations?: unknown }) => rest as OfferSummary;
 export const noOptions = (): FilterOptions => ({ brands: [], capacities: [], conditions: [] });
 
 /** One row for each drive among these offers, in the order its first offer comes; the row is shown
@@ -41,9 +41,11 @@ export function marketPage(rows: MarketRow[], fields: Partial<Market> = {}, quer
   };
 }
 
-/** A drive as the server reads it: these offers of it, with the ranges given. */
-export function detailOf(offers: Offer[], ranges: DriveDetail['ranges'] = {}): DriveDetail {
-  return { drive: offers[0].drive!, offers: offers.map(summary), ranges };
+/** The drives these rows are of, found as asked for: each named by its row's offer. */
+export function foundPage(rows: MarketRow[], query?: { limit?: number; offset?: number }): FoundDrives {
+  const limit = query?.limit ?? 50, offset = query?.offset ?? 0;
+  const items = rows.map(row => ({ drive: row.drive, title: row.offer.title }));
+  return { items: items.slice(offset, offset + limit), total: items.length, limit, offset };
 }
 
 /** These offers' prices, a part at a time. */

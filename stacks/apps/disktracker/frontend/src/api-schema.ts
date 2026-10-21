@@ -151,7 +151,14 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get?: never;
+        /**
+         * Find drives by MPN or words
+         * @description The drive that goes by an MPN (mpn, as its own or another of its MPNs; at most one), or
+         *     the drives any name of which has some words (q): its MPN, another of its MPNs, or any name an
+         *     offer of it goes by, held offers too; those the words are an MPN of first. Each is named by
+         *     the title of its cheapest offer in stock, else its cheapest offer, else its MPN.
+         */
+        get: operations["find_drives"];
         put?: never;
         /**
          * Make a drive
@@ -173,8 +180,9 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * Get a drive and its offers
-         * @description A drive with every offer of it, and the range of its price in each condition.
+         * Get a drive
+         * @description A drive with every other MPN it goes by. Its offers are GET /offers?drive_id=; the range
+         *     of its price in each condition is GET /reports/price-ranges.
          */
         get: operations["get_drive"];
         put?: never;
@@ -423,6 +431,30 @@ export interface paths {
          *     among the matches.
          */
         get: operations["market"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/reports/price-ranges": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read a drive's price range in each condition
+         * @description Where a drive's lowest item price in each condition it is offered in has been over
+         *     range_days (30, 90 or 180), from the offers that count (none held for review): null in a
+         *     condition no offer of it was in stock in then. An offer unchecked for longer than
+         *     recent_days is taken to have ended at its last check. A drive with no such offer, or none at
+         *     all, has no range in any condition.
+         */
+        get: operations["price_ranges"];
         put?: never;
         post?: never;
         delete?: never;
@@ -863,21 +895,6 @@ export interface components {
             specifications: components["schemas"]["Specifications-Output"];
         };
         /**
-         * DriveDetail
-         * @description A drive with every offer of it, in every condition, and in each condition it is offered
-         *     in, the range of its lowest item price over the days asked for (null when no offer of it was
-         *     in stock then).
-         */
-        DriveDetail: {
-            drive: components["schemas"]["Drive"];
-            /** Offers */
-            offers: components["schemas"]["OfferSummary"][];
-            /** Ranges */
-            ranges: {
-                [key: string]: components["schemas"]["PriceRange"] | null;
-            };
-        };
-        /**
          * DriveEdit
          * @description A drive corrected by hand: what is given changes, and what is left out stays. Capacity and
          *     specifications cannot be cleared; a null or blank brand makes it unknown again, until a source
@@ -942,6 +959,27 @@ export interface components {
             capacities: components["schemas"]["Choice_int_"][];
             /** Conditions */
             conditions: components["schemas"]["Choice_Literal__new____manufacturer_recertified____refurbished____used___"][];
+        };
+        /**
+         * FoundDrive
+         * @description A drive found, named by the title of its cheapest offer in stock, else its cheapest offer,
+         *     else its MPN.
+         */
+        FoundDrive: {
+            drive: components["schemas"]["Drive"];
+            /** Title */
+            title: string;
+        };
+        /** FoundDrives */
+        FoundDrives: {
+            /** Items */
+            items: components["schemas"]["FoundDrive"][];
+            /** Limit */
+            limit: number;
+            /** Offset */
+            offset: number;
+            /** Total */
+            total: number;
         };
         /** HTTPValidationError */
         HTTPValidationError: {
@@ -3193,6 +3231,42 @@ export interface operations {
             };
         };
     };
+    find_drives: {
+        parameters: {
+            query?: {
+                mpn?: string | null;
+                q?: string;
+                /** @description Maximum drives in this page. */
+                limit?: number;
+                /** @description Number of drives found to skip. */
+                offset?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FoundDrives"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     create_drive: {
         parameters: {
             query?: never;
@@ -3237,12 +3311,7 @@ export interface operations {
     };
     get_drive: {
         parameters: {
-            query?: {
-                /** @description What checked recently means */
-                recent_days?: number;
-                /** @description How far back each price range looks, in days. */
-                range_days?: 30 | 90 | 180;
-            };
+            query?: never;
             header?: never;
             path: {
                 drive_id: string;
@@ -3257,7 +3326,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["DriveDetail"];
+                    "application/json": components["schemas"]["Drive"];
                 };
             };
             /** @description Drive not found */
@@ -3867,6 +3936,43 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Market"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    price_ranges: {
+        parameters: {
+            query: {
+                /** @description What checked recently means */
+                recent_days?: number;
+                /** @description How far back each price range looks, in days. */
+                range_days?: 30 | 90 | 180;
+                drive_id: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: components["schemas"]["PriceRange"] | null;
+                    };
                 };
             };
             /** @description Validation Error */

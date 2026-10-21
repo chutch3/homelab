@@ -6,7 +6,7 @@ import { ReviewQueue } from '../../src/ReviewQueue';
 import type { DisktrackerApi, ReviewItem } from '../../src/api';
 import { knownStores, makeDrive, makeOffer, makeReviewItem, unusedWrites } from '../fixtures/listings';
 import { memoryStorage } from '../fixtures/render-app';
-import { catalogPage, rowsOf } from '../fixtures/responses';
+import { foundPage, rowsOf } from '../fixtures/responses';
 
 afterEach(cleanup);
 
@@ -94,9 +94,9 @@ it('refuses a capacity for a typed MPN recorded at another, and decides nothing'
   const decide = vi.fn<DisktrackerApi['decide']>(async () => ({ status: 'matched', offer_id: 'x' }));
   const drive = makeDrive('ST18000NM000J');
   // Not chosen from the suggestions: found only as the decision is saved.
-  const catalogDrives = vi.fn<DisktrackerApi['catalogDrives']>(async () => catalogPage(rowsOf([makeOffer('Exos X18', { drive, mpn: drive.mpn })])));
+  const findDrives = vi.fn<DisktrackerApi['findDrives']>(async () => foundPage(rowsOf([makeOffer('Exos X18', { drive, mpn: drive.mpn })])));
   const item = makeReviewItem('a', { mpn: null, condition: 'new', capacity_gb: 20000 });
-  const { review, user } = await renderQueue([item], { decide, catalogDrives });
+  const { review, user } = await renderQueue([item], { decide, findDrives });
   await user.click(review.getByRole('button', { name: 'Resolve' }));
   const form = within(screen.getByRole('dialog', { name: 'Resolve offer' }));
   await user.type(form.getByRole('textbox', { name: 'Drive' }), 'ST18000NM000J');

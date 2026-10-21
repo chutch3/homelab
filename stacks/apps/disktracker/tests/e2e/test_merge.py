@@ -48,9 +48,10 @@ def test_a_drive_is_merged_into_another_from_its_panel(page: Page) -> None:
     expect(form).not_to_be_visible()
     expect(page.get_by_text("Merged 0HNHWC into ST18000NM000J.")).to_be_visible()
     merged = page.request.get(f"/api/drives/{target}").json()
-    assert (merged["drive"]["aliases"], merged["drive"]["brand"]) == (
+    offers = page.request.get("/api/offers", params={"drive_id": target}).json()
+    assert (merged["aliases"], merged["brand"]) == (
         ["0HNHWC"],
         "Dell",
     )
-    assert sorted(offer["seller"] for offer in merged["offers"]) == ["Shop A", "Shop B"]
+    assert sorted(offer["seller"] for offer in offers) == ["Shop A", "Shop B"]
     assert page.request.get(f"/api/drives/{source}").status == 404

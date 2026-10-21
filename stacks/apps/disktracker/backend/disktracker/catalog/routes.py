@@ -23,9 +23,10 @@ from disktracker.catalog.schemas import (
     ConditionRule,
     DecisionResult,
     Drive,
-    DriveDetail,
     DriveEdit,
     DriveInput,
+    DriveLookup,
+    FoundDrives,
     IgnoreDecision,
     IngestionInput,
     ListingFacts,
@@ -41,7 +42,6 @@ from disktracker.catalog.schemas import (
     PricePage,
     PriceQuery,
     PriceResult,
-    RangeQuery,
     ReviewItem,
     ReviewReason,
     StoreKey,
@@ -152,18 +152,32 @@ def list_catalog_drives(
 
 
 @router.get(
-    "/drives/{drive_id}",
-    response_model=DriveDetail,
+    "/drives",
+    response_model=FoundDrives,
     tags=["Drives"],
-    summary="Get a drive and its offers",
+    summary="Find drives by MPN or words",
+)
+@inject
+def find_drives(drives: Drives, query: Annotated[DriveLookup, Query()]) -> dict[str, Any]:
+    """The drive that goes by an MPN (mpn, as its own or another of its MPNs; at most one), or
+    the drives any name of which has some words (q): its MPN, another of its MPNs, or any name an
+    offer of it goes by, held offers too; those the words are an MPN of first. Each is named by
+    the title of its cheapest offer in stock, else its cheapest offer, else its MPN."""
+    return drives.find(query)
+
+
+@router.get(
+    "/drives/{drive_id}",
+    response_model=Drive,
+    tags=["Drives"],
+    summary="Get a drive",
     responses={404: {"model": ErrorResponse, "description": "Drive not found"}},
 )
 @inject
-def get_drive(
-    catalog: Catalog, drive_id: UUID, query: Annotated[RangeQuery, Query()]
-) -> dict[str, Any]:
-    """A drive with every offer of it, and the range of its price in each condition."""
-    return catalog.drive(drive_id, query)
+def get_drive(drives: Drives, drive_id: UUID) -> dict[str, Any]:
+    """A drive with every other MPN it goes by. Its offers are GET /offers?drive_id=; the range
+    of its price in each condition is GET /reports/price-ranges."""
+    return drives.get(drive_id)
 
 
 @router.get(

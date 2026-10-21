@@ -17,12 +17,12 @@ if TYPE_CHECKING:
 
 
 
-T = TypeVar("T", bound="DriveDetailRanges")
+T = TypeVar("T", bound="PriceRangesResponsePriceRanges")
 
 
 
 @_attrs_define
-class DriveDetailRanges:
+class PriceRangesResponsePriceRanges:
 
 
     additional_properties: dict[str, None | PriceRange] = _attrs_field(init=False, factory=dict)
@@ -51,7 +51,7 @@ class DriveDetailRanges:
     def from_dict(cls: type[T], src_dict: Mapping[str, Any]) -> T:
         from ..models.price_range import PriceRange # noqa: PLC0415
         d = dict(src_dict)
-        drive_detail_ranges = cls(
+        price_ranges_response_price_ranges = cls(
         )
 
 
@@ -76,8 +76,8 @@ class DriveDetailRanges:
 
             additional_properties[prop_name] = additional_property
 
-        drive_detail_ranges.additional_properties = additional_properties
-        return drive_detail_ranges
+        price_ranges_response_price_ranges.additional_properties = additional_properties
+        return price_ranges_response_price_ranges
 
     @property
     def additional_keys(self) -> list[str]:

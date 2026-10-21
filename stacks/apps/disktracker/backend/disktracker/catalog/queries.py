@@ -22,9 +22,7 @@ from disktracker.catalog.offer_repository import OfferRepository, holding
 from disktracker.catalog.schemas import CatalogDriveQuery
 from disktracker.catalog.views import drive_view, price_view, review_item_view
 from disktracker.database import SessionFactory
-from disktracker.errors import DriveNotFound
 from disktracker.facts import (
-    COUNTED,
     SCALAR_SPECIFICATIONS,
     UNKNOWN,
     escaped,
@@ -159,36 +157,6 @@ class CatalogQueries:
                 "limit": query.limit,
                 "offset": query.offset,
             }
-
-    def drive_detail(self, drive_id: UUID, since: datetime) -> dict[str, Any]:
-        """A drive with every offer of it, held ones too, and of those that count (COUNTED) each
-        one's prices in effect from a moment on and when it was last checked: what the range of
-        each condition is drawn from."""
-        with self.snapshot_factory() as session:
-            drive = session.get(Drive, drive_id)
-            if drive is None:
-                raise DriveNotFound()
-            chosen = select(Offer).where(Offer.drive_id == drive_id).order_by(Offer.title, Offer.id)
-            offers = self.offers.summaries(session, chosen)
-            counted = {
-                str(offer_id)
-                for offer_id in session.scalars(
-                    select(Offer.id).where(Offer.drive_id == drive_id, COUNTED)
-                )
-            }
-            windows = self.offers.prices_since(
-                session, [UUID(offer_id) for offer_id in counted], since
-            )
-            return {
-                "drive": drive_view(drive, aliases_of(session, drive_id)),
-                "offers": offers,
-                "kin": [
-                    (offer["condition"], windows[offer["id"]],
-                     datetime.fromisoformat(offer["last_checked_at"]))
-                    for offer in offers
-                    if offer["id"] in counted
-                ],
-            }  # fmt: skip
 
     # Offers and their prices.
 

@@ -3,7 +3,8 @@ import { cleanup, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { DisktrackerApi, PriceMark, TrendPoint, TrendSeries, Trends, TrendSplit } from '../../src/api';
 import { renderApp } from '../fixtures/render-app';
-import { checkedAt } from '../fixtures/listings';
+import { checkedAt, makeDrive } from '../fixtures/listings';
+import { driveName } from '../../src/listing-display';
 
 afterEach(() => { cleanup(); window.history.replaceState(null, '', '/'); });
 
@@ -26,7 +27,8 @@ const parts: Record<TrendSplit, Trends['parts']> = {
 };
 /** A drive in stock today as the server reports it, by its name, capacity and price per terabyte in cents. */
 const mark = (title: string, capacity_gb: number, per_tb_cents: number, lowest = false): PriceMark =>
-  ({ drive_id: title, condition: 'new', title, capacity_gb, per_tb_cents, lowest });
+  // Of the drive the offer of that title is of, as the shopping listings make it.
+  ({ drive_id: makeDrive(`MPN-${title}`).id, condition: 'new', title, capacity_gb, per_tb_cents, lowest });
 /** Prices going back far enough for every period. */
 const longAgo = new Date(checkedAt.getTime() - 400 * 86_400_000).toISOString();
 const answering = () => vi.fn<DisktrackerApi['trends']>(async (days, by) => ({ days, by, market, parts: by ? parts[by] : [], since: longAgo }));
@@ -157,7 +159,8 @@ describe('Trends page', () => {
     expect(rail.getByRole('status')).toHaveTextContent('Lowest in stock' + '$11.00 per TB' + 'Large drive 18 TB, New');
     await user.click(rail.getByRole('button', { name: /^2 drives/ }));
     expect(window.location.pathname).toBe('/');
-    expect(await screen.findByRole('dialog', { name: 'Small drive' })).toBeVisible();
+    // Named as the drive is everywhere: by what it is.
+    expect(await screen.findByRole('dialog', { name: driveName(makeDrive('MPN-Small drive')) })).toBeVisible();
     expect(screen.getByRole('link', { name: 'Prices' })).toHaveAttribute('aria-current', 'page');
   });
 

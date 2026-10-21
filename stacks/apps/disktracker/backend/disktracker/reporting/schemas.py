@@ -11,8 +11,6 @@ from disktracker.catalog.schemas import (
     Drive,
     DriveScope,
     OfferSummary,
-    PriceRange,
-    RangeQuery,
 )
 from disktracker.contract import Contract
 
@@ -127,6 +125,47 @@ class StoreFreshness(Contract):
     offers: int
     latest_checked_at: datetime
     median_checked_at: datetime
+
+
+RANGE_DAYS = (30, 90, 180)
+
+
+class RangeQuery(Contract):
+    """How a drive's price range is read: over range_days (30, 90 or 180), an offer unchecked for
+    longer than recent_days taken to have ended at its last check."""
+
+    model_config = ConfigDict(extra="forbid")
+    recent_days: int = Field(default=7, ge=1, le=365, description="What checked recently means")
+    range_days: int = Field(
+        default=90,
+        description="How far back each price range looks, in days.",
+        json_schema_extra={"enum": list(RANGE_DAYS)},
+    )
+
+    @field_validator("range_days")
+    @classmethod
+    def a_period(cls, days: int) -> int:
+        if days not in RANGE_DAYS:
+            raise ValueError("Input should be 30, 90 or 180")
+        return days
+
+
+class PriceRange(Contract):
+    """Where a drive's lowest item price has been over the days asked for, in cents: today's
+    (null when no store has it in stock), the lowest and highest it has been, its average weighed
+    by how long each price held, and how many days of prices there are."""
+
+    today: int | None
+    low: int
+    high: int
+    average: int
+    days: int
+
+
+class PriceRangeQuery(RangeQuery):
+    """Which drive's price ranges to report, read as RangeQuery says."""
+
+    drive_id: UUID
 
 
 Sort = Literal[

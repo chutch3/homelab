@@ -268,17 +268,18 @@ def test_each_drive_comes_with_the_range_of_its_lowest_price_over_the_days_asked
     }
 
 
-def test_a_drive_is_read_with_every_offer_of_it_in_any_condition(database_url: str) -> None:
+def test_a_drive_and_every_offer_of_it_in_any_condition_are_read_apart(database_url: str) -> None:
     with TestClient(create_app()) as client:
         offers = catalogue(client)
         recertified = record(client, store="goharddrive", seller="", condition="used",
                              item_price_cents=15000)  # fmt: skip
         drive_id = client.get(f"/api/offers/{offers['spd']}").json()["drive"]["id"]
         read = client.get(f"/api/drives/{drive_id}")
+        of_it = client.get("/api/offers", params={"drive_id": drive_id}).json()
         missing = client.get(f"/api/drives/{uuid4()}")
     assert read.status_code == 200, read.text
-    assert read.json()["drive"]["mpn"] == "ST18000NM000J"
-    assert {offer["id"] for offer in read.json()["offers"]} == {
+    assert (read.json()["id"], read.json()["mpn"]) == (drive_id, "ST18000NM000J")
+    assert {offer["id"] for offer in of_it} == {
         offers["spd"],
         offers["shop"],
         recertified,
@@ -380,7 +381,7 @@ def test_offers_as_cheap_as_each_other_are_all_the_lowest_and_a_recheck_makes_on
     assert after == {"total": [old], "unit": [old]}
 
 
-def test_a_drive_is_read_with_the_range_of_its_price_in_each_condition_over_the_days_asked_for(
+def test_a_drives_price_range_in_each_condition_is_reported_over_the_days_asked_for(
     database_url: str,
 ) -> None:
     with TestClient(create_app()) as client:
@@ -391,17 +392,21 @@ def test_a_drive_is_read_with_the_range_of_its_price_in_each_condition_over_the_
         record(client, **common, condition="used", item_price_cents=9000, in_stock=False)
         offer_id = client.get("/api/offers").json()[0]["id"]
         drive_id = client.get(f"/api/offers/{offer_id}").json()["drive"]["id"]
-        month = client.get(f"/api/drives/{drive_id}", params={"range_days": 30}).json()
-        default = client.get(f"/api/drives/{drive_id}").json()
+        ranges = "/api/reports/price-ranges"
+        month = client.get(ranges, params={"drive_id": drive_id, "range_days": 30}).json()
+        default = client.get(ranges, params={"drive_id": drive_id}).json()
+        unknown = client.get(ranges, params={"drive_id": str(uuid4())})
     # $200 held from the period's start until ten days ago, $180 since.
-    assert month["ranges"] == {
+    assert month == {
         "new": {"today": 18000, "low": 18000, "high": 20000,
                 "average": round((20000 * 20 + 18000 * 10) / 30), "days": 30},
         # Never in stock in the period: no range.
         "used": None,
     }  # fmt: skip
     # Ninety days unless asked: the offer is newer than that.
-    assert default["ranges"]["new"]["days"] == 40
+    assert default["new"]["days"] == 40
+    # A drive with nothing priced, or none at all, has no range in any condition.
+    assert (unknown.status_code, unknown.json()) == (200, {})
 
 
 def catalog_mpns(page: dict[str, Any]) -> list[str]:
@@ -540,13 +545,17 @@ def test_a_held_offer_is_in_no_price_range_though_it_and_its_prices_are_still_sh
             {**page, "title": f"{page['title']} 4-pack", "observed_at": ago(0.01)},
         )
         [row] = client.get("/api/reports/market", params={"range_days": 30}).json()["items"]
-        detail = client.get(f"/api/drives/{row['drive']['id']}", params={"range_days": 30}).json()
+        drive_id = row["drive"]["id"]
+        ranges = client.get(
+            "/api/reports/price-ranges", params={"drive_id": drive_id, "range_days": 30}
+        ).json()
+        of_it = client.get("/api/offers", params={"drive_id": drive_id}).json()
         history = client.get("/api/prices", params={"offer_id": held}).json()
 
     # Priced minutes ago: no whole day of prices yet.
     only_eligible = {"today": 20000, "low": 20000, "high": 20000, "average": 20000, "days": 0}
     assert (row["offer"]["id"], row["stores"]) == (eligible, 1)
     assert row["range"] == only_eligible
-    assert detail["ranges"]["new"] == only_eligible
-    assert sorted(offer["id"] for offer in detail["offers"]) == sorted([eligible, held])
+    assert ranges["new"] == only_eligible
+    assert sorted(offer["id"] for offer in of_it) == sorted([eligible, held])
     assert [price["item_price_cents"] for price in history["items"]] == [10000]

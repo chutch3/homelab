@@ -5,7 +5,7 @@ import { ApiValidationError, type CollectorStatus, type Run, type ConditionRule,
 import { emptySpecifications } from '../../src/specifications';
 import { checkedAt, historyPrices, knownStores, makeDrive, makeOffer, makeSource, makeReviewItem, recordedOn, savedSource, sitemapSettings } from '../fixtures/listings';
 import { memoryStorage, namesIn, renderApp } from '../fixtures/render-app';
-import { catalogPage, marketPage, rowsOf } from '../fixtures/responses';
+import { catalogPage, foundPage, marketPage, rowsOf } from '../fixtures/responses';
 
 beforeEach(() => { window.history.replaceState(null, '', '/admin'); });
 afterEach(() => { cleanup(); window.history.replaceState(null, '', '/'); });
@@ -1627,12 +1627,12 @@ describe('Admin page', () => {
     const user = userEvent.setup();
     const exos = makeOffer('Exos X18 18TB', { drive: makeDrive('ST18000NM000J'), mpn: 'ST18000NM000J' });
     const searched: (string | undefined)[] = [];
-    const catalogDrives = vi.fn<DisktrackerApi['catalogDrives']>(async query => {
+    const findDrives = vi.fn<DisktrackerApi['findDrives']>(async query => {
       searched.push(query.q);
-      return catalogPage(rowsOf(query.q && 'exos x18'.includes(query.q.toLowerCase()) ? [exos] : []));
+      return foundPage(rowsOf(query.q && 'exos x18'.includes(query.q.toLowerCase()) ? [exos] : []));
     });
     const decide = vi.fn<DisktrackerApi['decide']>(async () => ({ status: 'matched', offer_id: 'o' }));
-    renderApp({ listOffers: async () => catalogue(), reviewItems: async () => [makeReviewItem('mystery', { title: 'Mystery 18TB drive', capacity_gb: 18000 })], catalogDrives, decide });
+    renderApp({ listOffers: async () => catalogue(), reviewItems: async () => [makeReviewItem('mystery', { title: 'Mystery 18TB drive', capacity_gb: 18000 })], findDrives, decide });
     const review = within(await screen.findByRole('region', { name: /Needs matching/ }));
     await user.click(await review.findByRole('button', { name: 'Resolve' }));
     const form = within(screen.getByRole('dialog', { name: 'Resolve offer' }));

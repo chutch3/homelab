@@ -485,28 +485,6 @@ class ListingFacts(Contract):
 
 # Reading drives the way the Prices page does.
 
-RANGE_DAYS = (30, 90, 180)
-
-
-class RangeQuery(Contract):
-    """How a drive's price range is read: over range_days (30, 90 or 180), an offer unchecked for
-    longer than recent_days taken to have ended at its last check."""
-
-    model_config = ConfigDict(extra="forbid")
-    recent_days: int = Field(default=7, ge=1, le=365, description="What checked recently means")
-    range_days: int = Field(
-        default=90,
-        description="How far back each price range looks, in days.",
-        json_schema_extra={"enum": list(RANGE_DAYS)},
-    )
-
-    @field_validator("range_days")
-    @classmethod
-    def a_period(cls, days: int) -> int:
-        if days not in RANGE_DAYS:
-            raise ValueError("Input should be 30, 90 or 180")
-        return days
-
 
 class DriveScope(Contract):
     """Which drives: those with an offer matching every filter given; choices within a filter
@@ -554,16 +532,38 @@ class CatalogDriveQuery(Contract):
     offset: int = Field(default=0, ge=0, description="Number of matching drives to skip.")
 
 
-class PriceRange(Contract):
-    """Where a drive's lowest item price has been over the days asked for, in cents: today's
-    (null when no store has it in stock), the lowest and highest it has been, its average weighed
-    by how long each price held, and how many days of prices there are."""
+class DriveLookup(Contract):
+    """Which drives to find: the one that goes by an MPN, as its own or another of its MPNs (mpn,
+    exactly, as MPNs are kept), or those any name of which has some words (q): its MPN, another
+    of its MPNs, or any name an offer of it goes by; those the words are an MPN of first."""
 
-    today: int | None
-    low: int
-    high: int
-    average: int
-    days: int
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
+    mpn: NormalizedMpn | None = None
+    q: str = Field(default="", max_length=200, validate_default=True)
+    limit: int = Field(default=50, ge=1, le=500, description="Maximum drives in this page.")
+    offset: int = Field(default=0, ge=0, description="Number of drives found to skip.")
+
+    @field_validator("q")
+    @classmethod
+    def something_to_find(cls, q: str, info: ValidationInfo) -> str:
+        if not q and info.data.get("mpn") is None:
+            raise ValueError("Name an MPN, or words to look for.")
+        return q
+
+
+class FoundDrive(Contract):
+    """A drive found, named by the title of its cheapest offer in stock, else its cheapest offer,
+    else its MPN."""
+
+    drive: Drive
+    title: str
+
+
+class FoundDrives(Contract):
+    items: list[FoundDrive]
+    total: int
+    limit: int
+    offset: int
 
 
 class CatalogDrive(Contract):
@@ -591,16 +591,6 @@ class CatalogDrivePage(Contract):
     issues: DriveIssueCounts
     limit: int
     offset: int
-
-
-class DriveDetail(Contract):
-    """A drive with every offer of it, in every condition, and in each condition it is offered
-    in, the range of its lowest item price over the days asked for (null when no offer of it was
-    in stock then)."""
-
-    drive: Drive
-    offers: list[OfferSummary]
-    ranges: dict[Condition, PriceRange | None]
 
 
 class PriceQuery(Contract):

@@ -140,7 +140,7 @@ def test_an_accepted_listing_gives_its_drive_what_its_page_said_where_nobody_has
         )).json()  # fmt: skip
         accepted = match(client, queued["review_item_id"], condition="manufacturer_recertified")
         drive = client.get(f"/api/offers/{accepted.json()['offer_id']}").json()["drive"]
-        taken = client.get(f"/api/drives/{other_drive}").json()["drive"]
+        taken = client.get(f"/api/drives/{other_drive}").json()
 
     assert accepted.status_code == 200, accepted.text
     assert (drive["brand"], drive["specifications"]["interface"]) == ("Seagate", "sas")

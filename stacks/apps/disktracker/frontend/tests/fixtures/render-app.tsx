@@ -2,7 +2,7 @@ import { render, screen, within } from '@testing-library/react';
 import { MantineProvider } from '@mantine/core';
 import { App } from '../../src/App';
 import type { Offer, DisktrackerApi, ReviewItem } from '../../src/api';
-import { catalogPage, detailOf, marketPage, pricesOf, rowsOf } from './responses';
+import { catalogPage, foundPage, marketPage, pricesOf, rowsOf, summary } from './responses';
 import { groupKeyFor } from '../../src/drive-groups';
 import { checkedAt, knownKinds, knownStores, makeDrive, shoppingListings, unusedWrites } from './listings';
 
@@ -42,7 +42,21 @@ export function renderApp({ listOffers = async () => shoppingListings, reviewIte
     market: async query => marketPage(rowsOf(await listOffers()), {}, query),
     // Every drive, a page at a time; a test that searches or narrows says what the server answers.
     catalogDrives: async query => catalogPage(rowsOf(await listOffers()), {}, query),
-    drive: async id => detailOf((await listOffers()).filter(ofDrive(id))),
+    drive: async id => {
+      const offer = (await listOffers()).find(ofDrive(id));
+      if (!offer) throw new Error('Drive not found');
+      return offer.drive;
+    },
+    driveOffers: async id => (await listOffers()).filter(ofDrive(id)).map(summary),
+    priceRanges: async () => ({}),
+    // The drive that goes by an MPN, or those whose MPN or offer title has the words.
+    findDrives: async query => {
+      const rows = rowsOf(await listOffers());
+      const named = (row: (typeof rows)[number]) => query.mpn
+        ? [row.drive.mpn, ...row.drive.aliases].some(name => name.toUpperCase() === query.mpn!.toUpperCase())
+        : [row.drive.mpn, ...row.drive.aliases, row.offer.title].some(name => name.toLowerCase().includes((query.q ?? '').toLowerCase()));
+      return foundPage(rows.filter(named), query);
+    },
     offer: async id => {
       const found = (await listOffers()).find(offer => offer.id === id);
       if (!found) throw new Error('Offer not found');

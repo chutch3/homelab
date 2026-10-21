@@ -138,7 +138,7 @@ function ResolveForm({ item, next, api, onClose, onNext, onResolved }: ResolvePr
   useEffect(() => {
     if (search.length < 2 || search === drive?.mpn) { setSuggestions([]); return; }
     let active = true;
-    api.catalogDrives({ q: search, limit: 8, offset: 0 }).then(found => {
+    api.findDrives({ q: search, limit: 8, offset: 0 }).then(found => {
       if (active) setSuggestions(found.items.map(row => ({
         value: row.drive.mpn, drive: row.drive, title: row.title,
         // Chosen, an option's label is what the field then holds: its MPN. renderOption shows the rest.

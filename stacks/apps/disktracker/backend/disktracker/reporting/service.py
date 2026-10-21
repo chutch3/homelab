@@ -3,13 +3,13 @@ today's prices and how fresh each store's prices are."""
 
 import json
 from collections.abc import Callable
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import Any, cast
 
 from disktracker.catalog.schemas import DriveScope
 from disktracker.reporting.ranges import price_range
 from disktracker.reporting.repository import ReportingRepository
-from disktracker.reporting.schemas import MarketQuery
+from disktracker.reporting.schemas import MarketQuery, PriceRangeQuery
 from disktracker.reporting.today import marks
 from disktracker.reporting.trends import By, trends
 
@@ -69,6 +69,19 @@ class ReportingService:
             for listed in read.listed
         ]
         return {"items": items, **read.page}
+
+    def price_ranges(self, query: PriceRangeQuery) -> dict[str, Any]:
+        """The range of a drive's lowest item price in each condition it is offered in over the
+        days asked for: null in one no offer of it was in stock in."""
+        now = self.now()
+        since = now - timedelta(days=query.range_days)
+        by_condition: dict[str, list[Any]] = {}
+        for condition, prices, checked in self.repository.range_inputs(query.drive_id, since):
+            by_condition.setdefault(condition, []).append((prices, checked))
+        return {
+            condition: price_range(offers, now, query.range_days, query.recent_days)
+            for condition, offers in by_condition.items()
+        }
 
     def prices_today(self, recent_days: int, scope: DriveScope) -> list[dict[str, Any]]:
         """What each drive in scope costs today in each condition it is in stock in, by the

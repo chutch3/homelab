@@ -70,6 +70,22 @@ class ReportingRepository:
         self.session_factory, self.snapshot_factory = session_factory, snapshot_factory
         self.offers = offers
 
+    def range_inputs(
+        self, drive_id: UUID, since: datetime
+    ) -> list[tuple[str, list[dict[str, Any]], datetime]]:
+        """What a drive's range in each condition is drawn from: each offer of it that counts
+        (offer_facts), by condition, with its prices in effect from a moment on and when it was
+        last checked."""
+        facts = offer_facts().subquery()
+        with self.snapshot_factory() as session:
+            offers = session.execute(
+                select(facts.c.id, facts.c.condition, facts.c.checked)
+                .where(facts.c.drive_id == drive_id)
+                .order_by(facts.c.title, facts.c.id)
+            ).all()
+            windows = self.offers.prices_since(session, [offer.id for offer in offers], since)
+            return [(offer.condition, windows[str(offer.id)], offer.checked) for offer in offers]
+
     def market(self, query: MarketQuery, now: datetime) -> MarketRead:
         """The drives with an offer that matches, a page of them, each shown by its cheapest
         matching offer in stock (else its cheapest matching offer), drives in stock first, then
