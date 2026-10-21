@@ -10,8 +10,10 @@ from fastapi.responses import Response
 from listing_text.listing import read_listing
 from listing_text.readers import condition_rules
 
+from disktracker.catalog.condition_rule_service import ConditionRuleService
 from disktracker.catalog.drive_service import DriveService
 from disktracker.catalog.ingestion_service import IngestionService
+from disktracker.catalog.offer_service import OfferService
 from disktracker.catalog.price_service import PriceService
 from disktracker.catalog.review_service import ReviewService
 from disktracker.catalog.schemas import (
@@ -54,6 +56,8 @@ router = APIRouter(prefix="/api")
 
 
 Catalog = Annotated[CatalogService, Depends(Provide[Container.catalog_service])]
+Offers = Annotated[OfferService, Depends(Provide[Container.offer_service])]
+Rules = Annotated[ConditionRuleService, Depends(Provide[Container.condition_rule_service])]
 Prices = Annotated[PriceService, Depends(Provide[Container.price_service])]
 Ingestion = Annotated[IngestionService, Depends(Provide[Container.ingestion_service])]
 Reviews = Annotated[ReviewService, Depends(Provide[Container.review_service])]
@@ -415,10 +419,10 @@ def get_offer(catalog: Catalog, offer_id: UUID) -> dict[str, Any]:
     responses={404: {"model": ErrorResponse, "description": "Offer not found"}},
 )
 @inject
-def edit_offer(catalog: Catalog, offer_id: UUID, entry: OfferEdit) -> dict[str, Any]:
-    """Change the supplied title or URL; omitted fields stay unchanged. A null URL clears it. MPN,
-    store, seller and condition identify the offer and cannot be edited here."""
-    return catalog.edit_offer(offer_id, entry)
+def edit_offer(offers: Offers, offer_id: UUID, entry: OfferEdit) -> dict[str, Any]:
+    """Change the supplied title or URL; omitted fields stay unchanged. A null URL clears it. The
+    drive, store, seller and condition identify the offer and cannot be edited here."""
+    return offers.edit(offer_id, entry)
 
 
 @router.delete(
@@ -429,17 +433,17 @@ def edit_offer(catalog: Catalog, offer_id: UUID, entry: OfferEdit) -> dict[str, 
     responses={404: {"model": ErrorResponse, "description": "Offer not found"}},
 )
 @inject
-def delete_offer(catalog: Catalog, offer_id: UUID) -> None:
+def delete_offer(offers: Offers, offer_id: UUID) -> None:
     """Delete the offer and all its prices. The drive remains. An unknown offer returns 404."""
-    catalog.delete_offer(offer_id)
+    offers.delete(offer_id)
 
 
 @router.delete("/prices/{price_id}", status_code=204, tags=["Prices"], summary="Delete a price")
 @inject
-def delete_price(catalog: Catalog, price_id: UUID) -> None:
+def delete_price(offers: Offers, price_id: UUID) -> None:
     """Remove a price recorded by mistake; an offer whose last price it was goes with it. A price
     that is not there, deleted already or never kept, is answered the same way."""
-    catalog.delete_price(price_id)
+    offers.delete_price(price_id)
 
 
 @router.post(
@@ -478,10 +482,10 @@ def list_condition_rules(catalog: Catalog) -> list[dict[str, Any]]:
     summary="Replace condition recognition rules",
 )
 @inject
-def replace_condition_rules(catalog: Catalog, rules: list[ConditionRule]) -> list[dict[str, Any]]:
+def replace_condition_rules(replaced: Rules, rules: list[ConditionRule]) -> list[dict[str, Any]]:
     """Replace the entire ordered list of condition recognition rules. An empty list removes all
     rules; the first matching pattern wins."""
-    return catalog.replace_condition_rules(rules)
+    return replaced.replace(rules)
 
 
 @router.post(

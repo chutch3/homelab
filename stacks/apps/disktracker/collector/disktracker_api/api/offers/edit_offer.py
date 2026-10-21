@@ -90,8 +90,8 @@ def sync_detailed(
 ) -> Response[ErrorResponse | HTTPValidationError | Offer]:
     """ Edit offer details
 
-     Change the supplied title or URL; omitted fields stay unchanged. A null URL clears it. MPN,
-    store, seller and condition identify the offer and cannot be edited here.
+     Change the supplied title or URL; omitted fields stay unchanged. A null URL clears it. The
+    drive, store, seller and condition identify the offer and cannot be edited here.
 
     Args:
         offer_id (UUID):
@@ -128,8 +128,8 @@ def sync(
 ) -> ErrorResponse | HTTPValidationError | Offer | None:
     """ Edit offer details
 
-     Change the supplied title or URL; omitted fields stay unchanged. A null URL clears it. MPN,
-    store, seller and condition identify the offer and cannot be edited here.
+     Change the supplied title or URL; omitted fields stay unchanged. A null URL clears it. The
+    drive, store, seller and condition identify the offer and cannot be edited here.
 
     Args:
         offer_id (UUID):
@@ -161,8 +161,8 @@ async def asyncio_detailed(
 ) -> Response[ErrorResponse | HTTPValidationError | Offer]:
     """ Edit offer details
 
-     Change the supplied title or URL; omitted fields stay unchanged. A null URL clears it. MPN,
-    store, seller and condition identify the offer and cannot be edited here.
+     Change the supplied title or URL; omitted fields stay unchanged. A null URL clears it. The
+    drive, store, seller and condition identify the offer and cannot be edited here.
 
     Args:
         offer_id (UUID):
@@ -199,8 +199,8 @@ async def asyncio(
 ) -> ErrorResponse | HTTPValidationError | Offer | None:
     """ Edit offer details
 
-     Change the supplied title or URL; omitted fields stay unchanged. A null URL clears it. MPN,
-    store, seller and condition identify the offer and cannot be edited here.
+     Change the supplied title or URL; omitted fields stay unchanged. A null URL clears it. The
+    drive, store, seller and condition identify the offer and cannot be edited here.
 
     Args:
         offer_id (UUID):

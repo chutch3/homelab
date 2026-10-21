@@ -401,6 +401,8 @@ def test_editing_an_offer_updates_its_details_in_place(database_url: str) -> Non
         assert edited.json()["title"] == "Exos X18 18TB"
         assert edited.json()["url"] is None
         assert client.get(path).json() == edited.json()
+        addressed = client.patch(path, json={"url": "https://store.test/p/1"})
+        assert (addressed.status_code, addressed.json()["url"]) == (200, "https://store.test/p/1")
         assert client.patch(path, json={"seller": "Someone else"}).status_code == 422
         assert client.patch(path, json={"capacity_gb": 20000}).status_code == 422
         assert client.patch(f"/api/offers/{uuid4()}", json={"title": "x"}).status_code == 404

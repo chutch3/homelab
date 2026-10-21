@@ -1,21 +1,16 @@
-"""The catalog's application behavior: recording prices, deciding what queued offers are,
-correcting drives and offers, and the condition rules. It applies what a request means and asks
-the repository for whole operations. An operation over several repositories opens one session,
-hands it to each, and commits once (the shared-session convention); the repositories never
-commit."""
+"""The catalog reads not yet given to their owners (Amendment B in the refactor plan): each moves to
+the owner of the question it answers, and this goes with the last of them. Every change has its
+own service (catalog.*_service)."""
 
-from collections.abc import Callable, Sequence
+from collections.abc import Callable
 from datetime import datetime, timedelta
 from typing import Any
 from uuid import UUID
 
 from disktracker.catalog.queries import CatalogQueries
-from disktracker.catalog.repository import CatalogRepository
 from disktracker.catalog.schemas import (
     CatalogDriveQuery,
-    ConditionRule,
     DriveQuery,
-    OfferEdit,
     OfferQuery,
     PriceQuery,
     RangeQuery,
@@ -24,13 +19,8 @@ from disktracker.reporting.ranges import price_range
 
 
 class CatalogService:
-    def __init__(
-        self,
-        repository: CatalogRepository,
-        queries: CatalogQueries,
-        now: Callable[[], datetime],
-    ) -> None:
-        self.repository, self.queries, self.now = repository, queries, now
+    def __init__(self, queries: CatalogQueries, now: Callable[[], datetime]) -> None:
+        self.queries, self.now = queries, now
 
     # Reading drives, offers and prices.
 
@@ -75,8 +65,6 @@ class CatalogService:
     def offer(self, offer_id: UUID) -> dict[str, Any]:
         return self.queries.offer(offer_id)
 
-    # Recording a price.
-
     # The review queue.
 
     def review_items(
@@ -88,29 +76,7 @@ class CatalogService:
     ) -> tuple[list[dict[str, Any]], int]:
         return self.queries.review_items(store, reason, limit, offset)
 
-    # Drives and the MPNs they go by.
-
-    # Offers and prices, corrected.
-
-    def edit_offer(self, offer_id: UUID, entry: OfferEdit) -> dict[str, Any]:
-        fields = entry.model_dump(exclude_unset=True)
-        if "url" in fields:
-            fields["url"] = str(fields["url"]) if fields["url"] else None
-        return self.repository.edit_offer(offer_id, fields)
-
-    def delete_offer(self, offer_id: UUID) -> None:
-        self.repository.delete_offer(offer_id)
-
-    def delete_price(self, price_id: UUID) -> None:
-        self.repository.delete_price(price_id)
-
     # The rules that read a condition from listing text.
 
     def list_condition_rules(self) -> list[dict[str, Any]]:
         return self.queries.condition_rules()
-
-    def replace_condition_rules(self, rules: Sequence[ConditionRule]) -> list[dict[str, Any]]:
-        """The rules, in the order given, in place of the ones kept before."""
-        kept = [rule.model_dump() for rule in rules]
-        self.repository.replace_condition_rules(kept)
-        return kept

@@ -342,8 +342,8 @@ export interface paths {
         head?: never;
         /**
          * Edit offer details
-         * @description Change the supplied title or URL; omitted fields stay unchanged. A null URL clears it. MPN,
-         *     store, seller and condition identify the offer and cannot be edited here.
+         * @description Change the supplied title or URL; omitted fields stay unchanged. A null URL clears it. The
+         *     drive, store, seller and condition identify the offer and cannot be edited here.
          */
         patch: operations["edit_offer"];
         trace?: never;

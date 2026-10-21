@@ -114,6 +114,26 @@ class OfferRepository:
         """Keep what a save key's submission was answered, to answer it again."""
         session.execute(update(Receipt).where(Receipt.id == request_id).values(result=result))
 
+    def edit(self, session: Session, offer_id: UUID, fields: dict[str, Any]) -> None:
+        """Change what is given of an offer (one that exists), and leave the rest."""
+        if fields:
+            session.execute(update(Offer).where(Offer.id == offer_id).values(**fields))
+
+    def delete(self, session: Session, offer_id: UUID) -> None:
+        """An offer gone, with its prices; its drive stays."""
+        session.execute(delete(Price).where(Price.offer_id == offer_id))
+        session.execute(delete(Offer).where(Offer.id == offer_id))
+
+    def offer_priced(self, session: Session, price_id: UUID) -> UUID | None:
+        """The offer a price is of; None for a price that is not there."""
+        return session.scalar(select(Price.offer_id).where(Price.id == price_id))
+
+    def remove_price(self, session: Session, offer_id: UUID, price_id: UUID) -> bool:
+        """A price of this offer gone: whether the offer has any price left."""
+        session.execute(delete(Price).where(Price.id == price_id))
+        left = select(Price.id).where(Price.offer_id == offer_id).limit(1)
+        return session.scalar(left) is not None
+
     def lock(self, session: Session, offer_id: UUID) -> None:
         """Hold an existing offer against other changes until the operation ends."""
         if session.scalar(select(Offer.id).where(Offer.id == offer_id).with_for_update()) is None:

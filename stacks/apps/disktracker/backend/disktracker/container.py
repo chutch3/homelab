@@ -7,13 +7,15 @@ from uuid import uuid4
 
 from dependency_injector import containers, providers
 
+from disktracker.catalog.condition_rule_repository import ConditionRuleRepository
+from disktracker.catalog.condition_rule_service import ConditionRuleService
 from disktracker.catalog.drive_repository import DriveRepository
 from disktracker.catalog.drive_service import DriveService
 from disktracker.catalog.ingestion_service import IngestionService
 from disktracker.catalog.offer_repository import OfferRepository
+from disktracker.catalog.offer_service import OfferService
 from disktracker.catalog.price_service import PriceService
 from disktracker.catalog.queries import CatalogQueries
-from disktracker.catalog.repository import CatalogRepository
 from disktracker.catalog.review_repository import ReviewRepository
 from disktracker.catalog.review_service import ReviewService
 from disktracker.catalog.service import CatalogService
@@ -56,9 +58,7 @@ class Container(containers.DeclarativeContainer):
     drive_repository = providers.Factory(DriveRepository, next_id=next_id)
     offer_repository = providers.Factory(OfferRepository, now=clock, next_id=next_id)
     review_repository = providers.Factory(ReviewRepository, next_id=next_id)
-    catalog_repository = providers.Factory(
-        CatalogRepository, session_factory=database.provided.session
-    )
+    condition_rule_repository = providers.Factory(ConditionRuleRepository)
     catalog_queries = providers.Factory(CatalogQueries, snapshot_factory=database.provided.snapshot)
     collection_repository = providers.Factory(
         CollectionRepository,
@@ -101,12 +101,15 @@ class Container(containers.DeclarativeContainer):
         offers=offer_repository,
         reviews=review_repository,
     )
-    catalog_service = providers.Factory(
-        CatalogService,
-        repository=catalog_repository,
-        queries=catalog_queries,
-        now=clock,
+    offer_service = providers.Factory(
+        OfferService, session_factory=database.provided.session, offers=offer_repository
     )
+    condition_rule_service = providers.Factory(
+        ConditionRuleService,
+        session_factory=database.provided.session,
+        rules=condition_rule_repository,
+    )
+    catalog_service = providers.Factory(CatalogService, queries=catalog_queries, now=clock)
     collection_service = providers.Factory(
         CollectionService,
         repository=collection_repository,
