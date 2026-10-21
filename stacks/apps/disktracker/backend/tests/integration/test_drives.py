@@ -61,10 +61,12 @@ def test_a_drive_with_no_offer_is_managed_and_looked_up_like_any_other(database_
         )
         made = client.post("/api/drives", json=EXOS).json()
         client.post(f"/api/drives/{made['id']}/aliases", json={"mpn": "0XYZ18"})
-        every = client.get("/api/catalog-drives").json()
-        by_mpn = client.get("/api/catalog-drives", params={"q": "ST18000"}).json()
-        by_alias = client.get("/api/catalog-drives", params={"q": "0xyz18"}).json()
-        needing = client.get("/api/catalog-drives", params={"issue": "unknown_specifications"})
+        every = client.get("/api/reports/drive-inventory").json()
+        by_mpn = client.get("/api/reports/drive-inventory", params={"q": "ST18000"}).json()
+        by_alias = client.get("/api/reports/drive-inventory", params={"q": "0xyz18"}).json()
+        needing = client.get(
+            "/api/reports/drive-inventory", params={"issue": "unknown_specifications"}
+        )
 
     assert [row["drive"]["mpn"] for row in every["items"]] == ["ST16000NM001G", "ST18000NM000J"]
     assert (every["total"], every["all"]) == (2, 2)
@@ -87,7 +89,7 @@ def test_a_drive_is_refused_under_an_mpn_that_already_identifies_one(database_ur
         again = client.post("/api/drives", json={**EXOS, "capacity_gb": 20000})
         alias = client.post("/api/drives", json={"mpn": "0xyz18", "capacity_gb": 18000})
         refused = client.post("/api/drives", json={"mpn": "ST1", "capacity_gb": 0})
-        every = client.get("/api/catalog-drives").json()
+        every = client.get("/api/reports/drive-inventory").json()
 
     assert (again.status_code, again.json()) == (
         409,
@@ -125,7 +127,10 @@ def test_a_drive_made_while_another_takes_its_mpn_is_refused_not_failed(database
             as_alias = client.post(
                 "/api/drives", json={"mpn": "ST10000NM001G", "capacity_gb": 10000}
             )
-        mpns = [row["drive"]["mpn"] for row in client.get("/api/catalog-drives").json()["items"]]
+        mpns = [
+            row["drive"]["mpn"]
+            for row in client.get("/api/reports/drive-inventory").json()["items"]
+        ]
 
     assert same_mpn and same_alias
     assert [response.status_code for response in (as_mpn, as_alias)] == [409, 409]

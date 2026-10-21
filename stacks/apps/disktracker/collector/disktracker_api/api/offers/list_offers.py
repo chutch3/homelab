@@ -20,8 +20,6 @@ def _get_kwargs(
     *,
     store: None | str | Unset = UNSET,
     drive_id: None | Unset | UUID = UNSET,
-    needs_recheck: bool | Unset = False,
-    recent_days: int | Unset = 7,
 
 ) -> dict[str, Any]:
 
@@ -45,10 +43,6 @@ def _get_kwargs(
     else:
         json_drive_id = drive_id
     params["drive_id"] = json_drive_id
-
-    params["needs_recheck"] = needs_recheck
-
-    params["recent_days"] = recent_days
 
 
     params = {k: v for k, v in params.items() if v is not UNSET and v is not None}
@@ -105,22 +99,17 @@ def sync_detailed(
     client: AuthenticatedClient | Client,
     store: None | str | Unset = UNSET,
     drive_id: None | Unset | UUID = UNSET,
-    needs_recheck: bool | Unset = False,
-    recent_days: int | Unset = 7,
 
 ) -> Response[HTTPValidationError | list[OfferSummary]]:
     """ List offers with their latest prices
 
-     Return latest-price summaries, optionally narrowed by store or drive, ordered by title.
-    With needs_recheck, return all manually priced offers not checked within recent_days,
-    oldest checks first; store and drive filters are not applied in this mode. This list is
-    not paginated.
+     Return latest-price summaries, optionally narrowed by store or drive, ordered by title,
+    held offers too. Offers entered by hand that are due a check are GET /reports/rechecks.
+    This list is not paginated.
 
     Args:
         store (None | str | Unset):
         drive_id (None | Unset | UUID):
-        needs_recheck (bool | Unset):  Default: False.
-        recent_days (int | Unset):  Default: 7.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -134,8 +123,6 @@ def sync_detailed(
     kwargs = _get_kwargs(
         store=store,
 drive_id=drive_id,
-needs_recheck=needs_recheck,
-recent_days=recent_days,
 
     )
 
@@ -150,22 +137,17 @@ def sync(
     client: AuthenticatedClient | Client,
     store: None | str | Unset = UNSET,
     drive_id: None | Unset | UUID = UNSET,
-    needs_recheck: bool | Unset = False,
-    recent_days: int | Unset = 7,
 
 ) -> HTTPValidationError | list[OfferSummary] | None:
     """ List offers with their latest prices
 
-     Return latest-price summaries, optionally narrowed by store or drive, ordered by title.
-    With needs_recheck, return all manually priced offers not checked within recent_days,
-    oldest checks first; store and drive filters are not applied in this mode. This list is
-    not paginated.
+     Return latest-price summaries, optionally narrowed by store or drive, ordered by title,
+    held offers too. Offers entered by hand that are due a check are GET /reports/rechecks.
+    This list is not paginated.
 
     Args:
         store (None | str | Unset):
         drive_id (None | Unset | UUID):
-        needs_recheck (bool | Unset):  Default: False.
-        recent_days (int | Unset):  Default: 7.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -180,8 +162,6 @@ def sync(
         client=client,
 store=store,
 drive_id=drive_id,
-needs_recheck=needs_recheck,
-recent_days=recent_days,
 
     ).parsed
 
@@ -190,22 +170,17 @@ async def asyncio_detailed(
     client: AuthenticatedClient | Client,
     store: None | str | Unset = UNSET,
     drive_id: None | Unset | UUID = UNSET,
-    needs_recheck: bool | Unset = False,
-    recent_days: int | Unset = 7,
 
 ) -> Response[HTTPValidationError | list[OfferSummary]]:
     """ List offers with their latest prices
 
-     Return latest-price summaries, optionally narrowed by store or drive, ordered by title.
-    With needs_recheck, return all manually priced offers not checked within recent_days,
-    oldest checks first; store and drive filters are not applied in this mode. This list is
-    not paginated.
+     Return latest-price summaries, optionally narrowed by store or drive, ordered by title,
+    held offers too. Offers entered by hand that are due a check are GET /reports/rechecks.
+    This list is not paginated.
 
     Args:
         store (None | str | Unset):
         drive_id (None | Unset | UUID):
-        needs_recheck (bool | Unset):  Default: False.
-        recent_days (int | Unset):  Default: 7.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -219,8 +194,6 @@ async def asyncio_detailed(
     kwargs = _get_kwargs(
         store=store,
 drive_id=drive_id,
-needs_recheck=needs_recheck,
-recent_days=recent_days,
 
     )
 
@@ -235,22 +208,17 @@ async def asyncio(
     client: AuthenticatedClient | Client,
     store: None | str | Unset = UNSET,
     drive_id: None | Unset | UUID = UNSET,
-    needs_recheck: bool | Unset = False,
-    recent_days: int | Unset = 7,
 
 ) -> HTTPValidationError | list[OfferSummary] | None:
     """ List offers with their latest prices
 
-     Return latest-price summaries, optionally narrowed by store or drive, ordered by title.
-    With needs_recheck, return all manually priced offers not checked within recent_days,
-    oldest checks first; store and drive filters are not applied in this mode. This list is
-    not paginated.
+     Return latest-price summaries, optionally narrowed by store or drive, ordered by title,
+    held offers too. Offers entered by hand that are due a check are GET /reports/rechecks.
+    This list is not paginated.
 
     Args:
         store (None | str | Unset):
         drive_id (None | Unset | UUID):
-        needs_recheck (bool | Unset):  Default: False.
-        recent_days (int | Unset):  Default: 7.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -265,7 +233,5 @@ async def asyncio(
         client=client,
 store=store,
 drive_id=drive_id,
-needs_recheck=needs_recheck,
-recent_days=recent_days,
 
     )).parsed

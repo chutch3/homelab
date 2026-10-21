@@ -321,7 +321,7 @@ def test_prices_are_read_by_drive_or_offer_and_within_a_window(database_url: str
     assert refused == [422, 422, 422]
 
 
-def test_offers_are_narrowed_to_a_drive_or_to_those_needing_a_check_by_hand(
+def test_offers_are_narrowed_to_a_drive_and_those_needing_a_check_by_hand_are_reported(
     database_url: str,
 ) -> None:
     with TestClient(create_app()) as client:
@@ -329,10 +329,8 @@ def test_offers_are_narrowed_to_a_drive_or_to_those_needing_a_check_by_hand(
         post(client, "/api/ingestions", scraped_payload(observed_at=ago(30)))
         drive_id = client.get(f"/api/offers/{offers['spd']}").json()["drive"]["id"]
         of_drive = client.get("/api/offers", params={"drive_id": drive_id}).json()
-        overdue = client.get("/api/offers", params={"needs_recheck": True}).json()
-        overdue_by_month = client.get(
-            "/api/offers", params={"needs_recheck": True, "recent_days": 30}
-        ).json()
+        overdue = client.get("/api/reports/rechecks").json()
+        overdue_by_month = client.get("/api/reports/rechecks", params={"recent_days": 30}).json()
     assert {offer["id"] for offer in of_drive} >= {offers["spd"], offers["shop"]}
     assert {offer["drive"]["id"] for offer in of_drive} == {drive_id}
     # Entered by hand and not checked within the recent window, longest unchecked first; a
@@ -421,13 +419,13 @@ def test_the_drives_to_manage_are_every_drive_a_page_at_a_time_with_what_each_ne
     not checked within recent_days. Each need is counted over every drive."""
     with TestClient(create_app()) as client:
         catalogue(client)
-        first = client.get("/api/catalog-drives", params={"limit": 2}).json()
-        second = client.get("/api/catalog-drives", params={"limit": 2, "offset": 2}).json()
-        stale = client.get("/api/catalog-drives", params={"issue": "stale"}).json()
+        first = client.get("/api/reports/drive-inventory", params={"limit": 2}).json()
+        second = client.get("/api/reports/drive-inventory", params={"limit": 2, "offset": 2}).json()
+        stale = client.get("/api/reports/drive-inventory", params={"issue": "stale"}).json()
         later = client.get(
-            "/api/catalog-drives", params={"issue": "stale", "recent_days": 30}
+            "/api/reports/drive-inventory", params={"issue": "stale", "recent_days": 30}
         ).json()
-        refused = client.get("/api/catalog-drives", params={"issue": "broken"})
+        refused = client.get("/api/reports/drive-inventory", params={"issue": "broken"})
 
     assert catalog_mpns(first) + catalog_mpns(second) == [
         "WUH721212ALE6L4", "ST18000NM000J", "ST8000VN004", "ST14000NM001G",
@@ -458,11 +456,11 @@ def test_the_drives_to_manage_are_searched_by_every_name_with_a_drive_named_exac
         catalogue(client)
         drives = {o["mpn"]: o["drive"]["id"] for o in client.get("/api/offers").json()}
         client.post(f"/api/drives/{drives['ST8000VN004']}/aliases", json={"mpn": "ST8000"})
-        by_seller = client.get("/api/catalog-drives", params={"q": "old shop"}).json()
-        by_title = client.get("/api/catalog-drives", params={"q": "exos"}).json()
-        by_alias = client.get("/api/catalog-drives", params={"q": "st8000"}).json()
-        exact = client.get("/api/catalog-drives", params={"q": "ST14000NM001G"}).json()
-        resembling = client.get("/api/catalog-drives", params={"q": "ST1"}).json()
+        by_seller = client.get("/api/reports/drive-inventory", params={"q": "old shop"}).json()
+        by_title = client.get("/api/reports/drive-inventory", params={"q": "exos"}).json()
+        by_alias = client.get("/api/reports/drive-inventory", params={"q": "st8000"}).json()
+        exact = client.get("/api/reports/drive-inventory", params={"q": "ST14000NM001G"}).json()
+        resembling = client.get("/api/reports/drive-inventory", params={"q": "ST1"}).json()
 
     assert catalog_mpns(by_seller) == ["ST8000VN004"]
     assert (catalog_mpns(by_title), by_title["all"]) == (["ST18000NM000J", "ST14000NM001G"], 4)
@@ -480,7 +478,7 @@ def test_a_held_offer_is_still_a_drive_to_manage(database_url: str) -> None:
         post(client, "/api/ingestions", {**page, "title": "HPE R0P90A 48TB (8x6) 6-pack",
                                      "observed_at": ago(0.001)})  # fmt: skip
         listed = client.get("/api/reports/market").json()["total"]
-        managed = client.get("/api/catalog-drives").json()
+        managed = client.get("/api/reports/drive-inventory").json()
 
     assert (listed, catalog_mpns(managed)) == (0, ["R0P90A"])
 
@@ -495,7 +493,7 @@ def test_any_one_specification_known_is_specifications_enough(database_url: str)
             json={"specifications": {"intended_use": ["nas"]}},
         )
         needing = client.get(
-            "/api/catalog-drives", params={"issue": "unknown_specifications"}
+            "/api/reports/drive-inventory", params={"issue": "unknown_specifications"}
         ).json()
 
     assert catalog_mpns(needing) == ["ST18000NM000J", "ST14000NM001G"]

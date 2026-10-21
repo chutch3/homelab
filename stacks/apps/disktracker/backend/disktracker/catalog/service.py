@@ -9,7 +9,6 @@ from uuid import UUID
 
 from disktracker.catalog.queries import CatalogQueries
 from disktracker.catalog.schemas import (
-    CatalogDriveQuery,
     OfferQuery,
     PriceQuery,
 )
@@ -21,13 +20,7 @@ class CatalogService:
 
     # Reading drives, offers and prices.
 
-    def catalog_drives(self, query: CatalogDriveQuery) -> dict[str, Any]:
-        """A page of every drive to manage, with what each needs."""
-        return self.queries.catalog_drives(query, self.now())
-
     def list_offers(self, query: OfferQuery) -> list[dict[str, Any]]:
-        if query.needs_recheck:
-            return self.queries.offers_to_recheck(self.now(), query.recent_days)
         return self.queries.offer_summaries(query.store, query.drive_id)
 
     def prices(self, query: PriceQuery) -> dict[str, Any]:

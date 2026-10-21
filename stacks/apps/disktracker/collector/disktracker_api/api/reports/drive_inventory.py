@@ -8,10 +8,10 @@ from ...client import AuthenticatedClient, Client
 from ...types import Response, UNSET
 from ... import errors
 
-from ...models.catalog_drive_page import CatalogDrivePage
+from ...models.drive_inventory_issue_type_0 import check_drive_inventory_issue_type_0
+from ...models.drive_inventory_issue_type_0 import DriveInventoryIssueType0
 from ...models.http_validation_error import HTTPValidationError
-from ...models.list_catalog_drives_issue_type_0 import check_list_catalog_drives_issue_type_0
-from ...models.list_catalog_drives_issue_type_0 import ListCatalogDrivesIssueType0
+from ...models.inventory import Inventory
 from ...types import UNSET, Unset
 from typing import cast
 
@@ -20,7 +20,7 @@ from typing import cast
 def _get_kwargs(
     *,
     q: str | Unset = '',
-    issue: ListCatalogDrivesIssueType0 | None | Unset = UNSET,
+    issue: DriveInventoryIssueType0 | None | Unset = UNSET,
     recent_days: int | Unset = 7,
     limit: int | Unset = 50,
     offset: int | Unset = 0,
@@ -55,7 +55,7 @@ def _get_kwargs(
 
     _kwargs: dict[str, Any] = {
         "method": "get",
-        "url": "/api/catalog-drives",
+        "url": "/api/reports/drive-inventory",
         "params": params,
     }
 
@@ -64,9 +64,9 @@ def _get_kwargs(
 
 
 
-def _parse_response(*, client: AuthenticatedClient | Client, response: httpx.Response) -> CatalogDrivePage | HTTPValidationError | None:
+def _parse_response(*, client: AuthenticatedClient | Client, response: httpx.Response) -> HTTPValidationError | Inventory | None:
     if response.status_code == 200:
-        response_200 = CatalogDrivePage.from_dict(response.json())
+        response_200 = Inventory.from_dict(response.json())
 
 
 
@@ -85,7 +85,7 @@ def _parse_response(*, client: AuthenticatedClient | Client, response: httpx.Res
         return None
 
 
-def _build_response(*, client: AuthenticatedClient | Client, response: httpx.Response) -> Response[CatalogDrivePage | HTTPValidationError]:
+def _build_response(*, client: AuthenticatedClient | Client, response: httpx.Response) -> Response[HTTPValidationError | Inventory]:
     return Response(
         status_code=HTTPStatus(response.status_code),
         content=response.content,
@@ -98,13 +98,13 @@ def sync_detailed(
     *,
     client: AuthenticatedClient | Client,
     q: str | Unset = '',
-    issue: ListCatalogDrivesIssueType0 | None | Unset = UNSET,
+    issue: DriveInventoryIssueType0 | None | Unset = UNSET,
     recent_days: int | Unset = 7,
     limit: int | Unset = 50,
     offset: int | Unset = 0,
 
-) -> Response[CatalogDrivePage | HTTPValidationError]:
-    """ List every drive to manage
+) -> Response[HTTPValidationError | Inventory]:
+    """ Read every drive to manage
 
      Every drive, offers held for review and all, a page at a time: those named by q exactly
     (by MPN or another MPN) first, then in stock first and cheapest per terabyte first. Each has
@@ -112,7 +112,7 @@ def sync_detailed(
 
     Args:
         q (str | Unset):  Default: ''.
-        issue (ListCatalogDrivesIssueType0 | None | Unset): Only drives that need this
+        issue (DriveInventoryIssueType0 | None | Unset): Only drives that need this
         recent_days (int | Unset): What checked recently means Default: 7.
         limit (int | Unset): Maximum drives in this page. Default: 50.
         offset (int | Unset): Number of matching drives to skip. Default: 0.
@@ -122,7 +122,7 @@ def sync_detailed(
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        Response[CatalogDrivePage | HTTPValidationError]
+        Response[HTTPValidationError | Inventory]
      """
 
 
@@ -145,13 +145,13 @@ def sync(
     *,
     client: AuthenticatedClient | Client,
     q: str | Unset = '',
-    issue: ListCatalogDrivesIssueType0 | None | Unset = UNSET,
+    issue: DriveInventoryIssueType0 | None | Unset = UNSET,
     recent_days: int | Unset = 7,
     limit: int | Unset = 50,
     offset: int | Unset = 0,
 
-) -> CatalogDrivePage | HTTPValidationError | None:
-    """ List every drive to manage
+) -> HTTPValidationError | Inventory | None:
+    """ Read every drive to manage
 
      Every drive, offers held for review and all, a page at a time: those named by q exactly
     (by MPN or another MPN) first, then in stock first and cheapest per terabyte first. Each has
@@ -159,7 +159,7 @@ def sync(
 
     Args:
         q (str | Unset):  Default: ''.
-        issue (ListCatalogDrivesIssueType0 | None | Unset): Only drives that need this
+        issue (DriveInventoryIssueType0 | None | Unset): Only drives that need this
         recent_days (int | Unset): What checked recently means Default: 7.
         limit (int | Unset): Maximum drives in this page. Default: 50.
         offset (int | Unset): Number of matching drives to skip. Default: 0.
@@ -169,7 +169,7 @@ def sync(
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        CatalogDrivePage | HTTPValidationError
+        HTTPValidationError | Inventory
      """
 
 
@@ -187,13 +187,13 @@ async def asyncio_detailed(
     *,
     client: AuthenticatedClient | Client,
     q: str | Unset = '',
-    issue: ListCatalogDrivesIssueType0 | None | Unset = UNSET,
+    issue: DriveInventoryIssueType0 | None | Unset = UNSET,
     recent_days: int | Unset = 7,
     limit: int | Unset = 50,
     offset: int | Unset = 0,
 
-) -> Response[CatalogDrivePage | HTTPValidationError]:
-    """ List every drive to manage
+) -> Response[HTTPValidationError | Inventory]:
+    """ Read every drive to manage
 
      Every drive, offers held for review and all, a page at a time: those named by q exactly
     (by MPN or another MPN) first, then in stock first and cheapest per terabyte first. Each has
@@ -201,7 +201,7 @@ async def asyncio_detailed(
 
     Args:
         q (str | Unset):  Default: ''.
-        issue (ListCatalogDrivesIssueType0 | None | Unset): Only drives that need this
+        issue (DriveInventoryIssueType0 | None | Unset): Only drives that need this
         recent_days (int | Unset): What checked recently means Default: 7.
         limit (int | Unset): Maximum drives in this page. Default: 50.
         offset (int | Unset): Number of matching drives to skip. Default: 0.
@@ -211,7 +211,7 @@ async def asyncio_detailed(
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        Response[CatalogDrivePage | HTTPValidationError]
+        Response[HTTPValidationError | Inventory]
      """
 
 
@@ -234,13 +234,13 @@ async def asyncio(
     *,
     client: AuthenticatedClient | Client,
     q: str | Unset = '',
-    issue: ListCatalogDrivesIssueType0 | None | Unset = UNSET,
+    issue: DriveInventoryIssueType0 | None | Unset = UNSET,
     recent_days: int | Unset = 7,
     limit: int | Unset = 50,
     offset: int | Unset = 0,
 
-) -> CatalogDrivePage | HTTPValidationError | None:
-    """ List every drive to manage
+) -> HTTPValidationError | Inventory | None:
+    """ Read every drive to manage
 
      Every drive, offers held for review and all, a page at a time: those named by q exactly
     (by MPN or another MPN) first, then in stock first and cheapest per terabyte first. Each has
@@ -248,7 +248,7 @@ async def asyncio(
 
     Args:
         q (str | Unset):  Default: ''.
-        issue (ListCatalogDrivesIssueType0 | None | Unset): Only drives that need this
+        issue (DriveInventoryIssueType0 | None | Unset): Only drives that need this
         recent_days (int | Unset): What checked recently means Default: 7.
         limit (int | Unset): Maximum drives in this page. Default: 50.
         offset (int | Unset): Number of matching drives to skip. Default: 0.
@@ -258,7 +258,7 @@ async def asyncio(
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        CatalogDrivePage | HTTPValidationError
+        HTTPValidationError | Inventory
      """
 
 

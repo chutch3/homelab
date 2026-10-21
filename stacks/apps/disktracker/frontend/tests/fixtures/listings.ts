@@ -1,6 +1,6 @@
 import { emptySpecifications } from '../../src/specifications';
 import described from './source-kinds.json';
-import type { CatalogDrivePage, StoreFreshness, SourceInput, DecisionResult, MergeResult, FoundDrives, PriceRanges, Market, PriceMark, PricePage, PriceResult, Run, CollectorStatus, ConditionRule, Drive, ListingFacts, Page, Source, SourceInspection, SourceKindDescription, SourcePreview, Offer, OfferSummary, Observation, Trends, ReviewItem } from '../../src/api';
+import type { Inventory, StoreFreshness, SourceInput, DecisionResult, MergeResult, FoundDrives, PriceRanges, Market, PriceMark, PricePage, PriceResult, Run, CollectorStatus, ConditionRule, Drive, ListingFacts, Page, Source, SourceInspection, SourceKindDescription, SourcePreview, Offer, OfferSummary, Observation, Trends, ReviewItem } from '../../src/api';
 
 export const checkedAt = new Date('2026-09-22T12:00:00Z');
 export function makeDrive(mpn: string, fields: Partial<Drive> = {}): Drive {
@@ -69,7 +69,7 @@ export const unusedWrites = {
   decide: async (): Promise<DecisionResult> => { throw new Error('Not used'); },
   deleteOffer: async (): Promise<void> => { throw new Error('Not used'); },
   market: async (): Promise<Market> => { throw new Error('Not used'); },
-  catalogDrives: async (): Promise<CatalogDrivePage> => { throw new Error('Not used'); },
+  driveInventory: async (): Promise<Inventory> => { throw new Error('Not used'); },
   storeFreshness: async (): Promise<StoreFreshness[]> => { throw new Error('Not used'); },
   drive: async (): Promise<Drive> => { throw new Error('Not used'); },
   driveOffers: async (): Promise<OfferSummary[]> => { throw new Error('Not used'); },

@@ -60,12 +60,8 @@ def drive_of(client: TestClient, mpn: str, capacity_gb: int | None = None, **dri
         made_id: str = made.json()["id"]
         return made_id
     assert made.status_code in (409, 422), made.text
-    found = client.get("/api/catalog-drives", params={"q": mpn}).json()["items"]
-    [drive_id] = [
-        item["drive"]["id"]
-        for item in found
-        if mpn.upper() in (item["drive"]["mpn"], *item["drive"]["aliases"])
-    ]
+    [found] = client.get("/api/drives", params={"mpn": mpn}).json()["items"]
+    drive_id = found["drive"]["id"]
     found_id: str = drive_id
     return found_id
 

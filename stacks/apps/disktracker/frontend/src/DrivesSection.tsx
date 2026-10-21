@@ -1,7 +1,7 @@
 import { useCallback, useState } from 'react';
 import { Alert, Button, Table, Text, TextInput } from '@mantine/core';
 import { useDebouncedValue } from '@mantine/hooks';
-import type { CatalogDriveQuery, DisktrackerApi, DriveIssue } from './api';
+import type { InventoryQuery, DisktrackerApi, DriveIssue } from './api';
 import { issueLabel, issues } from './admin-overview';
 import { capacityLabel, driveName } from './listing-display';
 import { Pager } from './Pager';
@@ -25,8 +25,8 @@ export function DrivesSection({ api, storage, recentDays, revision, onSelect }: 
   const [q] = useDebouncedValue(typed.trim(), 300);
   const [issue, setIssue] = useState<DriveIssue | null>(null);
   const serve = useCallback(({ q, issue }: Filter, limit: number, offset: number) => {
-    const query: CatalogDriveQuery = { q, ...(issue ? { issue } : {}), recent_days: recentDays, limit, offset };
-    return api.catalogDrives(query);
+    const query: InventoryQuery = { q, ...(issue ? { issue } : {}), recent_days: recentDays, limit, offset };
+    return api.driveInventory(query);
   }, [api, recentDays]);
   const { found, page, size, error, setPage, setSize, retry } = useServedPages(serve, { q, issue }, storage, 'drives', revision);
   return <section aria-labelledby="drives-heading" className="admin-section">

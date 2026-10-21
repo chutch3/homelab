@@ -1,4 +1,4 @@
-import type { CatalogDrive, Condition, CatalogDrivePage, CatalogDriveQuery, ConditionPrices, FilterOptions, FoundDrives, Market, MarketQuery, MarketRow, Offer, OfferSummary, PricePage, PriceRequest } from '../../src/api';
+import type { InventoryDrive, Condition, Inventory, InventoryQuery, ConditionPrices, FilterOptions, FoundDrives, Market, MarketQuery, MarketRow, Offer, OfferSummary, PricePage, PriceRequest } from '../../src/api';
 import { groupOf, type DriveGroup } from '../../src/drive-groups';
 import { conditions, sellerLabel } from '../../src/listing-display';
 import { checkedAt } from './listings';
@@ -56,9 +56,9 @@ export function pricesOf(offers: Offer[], { limit = 500, offset = 0 }: PriceRequ
 
 /** A page of drives to manage, one for each of these rows, named by its row's first offer; total
  * and counts as given, or as the rows say, with nothing needed. */
-export function catalogPage(rows: MarketRow[], fields: Partial<CatalogDrivePage> = {}, query?: Pick<CatalogDriveQuery, 'limit' | 'offset'>): CatalogDrivePage {
+export function inventoryPage(rows: MarketRow[], fields: Partial<Inventory> = {}, query?: Pick<InventoryQuery, 'limit' | 'offset'>): Inventory {
   const limit = query?.limit ?? 50, offset = query?.offset ?? 0;
-  const items: CatalogDrive[] = rows.map(row => ({
+  const items: InventoryDrive[] = rows.map(row => ({
     drive: row.drive, title: row.offer.title, offers: row.conditions.reduce((count, condition) => count + condition.offers, 0), issues: [],
   }));
   return {

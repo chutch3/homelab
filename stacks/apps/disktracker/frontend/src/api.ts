@@ -79,10 +79,10 @@ export type DriveLookup = NonNullable<operations['find_drives']['parameters']['q
 export type FoundDrive = Schemas['FoundDrive'];
 export type FoundDrives = Schemas['FoundDrives'];
 /** Which of every drive to manage: by any name an offer of it goes by, and by what it needs. */
-export type CatalogDriveQuery = NonNullable<operations['list_catalog_drives']['parameters']['query']>;
-export type CatalogDrive = Schemas['CatalogDrive'];
-export type CatalogDrivePage = Schemas['CatalogDrivePage'];
-export type DriveIssue = Schemas['CatalogDrive']['issues'][number];
+export type InventoryQuery = NonNullable<operations['drive_inventory']['parameters']['query']>;
+export type InventoryDrive = Schemas['InventoryDrive'];
+export type Inventory = Schemas['Inventory'];
+export type DriveIssue = Schemas['InventoryDrive']['issues'][number];
 export type PriceRow = Schemas['PriceRow'];
 export type PricePage = Schemas['PricePage'];
 /** Prices of one drive's offers or of one offer, in effect at any time since since. */
@@ -95,7 +95,7 @@ export interface DisktrackerApi {
   /** A page of the market: the drives that match, with what is said of every match and the filter options of every drive. */
   market(query: MarketQuery): Promise<Market>;
   /** A page of every drive to manage, held offers and all, with what each needs and how many of every drive need each thing. */
-  catalogDrives(query: CatalogDriveQuery): Promise<CatalogDrivePage>;
+  driveInventory(query: InventoryQuery): Promise<Inventory>;
   /** A drive, with every other MPN it goes by. */
   drive(id: string): Promise<Drive>;
   /** Every offer of a drive, in every condition, held ones too. */
@@ -244,7 +244,7 @@ export class HttpDisktrackerApi implements DisktrackerApi {
   }
   storeFreshness(): Promise<StoreFreshness[]> { return this.send('/reports/store-freshness'); }
   market(query: MarketQuery): Promise<Market> { return this.send(`/reports/market?${searchOf(query)}`); }
-  catalogDrives(query: CatalogDriveQuery): Promise<CatalogDrivePage> { return this.send(`/catalog-drives?${searchOf(query)}`); }
+  driveInventory(query: InventoryQuery): Promise<Inventory> { return this.send(`/reports/drive-inventory?${searchOf(query)}`); }
   drive(id: string): Promise<Drive> { return this.send(`/drives/${id}`); }
   driveOffers(id: string): Promise<OfferSummary[]> { return this.send(`/offers?drive_id=${id}`); }
   priceRanges(id: string, rangeDays: number, recentDays: number): Promise<PriceRanges> {
@@ -259,7 +259,7 @@ export class HttpDisktrackerApi implements DisktrackerApi {
     return this.send(`/prices?${params}`);
   }
   offersToRecheck(recentDays: number): Promise<OfferSummary[]> {
-    return this.send(`/offers?needs_recheck=true&recent_days=${recentDays}`);
+    return this.send(`/reports/rechecks?recent_days=${recentDays}`);
   }
   pricesToday(recentDays: number, scope: DriveScope): Promise<PriceMark[]> { return this.send(`/reports/prices-today?${scoped({ recent_days: recentDays }, scope)}`); }
   latestRuns(): Promise<Run[]> { return this.send('/collection-runs?latest_per_source=true'); }

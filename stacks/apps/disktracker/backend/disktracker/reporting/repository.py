@@ -8,19 +8,28 @@ from datetime import UTC, datetime, timedelta
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import extract, func, select
+from sqlalchemy import and_, extract, func, select, true
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.orm import Session
 from sqlalchemy.sql import ColumnElement
 
-from disktracker.catalog.models import Drive, Offer, Price
+from disktracker.catalog.drive_repository import DriveRepository
+from disktracker.catalog.models import Drive, MpnAlias, Offer, Price
 from disktracker.catalog.offer_repository import OfferRepository
-from disktracker.catalog.rules import UNKNOWN
+from disktracker.catalog.rules import SCALAR_SPECIFICATIONS, UNKNOWN
 from disktracker.catalog.schemas import DriveScope
 from disktracker.database import SessionFactory
-from disktracker.facts import COUNTED, every_offer_facts, latest_prices, offer_facts, scope_filters
+from disktracker.facts import (
+    COUNTED,
+    escaped,
+    every_offer_facts,
+    latest_prices,
+    named_by,
+    offer_facts,
+    scope_filters,
+)
 from disktracker.reporting.models import Trend, TrendRevision
-from disktracker.reporting.schemas import MarketQuery
+from disktracker.reporting.schemas import InventoryQuery, MarketQuery
 from disktracker.reporting.trends import Change
 from disktracker.reporting.trends import Offer as Sold
 
@@ -66,9 +75,10 @@ class ReportingRepository:
         session_factory: SessionFactory,
         snapshot_factory: SessionFactory,
         offers: OfferRepository,
+        drives: DriveRepository,
     ) -> None:
         self.session_factory, self.snapshot_factory = session_factory, snapshot_factory
-        self.offers = offers
+        self.offers, self.drives = offers, drives
 
     def range_inputs(
         self, drive_id: UUID, since: datetime
@@ -85,6 +95,142 @@ class ReportingRepository:
             ).all()
             windows = self.offers.prices_since(session, [offer.id for offer in offers], since)
             return [(offer.condition, windows[str(offer.id)], offer.checked) for offer in offers]
+
+    def drive_inventory(self, query: InventoryQuery, now: datetime) -> dict[str, Any]:
+        """Every drive, those with no offer and those with held offers too, that the words match
+        by its MPN, another of its MPNs, or any name an offer of it goes by: a page of them, one
+        named by the words first, then in stock first and cheapest terabyte first, as each is
+        shown by its cheapest offer in stock (else its cheapest), and a drive with no offer after
+        those with one, by MPN. Each comes with how many offers it has and what it needs, and how
+        many of every drive need each thing."""
+        facts = every_offer_facts().subquery()
+        by_drive = {"partition_by": facts.c.drive_id}
+        named = named_by(facts, query.q) if query.q else true()
+        stale = and_(facts.c.in_stock, facts.c.checked < now - timedelta(days=query.recent_days))
+        ranked = (
+            select(
+                facts,
+                func.row_number()
+                .over(**by_drive, order_by=(facts.c.in_stock.desc(), facts.c.per_tb, facts.c.id))
+                .label("rank"),
+                func.count().over(**by_drive).label("offers"),
+                func.bool_or(stale).over(**by_drive).label("stale"),
+                func.bool_or(named).over(**by_drive).label("named"),
+            )
+        ).subquery()
+        offered = select(ranked).where(ranked.c.rank == 1).subquery()
+        aliases = (
+            select(MpnAlias.drive_id, func.string_agg(MpnAlias.alias, " ").label("names"))
+            .group_by(MpnAlias.drive_id)
+            .subquery()
+        )
+        own_names = func.concat_ws(" ", Drive.mpn, aliases.c.names)
+        own = own_names.ilike(f"%{escaped(query.q)}%", escape="\\") if query.q else true()
+        shown = (
+            select(
+                Drive.id.label("drive_id"),
+                Drive.mpn,
+                Drive.specifications,
+                func.coalesce(offered.c.title, Drive.mpn).label("title"),
+                func.coalesce(offered.c.offers, 0).label("offers"),
+                func.coalesce(offered.c.stale, False).label("stale"),
+                func.coalesce(offered.c.in_stock, False).label("in_stock"),
+                offered.c.per_tb,
+                (func.coalesce(offered.c.named, False) | own).label("named"),
+            )
+            .outerjoin(offered, offered.c.drive_id == Drive.id)
+            .outerjoin(aliases, aliases.c.drive_id == Drive.id)
+        ).subquery()
+        specs = shown.c.specifications
+        unknown = and_(
+            *(
+                func.coalesce(specs[key].astext, UNKNOWN) == UNKNOWN
+                for key in SCALAR_SPECIFICATIONS
+            ),
+            func.coalesce(func.jsonb_array_length(specs["intended_use"]), 0) == 0,
+        )
+        need = {"unknown_specifications": unknown, "stale": shown.c.stale}
+        # Those the words are the MPN, or another MPN, of come first.
+        first = (
+            [
+                shown.c.drive_id.in_(
+                    select(Drive.id)
+                    .where(func.upper(Drive.mpn) == query.q.upper())
+                    .union(
+                        select(MpnAlias.drive_id).where(
+                            func.upper(MpnAlias.alias) == query.q.upper()
+                        )
+                    )
+                ).desc()
+            ]
+            if query.q
+            else []
+        )
+        wanted = [shown.c.named, need[query.issue] if query.issue else true()]
+        with self.snapshot_factory() as session:
+            rows = session.execute(
+                select(shown, unknown.label("unknown"))
+                .where(*wanted)
+                .order_by(
+                    *first,
+                    shown.c.in_stock.desc(),
+                    shown.c.per_tb.asc().nulls_last(),
+                    shown.c.mpn,
+                    shown.c.drive_id,
+                )
+                .limit(query.limit)
+                .offset(query.offset)
+            ).all()
+            counted = session.execute(
+                select(
+                    func.count().filter(and_(*wanted)),
+                    func.count(),
+                    *(func.count().filter(value) for value in need.values()),
+                ).select_from(shown)
+            ).one()
+            return {
+                "items": [
+                    {
+                        "drive": self.drives.view(session, row.drive_id),
+                        "title": row.title,
+                        "offers": row.offers,
+                        "issues": [
+                            name
+                            for name, needed in (
+                                ("unknown_specifications", row.unknown),
+                                ("stale", row.stale),
+                            )
+                            if needed
+                        ],
+                    }
+                    for row in rows
+                ],
+                "total": counted[0],
+                "all": counted[1],
+                "issues": dict(zip(need, counted[2:], strict=True)),
+                "limit": query.limit,
+                "offset": query.offset,
+            }
+
+    def rechecks(self, now: datetime, recent_days: int) -> list[dict[str, Any]]:
+        """Offers entered by hand and not checked within recent_days, longest unchecked first:
+        a collected offer is the collector's to check."""
+        facts = offer_facts().subquery()
+        overdue = (
+            select(facts.c.id)
+            .where(
+                facts.c.provenance == "manual",
+                (facts.c.checked < now - timedelta(days=recent_days)) | (facts.c.checked > now),
+            )
+            .order_by(facts.c.checked, facts.c.id)
+        )
+        with self.snapshot_factory() as session:
+            ids = list(session.scalars(overdue))
+            found = {
+                offer["id"]: offer
+                for offer in self.offers.summaries(session, select(Offer).where(Offer.id.in_(ids)))
+            }
+            return [found[str(offer_id)] for offer_id in ids]
 
     def market(self, query: MarketQuery, now: datetime) -> MarketRead:
         """The drives with an offer that matches, a page of them, each shown by its cheapest

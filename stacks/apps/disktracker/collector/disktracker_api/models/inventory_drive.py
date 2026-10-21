@@ -8,8 +8,8 @@ from attrs import field as _attrs_field
 
 from ..types import UNSET, Unset
 
-from ..models.catalog_drive_issues_item import CatalogDriveIssuesItem
-from ..models.catalog_drive_issues_item import check_catalog_drive_issues_item
+from ..models.inventory_drive_issues_item import check_inventory_drive_issues_item
+from ..models.inventory_drive_issues_item import InventoryDriveIssuesItem
 from typing import cast
 
 if TYPE_CHECKING:
@@ -19,24 +19,24 @@ if TYPE_CHECKING:
 
 
 
-T = TypeVar("T", bound="CatalogDrive")
+T = TypeVar("T", bound="InventoryDrive")
 
 
 
 @_attrs_define
-class CatalogDrive:
+class InventoryDrive:
     """ A drive to manage: named by the title of the offer it is shown by (its cheapest in stock,
     else its cheapest), with how many offers it has and what it needs.
 
         Attributes:
             drive (Drive):
-            issues (list[CatalogDriveIssuesItem]):
+            issues (list[InventoryDriveIssuesItem]):
             offers (int):
             title (str):
      """
 
     drive: Drive
-    issues: list[CatalogDriveIssuesItem]
+    issues: list[InventoryDriveIssuesItem]
     offers: int
     title: str
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
@@ -86,7 +86,7 @@ class CatalogDrive:
         issues = []
         _issues = d.pop("issues")
         for issues_item_data in (_issues):
-            issues_item = check_catalog_drive_issues_item(issues_item_data)
+            issues_item = check_inventory_drive_issues_item(issues_item_data)
 
 
 
@@ -97,7 +97,7 @@ class CatalogDrive:
 
         title = d.pop("title")
 
-        catalog_drive = cls(
+        inventory_drive = cls(
             drive=drive,
             issues=issues,
             offers=offers,
@@ -105,8 +105,8 @@ class CatalogDrive:
         )
 
 
-        catalog_drive.additional_properties = d
-        return catalog_drive
+        inventory_drive.additional_properties = d
+        return inventory_drive
 
     @property
     def additional_keys(self) -> list[str]:

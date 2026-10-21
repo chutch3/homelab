@@ -18,8 +18,6 @@ from disktracker.catalog.price_service import PriceService
 from disktracker.catalog.review_service import ReviewService
 from disktracker.catalog.schemas import (
     AliasInput,
-    CatalogDrivePage,
-    CatalogDriveQuery,
     ConditionRule,
     DecisionResult,
     Drive,
@@ -136,22 +134,6 @@ def merge_drive(
 
 
 @router.get(
-    "/catalog-drives",
-    response_model=CatalogDrivePage,
-    tags=["Drives"],
-    summary="List every drive to manage",
-)
-@inject
-def list_catalog_drives(
-    catalog: Catalog, query: Annotated[CatalogDriveQuery, Query()]
-) -> dict[str, Any]:
-    """Every drive, offers held for review and all, a page at a time: those named by q exactly
-    (by MPN or another MPN) first, then in stock first and cheapest per terabyte first. Each has
-    how many offers it has and what it needs; issues counts every drive needing each."""
-    return catalog.catalog_drives(query)
-
-
-@router.get(
     "/drives",
     response_model=FoundDrives,
     tags=["Drives"],
@@ -188,10 +170,9 @@ def get_drive(drives: Drives, drive_id: UUID) -> dict[str, Any]:
 )
 @inject
 def list_offers(catalog: Catalog, query: Annotated[OfferQuery, Query()]) -> list[dict[str, Any]]:
-    """Return latest-price summaries, optionally narrowed by store or drive, ordered by title.
-    With needs_recheck, return all manually priced offers not checked within recent_days,
-    oldest checks first; store and drive filters are not applied in this mode. This list is
-    not paginated."""
+    """Return latest-price summaries, optionally narrowed by store or drive, ordered by title,
+    held offers too. Offers entered by hand that are due a check are GET /reports/rechecks.
+    This list is not paginated."""
     return catalog.list_offers(query)
 
 

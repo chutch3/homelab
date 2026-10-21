@@ -9,7 +9,7 @@ from typing import Any, cast
 from disktracker.catalog.schemas import DriveScope
 from disktracker.reporting.ranges import price_range
 from disktracker.reporting.repository import ReportingRepository
-from disktracker.reporting.schemas import MarketQuery, PriceRangeQuery
+from disktracker.reporting.schemas import InventoryQuery, MarketQuery, PriceRangeQuery
 from disktracker.reporting.today import marks
 from disktracker.reporting.trends import By, trends
 
@@ -82,6 +82,14 @@ class ReportingService:
             condition: price_range(offers, now, query.range_days, query.recent_days)
             for condition, offers in by_condition.items()
         }
+
+    def drive_inventory(self, query: InventoryQuery) -> dict[str, Any]:
+        """A part of every drive to manage, each with how many offers it has and what it needs."""
+        return self.repository.drive_inventory(query, self.now())
+
+    def rechecks(self, recent_days: int) -> list[dict[str, Any]]:
+        """The offers entered by hand due a check, longest unchecked first."""
+        return self.repository.rechecks(self.now(), recent_days)
 
     def prices_today(self, recent_days: int, scope: DriveScope) -> list[dict[str, Any]]:
         """What each drive in scope costs today in each condition it is in stock in, by the

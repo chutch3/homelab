@@ -5,14 +5,17 @@ from typing import Annotated, Any
 from dependency_injector.wiring import Provide, inject
 from fastapi import APIRouter, Depends, Query
 
-from disktracker.catalog.schemas import Condition
+from disktracker.catalog.schemas import Condition, OfferSummary
 from disktracker.container import Container
 from disktracker.reporting.schemas import (
+    Inventory,
+    InventoryQuery,
     Market,
     MarketQuery,
     PriceMark,
     PriceRange,
     PriceRangeQuery,
+    RechecksQuery,
     StoreFreshness,
     TodayQuery,
     TrendQuery,
@@ -77,6 +80,37 @@ def price_ranges(
     recent_days is taken to have ended at its last check. A drive with no such offer, or none at
     all, has no range in any condition."""
     return reporting.price_ranges(query)
+
+
+@router.get(
+    "/reports/drive-inventory",
+    response_model=Inventory,
+    tags=["Reports"],
+    summary="Read every drive to manage",
+)
+@inject
+def drive_inventory(
+    reporting: Reporting, query: Annotated[InventoryQuery, Query()]
+) -> dict[str, Any]:
+    """Every drive, offers held for review and all, a page at a time: those named by q exactly
+    (by MPN or another MPN) first, then in stock first and cheapest per terabyte first. Each has
+    how many offers it has and what it needs; issues counts every drive needing each."""
+    return reporting.drive_inventory(query)
+
+
+@router.get(
+    "/reports/rechecks",
+    response_model=list[OfferSummary],
+    tags=["Reports"],
+    summary="Read the offers entered by hand due a check",
+)
+@inject
+def rechecks(
+    reporting: Reporting, query: Annotated[RechecksQuery, Query()]
+) -> list[dict[str, Any]]:
+    """Offers entered by hand and not checked within recent_days, longest unchecked first: a
+    collected offer is the collector's to check."""
+    return reporting.rechecks(query.recent_days)
 
 
 @router.get(

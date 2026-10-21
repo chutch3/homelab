@@ -11,26 +11,26 @@ from ..types import UNSET, Unset
 from typing import cast
 
 if TYPE_CHECKING:
-  from ..models.catalog_drive import CatalogDrive
   from ..models.drive_issue_counts import DriveIssueCounts
+  from ..models.inventory_drive import InventoryDrive
 
 
 
 
 
-T = TypeVar("T", bound="CatalogDrivePage")
+T = TypeVar("T", bound="Inventory")
 
 
 
 @_attrs_define
-class CatalogDrivePage:
+class Inventory:
     """ A part of the drives to manage. total: drives that match; all: every drive; issues: how
     many of every drive need each thing.
 
         Attributes:
             all_ (int):
             issues (DriveIssueCounts):
-            items (list[CatalogDrive]):
+            items (list[InventoryDrive]):
             limit (int):
             offset (int):
             total (int):
@@ -38,7 +38,7 @@ class CatalogDrivePage:
 
     all_: int
     issues: DriveIssueCounts
-    items: list[CatalogDrive]
+    items: list[InventoryDrive]
     limit: int
     offset: int
     total: int
@@ -49,8 +49,8 @@ class CatalogDrivePage:
 
 
     def to_dict(self) -> dict[str, Any]:
-        from ..models.catalog_drive import CatalogDrive # noqa: PLC0415
         from ..models.drive_issue_counts import DriveIssueCounts # noqa: PLC0415
+        from ..models.inventory_drive import InventoryDrive # noqa: PLC0415
         all_ = self.all_
 
         issues = self.issues.to_dict()
@@ -86,8 +86,8 @@ class CatalogDrivePage:
 
     @classmethod
     def from_dict(cls: type[T], src_dict: Mapping[str, Any]) -> T:
-        from ..models.catalog_drive import CatalogDrive # noqa: PLC0415
         from ..models.drive_issue_counts import DriveIssueCounts # noqa: PLC0415
+        from ..models.inventory_drive import InventoryDrive # noqa: PLC0415
         d = dict(src_dict)
         all_ = d.pop("all")
 
@@ -99,7 +99,7 @@ class CatalogDrivePage:
         items = []
         _items = d.pop("items")
         for items_item_data in (_items):
-            items_item = CatalogDrive.from_dict(items_item_data)
+            items_item = InventoryDrive.from_dict(items_item_data)
 
 
 
@@ -112,7 +112,7 @@ class CatalogDrivePage:
 
         total = d.pop("total")
 
-        catalog_drive_page = cls(
+        inventory = cls(
             all_=all_,
             issues=issues,
             items=items,
@@ -122,8 +122,8 @@ class CatalogDrivePage:
         )
 
 
-        catalog_drive_page.additional_properties = d
-        return catalog_drive_page
+        inventory.additional_properties = d
+        return inventory
 
     @property
     def additional_keys(self) -> list[str]:

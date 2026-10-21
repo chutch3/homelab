@@ -1,9 +1,6 @@
 """ Contains all the data models used in inputs/outputs """
 
 from .alias_input import AliasInput
-from .catalog_drive import CatalogDrive
-from .catalog_drive_issues_item import CatalogDriveIssuesItem
-from .catalog_drive_page import CatalogDrivePage
 from .choice_literalnew_manufacturer_recertified_refurbished_used import ChoiceLiteralnewManufacturerRecertifiedRefurbishedUsed
 from .choice_literalnew_manufacturer_recertified_refurbished_used_value import ChoiceLiteralnewManufacturerRecertifiedRefurbishedUsedValue
 from .choiceint import Choiceint
@@ -19,6 +16,7 @@ from .decision_result_status import DecisionResultStatus
 from .drive import Drive
 from .drive_edit import DriveEdit
 from .drive_input import DriveInput
+from .drive_inventory_issue_type_0 import DriveInventoryIssueType0
 from .drive_issue_counts import DriveIssueCounts
 from .error_response import ErrorResponse
 from .filter_options import FilterOptions
@@ -30,7 +28,9 @@ from .http_validation_error import HTTPValidationError
 from .ignore_decision import IgnoreDecision
 from .ingestion_input import IngestionInput
 from .ingestion_input_condition_type_0 import IngestionInputConditionType0
-from .list_catalog_drives_issue_type_0 import ListCatalogDrivesIssueType0
+from .inventory import Inventory
+from .inventory_drive import InventoryDrive
+from .inventory_drive_issues_item import InventoryDriveIssuesItem
 from .list_runs_status_type_0 import ListRunsStatusType0
 from .listing_facts import ListingFacts
 from .listing_facts_condition_type_0 import ListingFactsConditionType0
@@ -185,9 +185,6 @@ from .validation_error_context import ValidationErrorContext
 
 __all__ = (
     "AliasInput",
-    "CatalogDrive",
-    "CatalogDriveIssuesItem",
-    "CatalogDrivePage",
     "Choiceint",
     "ChoiceLiteralnewManufacturerRecertifiedRefurbishedUsed",
     "ChoiceLiteralnewManufacturerRecertifiedRefurbishedUsedValue",
@@ -203,6 +200,7 @@ __all__ = (
     "Drive",
     "DriveEdit",
     "DriveInput",
+    "DriveInventoryIssueType0",
     "DriveIssueCounts",
     "ErrorResponse",
     "FilterOptions",
@@ -214,7 +212,9 @@ __all__ = (
     "IgnoreDecision",
     "IngestionInput",
     "IngestionInputConditionType0",
-    "ListCatalogDrivesIssueType0",
+    "Inventory",
+    "InventoryDrive",
+    "InventoryDriveIssuesItem",
     "ListingFacts",
     "ListingFactsConditionType0",
     "ListingText",

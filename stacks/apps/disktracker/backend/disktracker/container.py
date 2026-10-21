@@ -72,6 +72,7 @@ class Container(containers.DeclarativeContainer):
         session_factory=database.provided.session,
         snapshot_factory=database.provided.snapshot,
         offers=offer_repository,
+        drives=drive_repository,
     )
 
     collector_client = providers.Singleton(CollectorClient, url=config.collector_url)

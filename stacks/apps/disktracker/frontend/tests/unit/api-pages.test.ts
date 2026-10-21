@@ -96,12 +96,12 @@ it('asks the server for a page of the drives to manage by words and need, leavin
   const page = { items: [], total: 0, all: 0, issues: { unknown_specifications: 0, stale: 0 }, limit: 25, offset: 25 };
   const api = new HttpDisktrackerApi(async url => { asked.push(String(url)); return new Response(JSON.stringify(page)); }, '/api');
 
-  expect(await api.catalogDrives({ q: 'wuh 72', issue: 'stale', recent_days: 14, limit: 25, offset: 25 })).toEqual(page);
-  await api.catalogDrives({ q: '', recent_days: 7, limit: 50, offset: 0 });
+  expect(await api.driveInventory({ q: 'wuh 72', issue: 'stale', recent_days: 14, limit: 25, offset: 25 })).toEqual(page);
+  await api.driveInventory({ q: '', recent_days: 7, limit: 50, offset: 0 });
 
   expect(asked).toEqual([
-    '/api/catalog-drives?q=wuh+72&issue=stale&recent_days=14&limit=25&offset=25',
-    '/api/catalog-drives?recent_days=7&limit=50&offset=0',
+    '/api/reports/drive-inventory?q=wuh+72&issue=stale&recent_days=14&limit=25&offset=25',
+    '/api/reports/drive-inventory?recent_days=7&limit=50&offset=0',
   ]);
 });
 
@@ -134,7 +134,7 @@ it('reads a drive, its offers, its ranges, its prices a page at a time, drives f
     '/api/offers/o',
     '/api/prices?drive_id=d&limit=500&offset=0',
     '/api/prices?offer_id=o&since=2026-06-24T12%3A00%3A00Z&limit=100&offset=200',
-    '/api/offers?needs_recheck=true&recent_days=7',
+    '/api/reports/rechecks?recent_days=7',
     '/api/reports/prices-today?recent_days=14',
   ]);
 });

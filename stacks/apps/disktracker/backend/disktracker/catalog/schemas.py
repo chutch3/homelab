@@ -514,24 +514,6 @@ class DriveScope(Contract):
         return DriveScope(**{name: getattr(self, name) for name in DriveScope.model_fields})
 
 
-# What a drive may need from a person: its specifications entered, or an offer of it in stock
-# checked again (one not checked within recent_days).
-DriveIssue = Literal["unknown_specifications", "stale"]
-
-
-class CatalogDriveQuery(Contract):
-    """Which of every drive to manage, and which part of the list. q: words any name an offer of
-    it goes by contains (its title, MPN, its drive's other MPNs, who sells it); a drive they are
-    the MPN or another MPN of comes first."""
-
-    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
-    q: str = Field(default="", max_length=200)
-    issue: DriveIssue | None = Field(default=None, description="Only drives that need this")
-    recent_days: int = Field(default=7, ge=1, le=365, description="What checked recently means")
-    limit: int = Field(default=50, ge=1, le=500, description="Maximum drives in this page.")
-    offset: int = Field(default=0, ge=0, description="Number of matching drives to skip.")
-
-
 class DriveLookup(Contract):
     """Which drives to find: the one that goes by an MPN, as its own or another of its MPNs (mpn,
     exactly, as MPNs are kept), or those any name of which has some words (q): its MPN, another
@@ -562,33 +544,6 @@ class FoundDrive(Contract):
 class FoundDrives(Contract):
     items: list[FoundDrive]
     total: int
-    limit: int
-    offset: int
-
-
-class CatalogDrive(Contract):
-    """A drive to manage: named by the title of the offer it is shown by (its cheapest in stock,
-    else its cheapest), with how many offers it has and what it needs."""
-
-    drive: Drive
-    title: str
-    offers: int
-    issues: list[DriveIssue]
-
-
-class DriveIssueCounts(Contract):
-    unknown_specifications: int
-    stale: int
-
-
-class CatalogDrivePage(Contract):
-    """A part of the drives to manage. total: drives that match; all: every drive; issues: how
-    many of every drive need each thing."""
-
-    items: list[CatalogDrive]
-    total: int
-    all: int
-    issues: DriveIssueCounts
     limit: int
     offset: int
 
@@ -638,11 +593,9 @@ class PricePage(Contract):
 
 
 class OfferQuery(Contract):
-    """Which offers to list: of a store, of a drive, or those a person has to check by hand
-    (entered by hand and not checked within recent_days), longest unchecked first."""
+    """Which offers to list: of a store, of a drive, or every one. Those a person has to check by
+    hand are a report (GET /reports/rechecks)."""
 
     model_config = ConfigDict(extra="forbid")
     store: StoreKey | None = None
     drive_id: UUID | None = None
-    needs_recheck: bool = False
-    recent_days: int = Field(default=7, ge=1, le=365)

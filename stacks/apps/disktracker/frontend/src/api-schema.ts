@@ -4,28 +4,6 @@
  */
 
 export interface paths {
-    "/api/catalog-drives": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * List every drive to manage
-         * @description Every drive, offers held for review and all, a page at a time: those named by q exactly
-         *     (by MPN or another MPN) first, then in stock first and cheapest per terabyte first. Each has
-         *     how many offers it has and what it needs; issues counts every drive needing each.
-         */
-        get: operations["list_catalog_drives"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/collection-runs": {
         parameters: {
             query?: never;
@@ -302,10 +280,9 @@ export interface paths {
         };
         /**
          * List offers with their latest prices
-         * @description Return latest-price summaries, optionally narrowed by store or drive, ordered by title.
-         *     With needs_recheck, return all manually priced offers not checked within recent_days,
-         *     oldest checks first; store and drive filters are not applied in this mode. This list is
-         *     not paginated.
+         * @description Return latest-price summaries, optionally narrowed by store or drive, ordered by title,
+         *     held offers too. Offers entered by hand that are due a check are GET /reports/rechecks.
+         *     This list is not paginated.
          */
         get: operations["list_offers"];
         put?: never;
@@ -409,6 +386,28 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/reports/drive-inventory": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read every drive to manage
+         * @description Every drive, offers held for review and all, a page at a time: those named by q exactly
+         *     (by MPN or another MPN) first, then in stock first and cheapest per terabyte first. Each has
+         *     how many offers it has and what it needs; issues counts every drive needing each.
+         */
+        get: operations["drive_inventory"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/reports/market": {
         parameters: {
             query?: never;
@@ -477,6 +476,27 @@ export interface paths {
          *     first. recent_days: the lowest is the cheapest of those checked within it.
          */
         get: operations["prices_today"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/reports/rechecks": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read the offers entered by hand due a check
+         * @description Offers entered by hand and not checked within recent_days, longest unchecked first: a
+         *     collected offer is the collector's to check.
+         */
+        get: operations["rechecks"];
         put?: never;
         post?: never;
         delete?: never;
@@ -744,38 +764,6 @@ export interface components {
         AliasInput: {
             /** Mpn */
             mpn: string;
-        };
-        /**
-         * CatalogDrive
-         * @description A drive to manage: named by the title of the offer it is shown by (its cheapest in stock,
-         *     else its cheapest), with how many offers it has and what it needs.
-         */
-        CatalogDrive: {
-            drive: components["schemas"]["Drive"];
-            /** Issues */
-            issues: ("unknown_specifications" | "stale")[];
-            /** Offers */
-            offers: number;
-            /** Title */
-            title: string;
-        };
-        /**
-         * CatalogDrivePage
-         * @description A part of the drives to manage. total: drives that match; all: every drive; issues: how
-         *     many of every drive need each thing.
-         */
-        CatalogDrivePage: {
-            /** All */
-            all: number;
-            issues: components["schemas"]["DriveIssueCounts"];
-            /** Items */
-            items: components["schemas"]["CatalogDrive"][];
-            /** Limit */
-            limit: number;
-            /** Offset */
-            offset: number;
-            /** Total */
-            total: number;
         };
         /** Choice[Literal['new', 'manufacturer_recertified', 'refurbished', 'used']] */
         Choice_Literal__new____manufacturer_recertified____refurbished____used___: {
@@ -1084,6 +1072,38 @@ export interface components {
              * Format: uri
              */
             url: string;
+        };
+        /**
+         * Inventory
+         * @description A part of the drives to manage. total: drives that match; all: every drive; issues: how
+         *     many of every drive need each thing.
+         */
+        Inventory: {
+            /** All */
+            all: number;
+            issues: components["schemas"]["DriveIssueCounts"];
+            /** Items */
+            items: components["schemas"]["InventoryDrive"][];
+            /** Limit */
+            limit: number;
+            /** Offset */
+            offset: number;
+            /** Total */
+            total: number;
+        };
+        /**
+         * InventoryDrive
+         * @description A drive to manage: named by the title of the offer it is shown by (its cheapest in stock,
+         *     else its cheapest), with how many offers it has and what it needs.
+         */
+        InventoryDrive: {
+            drive: components["schemas"]["Drive"];
+            /** Issues */
+            issues: ("unknown_specifications" | "stale")[];
+            /** Offers */
+            offers: number;
+            /** Title */
+            title: string;
         };
         /**
          * ListingFacts
@@ -2945,45 +2965,6 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
-    list_catalog_drives: {
-        parameters: {
-            query?: {
-                q?: string;
-                /** @description Only drives that need this */
-                issue?: ("unknown_specifications" | "stale") | null;
-                /** @description What checked recently means */
-                recent_days?: number;
-                /** @description Maximum drives in this page. */
-                limit?: number;
-                /** @description Number of matching drives to skip. */
-                offset?: number;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["CatalogDrivePage"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
     list_runs: {
         parameters: {
             query?: {
@@ -3603,8 +3584,6 @@ export interface operations {
             query?: {
                 store?: string | null;
                 drive_id?: string | null;
-                needs_recheck?: boolean;
-                recent_days?: number;
             };
             header?: never;
             path?: never;
@@ -3886,6 +3865,45 @@ export interface operations {
             };
         };
     };
+    drive_inventory: {
+        parameters: {
+            query?: {
+                q?: string;
+                /** @description Only drives that need this */
+                issue?: ("unknown_specifications" | "stale") | null;
+                /** @description What checked recently means */
+                recent_days?: number;
+                /** @description Maximum drives in this page. */
+                limit?: number;
+                /** @description Number of matching drives to skip. */
+                offset?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Inventory"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     market: {
         parameters: {
             query?: {
@@ -4020,6 +4038,37 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PriceMark"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    rechecks: {
+        parameters: {
+            query?: {
+                recent_days?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OfferSummary"][];
                 };
             };
             /** @description Validation Error */

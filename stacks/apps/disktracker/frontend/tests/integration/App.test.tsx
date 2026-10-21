@@ -5,7 +5,7 @@ import type { Condition, DisktrackerApi, Market, MarketQuery, Observation } from
 import { emptySpecifications, type SpecValue } from '../../src/specifications';
 import { checkedAt, historyPrices, makeDrive, makeOffer, makeReviewItem, recordedOn, shoppingListings } from '../fixtures/listings';
 import { memoryStorage, namesIn, renderApp } from '../fixtures/render-app';
-import { catalogPage, foundPage, marketPage, noOptions, pricesOf, rowsOf } from '../fixtures/responses';
+import { inventoryPage, foundPage, marketPage, noOptions, pricesOf, rowsOf } from '../fixtures/responses';
 
 afterEach(() => { cleanup(); window.history.replaceState(null, '', '/'); });
 

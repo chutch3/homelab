@@ -255,3 +255,55 @@ class Market(Contract):
     as_of: datetime
     lowest: Lowest
     filter_options: FilterOptions
+
+
+# What a drive may need from a person: its specifications entered, or an offer of it in stock
+# checked again (one not checked within recent_days).
+DriveIssue = Literal["unknown_specifications", "stale"]
+
+
+class InventoryQuery(Contract):
+    """Which of every drive to manage (the drive inventory), and which part of it. q: words any name an offer of
+    it goes by contains (its title, MPN, its drive's other MPNs, who sells it); a drive they are
+    the MPN or another MPN of comes first."""
+
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
+    q: str = Field(default="", max_length=200)
+    issue: DriveIssue | None = Field(default=None, description="Only drives that need this")
+    recent_days: int = Field(default=7, ge=1, le=365, description="What checked recently means")
+    limit: int = Field(default=50, ge=1, le=500, description="Maximum drives in this page.")
+    offset: int = Field(default=0, ge=0, description="Number of matching drives to skip.")
+
+
+class InventoryDrive(Contract):
+    """A drive to manage: named by the title of the offer it is shown by (its cheapest in stock,
+    else its cheapest), with how many offers it has and what it needs."""
+
+    drive: Drive
+    title: str
+    offers: int
+    issues: list[DriveIssue]
+
+
+class DriveIssueCounts(Contract):
+    unknown_specifications: int
+    stale: int
+
+
+class Inventory(Contract):
+    """A part of the drives to manage. total: drives that match; all: every drive; issues: how
+    many of every drive need each thing."""
+
+    items: list[InventoryDrive]
+    total: int
+    all: int
+    issues: DriveIssueCounts
+    limit: int
+    offset: int
+
+
+class RechecksQuery(Contract):
+    """Which offers entered by hand are due a check: those not checked within recent_days."""
+
+    model_config = ConfigDict(extra="forbid")
+    recent_days: int = Field(default=7, ge=1, le=365)
