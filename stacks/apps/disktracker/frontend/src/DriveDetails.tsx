@@ -8,6 +8,7 @@ import { DeleteOfferDialog } from './DeleteOfferDialog';
 import { DeletePriceDialog } from './DeletePriceDialog';
 import { Disclosure } from './Disclosure';
 import { DriveForm } from './DriveForm';
+import { MergeDriveForm } from './MergeDriveForm';
 import { DriveObservationTable } from './DriveObservationTable';
 import { DrivePriceChart } from './DrivePriceChart';
 import { EntryForm } from './EntryForm';
@@ -60,6 +61,7 @@ export function DriveDetails({ api, now, nextId, driveKey, title: named, sort, r
   const [checking, setChecking] = useState<string | null>(null);
   const [recording, setRecording] = useState<Offer | null>(null);
   const [editingDrive, setEditingDrive] = useState<Drive | null>(null);
+  const [merging, setMerging] = useState<Drive | null>(null);
   const [editing, setEditing] = useState<Offer | null>(null);
   const [deletingOffer, setDeletingOffer] = useState<Offer | null>(null);
   const [deletingPrice, setDeletingPrice] = useState<{ listing: Offer; observation: Observation } | null>(null);
@@ -109,7 +111,10 @@ export function DriveDetails({ api, now, nextId, driveKey, title: named, sort, r
       {drive && <div className="drive-summary">
         <Group justify="space-between" align="center">
           <Text size="sm" c="dimmed">{drive.mpn}, {stores} store{stores === 1 ? '' : 's'}</Text>
-          {manage && <Button variant="default" onClick={() => setEditingDrive(drive)}>Edit specifications</Button>}
+          {manage && <Group gap="xs">
+            <Button variant="default" onClick={() => setEditingDrive(drive)}>Edit specifications</Button>
+            <Button variant="default" onClick={() => setMerging(drive)}>Merge another drive into this one</Button>
+          </Group>}
         </Group>
       </div>}
       {/* One condition is nothing to choose between: it is named, not offered as a choice. */}
@@ -145,6 +150,8 @@ export function DriveDetails({ api, now, nextId, driveKey, title: named, sort, r
     {editingDrive && <DriveForm drive={editingDrive} api={api} onClose={() => setEditingDrive(null)}
       onSaved={saved => onChanged(`Specifications saved for every offer of MPN ${saved.mpn}.`)}
       onAliasAdded={() => onChanged()} />}
+    {merging && <MergeDriveForm drive={merging} api={api} nextId={nextId} onClose={() => setMerging(null)}
+      onMerged={absorbed => onChanged(`Merged ${absorbed.mpn} into ${merging.mpn}.`)} />}
     {editing && <OfferForm listing={editing} api={api} onClose={() => setEditing(null)} onSaved={() => onChanged('Offer updated.')} />}
     {deletingPrice && <DeletePriceDialog {...deletingPrice} api={api} onClose={() => setDeletingPrice(null)}
       onDeleted={() => onChanged('Price deleted.')} />}

@@ -59,7 +59,7 @@ export function DriveForm({ drive, api, onClose, onSaved, onAliasAdded }: Props)
         <SpecificationFields value={form.values.specifications} onChange={value => form.setFieldValue('specifications', value)} />
         <Stack gap="xs">
           <Text size="sm" fw={500}>Other MPNs</Text>
-          <Text size="xs" c="dimmed">Prices recorded under these MPNs join this drive; a drive already recorded under one is merged in.</Text>
+          <Text size="xs" c="dimmed">Prices recorded under these MPNs join this drive. One another drive goes by is refused: merge that drive into this one instead.</Text>
           {aliases.length > 0 && <Group gap="xs">{aliases.map(value => <span key={value} className="tag mono">{value}</span>)}</Group>}
           <Group align="end">
             <TextInput label="Other MPN" aria-label="Other MPN" value={alias} error={aliasError}

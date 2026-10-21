@@ -1,6 +1,6 @@
 import { emptySpecifications } from '../../src/specifications';
 import described from './source-kinds.json';
-import type { CatalogDrivePage, StoreFreshness, SourceInput, DecisionResult, DriveDetail, DrivePage, PriceMark, PricePage, PriceResult, Run, CollectorStatus, ConditionRule, Drive, ListingFacts, Page, Source, SourceInspection, SourceKindDescription, SourcePreview, Offer, OfferSummary, Observation, Trends, ReviewItem } from '../../src/api';
+import type { CatalogDrivePage, StoreFreshness, SourceInput, DecisionResult, MergeResult, DriveDetail, DrivePage, PriceMark, PricePage, PriceResult, Run, CollectorStatus, ConditionRule, Drive, ListingFacts, Page, Source, SourceInspection, SourceKindDescription, SourcePreview, Offer, OfferSummary, Observation, Trends, ReviewItem } from '../../src/api';
 
 export const checkedAt = new Date('2026-09-22T12:00:00Z');
 export function makeDrive(mpn: string, fields: Partial<Drive> = {}): Drive {
@@ -64,6 +64,7 @@ export const unusedWrites = {
   createDrive: async (): Promise<Drive> => { throw new Error('Not used'); },
   editDrive: async (): Promise<Drive> => { throw new Error('Not used'); },
   addAlias: async (): Promise<Drive> => { throw new Error('Not used'); },
+  mergeDrive: async (): Promise<MergeResult> => { throw new Error('Not used'); },
   reviewItems: async (): Promise<Page<ReviewItem>> => ({ items: [], total: 0 }),
   decide: async (): Promise<DecisionResult> => { throw new Error('Not used'); },
   deleteOffer: async (): Promise<void> => { throw new Error('Not used'); },

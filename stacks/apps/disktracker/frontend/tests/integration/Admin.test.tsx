@@ -546,6 +546,60 @@ describe('Admin page', () => {
     expect(await form.findByText('ST18000NM000J-2E3101')).toBeVisible();
   });
 
+  it('merges another drive into this one, saying first which drive stays and with what brand', async () => {
+    at('drives');
+    const user = userEvent.setup();
+    const target = makeDrive('ST18000NM000J');
+    const source = makeDrive('0HNHWC', { brand: 'Dell', aliases: ['0HNHWC-G14'] });
+    let listings = [
+      makeOffer('Exos X18', { drive: target, mpn: target.mpn, seller: 'Shop A' }),
+      makeOffer('Dell 18TB', { drive: source, mpn: source.mpn, seller: 'Shop B' }),
+    ];
+    // As the server merges: the target goes by every MPN the source went by, and has its offers.
+    const mergeDrive = vi.fn<DisktrackerApi['mergeDrive']>(async () => {
+      const merged = { ...target, brand: 'Dell', aliases: ['0HNHWC', '0HNHWC-G14'] };
+      listings = listings.map(offer => ({ ...offer, drive: merged, mpn: merged.mpn }));
+      return { status: 'merged', drive_id: target.id, absorbed_drive_id: source.id, combined_offers: [] };
+    });
+    renderApp({ listOffers: async () => listings, mergeDrive });
+    await user.click(await screen.findByTitle('Exos X18'));
+    await user.click(screen.getByRole('button', { name: 'Merge another drive into this one' }));
+    const form = within(screen.getByRole('dialog', { name: 'Merge another drive into this one' }));
+    await user.type(form.getByRole('textbox', { name: 'Drive to merge in' }), '0HNHWC');
+    // Never this drive itself.
+    expect(screen.queryByRole('option', { name: /^ST18000NM000J/ })).not.toBeInTheDocument();
+    await user.click(await screen.findByRole('option', { name: /^0HNHWC/ }));
+    expect(form.getByText('ST18000NM000J stays, going by 0HNHWC and 0HNHWC-G14 too, with the brand Dell.')).toBeVisible();
+    expect(form.getByText(/Every offer of 0HNHWC moves to it/)).toBeVisible();
+    expect(mergeDrive).not.toHaveBeenCalled();
+    await user.click(form.getByRole('button', { name: 'Merge' }));
+    expect(mergeDrive).toHaveBeenCalledWith(source.id, target.id, 'save-key');
+    expect(await screen.findByText('Merged 0HNHWC into ST18000NM000J.')).toBeVisible();
+    expect(screen.queryByRole('dialog', { name: 'Merge another drive into this one' })).not.toBeInTheDocument();
+  });
+
+  it('says why two drives cannot be merged, and merges nothing', async () => {
+    at('drives');
+    const user = userEvent.setup();
+    const target = makeDrive('ST16000NM001G', { brand: 'Seagate' });
+    const source = makeDrive('ST16000NM000J', { capacity_gb: 18000 });
+    const listings = [
+      makeOffer('Exos 16TB', { drive: target, mpn: target.mpn, seller: 'Shop A' }),
+      makeOffer('Exos 18TB', { drive: source, mpn: source.mpn, seller: 'Shop B' }),
+    ];
+    const mergeDrive = vi.fn<DisktrackerApi['mergeDrive']>(async () => { throw new Error('The drives differ on capacity_gb: correct one first.'); });
+    renderApp({ listOffers: async () => listings, mergeDrive });
+    await user.click(await screen.findByTitle('Exos 16TB'));
+    await user.click(screen.getByRole('button', { name: 'Merge another drive into this one' }));
+    const form = within(screen.getByRole('dialog', { name: 'Merge another drive into this one' }));
+    await user.type(form.getByRole('textbox', { name: 'Drive to merge in' }), 'ST16000NM000J');
+    await user.click(await screen.findByRole('option', { name: /^ST16000NM000J/ }));
+    // The target's brand stands.
+    expect(form.getByText('ST16000NM001G stays, going by ST16000NM000J too, with the brand Seagate.')).toBeVisible();
+    await user.click(form.getByRole('button', { name: 'Merge' }));
+    expect(await form.findByRole('alert')).toHaveTextContent('The drives differ on capacity_gb: correct one first.');
+  });
+
   it('leaves the page message alone when another MPN is added', async () => {
     at('drives');
     const user = userEvent.setup();

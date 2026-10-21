@@ -18,6 +18,7 @@ export type OfferEdit = Schemas['OfferEdit'];
 export type Drive = Schemas['Drive'];
 export type DriveEdit = Schemas['DriveEdit'];
 export type DriveInput = Schemas['DriveInput'];
+export type MergeResult = Schemas['MergeResult'];
 export type OfferSummary = Schemas['OfferSummary'];
 export type Offer = Schemas['Offer'];
 export type ReviewItem = Schemas['ReviewItem'];
@@ -116,6 +117,8 @@ export interface DisktrackerApi {
   createDrive(input: DriveInput): Promise<Drive>;
   editDrive(driveId: string, input: DriveEdit): Promise<Drive>;
   addAlias(driveId: string, mpn: string): Promise<Drive>;
+  /** Merges the source drive into the target, which stays; the save key makes a retry safe. */
+  mergeDrive(sourceId: string, targetId: string, requestId: string): Promise<MergeResult>;
   /** The latest run of each store, by store. */
   latestRuns(): Promise<Run[]>;
   /** Every run that ended since a moment, oldest first. */
@@ -214,6 +217,9 @@ export class HttpDisktrackerApi implements DisktrackerApi {
   }
   addAlias(driveId: string, mpn: string): Promise<Drive> {
     return this.send(`/drives/${driveId}/aliases`, { mpn });
+  }
+  mergeDrive(sourceId: string, targetId: string, requestId: string): Promise<MergeResult> {
+    return this.send(`/drives/${sourceId}/merge`, { target_drive_id: targetId }, requestId);
   }
   createDrive(input: DriveInput): Promise<Drive> {
     return this.send('/drives', input);
