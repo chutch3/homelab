@@ -103,6 +103,25 @@ class DriveRepository:
         if owner is not None:
             session.execute(update(Drive).where(Drive.id == owner).values(capacity_gb=capacity_gb))
 
+    def correct(
+        self,
+        session: Session,
+        drive_id: UUID,
+        values: dict[str, Any],
+        specifications: dict[str, Any] | None,
+    ) -> None:
+        """Change what is given of a drive (one that exists), its specifications one by one, and
+        leave the rest as it is."""
+        if specifications is not None:
+            known = session.scalars(select(Drive.specifications).where(Drive.id == drive_id)).one()
+            values = values | {
+                "specifications": Specifications.model_validate(known | specifications).model_dump(
+                    mode="json"
+                )
+            }
+        if values:
+            session.execute(update(Drive).where(Drive.id == drive_id).values(**values))
+
     def describe(
         self,
         session: Session,

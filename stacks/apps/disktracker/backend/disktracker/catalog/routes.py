@@ -518,6 +518,6 @@ def add_alias(drives: Drives, drive_id: UUID, entry: AliasInput) -> dict[str, An
     responses={404: {"model": ErrorResponse, "description": "Drive not found"}},
 )
 @inject
-def edit_drive(catalog: Catalog, drive_id: UUID, entry: DriveEdit) -> dict[str, Any]:
+def edit_drive(drives: Drives, drive_id: UUID, entry: DriveEdit) -> dict[str, Any]:
     """Correct a drive: what is given changes, and what is left out stays."""
-    return catalog.edit_drive(drive_id, entry)
+    return drives.edit(drive_id, entry)

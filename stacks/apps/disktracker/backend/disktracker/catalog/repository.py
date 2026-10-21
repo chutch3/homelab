@@ -10,16 +10,12 @@ from sqlalchemy.orm import Session
 
 from disktracker.catalog.models import (
     ConditionRule,
-    Drive,
     Offer,
     Price,
 )
-from disktracker.catalog.queries import aliases_of, offer_with_history
-from disktracker.catalog.schemas import Specifications
-from disktracker.catalog.views import drive_view
+from disktracker.catalog.queries import offer_with_history
 from disktracker.database import SessionFactory
 from disktracker.errors import (
-    DriveNotFound,
     OfferNotFound,
 )
 
@@ -29,24 +25,6 @@ class CatalogRepository:
         self.session_factory = session_factory
 
     # Drives and the MPNs they go by.
-
-    def edit_drive(
-        self, drive_id: UUID, values: dict[str, Any], specifications: dict[str, Any] | None
-    ) -> dict[str, Any]:
-        """Change what is given of a drive, its specifications one by one, and leave the rest."""
-        with self.session_factory() as session:
-            drive = _lock_drive(session, drive_id)
-            if specifications is not None:
-                values = values | {
-                    "specifications": Specifications.model_validate(
-                        drive.specifications | specifications
-                    ).model_dump(mode="json")
-                }
-            if values:
-                session.execute(update(Drive).where(Drive.id == drive_id).values(**values))
-                session.refresh(drive)
-            session.commit()
-            return drive_view(drive, aliases_of(session, drive_id))
 
     # Offers and prices, corrected.
 
@@ -90,13 +68,6 @@ class CatalogRepository:
 
 
 # What the operations above share, each on the session of the operation that calls it.
-
-
-def _lock_drive(session: Session, drive_id: UUID) -> Drive:
-    drive = session.scalars(select(Drive).where(Drive.id == drive_id).with_for_update()).first()
-    if drive is None:
-        raise DriveNotFound()
-    return drive
 
 
 def _lock_offer(session: Session, offer_id: UUID) -> None:

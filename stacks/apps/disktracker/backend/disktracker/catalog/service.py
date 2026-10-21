@@ -14,7 +14,6 @@ from disktracker.catalog.repository import CatalogRepository
 from disktracker.catalog.schemas import (
     CatalogDriveQuery,
     ConditionRule,
-    DriveEdit,
     DriveQuery,
     OfferEdit,
     OfferQuery,
@@ -90,12 +89,6 @@ class CatalogService:
         return self.queries.review_items(store, reason, limit, offset)
 
     # Drives and the MPNs they go by.
-
-    def edit_drive(self, drive_id: UUID, entry: DriveEdit) -> dict[str, Any]:
-        """Correct what is given of a drive, and leave the rest as it is."""
-        given = entry.model_dump(mode="json", exclude_unset=True)
-        values = {key: given[key] for key in ("capacity_gb", "brand") if key in given}
-        return self.repository.edit_drive(drive_id, values, given.get("specifications"))
 
     # Offers and prices, corrected.
 

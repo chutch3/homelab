@@ -9,7 +9,7 @@ import pytest
 
 from disktracker.catalog.queries import CatalogQueries
 from disktracker.catalog.repository import CatalogRepository
-from disktracker.catalog.schemas import DriveEdit, OfferEdit
+from disktracker.catalog.schemas import OfferEdit
 from disktracker.catalog.service import CatalogService
 
 NOW = datetime(2026, 9, 22, 12, tzinfo=UTC)
@@ -24,10 +24,6 @@ class FakeRepository:
     def record_price(self, *asked: Any) -> dict[str, Any]:
         self.calls.append(("record_price", asked))
         return {"status": "recorded"}
-
-    def edit_drive(self, *asked: Any) -> dict[str, Any]:
-        self.calls.append(("edit_drive", asked))
-        return {}
 
     def edit_offer(self, *asked: Any) -> dict[str, Any]:
         self.calls.append(("edit_offer", asked))
@@ -46,23 +42,6 @@ def subject(repository: FakeRepository) -> CatalogService:
         cast(CatalogQueries, None),
         now=lambda: NOW,
     )
-
-
-def test_a_drive_correction_passes_on_only_what_it_gives(
-    subject: CatalogService, repository: FakeRepository
-) -> None:
-    drive_id = UUID(int=1)
-    subject.edit_drive(drive_id, DriveEdit.model_validate({"brand": "Seagate"}))
-    subject.edit_drive(
-        drive_id,
-        DriveEdit.model_validate({"capacity_gb": 20000, "specifications": {"interface": "sata"}}),
-    )
-
-    # Down to each specification: those left out stay as they are.
-    assert [asked for _, asked in repository.calls] == [
-        (drive_id, {"brand": "Seagate"}, None),
-        (drive_id, {"capacity_gb": 20000}, {"interface": "sata"}),
-    ]
 
 
 def test_an_offer_correction_keeps_its_address_as_text(

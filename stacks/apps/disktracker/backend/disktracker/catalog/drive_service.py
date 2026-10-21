@@ -1,6 +1,7 @@
-"""Drives as people make and join them: one made on its own before any price of it, another MPN
-it goes by, and one merged into another, the only way two drives become one. Each is one piece of work; a merge,
-with its save key, is answered again as it was when sent again."""
+"""Drives as people make, correct and join them: one made on its own before any price of it, what
+is given of one corrected, another MPN it goes by, and one merged into another, the only way two
+drives become one. Each is one piece of work; a merge, with its save key, is answered again as it
+was when sent again."""
 
 from hashlib import sha256
 from typing import Any
@@ -10,7 +11,7 @@ from disktracker.catalog.drive_repository import DriveRepository
 from disktracker.catalog.offer_repository import OfferRepository
 from disktracker.catalog.review_repository import ReviewRepository
 from disktracker.catalog.rules import merged_drive
-from disktracker.catalog.schemas import DriveInput, MergeInput
+from disktracker.catalog.schemas import DriveEdit, DriveInput, MergeInput
 from disktracker.catalog.views import drive_view
 from disktracker.database import SessionFactory
 from disktracker.errors import DriveNotFound, MergeConflict, SameDrive
@@ -39,6 +40,18 @@ class DriveService:
             )
             session.commit()
             return drive_view(drive, [])
+
+    def edit(self, drive_id: UUID, entry: DriveEdit) -> dict[str, Any]:
+        """Correct what is given of a drive, down to each specification, and leave the rest as
+        it is. It touches no MPN, so only the drive is held."""
+        given = entry.model_dump(mode="json", exclude_unset=True)
+        values = {key: given[key] for key in ("capacity_gb", "brand") if key in given}
+        with self.session_factory() as session:
+            if not self.drives.lock_drives(session, [drive_id]):
+                raise DriveNotFound()
+            self.drives.correct(session, drive_id, values, given.get("specifications"))
+            session.commit()
+            return self.drives.view(session, drive_id)
 
     def add_alias(self, drive_id: UUID, alias: str) -> dict[str, Any]:
         """Another MPN the drive goes by: one no drive goes by yet. One any drive goes by is
