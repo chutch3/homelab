@@ -10,10 +10,8 @@ afterEach(cleanup);
 
 const listing = makeOffer('WD Red Plus 12TB', { mpn: 'WD120EFBX', store: 'other', seller: 'Micro Center', url: 'https://store.test/red' },
   { item_price_cents: 20000, shipping_cents: 500, total_cents: 20500 });
-const identity = {
-  mpn: 'WD120EFBX', store: 'other', seller: 'Micro Center', condition: 'new', title: 'WD Red Plus 12TB',
-  url: 'https://store.test/red', capacity_gb: null, observed_at: null, notes: '',
-};
+// A recheck names the offer it is of: it says nothing of what the offer is.
+const identity = { offer_id: listing.id, observed_at: null, notes: '' };
 
 function renderCheck(recordPrice: DisktrackerApi['recordPrice'], props: Partial<Parameters<typeof PriceCheck>[0]> = {}) {
   const onRecorded = vi.fn(async () => {});

@@ -13,7 +13,7 @@ from uuid import uuid4
 
 from fastapi.testclient import TestClient
 from sqlalchemy import Engine, create_engine, event, text
-from test_api import followed_drives, post, price_payload, scraped_payload, source_input
+from test_api import entered, followed_drives, post, price_payload, scraped_payload, source_input
 
 from disktracker.main import create_app
 
@@ -55,8 +55,12 @@ def test_offers_listed_while_one_is_deleted_are_listed_as_they_all_were(
     database_url: str,
 ) -> None:
     with TestClient(create_app(), raise_server_exceptions=False) as client:
-        kept = post(client, "/api/prices", price_payload(seller="Kept")).json()["offer_id"]
-        gone = post(client, "/api/prices", price_payload(seller="Gone")).json()["offer_id"]
+        kept = post(client, "/api/prices", entered(client, price_payload(seller="Kept"))).json()[
+            "offer_id"
+        ]
+        gone = post(client, "/api/prices", entered(client, price_payload(seller="Gone"))).json()[
+            "offer_id"
+        ]
         # Deleted after the offers are read, before their latest prices are.
         with meanwhile(
             database_url,
@@ -77,7 +81,7 @@ def test_a_drives_history_read_while_a_price_is_added_has_the_prices_its_offers_
     database_url: str,
 ) -> None:
     with TestClient(create_app()) as client:
-        offer = post(client, "/api/prices", price_payload()).json()["offer_id"]
+        offer = post(client, "/api/prices", entered(client, price_payload())).json()["offer_id"]
         # Added after the offers' latest prices are read, before their histories are.
         with meanwhile(
             database_url,
@@ -210,8 +214,8 @@ def test_no_transaction_is_left_open_by_a_request_that_succeeds_or_fails(
         lambda client: client.get("/api/offers"),
         lambda client: client.get("/api/review-items"),
         lambda client: client.get("/api/trends", params={"days": 30}),
-        lambda client: post(client, "/api/prices", price_payload()),
-        lambda client: post(client, "/api/prices", price_payload(store="nowhere")),
+        lambda client: post(client, "/api/prices", entered(client, price_payload())),
+        lambda client: post(client, "/api/prices", entered(client, price_payload(store="nowhere"))),
         lambda client: client.delete(f"/api/prices/{uuid4()}"),
         lambda client: client.patch(f"/api/drives/{uuid4()}", json={"capacity_gb": 1000}),
     ]
@@ -226,7 +230,7 @@ def test_the_database_connections_are_closed_when_the_application_stops(
     database_url: str,
 ) -> None:
     with TestClient(create_app()) as client:
-        post(client, "/api/prices", price_payload())
+        post(client, "/api/prices", entered(client, price_payload()))
         client.get("/api/offers")
         while_running = backends(database_url)
     assert while_running >= 1

@@ -26,9 +26,7 @@ export function PriceCheck({ listing, api, nextId, onRecorded, link = true, more
     setError(''); setSaving(answer);
     try {
       const saved = await api.recordPrice({
-        mpn: listing.mpn ?? '', store: listing.store, seller: listing.seller, condition: listing.condition,
-        title: listing.title, url: listing.url, capacity_gb: null,
-        shipping_cents: listing.latest.shipping_cents ?? 0, observed_at: null, notes: '', ...change,
+        offer_id: listing.id, shipping_cents: listing.latest.shipping_cents ?? 0, observed_at: null, notes: '', ...change,
       }, nextId());
       setPrice('');
       if (saved.price_id === null) await onRecorded(message);

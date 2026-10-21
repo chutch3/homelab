@@ -106,6 +106,19 @@ export function EntryForm({ listing, stores = [], defaults = { store: '', condit
       setFills(count => count + 1);
     } catch (err) { setError(err instanceof Error ? err.message : 'The text could not be read.'); }
   };
+  /** The drive a new offer is of: the one recorded under its MPN, found now if the lookup has not said, or else
+   * one made under it with the capacity entered. None, with the capacity field told why, when the MPN is recorded
+   * at another capacity than the one entered: a price never changes what a drive is. */
+  const driveFor = async (mpn: string, capacity: string): Promise<string | null> => {
+    const known = recorded ?? recordedUnder(await lookUp(mpn).catch(() => ({ mpn, drives: [] })));
+    if (!known) return (await api.createDrive({ mpn, capacity_gb: Number(capacity) })).id;
+    if (!recorded && capacity && Number(capacity) !== known.capacity_gb) {
+      form.setFieldError('capacity', `${known.mpn} is recorded as ${capacityLabel(known.capacity_gb)}. Edit the drive to change its capacity.`);
+      focusFirstError({ capacity: true });
+      return null;
+    }
+    return known.id;
+  };
   const submit = form.onSubmit(async values => {
     setError(''); setSaving(true);
     try {
@@ -113,16 +126,20 @@ export function EntryForm({ listing, stores = [], defaults = { store: '', condit
         item_price_cents: parseDollars(values.item), shipping_cents: parseDollars(values.shipping) ?? 0, in_stock: values.inStock,
         observed_at: changingDate ? new Date(values.observed).toISOString() : null, notes: values.notes.trim(),
       };
-      const offer = listing
-        ? { mpn: listing.mpn ?? '', store: listing.store, seller: listing.seller, condition: listing.condition, title: listing.title,
-          url: listing.url, capacity_gb: null }
-        : { mpn: values.mpn.trim(), store: values.store, seller: seller ? values.seller.trim() : '', condition: values.condition as Condition,
-          title: values.title.trim() || null, url: values.url.trim() || null, capacity_gb: knownCapacity.current ? null : Number(values.capacity.trim()) };
-      const saved = await api.recordPrice({ ...offer, ...observation }, requestId);
-      if (!listing) onEntered?.({ store: values.store, condition: values.condition });
+      let saved;
+      if (listing) saved = await api.recordPrice({ offer_id: listing.id, ...observation }, requestId);
+      else {
+        const driveId = await driveFor(values.mpn.trim(), values.capacity.trim());
+        if (driveId === null) return;
+        saved = await api.recordPrice({
+          drive_id: driveId, store: values.store, seller: seller ? values.seller.trim() : '', condition: values.condition as Condition,
+          title: values.title.trim() || null, url: values.url.trim() || null, ...observation,
+        }, requestId);
+        onEntered?.({ store: values.store, condition: values.condition });
+      }
       // A price entered by hand is recorded or refused: it is never queued or ignored.
       await onSaved(saved.offer_id ?? '');
-      if (another.current && onAnother) onAnother(offer.title || offer.mpn); else onClose();
+      if (another.current && onAnother) onAnother(listing ? listing.title : values.title.trim() || values.mpn.trim()); else onClose();
     } catch (err) {
       if (err instanceof ApiValidationError) {
         const errors = formFieldErrors(err.fields, priceOnly);

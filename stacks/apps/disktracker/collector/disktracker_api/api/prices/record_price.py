@@ -47,26 +47,12 @@ def _get_kwargs(
 
 
 def _parse_response(*, client: AuthenticatedClient | Client, response: httpx.Response) -> ErrorResponse | HTTPValidationError | PriceResult | None:
-    if response.status_code == 200:
-        response_200 = PriceResult.from_dict(response.json())
-
-
-
-        return response_200
-
     if response.status_code == 201:
         response_201 = PriceResult.from_dict(response.json())
 
 
 
         return response_201
-
-    if response.status_code == 202:
-        response_202 = PriceResult.from_dict(response.json())
-
-
-
-        return response_202
 
     if response.status_code == 404:
         response_404 = ErrorResponse.from_dict(response.json())
@@ -111,33 +97,34 @@ def sync_detailed(
     idempotency_key: UUID,
 
 ) -> Response[ErrorResponse | HTTPValidationError | PriceResult]:
-    """ Record a manual or collected price
+    """ Record a price of a known drive's offer
 
-     Record a price, whoever submits it. The Idempotency-Key names the submission: sent again
-    with the same body it is answered as it was the first time, without doing the work again;
-    sent with a different body it is refused (409).
+     Record a price of an offer whose drive is already known. The Idempotency-Key names the
+    submission: sent again with the same body it is answered as it was the first time, without
+    doing the work again; sent with a different body it is refused (409).
 
-    Either name offer_id (omit store, MPN and condition), or describe the offer with store,
-    MPN and condition. Store `other` also requires seller. A new drive needs capacity_gb.
-    With on_unmatched=queue, MPN and condition may be absent, but title and URL are required.
-    An in-stock observation needs a positive item price. An out-of-stock observation without
-    a price reuses the last price; a manual entry cannot do this for an offer never priced.
-    Collected observations also honor saved review decisions and ignore never-priced sold-out
-    offers. provenance defaults to manual and on_unmatched defaults to reject.
+    Either name offer_id, or name drive_id with the store, seller and condition it is offered in
+    (store `other` also requires seller); an offer new to them is made, with title and url when
+    given, else titled by its drive's MPN. What says what a drive is (its MPN, capacity, brand,
+    specifications or other MPNs) is refused: make or correct the drive first (POST /drives,
+    PATCH /drives/{id}). A store page as collected is taken in at POST /ingestions; a collector
+    sends here only a recheck of an offer it names (provenance collected), which never releases
+    the offer's hold.
+
+    An in-stock observation needs a positive item price. An out-of-stock observation without a
+    price reuses the last price; a manual entry cannot do this for an offer never priced. An
+    unchanged price is recorded with price_id null, counted as a check.
 
     Args:
         idempotency_key (UUID): New UUID for each submission. Retry using the same key and body;
             changing the body returns 409.
-        body (PriceInput): One observed price, from a person or a collector alike. The offer it is
-            for is either
-            named (offer_id) or described: its store, MPN, condition and, for a one-off store, seller.
-
-            on_unmatched says what to do with a described offer that cannot be matched to a drive (its
-            MPN or condition is unknown, its drive's capacity is unknown, or its capacity disagrees
-            with
-            the drive's): reject refuses the price; queue keeps it for review, which needs the page
-            and
-            title a reviewer is shown.
+        body (PriceInput): One observed price of an offer whose drive is already known, from a
+            person or a collector
+            rechecking it. The offer is named (offer_id), or its drive is (drive_id), with the store,
+            seller and condition it is offered in: an offer new to them is made, titled and addressed
+            by
+            title and url when given. Nothing here says what a drive is: a drive is made or corrected
+            beforehand, and a store page described is taken in at /ingestions.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -167,33 +154,34 @@ def sync(
     idempotency_key: UUID,
 
 ) -> ErrorResponse | HTTPValidationError | PriceResult | None:
-    """ Record a manual or collected price
+    """ Record a price of a known drive's offer
 
-     Record a price, whoever submits it. The Idempotency-Key names the submission: sent again
-    with the same body it is answered as it was the first time, without doing the work again;
-    sent with a different body it is refused (409).
+     Record a price of an offer whose drive is already known. The Idempotency-Key names the
+    submission: sent again with the same body it is answered as it was the first time, without
+    doing the work again; sent with a different body it is refused (409).
 
-    Either name offer_id (omit store, MPN and condition), or describe the offer with store,
-    MPN and condition. Store `other` also requires seller. A new drive needs capacity_gb.
-    With on_unmatched=queue, MPN and condition may be absent, but title and URL are required.
-    An in-stock observation needs a positive item price. An out-of-stock observation without
-    a price reuses the last price; a manual entry cannot do this for an offer never priced.
-    Collected observations also honor saved review decisions and ignore never-priced sold-out
-    offers. provenance defaults to manual and on_unmatched defaults to reject.
+    Either name offer_id, or name drive_id with the store, seller and condition it is offered in
+    (store `other` also requires seller); an offer new to them is made, with title and url when
+    given, else titled by its drive's MPN. What says what a drive is (its MPN, capacity, brand,
+    specifications or other MPNs) is refused: make or correct the drive first (POST /drives,
+    PATCH /drives/{id}). A store page as collected is taken in at POST /ingestions; a collector
+    sends here only a recheck of an offer it names (provenance collected), which never releases
+    the offer's hold.
+
+    An in-stock observation needs a positive item price. An out-of-stock observation without a
+    price reuses the last price; a manual entry cannot do this for an offer never priced. An
+    unchanged price is recorded with price_id null, counted as a check.
 
     Args:
         idempotency_key (UUID): New UUID for each submission. Retry using the same key and body;
             changing the body returns 409.
-        body (PriceInput): One observed price, from a person or a collector alike. The offer it is
-            for is either
-            named (offer_id) or described: its store, MPN, condition and, for a one-off store, seller.
-
-            on_unmatched says what to do with a described offer that cannot be matched to a drive (its
-            MPN or condition is unknown, its drive's capacity is unknown, or its capacity disagrees
-            with
-            the drive's): reject refuses the price; queue keeps it for review, which needs the page
-            and
-            title a reviewer is shown.
+        body (PriceInput): One observed price of an offer whose drive is already known, from a
+            person or a collector
+            rechecking it. The offer is named (offer_id), or its drive is (drive_id), with the store,
+            seller and condition it is offered in: an offer new to them is made, titled and addressed
+            by
+            title and url when given. Nothing here says what a drive is: a drive is made or corrected
+            beforehand, and a store page described is taken in at /ingestions.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -218,33 +206,34 @@ async def asyncio_detailed(
     idempotency_key: UUID,
 
 ) -> Response[ErrorResponse | HTTPValidationError | PriceResult]:
-    """ Record a manual or collected price
+    """ Record a price of a known drive's offer
 
-     Record a price, whoever submits it. The Idempotency-Key names the submission: sent again
-    with the same body it is answered as it was the first time, without doing the work again;
-    sent with a different body it is refused (409).
+     Record a price of an offer whose drive is already known. The Idempotency-Key names the
+    submission: sent again with the same body it is answered as it was the first time, without
+    doing the work again; sent with a different body it is refused (409).
 
-    Either name offer_id (omit store, MPN and condition), or describe the offer with store,
-    MPN and condition. Store `other` also requires seller. A new drive needs capacity_gb.
-    With on_unmatched=queue, MPN and condition may be absent, but title and URL are required.
-    An in-stock observation needs a positive item price. An out-of-stock observation without
-    a price reuses the last price; a manual entry cannot do this for an offer never priced.
-    Collected observations also honor saved review decisions and ignore never-priced sold-out
-    offers. provenance defaults to manual and on_unmatched defaults to reject.
+    Either name offer_id, or name drive_id with the store, seller and condition it is offered in
+    (store `other` also requires seller); an offer new to them is made, with title and url when
+    given, else titled by its drive's MPN. What says what a drive is (its MPN, capacity, brand,
+    specifications or other MPNs) is refused: make or correct the drive first (POST /drives,
+    PATCH /drives/{id}). A store page as collected is taken in at POST /ingestions; a collector
+    sends here only a recheck of an offer it names (provenance collected), which never releases
+    the offer's hold.
+
+    An in-stock observation needs a positive item price. An out-of-stock observation without a
+    price reuses the last price; a manual entry cannot do this for an offer never priced. An
+    unchanged price is recorded with price_id null, counted as a check.
 
     Args:
         idempotency_key (UUID): New UUID for each submission. Retry using the same key and body;
             changing the body returns 409.
-        body (PriceInput): One observed price, from a person or a collector alike. The offer it is
-            for is either
-            named (offer_id) or described: its store, MPN, condition and, for a one-off store, seller.
-
-            on_unmatched says what to do with a described offer that cannot be matched to a drive (its
-            MPN or condition is unknown, its drive's capacity is unknown, or its capacity disagrees
-            with
-            the drive's): reject refuses the price; queue keeps it for review, which needs the page
-            and
-            title a reviewer is shown.
+        body (PriceInput): One observed price of an offer whose drive is already known, from a
+            person or a collector
+            rechecking it. The offer is named (offer_id), or its drive is (drive_id), with the store,
+            seller and condition it is offered in: an offer new to them is made, titled and addressed
+            by
+            title and url when given. Nothing here says what a drive is: a drive is made or corrected
+            beforehand, and a store page described is taken in at /ingestions.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -274,33 +263,34 @@ async def asyncio(
     idempotency_key: UUID,
 
 ) -> ErrorResponse | HTTPValidationError | PriceResult | None:
-    """ Record a manual or collected price
+    """ Record a price of a known drive's offer
 
-     Record a price, whoever submits it. The Idempotency-Key names the submission: sent again
-    with the same body it is answered as it was the first time, without doing the work again;
-    sent with a different body it is refused (409).
+     Record a price of an offer whose drive is already known. The Idempotency-Key names the
+    submission: sent again with the same body it is answered as it was the first time, without
+    doing the work again; sent with a different body it is refused (409).
 
-    Either name offer_id (omit store, MPN and condition), or describe the offer with store,
-    MPN and condition. Store `other` also requires seller. A new drive needs capacity_gb.
-    With on_unmatched=queue, MPN and condition may be absent, but title and URL are required.
-    An in-stock observation needs a positive item price. An out-of-stock observation without
-    a price reuses the last price; a manual entry cannot do this for an offer never priced.
-    Collected observations also honor saved review decisions and ignore never-priced sold-out
-    offers. provenance defaults to manual and on_unmatched defaults to reject.
+    Either name offer_id, or name drive_id with the store, seller and condition it is offered in
+    (store `other` also requires seller); an offer new to them is made, with title and url when
+    given, else titled by its drive's MPN. What says what a drive is (its MPN, capacity, brand,
+    specifications or other MPNs) is refused: make or correct the drive first (POST /drives,
+    PATCH /drives/{id}). A store page as collected is taken in at POST /ingestions; a collector
+    sends here only a recheck of an offer it names (provenance collected), which never releases
+    the offer's hold.
+
+    An in-stock observation needs a positive item price. An out-of-stock observation without a
+    price reuses the last price; a manual entry cannot do this for an offer never priced. An
+    unchanged price is recorded with price_id null, counted as a check.
 
     Args:
         idempotency_key (UUID): New UUID for each submission. Retry using the same key and body;
             changing the body returns 409.
-        body (PriceInput): One observed price, from a person or a collector alike. The offer it is
-            for is either
-            named (offer_id) or described: its store, MPN, condition and, for a one-off store, seller.
-
-            on_unmatched says what to do with a described offer that cannot be matched to a drive (its
-            MPN or condition is unknown, its drive's capacity is unknown, or its capacity disagrees
-            with
-            the drive's): reject refuses the price; queue keeps it for review, which needs the page
-            and
-            title a reviewer is shown.
+        body (PriceInput): One observed price of an offer whose drive is already known, from a
+            person or a collector
+            rechecking it. The offer is named (offer_id), or its drive is (drive_id), with the store,
+            seller and condition it is offered in: an offer new to them is made, titled and addressed
+            by
+            title and url when given. Nothing here says what a drive is: a drive is made or corrected
+            beforehand, and a store page described is taken in at /ingestions.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.

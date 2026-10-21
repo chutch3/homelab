@@ -7,7 +7,7 @@ from typing import Any
 from uuid import uuid4
 
 from fastapi.testclient import TestClient
-from test_api import post, price_payload
+from test_api import entered, post, price_payload
 from test_persistence import meanwhile
 
 from disktracker.main import create_app
@@ -49,8 +49,13 @@ def test_a_drive_with_no_offer_is_managed_and_looked_up_like_any_other(database_
         post(
             client,
             "/api/prices",
-            price_payload(
-                mpn="ST16000NM001G", capacity_gb=16000, observed_at=datetime.now(UTC).isoformat()
+            entered(
+                client,
+                price_payload(
+                    mpn="ST16000NM001G",
+                    capacity_gb=16000,
+                    observed_at=datetime.now(UTC).isoformat(),
+                ),
             ),
         )
         made = client.post("/api/drives", json=EXOS).json()

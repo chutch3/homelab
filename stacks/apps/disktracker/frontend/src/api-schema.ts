@@ -366,18 +366,22 @@ export interface paths {
         get: operations["list_prices"];
         put?: never;
         /**
-         * Record a manual or collected price
-         * @description Record a price, whoever submits it. The Idempotency-Key names the submission: sent again
-         *     with the same body it is answered as it was the first time, without doing the work again;
-         *     sent with a different body it is refused (409).
+         * Record a price of a known drive's offer
+         * @description Record a price of an offer whose drive is already known. The Idempotency-Key names the
+         *     submission: sent again with the same body it is answered as it was the first time, without
+         *     doing the work again; sent with a different body it is refused (409).
          *
-         *     Either name offer_id (omit store, MPN and condition), or describe the offer with store,
-         *     MPN and condition. Store `other` also requires seller. A new drive needs capacity_gb.
-         *     With on_unmatched=queue, MPN and condition may be absent, but title and URL are required.
-         *     An in-stock observation needs a positive item price. An out-of-stock observation without
-         *     a price reuses the last price; a manual entry cannot do this for an offer never priced.
-         *     Collected observations also honor saved review decisions and ignore never-priced sold-out
-         *     offers. provenance defaults to manual and on_unmatched defaults to reject.
+         *     Either name offer_id, or name drive_id with the store, seller and condition it is offered in
+         *     (store `other` also requires seller); an offer new to them is made, with title and url when
+         *     given, else titled by its drive's MPN. What says what a drive is (its MPN, capacity, brand,
+         *     specifications or other MPNs) is refused: make or correct the drive first (POST /drives,
+         *     PATCH /drives/{id}). A store page as collected is taken in at POST /ingestions; a collector
+         *     sends here only a recheck of an offer it names (provenance collected), which never releases
+         *     the offer's hold.
+         *
+         *     An in-stock observation needs a positive item price. An out-of-stock observation without a
+         *     price reuses the last price; a manual entry cannot do this for an offer never priced. An
+         *     unchanged price is recorded with price_id null, counted as a check.
          */
         post: operations["record_price"];
         delete?: never;
@@ -1478,26 +1482,20 @@ export interface components {
         };
         /**
          * PriceInput
-         * @description One observed price, from a person or a collector alike. The offer it is for is either
-         *     named (offer_id) or described: its store, MPN, condition and, for a one-off store, seller.
-         *
-         *     on_unmatched says what to do with a described offer that cannot be matched to a drive (its
-         *     MPN or condition is unknown, its drive's capacity is unknown, or its capacity disagrees with
-         *     the drive's): reject refuses the price; queue keeps it for review, which needs the page and
-         *     title a reviewer is shown.
+         * @description One observed price of an offer whose drive is already known, from a person or a collector
+         *     rechecking it. The offer is named (offer_id), or its drive is (drive_id), with the store,
+         *     seller and condition it is offered in: an offer new to them is made, titled and addressed by
+         *     title and url when given. Nothing here says what a drive is: a drive is made or corrected
+         *     beforehand, and a store page described is taken in at /ingestions.
          */
         PriceInput: {
-            /**
-             * Aliases
-             * @default []
-             */
-            aliases?: string[];
-            /** Brand */
-            brand?: string | null;
-            /** Capacity Gb */
-            capacity_gb?: number | null;
             /** Condition */
             condition?: ("new" | "manufacturer_recertified" | "refurbished" | "used") | null;
+            /**
+             * Drive Id
+             * @description Existing drive UUID, for an offer named by its store, seller and condition.
+             */
+            drive_id?: string | null;
             /**
              * In Stock
              * @default true
@@ -1508,8 +1506,6 @@ export interface components {
              * @description Positive item price in US cents, excluding shipping. Required when in stock; when out of stock, omission reuses the previous price.
              */
             item_price_cents?: number | null;
-            /** Mpn */
-            mpn?: string | null;
             /**
              * Notes
              * @default
@@ -1522,19 +1518,12 @@ export interface components {
             observed_at?: string | null;
             /**
              * Offer Id
-             * @description Existing offer UUID; when supplied, omit store, MPN and condition.
+             * @description Existing offer UUID; when supplied, omit drive_id, store, condition, title and URL.
              */
             offer_id?: string | null;
             /**
-             * On Unmatched
-             * @description Reject unmatched input with a field error, or queue it for review. Queue requires title and URL.
-             * @default reject
-             * @enum {string}
-             */
-            on_unmatched?: "reject" | "queue";
-            /**
              * Provenance
-             * @description Who submitted the price; the offer store identifies where it was seen.
+             * @description Who submitted the price. A collector submits here only a recheck of an offer it names.
              * @default manual
              * @enum {string}
              */
@@ -1550,10 +1539,9 @@ export interface components {
              * @default 0
              */
             shipping_cents?: number | null;
-            specifications?: components["schemas"]["Specifications-Input"] | null;
             /**
              * Store
-             * @description Source key from GET /api/sources, not its UUID. Required unless offer_id is given; other requires seller.
+             * @description Source key from GET /api/sources, not its UUID. Required with drive_id; other requires seller.
              */
             store?: string | null;
             /** Title */
@@ -3782,20 +3770,6 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Ignored: nothing was kept */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    /**
-                     * @example {
-                     *       "status": "ignored"
-                     *     }
-                     */
-                    "application/json": components["schemas"]["PriceResult"];
-                };
-            };
             /** @description Recorded, or an unchanged price counted as a check (price_id is null) */
             201: {
                 headers: {
@@ -3812,22 +3786,7 @@ export interface operations {
                     "application/json": components["schemas"]["PriceResult"];
                 };
             };
-            /** @description Queued for review */
-            202: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    /**
-                     * @example {
-                     *       "review_item_id": "33333333-3333-4333-8333-333333333333",
-                     *       "status": "queued"
-                     *     }
-                     */
-                    "application/json": components["schemas"]["PriceResult"];
-                };
-            };
-            /** @description The named offer does not exist */
+            /** @description The named offer or drive does not exist */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -3836,7 +3795,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description The idempotency key was used for a different body, or capacity conflicts */
+            /** @description The idempotency key was used for a different body */
             409: {
                 headers: {
                     [name: string]: unknown;

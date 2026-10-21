@@ -7,7 +7,7 @@ from typing import Any
 from uuid import uuid4
 
 from fastapi.testclient import TestClient
-from test_api import post, price_payload, scraped_payload
+from test_api import entered, post, price_payload, scraped_payload
 
 from disktracker.main import create_app
 
@@ -20,7 +20,11 @@ def ago(days: float) -> str:
 
 def record(client: TestClient, **fields: Any) -> str:
     """A price, recorded by hand unless said otherwise; the offer it is for."""
-    response = post(client, "/api/prices", price_payload(**{"observed_at": ago(0.01), **fields}))
+    response = post(
+        client,
+        "/api/prices",
+        entered(client, price_payload(**{"observed_at": ago(0.01), **fields})),
+    )
     assert response.status_code == 201, response.text
     offer_id: str = response.json()["offer_id"]
     return offer_id
@@ -219,7 +223,9 @@ def test_each_drive_comes_with_the_range_of_its_lowest_price_over_the_days_asked
             post(
                 client,
                 "/api/prices",
-                price_payload(**common, item_price_cents=cents, observed_at=ago(days)),
+                entered(
+                    client, price_payload(**common, item_price_cents=cents, observed_at=ago(days))
+                ),
             )
         answer = client.get("/api/drives", params={"range_days": 30})
         assert answer.status_code == 200, answer.text

@@ -49,21 +49,42 @@ def test_invalid_specifications_are_rejected(data: dict[str, object], field: str
     assert error.value.errors()[0]["loc"][0] == field
 
 
+DRIVE = "22222222-2222-4222-8222-222222222222"
+
+
 def a_price(**fields: Any) -> dict[str, Any]:
-    """A price a person enters for an offer at a one-off store."""
+    """A price a person enters for a drive at a one-off store."""
     return {
-        "mpn": "ST18000NM000J",
+        "drive_id": DRIVE,
         "store": "other",
         "seller": "Example seller",
         "condition": "manufacturer_recertified",
         "title": "Seagate Exos X18",
         "url": "https://example.com/disk",
+        "item_price_cents": 18900,
+        "shipping_cents": 1000,
+        "observed_at": "2026-09-21T12:00:00Z",
+        **fields,
+    }
+
+
+def a_page(**fields: Any) -> dict[str, Any]:
+    """A store page as a collector read it."""
+    return {
+        "store": "serverpartdeals",
+        "mpn": "ST18000NM000J",
+        "condition": "manufacturer_recertified",
+        "title": "Seagate Exos X18",
+        "url": "https://www.serverpartdeals.com/products/x18",
         "capacity_gb": 18000,
         "item_price_cents": 18900,
         "shipping_cents": 1000,
         "observed_at": "2026-09-21T12:00:00Z",
         **fields,
     }
+
+
+BUILT = {PriceInput: a_price, IngestionInput: a_page}
 
 
 def refused(model: Any, data: Any) -> list[tuple[tuple[Any, ...], str]]:
@@ -84,32 +105,39 @@ def test_a_price_left_without_shipping_notes_or_time_is_free_unnoted_and_seen_no
 
 
 @pytest.mark.parametrize(
-    ("field", "value"),
+    ("model", "field", "value"),
     [
-        ("mpn", ""),
-        ("title", "   "),
-        ("capacity_gb", 0),
-        ("capacity_gb", 18000.5),
-        ("capacity_gb", "18 TB"),
-        ("condition", "excellent"),
-        # Only the four normalized conditions are accepted.
-        ("condition", "open_box"),
-        ("condition", "seller_refurbished"),
-        ("condition", "unknown"),
-        ("url", "javascript:alert(1)"),
-        ("shipping_cents", -1),
-        ("item_price_cents", 1.5),
-        ("item_price_cents", None),
-        ("observed_at", "2026-09-21T12:00:00"),
-        # Fees are part of shipping, and availability is in_stock.
-        ("fee_cents", 0),
-        ("availability", "in_stock"),
+        *[
+            (model, field, value)
+            for model in (PriceInput, IngestionInput)
+            for field, value in [
+                ("title", "   "),
+                ("condition", "excellent"),
+                # Only the four normalized conditions are accepted.
+                ("condition", "open_box"),
+                ("condition", "seller_refurbished"),
+                ("condition", "unknown"),
+                ("url", "javascript:alert(1)"),
+                ("shipping_cents", -1),
+                ("item_price_cents", 1.5),
+                ("item_price_cents", None),
+                ("observed_at", "2026-09-21T12:00:00"),
+                # Fees are part of shipping, and availability is in_stock.
+                ("fee_cents", 0),
+                ("availability", "in_stock"),
+            ]
+        ],
+        # What a page says of its drive.
+        (IngestionInput, "mpn", ""),
+        (IngestionInput, "capacity_gb", 0),
+        (IngestionInput, "capacity_gb", 18000.5),
+        (IngestionInput, "capacity_gb", "18 TB"),
     ],
 )
 def test_a_price_that_does_not_fit_is_refused_on_the_field_at_fault(
-    field: str, value: object
+    model: type, field: str, value: object
 ) -> None:
-    assert [loc for loc, _ in refused(PriceInput, a_price(**{field: value}))] == [(field,)]
+    assert [loc for loc, _ in refused(model, BUILT[model](**{field: value}))] == [(field,)]
 
 
 def test_a_price_needs_an_item_price() -> None:
@@ -127,7 +155,7 @@ def test_a_price_needs_an_item_price() -> None:
         (PriceInput, a_price(item_price_cents=0)),
         # Sold out with a price of nothing is no better: there is no price to carry.
         (PriceInput, a_price(item_price_cents=0, in_stock=False)),
-        (IngestionInput, a_price(item_price_cents=0, store="serverpartdeals", seller="")),
+        (IngestionInput, a_page(item_price_cents=0)),
     ],
     ids=["entered", "entered sold out", "collected"],
 )
@@ -145,35 +173,30 @@ def test_a_sold_out_price_may_leave_its_price_out() -> None:
     assert PriceInput.model_validate(a_price(item_price_cents=None, in_stock=False))
 
 
-@pytest.mark.parametrize("field", ["mpn", "condition"])
-def test_an_unidentified_price_is_refused_unless_review_is_asked_for(field: str) -> None:
-    assert refused(PriceInput, a_price(**{field: None})) == [
-        ((field,), "Value error, Enter this, or ask for the price to be reviewed.")
-    ]
-    assert PriceInput.model_validate(a_price(**{field: None}, on_unmatched="queue"))
+def test_a_page_may_leave_out_what_it_does_not_say_and_wait_for_review() -> None:
+    page = IngestionInput.model_validate(a_page(mpn=None, condition=None, capacity_gb=None))
+
+    assert (page.mpn, page.condition, page.capacity_gb) == (None, None, None)
 
 
-@pytest.mark.parametrize("field", ["url", "title"])
-def test_asking_for_review_needs_the_page_and_title_a_reviewer_is_shown(field: str) -> None:
-    assert refused(PriceInput, a_price(**{field: None}, on_unmatched="queue")) == [
-        ((field,), "Value error, A price to be reviewed needs its page and title.")
-    ]
-
-
-def test_a_price_names_its_offer_or_describes_it_but_not_both() -> None:
+def test_a_price_names_its_offer_or_its_drive_but_not_both() -> None:
     offer_id = str(uuid4())
     named = {"offer_id": offer_id, "item_price_cents": 17900}
 
     assert PriceInput.model_validate(named).offer_id == UUID(offer_id)
+    assert PriceInput.model_validate(a_price()).drive_id == UUID(DRIVE)
     assert refused(PriceInput, a_price(offer_id=offer_id)) == [
+        (("drive_id",), "Value error, Name the offer or its drive, not both."),
         (("store",), "Value error, Leave the store out when the offer is named."),
-        (("mpn",), "Value error, Leave this out when the offer is named."),
         (("condition",), "Value error, Leave this out when the offer is named."),
     ]
     assert refused(PriceInput, {"item_price_cents": 17900}) == [
+        (("drive_id",), "Value error, Name the offer, or the drive it is of.")
+    ]
+    placed = {"drive_id": DRIVE, "item_price_cents": 17900}
+    assert refused(PriceInput, placed) == [
         (("store",), "Value error, Choose a store."),
-        (("mpn",), "Value error, Enter this, or ask for the price to be reviewed."),
-        (("condition",), "Value error, Enter this, or ask for the price to be reviewed."),
+        (("condition",), "Value error, Choose its condition."),
     ]
 
 
@@ -181,10 +204,11 @@ def test_a_price_names_its_offer_or_describes_it_but_not_both() -> None:
 def test_a_price_at_a_one_off_store_names_its_seller(
     model: type[PriceInput] | type[IngestionInput],
 ) -> None:
-    assert refused(model, a_price(seller="")) == [
+    built = BUILT[model]
+    assert refused(model, built(store="other", seller="")) == [
         (("seller",), "Value error, Name the seller when the store is Other.")
     ]
-    assert model.model_validate(a_price(store="serverpartdeals", seller="")).seller == ""
+    assert model.model_validate(built(store="serverpartdeals", seller="")).seller == ""
 
 
 @pytest.mark.parametrize(

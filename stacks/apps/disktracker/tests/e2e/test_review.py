@@ -4,36 +4,25 @@ from uuid import uuid4
 from playwright.sync_api import Page, expect
 
 
-def price(page: Page, **fields: object) -> dict:
-    answer = page.request.post(
-        "/api/prices",
-        data={
-            "store": "serverpartdeals",
-            "seller": "",
-            "mpn": "P09094-H21",
-            "condition": "refurbished",
-            "item_price_cents": 74500,
-            "shipping_cents": 0,
-            **fields,
-        },
-        headers={"Idempotency-Key": str(uuid4())},
-    )
+def post(page: Page, path: str, fields: dict) -> dict:
+    answer = page.request.post(path, data=fields, headers={"Idempotency-Key": str(uuid4())})
     assert answer.ok, answer.text()
     result: dict = answer.json()
     return result
 
 
+PRICE = {"store": "serverpartdeals", "seller": "", "condition": "refurbished",
+         "item_price_cents": 74500, "shipping_cents": 0}  # fmt: skip
+
+
 def test_a_capacity_conflict_is_settled_from_review_by_correcting_the_drive(page: Page):
     # Recorded once with a capacity misread from its title; collected since as 3.2 TB.
-    price(page, title="HPE P09094-H213.2TB SAS", capacity_gb=213200)
-    price(
-        page,
-        provenance="collected",
-        on_unmatched="queue",
-        url="https://www.serverpartdeals.com/products/p09094-h21",
-        title="HPE P09094-H21 3.2TB SAS 12GBPS Smart Carrier",
-        capacity_gb=3200,
-    )
+    drive = post(page, "/api/drives", {"mpn": "P09094-H21", "capacity_gb": 213200})
+    post(page, "/api/prices", {**PRICE, "drive_id": drive["id"], "title": "HPE P09094-H213.2TB SAS"})
+    post(page, "/api/ingestions", {
+        **PRICE, "mpn": "P09094-H21", "url": "https://www.serverpartdeals.com/products/p09094-h21",
+        "title": "HPE P09094-H21 3.2TB SAS 12GBPS Smart Carrier", "capacity_gb": 3200,
+    })  # fmt: skip
 
     page.goto("/admin")
     # Named with its count while anything waits.

@@ -118,6 +118,21 @@ def specification(listing: dict) -> dict:
     return spec
 
 
+def drive_for(listing: dict) -> str:
+    """The drive recorded under the listing's MPN, or one made under it. Specs belong to the
+    drive, so only the first listing seeded for an MPN sets them."""
+    mpn = listing["mpn"]
+    found = get(f"/api/catalog-drives?q={mpn}")["items"]
+    for row in found:
+        if mpn in (row["drive"]["mpn"], *row["drive"]["aliases"]):
+            return row["drive"]["id"]
+    made = send("POST", "/api/drives", {
+        "mpn": mpn, "capacity_gb": round(float(listing["capacity"]) * 1000),
+        "specifications": specification(listing),
+    })
+    return made["id"]
+
+
 existing = {
     (row["mpn"], row["store"], row["seller"], row["condition"]) for row in get("/api/offers")
 }
@@ -127,15 +142,11 @@ for listing in LISTINGS:
     if (listing["mpn"], listing["store"], listing["seller"], listing["condition"]) in existing:
         print(f"skipped (already seeded)  {name}: {listing['title'][:60]}")
         continue
+    drive_id = drive_for(listing)
     saved = send("POST", "/api/prices", {
-        "mpn": listing["mpn"], "store": listing["store"], "seller": listing["seller"],
-        "condition": listing["condition"],
-        "title": listing["title"], "url": listing["url"], "capacity_gb": round(float(listing["capacity"]) * 1000),
+        "drive_id": drive_id, "store": listing["store"], "seller": listing["seller"],
+        "condition": listing["condition"], "title": listing["title"], "url": listing["url"],
         "item_price_cents": listing["price"], "observed_at": NOW,
         "notes": f"Seeded from {name} on 2026-09-22",
     })
-    drive = get(f"/api/offers/{saved['offer_id']}")["drive"]
-    # Specs belong to the drive, so only the first seller seeded for an MPN sets them.
-    if drive["specifications"]["interface"] == "unknown":
-        send("PATCH", f"/api/drives/{drive['id']}", {"specifications": specification(listing)})
     print(f"created {saved['offer_id']}  {name}: {listing['title'][:60]}")

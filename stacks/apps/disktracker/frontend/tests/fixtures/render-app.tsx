@@ -4,7 +4,7 @@ import { App } from '../../src/App';
 import type { Offer, DisktrackerApi, ReviewItem } from '../../src/api';
 import { catalogPage, detailOf, drivePage, pricesOf, rowsOf } from './responses';
 import { groupKeyFor } from '../../src/drive-groups';
-import { checkedAt, knownKinds, knownStores, shoppingListings, unusedWrites } from './listings';
+import { checkedAt, knownKinds, knownStores, makeDrive, shoppingListings, unusedWrites } from './listings';
 
 export type FakeApi = Omit<Partial<DisktrackerApi>, 'reviewItems'> & {
   /** The offers recorded: what the drives, a drive, an offer and its prices are answered from. */
@@ -49,6 +49,8 @@ export function renderApp({ listOffers = async () => shoppingListings, reviewIte
       return found;
     },
     prices: async request => pricesOf((await listOffers()).filter(ofDrive(request.driveId ?? '')), request),
+    // A drive made is answered as the server makes it.
+    createDrive: async ({ mpn, capacity_gb, brand }) => makeDrive(mpn, { capacity_gb, brand: brand ?? null }),
     offersToRecheck: async () => [],
     // No store has offers; a test that shows how fresh they are says what the server reports.
     storeFreshness: async () => [],

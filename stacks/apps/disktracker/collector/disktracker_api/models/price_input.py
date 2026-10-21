@@ -10,8 +10,6 @@ from ..types import UNSET, Unset
 
 from ..models.price_input_condition_type_0 import check_price_input_condition_type_0
 from ..models.price_input_condition_type_0 import PriceInputConditionType0
-from ..models.price_input_on_unmatched import check_price_input_on_unmatched
-from ..models.price_input_on_unmatched import PriceInputOnUnmatched
 from ..models.price_input_provenance import check_price_input_provenance
 from ..models.price_input_provenance import PriceInputProvenance
 from ..types import UNSET, Unset
@@ -19,8 +17,6 @@ from typing import cast
 from uuid import UUID
 import datetime
 
-if TYPE_CHECKING:
-  from ..models.specifications_input import SpecificationsInput
 
 
 
@@ -32,56 +28,44 @@ T = TypeVar("T", bound="PriceInput")
 
 @_attrs_define
 class PriceInput:
-    """ One observed price, from a person or a collector alike. The offer it is for is either
-    named (offer_id) or described: its store, MPN, condition and, for a one-off store, seller.
-
-    on_unmatched says what to do with a described offer that cannot be matched to a drive (its
-    MPN or condition is unknown, its drive's capacity is unknown, or its capacity disagrees with
-    the drive's): reject refuses the price; queue keeps it for review, which needs the page and
-    title a reviewer is shown.
+    """ One observed price of an offer whose drive is already known, from a person or a collector
+    rechecking it. The offer is named (offer_id), or its drive is (drive_id), with the store,
+    seller and condition it is offered in: an offer new to them is made, titled and addressed by
+    title and url when given. Nothing here says what a drive is: a drive is made or corrected
+    beforehand, and a store page described is taken in at /ingestions.
 
         Attributes:
-            aliases (list[str] | Unset):
-            brand (None | str | Unset):
-            capacity_gb (int | None | Unset):
             condition (None | PriceInputConditionType0 | Unset):
+            drive_id (None | Unset | UUID): Existing drive UUID, for an offer named by its store, seller and condition.
             in_stock (bool | Unset):  Default: True.
             item_price_cents (int | None | Unset): Positive item price in US cents, excluding shipping. Required when in
                 stock; when out of stock, omission reuses the previous price.
-            mpn (None | str | Unset):
             notes (str | Unset):  Default: ''.
             observed_at (datetime.datetime | None | Unset): When the price was observed, with a timezone offset. Omit to use
                 server time; backdated prices are accepted.
-            offer_id (None | Unset | UUID): Existing offer UUID; when supplied, omit store, MPN and condition.
-            on_unmatched (PriceInputOnUnmatched | Unset): Reject unmatched input with a field error, or queue it for review.
-                Queue requires title and URL. Default: 'reject'.
-            provenance (PriceInputProvenance | Unset): Who submitted the price; the offer store identifies where it was
-                seen. Default: 'manual'.
+            offer_id (None | Unset | UUID): Existing offer UUID; when supplied, omit drive_id, store, condition, title and
+                URL.
+            provenance (PriceInputProvenance | Unset): Who submitted the price. A collector submits here only a recheck of
+                an offer it names. Default: 'manual'.
             seller (str | Unset):  Default: ''.
             shipping_cents (int | None | Unset): Shipping in US cents: 0 means free, null means unknown. Unknown shipping
                 contributes zero to totals. Default: 0.
-            specifications (None | SpecificationsInput | Unset):
-            store (None | str | Unset): Source key from GET /api/sources, not its UUID. Required unless offer_id is given;
-                other requires seller.
+            store (None | str | Unset): Source key from GET /api/sources, not its UUID. Required with drive_id; other
+                requires seller.
             title (None | str | Unset):
             url (None | str | Unset):
      """
 
-    aliases: list[str] | Unset = UNSET
-    brand: None | str | Unset = UNSET
-    capacity_gb: int | None | Unset = UNSET
     condition: None | PriceInputConditionType0 | Unset = UNSET
+    drive_id: None | Unset | UUID = UNSET
     in_stock: bool | Unset = True
     item_price_cents: int | None | Unset = UNSET
-    mpn: None | str | Unset = UNSET
     notes: str | Unset = ''
     observed_at: datetime.datetime | None | Unset = UNSET
     offer_id: None | Unset | UUID = UNSET
-    on_unmatched: PriceInputOnUnmatched | Unset = 'reject'
     provenance: PriceInputProvenance | Unset = 'manual'
     seller: str | Unset = ''
     shipping_cents: int | None | Unset = 0
-    specifications: None | SpecificationsInput | Unset = UNSET
     store: None | str | Unset = UNSET
     title: None | str | Unset = UNSET
     url: None | str | Unset = UNSET
@@ -91,25 +75,6 @@ class PriceInput:
 
 
     def to_dict(self) -> dict[str, Any]:
-        from ..models.specifications_input import SpecificationsInput # noqa: PLC0415
-        aliases: list[str] | Unset = UNSET
-        if not isinstance(self.aliases, Unset):
-            aliases = self.aliases
-
-
-
-        brand: None | str | Unset
-        if isinstance(self.brand, Unset):
-            brand = UNSET
-        else:
-            brand = self.brand
-
-        capacity_gb: int | None | Unset
-        if isinstance(self.capacity_gb, Unset):
-            capacity_gb = UNSET
-        else:
-            capacity_gb = self.capacity_gb
-
         condition: None | str | Unset
         if isinstance(self.condition, Unset):
             condition = UNSET
@@ -118,6 +83,14 @@ class PriceInput:
         else:
             condition = self.condition
 
+        drive_id: None | str | Unset
+        if isinstance(self.drive_id, Unset):
+            drive_id = UNSET
+        elif isinstance(self.drive_id, UUID):
+            drive_id = str(self.drive_id)
+        else:
+            drive_id = self.drive_id
+
         in_stock = self.in_stock
 
         item_price_cents: int | None | Unset
@@ -125,12 +98,6 @@ class PriceInput:
             item_price_cents = UNSET
         else:
             item_price_cents = self.item_price_cents
-
-        mpn: None | str | Unset
-        if isinstance(self.mpn, Unset):
-            mpn = UNSET
-        else:
-            mpn = self.mpn
 
         notes = self.notes
 
@@ -150,11 +117,6 @@ class PriceInput:
         else:
             offer_id = self.offer_id
 
-        on_unmatched: str | Unset = UNSET
-        if not isinstance(self.on_unmatched, Unset):
-            on_unmatched = self.on_unmatched
-
-
         provenance: str | Unset = UNSET
         if not isinstance(self.provenance, Unset):
             provenance = self.provenance
@@ -167,14 +129,6 @@ class PriceInput:
             shipping_cents = UNSET
         else:
             shipping_cents = self.shipping_cents
-
-        specifications: dict[str, Any] | None | Unset
-        if isinstance(self.specifications, Unset):
-            specifications = UNSET
-        elif isinstance(self.specifications, SpecificationsInput):
-            specifications = self.specifications.to_dict()
-        else:
-            specifications = self.specifications
 
         store: None | str | Unset
         if isinstance(self.store, Unset):
@@ -199,36 +153,26 @@ class PriceInput:
 
         field_dict.update({
         })
-        if aliases is not UNSET:
-            field_dict["aliases"] = aliases
-        if brand is not UNSET:
-            field_dict["brand"] = brand
-        if capacity_gb is not UNSET:
-            field_dict["capacity_gb"] = capacity_gb
         if condition is not UNSET:
             field_dict["condition"] = condition
+        if drive_id is not UNSET:
+            field_dict["drive_id"] = drive_id
         if in_stock is not UNSET:
             field_dict["in_stock"] = in_stock
         if item_price_cents is not UNSET:
             field_dict["item_price_cents"] = item_price_cents
-        if mpn is not UNSET:
-            field_dict["mpn"] = mpn
         if notes is not UNSET:
             field_dict["notes"] = notes
         if observed_at is not UNSET:
             field_dict["observed_at"] = observed_at
         if offer_id is not UNSET:
             field_dict["offer_id"] = offer_id
-        if on_unmatched is not UNSET:
-            field_dict["on_unmatched"] = on_unmatched
         if provenance is not UNSET:
             field_dict["provenance"] = provenance
         if seller is not UNSET:
             field_dict["seller"] = seller
         if shipping_cents is not UNSET:
             field_dict["shipping_cents"] = shipping_cents
-        if specifications is not UNSET:
-            field_dict["specifications"] = specifications
         if store is not UNSET:
             field_dict["store"] = store
         if title is not UNSET:
@@ -242,31 +186,7 @@ class PriceInput:
 
     @classmethod
     def from_dict(cls: type[T], src_dict: Mapping[str, Any]) -> T:
-        from ..models.specifications_input import SpecificationsInput # noqa: PLC0415
         d = dict(src_dict)
-        aliases = cast(list[str], d.pop("aliases", UNSET))
-
-
-        def _parse_brand(data: object) -> None | str | Unset:
-            if data is None:
-                return data
-            if isinstance(data, Unset):
-                return data
-            return cast(None | str | Unset, data)
-
-        brand = _parse_brand(d.pop("brand", UNSET))
-
-
-        def _parse_capacity_gb(data: object) -> int | None | Unset:
-            if data is None:
-                return data
-            if isinstance(data, Unset):
-                return data
-            return cast(int | None | Unset, data)
-
-        capacity_gb = _parse_capacity_gb(d.pop("capacity_gb", UNSET))
-
-
         def _parse_condition(data: object) -> None | PriceInputConditionType0 | Unset:
             if data is None:
                 return data
@@ -287,6 +207,26 @@ class PriceInput:
         condition = _parse_condition(d.pop("condition", UNSET))
 
 
+        def _parse_drive_id(data: object) -> None | Unset | UUID:
+            if data is None:
+                return data
+            if isinstance(data, Unset):
+                return data
+            try:
+                if not isinstance(data, str):
+                    raise TypeError()
+                drive_id_type_0 = UUID(data)
+
+
+
+                return drive_id_type_0
+            except (TypeError, ValueError, AttributeError, KeyError):
+                pass
+            return cast(None | Unset | UUID, data)
+
+        drive_id = _parse_drive_id(d.pop("drive_id", UNSET))
+
+
         in_stock = d.pop("in_stock", UNSET)
 
         def _parse_item_price_cents(data: object) -> int | None | Unset:
@@ -297,16 +237,6 @@ class PriceInput:
             return cast(int | None | Unset, data)
 
         item_price_cents = _parse_item_price_cents(d.pop("item_price_cents", UNSET))
-
-
-        def _parse_mpn(data: object) -> None | str | Unset:
-            if data is None:
-                return data
-            if isinstance(data, Unset):
-                return data
-            return cast(None | str | Unset, data)
-
-        mpn = _parse_mpn(d.pop("mpn", UNSET))
 
 
         notes = d.pop("notes", UNSET)
@@ -351,16 +281,6 @@ class PriceInput:
         offer_id = _parse_offer_id(d.pop("offer_id", UNSET))
 
 
-        _on_unmatched = d.pop("on_unmatched", UNSET)
-        on_unmatched: PriceInputOnUnmatched | Unset
-        if isinstance(_on_unmatched,  Unset):
-            on_unmatched = UNSET
-        else:
-            on_unmatched = check_price_input_on_unmatched(_on_unmatched)
-
-
-
-
         _provenance = d.pop("provenance", UNSET)
         provenance: PriceInputProvenance | Unset
         if isinstance(_provenance,  Unset):
@@ -381,26 +301,6 @@ class PriceInput:
             return cast(int | None | Unset, data)
 
         shipping_cents = _parse_shipping_cents(d.pop("shipping_cents", UNSET))
-
-
-        def _parse_specifications(data: object) -> None | SpecificationsInput | Unset:
-            if data is None:
-                return data
-            if isinstance(data, Unset):
-                return data
-            try:
-                if not isinstance(data, dict):
-                    raise TypeError()
-                specifications_type_0 = SpecificationsInput.from_dict(data)
-
-
-
-                return specifications_type_0
-            except (TypeError, ValueError, AttributeError, KeyError):
-                pass
-            return cast(None | SpecificationsInput | Unset, data)
-
-        specifications = _parse_specifications(d.pop("specifications", UNSET))
 
 
         def _parse_store(data: object) -> None | str | Unset:
@@ -434,21 +334,16 @@ class PriceInput:
 
 
         price_input = cls(
-            aliases=aliases,
-            brand=brand,
-            capacity_gb=capacity_gb,
             condition=condition,
+            drive_id=drive_id,
             in_stock=in_stock,
             item_price_cents=item_price_cents,
-            mpn=mpn,
             notes=notes,
             observed_at=observed_at,
             offer_id=offer_id,
-            on_unmatched=on_unmatched,
             provenance=provenance,
             seller=seller,
             shipping_cents=shipping_cents,
-            specifications=specifications,
             store=store,
             title=title,
             url=url,

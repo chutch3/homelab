@@ -17,6 +17,7 @@ export type ObservationInput = Pick<PriceInput, 'item_price_cents' | 'shipping_c
 export type OfferEdit = Schemas['OfferEdit'];
 export type Drive = Schemas['Drive'];
 export type DriveEdit = Schemas['DriveEdit'];
+export type DriveInput = Schemas['DriveInput'];
 export type OfferSummary = Schemas['OfferSummary'];
 export type Offer = Schemas['Offer'];
 export type ReviewItem = Schemas['ReviewItem'];
@@ -111,6 +112,8 @@ export interface DisktrackerApi {
   deletePrice(priceId: string): Promise<null>;
   editOffer(id: string, input: OfferEdit): Promise<Offer>;
   deleteOffer(id: string): Promise<void>;
+  /** Makes a drive under an MPN no drive goes by yet. */
+  createDrive(input: DriveInput): Promise<Drive>;
   editDrive(driveId: string, input: DriveEdit): Promise<Drive>;
   addAlias(driveId: string, mpn: string): Promise<Drive>;
   /** The latest run of each store, by store. */
@@ -211,6 +214,9 @@ export class HttpDisktrackerApi implements DisktrackerApi {
   }
   addAlias(driveId: string, mpn: string): Promise<Drive> {
     return this.send(`/drives/${driveId}/aliases`, { mpn });
+  }
+  createDrive(input: DriveInput): Promise<Drive> {
+    return this.send('/drives', input);
   }
   editDrive(driveId: string, input: DriveEdit): Promise<Drive> {
     return this.send(`/drives/${driveId}`, input, undefined, 'PATCH');

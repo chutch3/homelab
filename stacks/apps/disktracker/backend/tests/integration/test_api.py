@@ -48,11 +48,40 @@ def price_payload(**fields: Any) -> dict[str, Any]:
     }
 
 
+# What a price says of a drive's offer; the rest of a description is the drive's.
+DRIVE_FIELDS = ("mpn", "capacity_gb", "brand", "specifications")
+
+
+def entered(client: TestClient, described: dict[str, Any]) -> dict[str, Any]:
+    """A price described by its drive's MPN, as a person enters it: the drive found by that MPN,
+    or made first, and the price then of that drive. One that names its offer is as it is."""
+    if "offer_id" in described:
+        return described
+    drive = {key: described[key] for key in DRIVE_FIELDS if described.get(key) is not None}
+    made = client.post("/api/drives", json=drive)
+    if made.status_code == 201:
+        drive_id = made.json()["id"]
+    else:
+        assert made.status_code in (409, 422), made.text
+        found = client.get("/api/catalog-drives", params={"q": drive["mpn"]}).json()["items"]
+        [drive_id] = [
+            item["drive"]["id"]
+            for item in found
+            if drive["mpn"] in (item["drive"]["mpn"], *item["drive"]["aliases"])
+        ]
+    price = {key: value for key, value in described.items() if key not in DRIVE_FIELDS}
+    return {"drive_id": drive_id, **price}
+
+
 def test_offers_are_identified_by_store_and_optional_marketplace_seller(
     database_url: str,
 ) -> None:
     with TestClient(create_app()) as client:
-        direct = post(client, "/api/prices", price_payload(store="serverpartdeals", seller=""))
+        direct = post(
+            client,
+            "/api/prices",
+            entered(client, price_payload(store="serverpartdeals", seller="")),
+        )
         assert direct.status_code == 201, direct.text
         direct_offer = saved_offer(client, direct)
         assert (direct_offer["store"], direct_offer["seller"]) == ("serverpartdeals", "")
@@ -61,32 +90,48 @@ def test_offers_are_identified_by_store_and_optional_marketplace_seller(
             post(
                 client,
                 "/api/prices",
-                price_payload(
-                    store="serverpartdeals", seller="  ", observed_at="2026-09-22T12:00:00Z"
+                entered(
+                    client,
+                    price_payload(
+                        store="serverpartdeals", seller="  ", observed_at="2026-09-22T12:00:00Z"
+                    ),
                 ),
             ),
         )
         assert again["id"] == direct_offer["id"]
         beach_audio = saved_offer(
-            client, post(client, "/api/prices", price_payload(seller="Beach Audio"))
+            client,
+            post(client, "/api/prices", entered(client, price_payload(seller="Beach Audio"))),
         )
         drivedeals = saved_offer(
-            client, post(client, "/api/prices", price_payload(seller="drivedeals"))
+            client, post(client, "/api/prices", entered(client, price_payload(seller="drivedeals")))
         )
         assert len({direct_offer["id"], beach_audio["id"], drivedeals["id"]}) == 3
-        assert post(client, "/api/prices", price_payload(store="frys")).status_code == 422
-        assert post(client, "/api/prices", price_payload(store="newegg")).status_code == 422
-        unnamed = post(client, "/api/prices", price_payload(store="other", seller=""))
+        assert (
+            post(client, "/api/prices", entered(client, price_payload(store="frys"))).status_code
+            == 422
+        )
+        assert (
+            post(client, "/api/prices", entered(client, price_payload(store="newegg"))).status_code
+            == 422
+        )
+        unnamed = post(
+            client, "/api/prices", entered(client, price_payload(store="other", seller=""))
+        )
         assert unnamed.status_code == 422
         assert unnamed.json()["detail"][0]["loc"] == ["body", "seller"]
-        named = post(client, "/api/prices", price_payload(store="other", seller="Local shop"))
+        named = post(
+            client,
+            "/api/prices",
+            entered(client, price_payload(store="other", seller="Local shop")),
+        )
         assert named.status_code == 201, named.text
 
 
 def test_offer_and_later_price_survive_a_new_application_instance(database_url: str) -> None:
     with TestClient(create_app()) as client:
         started = datetime.now(UTC)
-        result = post(client, "/api/prices", price_payload())
+        result = post(client, "/api/prices", entered(client, price_payload()))
         offer = saved_offer(client, result)
         assert str(UUID(offer["id"])) == offer["id"]
         assert offer["title"] == "Seagate Exos X18"
@@ -100,7 +145,9 @@ def test_offer_and_later_price_survive_a_new_application_instance(database_url: 
         later = post(
             client,
             "/api/prices",
-            price_payload(item_price_cents=17900, observed_at="2026-09-22T12:00:00Z"),
+            entered(
+                client, price_payload(item_price_cents=17900, observed_at="2026-09-22T12:00:00Z")
+            ),
         )
         assert later.status_code == 201, later.text
 
@@ -114,7 +161,7 @@ def test_offer_and_later_price_survive_a_new_application_instance(database_url: 
 
 def test_offers_carry_no_correction_archive_or_revision_state(database_url: str) -> None:
     with TestClient(create_app()) as client:
-        offer = saved_offer(client, post(client, "/api/prices", price_payload()))
+        offer = saved_offer(client, post(client, "/api/prices", entered(client, price_payload())))
         assert not {"corrections", "revision", "archived_at", "duplicate_of"} & set(offer)
         assert not {"corrections", "revision"} & set(offer["drive"])
         listing, observation = offer["id"], offer["latest"]["id"]
@@ -132,12 +179,14 @@ def test_offers_carry_no_correction_archive_or_revision_state(database_url: str)
 def test_retries_replay_the_original_result_and_reject_changed_payload(database_url: str) -> None:
     key = str(uuid4())
     with TestClient(create_app()) as client:
-        first = post(client, "/api/prices", price_payload(), key)
-        retry = post(client, "/api/prices", price_payload(), key)
+        first = post(client, "/api/prices", entered(client, price_payload()), key)
+        retry = post(client, "/api/prices", entered(client, price_payload()), key)
         assert retry.status_code == 201
         assert retry.json() == first.json()
         assert len(with_history(client)[0]["observations"]) == 1
-        changed = post(client, "/api/prices", price_payload(item_price_cents=1), key)
+        changed = post(
+            client, "/api/prices", entered(client, price_payload(item_price_cents=1)), key
+        )
         assert changed.status_code == 409
 
 
@@ -146,7 +195,7 @@ def test_concurrent_retries_record_one_price(database_url: str) -> None:
     with TestClient(create_app()) as client:
 
         def submit() -> dict[str, Any]:
-            response = post(client, "/api/prices", price_payload(), key)
+            response = post(client, "/api/prices", entered(client, price_payload()), key)
             assert response.status_code == 201
             return response.json()
 
@@ -158,13 +207,16 @@ def test_concurrent_retries_record_one_price(database_url: str) -> None:
 
 def test_backdated_prices_preserve_the_latest_observation(database_url: str) -> None:
     with TestClient(create_app()) as client:
-        post(client, "/api/prices", price_payload())
+        post(client, "/api/prices", entered(client, price_payload()))
         older = saved_offer(
             client,
             post(
                 client,
                 "/api/prices",
-                price_payload(item_price_cents=10000, observed_at="2026-09-20T12:00:00Z"),
+                entered(
+                    client,
+                    price_payload(item_price_cents=10000, observed_at="2026-09-20T12:00:00Z"),
+                ),
             ),
         )
         assert older["latest"]["item_price_cents"] == 18900
@@ -177,11 +229,12 @@ def test_a_price_corrected_for_the_moment_it_was_seen_is_the_latest_everywhere(
     """Mistyped, then entered again for the same moment: the one entered last is the offer's
     price, as it is shown and as a later check is compared with."""
     with TestClient(create_app()) as client:
-        post(client, "/api/prices", price_payload(item_price_cents=18900))
+        post(client, "/api/prices", entered(client, price_payload(item_price_cents=18900)))
         corrected = saved_offer(
-            client, post(client, "/api/prices", price_payload(item_price_cents=17900))
+            client,
+            post(client, "/api/prices", entered(client, price_payload(item_price_cents=17900))),
         )
-        again = post(client, "/api/prices", price_payload(item_price_cents=17900))
+        again = post(client, "/api/prices", entered(client, price_payload(item_price_cents=17900)))
 
     assert corrected["latest"]["item_price_cents"] == 17900
     assert [o["item_price_cents"] for o in corrected["observations"]] == [18900, 17900]
@@ -195,7 +248,7 @@ def test_a_price_left_without_shipping_or_time_is_free_and_seen_now(database_url
         minimal = price_payload()
         for field in ("shipping_cents", "observed_at", "notes"):
             del minimal[field]
-        saved = post(client, "/api/prices", minimal)
+        saved = post(client, "/api/prices", entered(client, minimal))
         latest = saved_offer(client, saved)["latest"]
         assert latest["shipping_cents"] == 0
         assert latest["total_cents"] == 18900
@@ -207,7 +260,7 @@ def test_a_price_left_without_shipping_or_time_is_free_and_seen_now(database_url
 def test_a_refused_price_is_refused_on_its_field_and_saves_nothing(database_url: str) -> None:
     """What makes a price refused is the schema's (tests/unit/catalog/test_schemas.py)."""
     with TestClient(create_app()) as client:
-        result = post(client, "/api/prices", price_payload(condition="excellent"))
+        result = post(client, "/api/prices", entered(client, price_payload(condition="excellent")))
         assert result.status_code == 422
         assert result.json()["detail"][0]["loc"] == ["body", "condition"]
         assert client.get("/api/offers").json() == []
@@ -222,23 +275,30 @@ def test_recording_a_price_keeps_one_offer_per_store_mpn_and_condition(
     database_url: str,
 ) -> None:
     with TestClient(create_app()) as client:
-        first = post(client, "/api/prices", price_payload())
+        first = post(client, "/api/prices", entered(client, price_payload()))
         assert first.status_code == 201, first.text
         later = post(
             client,
             "/api/prices",
-            price_payload(
-                item_price_cents=17900,
-                observed_at="2026-09-22T12:00:00Z",
-                url="https://example.com/disk-v2",
+            entered(
+                client,
+                price_payload(
+                    item_price_cents=17900,
+                    observed_at="2026-09-22T12:00:00Z",
+                    url="https://example.com/disk-v2",
+                ),
             ),
         )
         offer = saved_offer(client, later)
         assert offer["id"] == first.json()["offer_id"]
         assert offer["url"] == "https://example.com/disk"
         assert [o["item_price_cents"] for o in offer["observations"]] == [18900, 17900]
-        other_condition = post(client, "/api/prices", price_payload(condition="new"))
-        other_seller = post(client, "/api/prices", price_payload(seller="Other seller"))
+        other_condition = post(
+            client, "/api/prices", entered(client, price_payload(condition="new"))
+        )
+        other_seller = post(
+            client, "/api/prices", entered(client, price_payload(seller="Other seller"))
+        )
         ids = {offer["id"], other_condition.json()["offer_id"], other_seller.json()["offer_id"]}
         assert len(ids) == 3
         assert saved_offer(client, other_seller)["drive"]["id"] == offer["drive"]["id"]
@@ -252,8 +312,11 @@ def test_concurrent_first_prices_for_one_offer_create_a_single_offer(database_ur
             response = post(
                 client,
                 "/api/prices",
-                price_payload(
-                    item_price_cents=18900 + day, observed_at=f"2026-09-2{day}T12:00:00Z"
+                entered(
+                    client,
+                    price_payload(
+                        item_price_cents=18900 + day, observed_at=f"2026-09-2{day}T12:00:00Z"
+                    ),
                 ),
             )
             assert response.status_code == 201, response.text
@@ -270,13 +333,15 @@ def test_deleting_a_wrong_price_removes_it_and_deleting_the_last_price_removes_t
     database_url: str,
 ) -> None:
     with TestClient(create_app()) as client:
-        post(client, "/api/prices", price_payload())
+        post(client, "/api/prices", entered(client, price_payload()))
         typo = saved_offer(
             client,
             post(
                 client,
                 "/api/prices",
-                price_payload(item_price_cents=1890, observed_at="2026-09-22T12:00:00Z"),
+                entered(
+                    client, price_payload(item_price_cents=1890, observed_at="2026-09-22T12:00:00Z")
+                ),
             ),
         )
         wrong, right = typo["observations"][1]["id"], typo["observations"][0]["id"]
@@ -298,9 +363,10 @@ def test_deleting_a_wrong_price_removes_it_and_deleting_the_last_price_removes_t
 
 def test_deleting_an_offer_removes_it_and_its_prices(database_url: str) -> None:
     with TestClient(create_app()) as client:
-        offer = saved_offer(client, post(client, "/api/prices", price_payload()))
+        offer = saved_offer(client, post(client, "/api/prices", entered(client, price_payload())))
         kept = saved_offer(
-            client, post(client, "/api/prices", price_payload(seller="Other seller"))
+            client,
+            post(client, "/api/prices", entered(client, price_payload(seller="Other seller"))),
         )
         assert client.delete(f"/api/offers/{offer['id']}").status_code == 204
         assert [o["id"] for o in client.get("/api/offers").json()] == [kept["id"]]
@@ -309,7 +375,7 @@ def test_deleting_an_offer_removes_it_and_its_prices(database_url: str) -> None:
 
 def test_editing_an_offer_updates_its_details_in_place(database_url: str) -> None:
     with TestClient(create_app()) as client:
-        offer = saved_offer(client, post(client, "/api/prices", price_payload()))
+        offer = saved_offer(client, post(client, "/api/prices", entered(client, price_payload())))
         path = f"/api/offers/{offer['id']}"
         edited = client.patch(path, json={"title": "Exos X18 18TB", "url": None})
         assert edited.status_code == 200, edited.text
@@ -325,7 +391,7 @@ def test_replacing_a_drives_plain_specifications_updates_every_offer_for_that_mp
     database_url: str,
 ) -> None:
     with TestClient(create_app()) as client:
-        offer = saved_offer(client, post(client, "/api/prices", price_payload()))
+        offer = saved_offer(client, post(client, "/api/prices", entered(client, price_payload())))
         assert offer["drive"]["specifications"] == {
             "media_type": "unknown",
             "form_factor": "unknown",
@@ -333,7 +399,7 @@ def test_replacing_a_drives_plain_specifications_updates_every_offer_for_that_mp
             "recording_type": "unknown",
             "intended_use": [],
         }
-        post(client, "/api/prices", price_payload(seller="Other seller"))
+        post(client, "/api/prices", entered(client, price_payload(seller="Other seller")))
         path = f"/api/drives/{offer['drive']['id']}"
         specifications = {
             "media_type": "hdd",
@@ -401,22 +467,19 @@ def test_a_drives_brand_is_corrected_by_hand_and_then_left_alone_by_the_collecto
 def test_capacity_belongs_to_the_drive_so_every_offer_for_an_mpn_shares_it(
     database_url: str,
 ) -> None:
+    """A price never says what a drive's capacity is: one that disagrees is refused where a drive
+    is made (POST /drives) and queued where a page is taken in (POST /ingestions)."""
     with TestClient(create_app()) as client:
-        first = saved_offer(client, post(client, "/api/prices", price_payload()))
+        first = saved_offer(client, post(client, "/api/prices", entered(client, price_payload())))
         assert first["capacity_gb"] == 18000
         assert first["drive"]["capacity_gb"] == 18000
-        reused = post(client, "/api/prices", price_payload(seller="Other seller", capacity_gb=None))
+        reused = post(
+            client,
+            "/api/prices",
+            entered(client, price_payload(seller="Other seller", capacity_gb=None)),
+        )
         assert saved_offer(client, reused)["capacity_gb"] == 18000
         assert saved_offer(client, reused)["latest"]["price_per_tb"] == "11.06"
-        mismatch = post(client, "/api/prices", price_payload(seller="Third", capacity_gb=20000))
-        assert mismatch.status_code == 409
-        assert mismatch.json()["detail"] == (
-            "MPN ST18000NM000J is recorded as 18 TB."
-            " Edit the drive's specifications to change its capacity."
-        )
-        unknown = post(client, "/api/prices", price_payload(mpn="ST20000NM007D", capacity_gb=None))
-        assert unknown.status_code == 422
-        assert unknown.json()["detail"][0]["loc"] == ["body", "capacity_gb"]
         assert len(client.get("/api/offers").json()) == 2
 
 
@@ -426,15 +489,19 @@ def test_later_prices_never_overwrite_the_title_or_url_an_offer_was_created_with
     untitled = price_payload()
     del untitled["title"]
     with TestClient(create_app()) as client:
-        first = post(client, "/api/prices", untitled)
+        first = post(client, "/api/prices", entered(client, untitled))
         assert saved_offer(client, first)["title"] == "ST18000NM000J"
         client.patch(f"/api/offers/{first.json()['offer_id']}", json={"title": "Exos X18"})
-        later = post(client, "/api/prices", {**untitled, "observed_at": "2026-09-22T12:00:00Z"})
+        later = post(
+            client,
+            "/api/prices",
+            entered(client, {**untitled, "observed_at": "2026-09-22T12:00:00Z"}),
+        )
         assert saved_offer(client, later)["title"] == "Exos X18"
         retitled = post(
             client,
             "/api/prices",
-            price_payload(title="Scraped title", url="https://example.com/?ref=1"),
+            entered(client, price_payload(title="Scraped title", url="https://example.com/?ref=1")),
         )
         assert saved_offer(client, retitled)["title"] == "Exos X18"
         assert saved_offer(client, retitled)["url"] == "https://example.com/disk"
@@ -442,10 +509,15 @@ def test_later_prices_never_overwrite_the_title_or_url_an_offer_was_created_with
 
 def test_an_unchanged_price_only_updates_when_the_offer_was_last_checked(database_url: str) -> None:
     with TestClient(create_app()) as client:
-        first = saved_offer(client, post(client, "/api/prices", price_payload()))
+        first = saved_offer(client, post(client, "/api/prices", entered(client, price_payload())))
         assert first["last_checked_at"] == "2026-09-21T12:00:00Z"
         same = saved_offer(
-            client, post(client, "/api/prices", price_payload(observed_at="2026-09-22T12:00:00Z"))
+            client,
+            post(
+                client,
+                "/api/prices",
+                entered(client, price_payload(observed_at="2026-09-22T12:00:00Z")),
+            ),
         )
         assert len(same["observations"]) == 1
         assert same["last_checked_at"] == "2026-09-22T12:00:00Z"
@@ -454,7 +526,10 @@ def test_an_unchanged_price_only_updates_when_the_offer_was_last_checked(databas
             post(
                 client,
                 "/api/prices",
-                price_payload(item_price_cents=17900, observed_at="2026-09-23T12:00:00Z"),
+                entered(
+                    client,
+                    price_payload(item_price_cents=17900, observed_at="2026-09-23T12:00:00Z"),
+                ),
             ),
         )
         assert [o["item_price_cents"] for o in changed["observations"]] == [18900, 17900]
@@ -467,7 +542,7 @@ def test_unknown_shipping_stays_distinct_from_free_while_totals_stay_known(
 ) -> None:
     with TestClient(create_app()) as client:
         unknown = saved_offer(
-            client, post(client, "/api/prices", price_payload(shipping_cents=None))
+            client, post(client, "/api/prices", entered(client, price_payload(shipping_cents=None)))
         )["latest"]
         assert unknown["shipping_cents"] is None
         assert unknown["shipping_known"] is False
@@ -475,7 +550,9 @@ def test_unknown_shipping_stays_distinct_from_free_while_totals_stay_known(
         assert unknown["price_per_tb"] == "10.50"
         free_payload = price_payload(seller="Free shipper")
         del free_payload["shipping_cents"]
-        free = saved_offer(client, post(client, "/api/prices", free_payload))["latest"]
+        free = saved_offer(client, post(client, "/api/prices", entered(client, free_payload)))[
+            "latest"
+        ]
         assert (free["shipping_cents"], free["shipping_known"]) == (0, True)
 
 
@@ -483,10 +560,10 @@ def test_a_sold_out_offer_keeps_its_last_price_and_is_marked_out_of_stock(
     database_url: str,
 ) -> None:
     with TestClient(create_app()) as client:
-        post(client, "/api/prices", price_payload())
+        post(client, "/api/prices", entered(client, price_payload()))
         sold_out = price_payload(in_stock=False, observed_at="2026-09-22T12:00:00Z")
         del sold_out["item_price_cents"], sold_out["shipping_cents"]
-        offer = saved_offer(client, post(client, "/api/prices", sold_out))
+        offer = saved_offer(client, post(client, "/api/prices", entered(client, sold_out)))
         assert len(offer["observations"]) == 2
         latest = offer["latest"]
         assert latest["in_stock"] is False
@@ -496,7 +573,7 @@ def test_a_sold_out_offer_keeps_its_last_price_and_is_marked_out_of_stock(
             19900,
         )
         still_sold_out = {**sold_out, "observed_at": "2026-09-23T12:00:00Z"}
-        again = saved_offer(client, post(client, "/api/prices", still_sold_out))
+        again = saved_offer(client, post(client, "/api/prices", entered(client, still_sold_out)))
         assert len(again["observations"]) == 2
         assert again["last_checked_at"] == "2026-09-23T12:00:00Z"
         back = saved_offer(
@@ -504,11 +581,16 @@ def test_a_sold_out_offer_keeps_its_last_price_and_is_marked_out_of_stock(
             post(
                 client,
                 "/api/prices",
-                price_payload(item_price_cents=18500, observed_at="2026-09-24T12:00:00Z"),
+                entered(
+                    client,
+                    price_payload(item_price_cents=18500, observed_at="2026-09-24T12:00:00Z"),
+                ),
             ),
         )
         assert [o["in_stock"] for o in back["observations"]] == [True, False, True]
-        never_priced = post(client, "/api/prices", {**sold_out, "seller": "New seller"})
+        never_priced = post(
+            client, "/api/prices", entered(client, {**sold_out, "seller": "New seller"})
+        )
         assert never_priced.status_code == 422
         assert never_priced.json()["detail"][0]["loc"] == ["body", "item_price_cents"]
 
@@ -516,11 +598,13 @@ def test_a_sold_out_offer_keeps_its_last_price_and_is_marked_out_of_stock(
 def test_mpns_are_normalized_so_spacing_and_case_do_not_split_a_drive(database_url: str) -> None:
     with TestClient(create_app()) as client:
         first = saved_offer(
-            client, post(client, "/api/prices", price_payload(mpn=" st18000 nm000j "))
+            client,
+            post(client, "/api/prices", entered(client, price_payload(mpn=" st18000 nm000j "))),
         )
         assert first["mpn"] == "ST18000NM000J"
         second = saved_offer(
-            client, post(client, "/api/prices", price_payload(seller="Other seller"))
+            client,
+            post(client, "/api/prices", entered(client, price_payload(seller="Other seller"))),
         )
         assert second["drive"]["id"] == first["drive"]["id"]
         assert first["drive"]["aliases"] == []
@@ -530,12 +614,18 @@ def test_another_mpn_no_drive_goes_by_is_its_drives_and_routes_later_prices(
     database_url: str,
 ) -> None:
     with TestClient(create_app()) as client:
-        canonical = saved_offer(client, post(client, "/api/prices", price_payload(seller="Shop B")))
+        canonical = saved_offer(
+            client, post(client, "/api/prices", entered(client, price_payload(seller="Shop B")))
+        )
         path = f"/api/drives/{canonical['drive']['id']}/aliases"
         added = client.post(path, json={"mpn": "st18000nm000j-2e3101"})
         later = saved_offer(
             client,
-            post(client, "/api/prices", price_payload(mpn="ST18000NM000J-2E3101", seller="Shop A")),
+            post(
+                client,
+                "/api/prices",
+                entered(client, price_payload(mpn="ST18000NM000J-2E3101", seller="Shop A")),
+            ),
         )
         missing = client.post(f"/api/drives/{uuid4()}/aliases", json={"mpn": "X"})
 
@@ -553,13 +643,19 @@ def test_an_mpn_another_drive_goes_by_is_refused_naming_that_drive_and_nothing_m
     with TestClient(create_app()) as client:
         owner = saved_offer(
             client,
-            post(client, "/api/prices", price_payload(mpn="ST18000NM000J-2E3101", seller="Shop A")),
+            post(
+                client,
+                "/api/prices",
+                entered(client, price_payload(mpn="ST18000NM000J-2E3101", seller="Shop A")),
+            ),
         )
         taken = "ST18000NM000J-2E3101"
         if taken_as == "another of its MPNs":
             client.post(f"/api/drives/{owner['drive']['id']}/aliases", json={"mpn": "0XYZ"})
             taken = "0XYZ"
-        other = saved_offer(client, post(client, "/api/prices", price_payload(seller="Shop B")))
+        other = saved_offer(
+            client, post(client, "/api/prices", entered(client, price_payload(seller="Shop B")))
+        )
         refused = client.post(f"/api/drives/{other['drive']['id']}/aliases", json={"mpn": taken})
         itself = client.post(
             f"/api/drives/{other['drive']['id']}/aliases", json={"mpn": "ST18000NM000J"}
@@ -677,7 +773,8 @@ def test_a_scraped_offer_with_an_mpn_and_condition_is_recorded_as_a_sourced_pric
         assert offer["latest"]["item_price_cents"] == 36999
         assert offer["latest"]["provenance"] == "collected"
         manual = saved_offer(
-            client, post(client, "/api/prices", price_payload(seller="Manual shop"))
+            client,
+            post(client, "/api/prices", entered(client, price_payload(seller="Manual shop"))),
         )
         assert manual["latest"]["provenance"] == "manual"
 
@@ -820,10 +917,15 @@ def test_a_collected_offer_no_single_drive_could_be_waits_for_a_person_to_say_wh
         )  # fmt: skip
         later = post(client, "/api/ingestions", {**huge, "observed_at": "2026-09-22T12:00:00Z"})
         # Entered by hand, it is what the person says it is.
-        entered = post(
+        by_hand = post(
             client,
             "/api/prices",
-            price_payload(mpn="R0P90A", title="HPE R0P90A 48TB (8x6) 6-pack", capacity_gb=48000),
+            entered(
+                client,
+                price_payload(
+                    mpn="R0P90A", title="HPE R0P90A 48TB (8x6) 6-pack", capacity_gb=48000
+                ),
+            ),
         )
 
     assert [answer.json()["status"] for answer in queued] == ["queued"] * 3
@@ -834,7 +936,7 @@ def test_a_collected_offer_no_single_drive_could_be_waits_for_a_person_to_say_wh
     }
     assert decided.status_code == 200, decided.text
     assert (later.status_code, later.json()["status"]) == (201, "recorded")
-    assert entered.status_code == 201, entered.text
+    assert by_hand.status_code == 201, by_hand.text
 
 
 def test_a_queued_listing_leaves_the_review_queue_once_a_later_scrape_of_it_is_recorded(
@@ -868,7 +970,9 @@ def test_a_capacity_conflict_is_shown_with_the_drive_and_settled_either_way(
     mpn = "P09094-H21"
     with TestClient(create_app()) as client:
         # Recorded long ago with a capacity misread from its title.
-        stored = post(client, "/api/prices", price_payload(mpn=mpn, capacity_gb=213200))
+        stored = post(
+            client, "/api/prices", entered(client, price_payload(mpn=mpn, capacity_gb=213200))
+        )
         conflicts = [
             post(client, "/api/ingestions", scraped_payload(url=base + name, mpn=mpn,
                  title=f"HPE {mpn} 3.2TB SAS", capacity_gb=3200, condition="refurbished",
@@ -1001,11 +1105,17 @@ def test_a_scraped_offer_naming_an_mpn_another_drive_goes_by_waits_whole_for_a_p
     with TestClient(create_app()) as client:
         if claimed_as == "its own MPN":
             owner = saved_offer(
-                client, post(client, "/api/prices", price_payload(mpn="0XYZ", capacity_gb=18000))
+                client,
+                post(
+                    client,
+                    "/api/prices",
+                    entered(client, price_payload(mpn="0XYZ", capacity_gb=18000)),
+                ),
             )
         else:
             owner = saved_offer(
-                client, post(client, "/api/prices", price_payload(mpn="ST18000NM000J"))
+                client,
+                post(client, "/api/prices", entered(client, price_payload(mpn="ST18000NM000J"))),
             )
             client.post(f"/api/drives/{owner['drive']['id']}/aliases", json={"mpn": "0XYZ"})
         recorded = post(client, "/api/ingestions", page).json()
@@ -1033,16 +1143,23 @@ def test_listings_carry_each_offers_latest_price_and_history_is_fetched_per_offe
     database_url: str,
 ) -> None:
     with TestClient(create_app()) as client:
-        first = saved_offer(client, post(client, "/api/prices", price_payload(seller="Shop A")))
+        first = saved_offer(
+            client, post(client, "/api/prices", entered(client, price_payload(seller="Shop A")))
+        )
         post(
             client,
             "/api/prices",
-            price_payload(
-                seller="Shop A", item_price_cents=17900, observed_at="2026-09-22T12:00:00Z"
+            entered(
+                client,
+                price_payload(
+                    seller="Shop A", item_price_cents=17900, observed_at="2026-09-22T12:00:00Z"
+                ),
             ),
         )
-        other = saved_offer(client, post(client, "/api/prices", price_payload(seller="Shop B")))
-        post(client, "/api/prices", price_payload(seller="Shop C"))
+        other = saved_offer(
+            client, post(client, "/api/prices", entered(client, price_payload(seller="Shop B")))
+        )
+        post(client, "/api/prices", entered(client, price_payload(seller="Shop C")))
 
         summaries = client.get("/api/offers").json()
         histories = [client.get(f"/api/offers/{offer['id']}").json() for offer in (first, other)]
@@ -1058,7 +1175,9 @@ def test_listings_carry_each_offers_latest_price_and_history_is_fetched_per_offe
 
 def test_the_western_digital_store_is_a_store(database_url: str) -> None:
     with TestClient(create_app()) as client:
-        saved = post(client, "/api/prices", price_payload(store="westerndigital", seller=""))
+        saved = post(
+            client, "/api/prices", entered(client, price_payload(store="westerndigital", seller=""))
+        )
         [offer] = client.get("/api/offers").json()
 
     assert saved.status_code == 201, saved.text
@@ -1067,8 +1186,12 @@ def test_the_western_digital_store_is_a_store(database_url: str) -> None:
 
 def test_listings_can_be_narrowed_to_one_store(database_url: str) -> None:
     with TestClient(create_app()) as client:
-        post(client, "/api/prices", price_payload(store="serverpartdeals", seller=""))
-        post(client, "/api/prices", price_payload(store="other", seller="Shop"))
+        post(
+            client,
+            "/api/prices",
+            entered(client, price_payload(store="serverpartdeals", seller="")),
+        )
+        post(client, "/api/prices", entered(client, price_payload(store="other", seller="Shop")))
 
         narrowed = client.get("/api/offers", params={"store": "serverpartdeals"}).json()
         everything = client.get("/api/offers").json()
@@ -1087,8 +1210,11 @@ def test_small_drives_and_cards_are_tracked_in_whole_gigabytes(database_url: str
             post(
                 client,
                 "/api/prices",
-                price_payload(
-                    mpn="SDSQXAA-128G", capacity_gb=128, item_price_cents=1999, shipping_cents=0
+                entered(
+                    client,
+                    price_payload(
+                        mpn="SDSQXAA-128G", capacity_gb=128, item_price_cents=1999, shipping_cents=0
+                    ),
                 ),
             ),
         )
@@ -1097,8 +1223,11 @@ def test_small_drives_and_cards_are_tracked_in_whole_gigabytes(database_url: str
             post(
                 client,
                 "/api/prices",
-                price_payload(
-                    mpn="SDSQUA4-032G", capacity_gb=32, item_price_cents=599, shipping_cents=0
+                entered(
+                    client,
+                    price_payload(
+                        mpn="SDSQUA4-032G", capacity_gb=32, item_price_cents=599, shipping_cents=0
+                    ),
                 ),
             ),
         )
@@ -1109,7 +1238,11 @@ def test_small_drives_and_cards_are_tracked_in_whole_gigabytes(database_url: str
 
 def test_a_scraped_offer_names_its_drive_s_brand_until_one_is_known(database_url: str) -> None:
     with TestClient(create_app()) as client:
-        manual = post(client, "/api/prices", price_payload(mpn="WD120EFBX", capacity_gb=12000))
+        manual = post(
+            client,
+            "/api/prices",
+            entered(client, price_payload(mpn="WD120EFBX", capacity_gb=12000)),
+        )
         assert saved_offer(client, manual)["drive"]["brand"] is None
         first = post(client, "/api/ingestions", scraped_payload(brand="Seagate"))
         later = post(
@@ -1254,8 +1387,12 @@ def test_every_store_is_a_source_and_offers_are_recorded_under_and_named_by_one(
 ) -> None:
     with TestClient(create_app()) as client:
         by_hand = client.post("/api/sources", json={"name": "Server Orbit!", "kind": "manual"})
-        unknown = post(client, "/api/prices", price_payload(store="nowhere", seller=""))
-        recorded = post(client, "/api/prices", price_payload(store="serverorbit", seller=""))
+        unknown = post(
+            client, "/api/prices", entered(client, price_payload(store="nowhere", seller=""))
+        )
+        recorded = post(
+            client, "/api/prices", entered(client, price_payload(store="serverorbit", seller=""))
+        )
         offer = saved_offer(client, recorded)
         due_now = client.get("/api/sources", params={"due": True}).json()
         no_stores = client.get("/api/stores")
@@ -1520,7 +1657,11 @@ def test_permission_taken_away_while_robots_txt_is_ignored_is_refused_not_undone
 def test_a_source_with_offers_or_queued_offers_is_kept_and_so_is_other(database_url: str) -> None:
     with TestClient(create_app()) as client:
         sources = {source["key"]: source["id"] for source in client.get("/api/sources").json()}
-        post(client, "/api/prices", price_payload(store="serverpartdeals", seller=""))
+        post(
+            client,
+            "/api/prices",
+            entered(client, price_payload(store="serverpartdeals", seller="")),
+        )
         post(client, "/api/ingestions", scraped_payload(store="goharddrive", mpn=None))
         refused = {
             key: client.delete(f"/api/sources/{sources[key]}")
@@ -1594,7 +1735,7 @@ def priced_days_ago(client: TestClient, now: datetime) -> Any:
             shipping_cents=500,
             observed_at=(now - timedelta(days=days)).isoformat(),
         )
-        response = post(client, "/api/prices", {**payload, **fields})
+        response = post(client, "/api/prices", entered(client, {**payload, **fields}))
         assert response.status_code == 201, response.text
 
     return record
@@ -1844,9 +1985,13 @@ def test_a_price_is_answered_with_what_was_done_and_the_ids_of_what_it_touched(
     database_url: str,
 ) -> None:
     with TestClient(create_app()) as client:
-        first = post(client, "/api/prices", price_payload())
+        first = post(client, "/api/prices", entered(client, price_payload()))
         [offer] = with_history(client)
-        again = post(client, "/api/prices", price_payload(observed_at="2026-09-22T12:00:00Z"))
+        again = post(
+            client,
+            "/api/prices",
+            entered(client, price_payload(observed_at="2026-09-22T12:00:00Z")),
+        )
 
     assert first.status_code == 201, first.text
     assert first.json() == {
@@ -1867,7 +2012,11 @@ def test_a_person_and_a_collector_record_prices_through_the_same_operation(
 ) -> None:
     with TestClient(create_app()) as client:
         collected = post(client, "/api/ingestions", collected_payload())
-        manual = post(client, "/api/prices", price_payload(store="serverpartdeals", seller="x"))
+        manual = post(
+            client,
+            "/api/prices",
+            entered(client, price_payload(store="serverpartdeals", seller="x")),
+        )
         by_seller = {offer["seller"]: offer for offer in client.get("/api/offers").json()}
 
     assert (collected.status_code, manual.status_code) == (201, 201)
@@ -1877,37 +2026,13 @@ def test_a_person_and_a_collector_record_prices_through_the_same_operation(
     assert by_seller["x"]["latest"]["provenance"] == "manual"
 
 
-def test_a_price_that_cannot_be_matched_is_refused_unless_review_is_asked_for(
-    database_url: str,
-) -> None:
-    unknown_drive = {"mpn": "ST20000NM007D", "capacity_gb": None}
-    with TestClient(create_app()) as client:
-        no_capacity = post(client, "/api/prices", price_payload(**unknown_drive))
-        queue_before = client.get("/api/review-items").json()
-        queued = post(client, "/api/prices", price_payload(**unknown_drive, on_unmatched="queue"))
-        [waiting] = client.get("/api/review-items").json()
-        offers = client.get("/api/offers").json()
-
-    assert (no_capacity.status_code, no_capacity.json()["detail"][0]["loc"]) == (
-        422,
-        ["body", "capacity_gb"],
-    )
-    assert queue_before == []
-    assert (queued.status_code, queued.json()) == (
-        202,
-        {"status": "queued", "offer_id": None, "price_id": None, "review_item_id": waiting["id"]},
-    )
-    assert (waiting["store"], waiting["reason"]) == ("other", "missing_capacity")
-    assert offers == []
-
-
 def test_a_price_can_name_the_offer_it_is_for_instead_of_describing_it(database_url: str) -> None:
     check = {"item_price_cents": 17900, "observed_at": "2026-09-22T12:00:00Z"}
     with TestClient(create_app()) as client:
-        offer_id = post(client, "/api/prices", price_payload()).json()["offer_id"]
-        named = post(client, "/api/prices", {"offer_id": offer_id, **check})
+        offer_id = post(client, "/api/prices", entered(client, price_payload())).json()["offer_id"]
+        named = post(client, "/api/prices", entered(client, {"offer_id": offer_id, **check}))
         [offer] = with_history(client)
-        missing = post(client, "/api/prices", {"offer_id": str(uuid4()), **check})
+        missing = post(client, "/api/prices", entered(client, {"offer_id": str(uuid4()), **check}))
 
     assert named.status_code == 201, named.text
     assert named.json()["offer_id"] == offer_id == offer["id"]
@@ -1974,34 +2099,6 @@ def test_a_price_whose_recording_fails_partway_leaves_nothing_behind(database_ur
     assert (retried.status_code, retried.json()["status"]) == (201, "recorded")
 
 
-def test_a_manual_price_queued_for_review_is_recorded_as_manual_when_resolved(
-    database_url: str,
-) -> None:
-    """Who submitted a price and what happens when it cannot be matched are separate choices."""
-    payload = price_payload(mpn=None, condition=None, on_unmatched="queue")
-    with TestClient(create_app()) as client:
-        queued = post(client, "/api/prices", payload)
-        assert (queued.status_code, queued.json()["status"]) == (202, "queued")
-        waiting = client.get("/api/review-items").json()
-        resolved = client.put(
-            f"/api/review-items/{queued.json()['review_item_id']}/decision",
-            json={"decision": "match", "mpn": "ST18000NM000J", "condition": "new"},
-        )
-        collected = post(
-            client, "/api/ingestions", scraped_payload(mpn=None, condition=None)
-        ).json()
-        waiting_collected = client.get("/api/review-items").json()
-        recorded = client.get(f"/api/offers/{resolved.json()['offer_id']}").json()
-    assert [item["provenance"] for item in waiting] == ["manual"]
-    assert resolved.status_code == 200, resolved.text
-    assert resolved.json()["status"] == "matched"
-    assert recorded["latest"]["provenance"] == "manual"
-    assert (collected["status"], [item["provenance"] for item in waiting_collected]) == (
-        "queued",
-        ["collected"],
-    )
-
-
 LEGACY_RESULT = {"id": str(uuid4()), "mpn": "ST18000NM000J", "observations": []}
 
 
@@ -2021,8 +2118,8 @@ def test_a_save_key_spent_before_prices_were_unified_is_refused_without_writing(
                 ),
                 {"id": key, "fingerprint": "0" * 64, "result": json.dumps(LEGACY_RESULT)},
             )
-        retried = post(client, "/api/prices", price_payload(), key=key)
-        again = post(client, "/api/prices", price_payload(), key=key)
+        retried = post(client, "/api/prices", entered(client, price_payload()), key=key)
+        again = post(client, "/api/prices", entered(client, price_payload()), key=key)
         offers = client.get("/api/offers").json()
     engine.dispose()
     assert (retried.status_code, again.status_code) == (409, 409)
@@ -2320,17 +2417,23 @@ def test_a_hold_is_released_only_by_fresh_evidence_of_the_offer_it_is_on(databas
         by_hand = post(
             client,
             "/api/prices",
-            {"offer_id": ids["refurbished"], "item_price_cents": 30000, "observed_at": at(1.3)},
+            entered(
+                client,
+                {"offer_id": ids["refurbished"], "item_price_cents": 30000, "observed_at": at(1.3)},
+            ),
         )
         recheck = post(
             client,
             "/api/prices",
-            {
-                "offer_id": ids["new"],
-                "provenance": "collected",
-                "item_price_cents": 35000,
-                "observed_at": at(1.2),
-            },
+            entered(
+                client,
+                {
+                    "offer_id": ids["new"],
+                    "provenance": "collected",
+                    "item_price_cents": 35000,
+                    "observed_at": at(1.2),
+                },
+            ),
         )
         after_named = held_reasons(database_url)
 
@@ -2366,13 +2469,15 @@ def test_a_price_for_a_named_offer_sent_twice_under_one_key_is_recorded_once(
 ) -> None:
     """As a recheck whose answer was lost is sent again: answered as it was, one price kept."""
     with TestClient(create_app()) as client:
-        offer_id = post(client, "/api/prices", price_payload()).json()["offer_id"]
+        offer_id = post(client, "/api/prices", entered(client, price_payload())).json()["offer_id"]
         recheck = {"offer_id": offer_id, "provenance": "collected", "item_price_cents": 17900,
                    "observed_at": "2026-09-22T12:00:00Z"}  # fmt: skip
         key = str(uuid4())
-        first = post(client, "/api/prices", recheck, key)
-        again = post(client, "/api/prices", recheck, key)
-        other = post(client, "/api/prices", {**recheck, "item_price_cents": 16900}, key)
+        first = post(client, "/api/prices", entered(client, recheck), key)
+        again = post(client, "/api/prices", entered(client, recheck), key)
+        other = post(
+            client, "/api/prices", entered(client, {**recheck, "item_price_cents": 16900}), key
+        )
         prices = client.get(f"/api/offers/{offer_id}").json()["observations"]
 
     assert (first.status_code, again.status_code, again.json()) == (201, 201, first.json())

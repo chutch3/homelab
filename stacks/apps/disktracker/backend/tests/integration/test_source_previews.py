@@ -11,6 +11,7 @@ from uuid import uuid4
 
 import pytest
 from fastapi.testclient import TestClient
+from test_api import entered
 
 from disktracker.main import create_app
 
@@ -152,8 +153,8 @@ def test_the_verdict_weighs_the_offer_against_the_drive_disktracker_knows(
         # ST18000NM000J is a drive disktracker already knows, at 18 TB.
         client.post(
             "/api/prices",
-            json={"mpn": "ST18000NM000J", "store": "other", "seller": "Shop", "condition": "new",
-                  "title": "Exos X18", "capacity_gb": 18000, "item_price_cents": 30000},
+            json=entered(client, {"mpn": "ST18000NM000J", "store": "other", "seller": "Shop", "condition": "new",
+                  "title": "Exos X18", "capacity_gb": 18000, "item_price_cents": 30000}),
             headers={"Idempotency-Key": str(uuid4())},
         )  # fmt: skip
         previewed = client.post("/api/source-previews", json=SOURCE)

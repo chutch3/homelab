@@ -224,59 +224,29 @@ def list_prices(catalog: Catalog, query: Annotated[PriceQuery, Query()]) -> dict
                 }
             },
         },
-        202: {
-            "model": PriceResult,
-            "description": "Queued for review",
-            "content": {
-                "application/json": {
-                    "example": {
-                        "status": "queued",
-                        "offer_id": None,
-                        "price_id": None,
-                        "review_item_id": "33333333-3333-4333-8333-333333333333",
-                    }
-                }
-            },
-        },
-        200: {
-            "model": PriceResult,
-            "description": "Ignored: nothing was kept",
-            "content": {
-                "application/json": {
-                    "example": {
-                        "status": "ignored",
-                        "offer_id": None,
-                        "price_id": None,
-                        "review_item_id": None,
-                    }
-                }
-            },
-        },
-        404: {"model": ErrorResponse, "description": "The named offer does not exist"},
+        404: {"model": ErrorResponse, "description": "The named offer or drive does not exist"},
         409: {
             "model": ErrorResponse,
-            "description": "The idempotency key was used for a different body, or capacity conflicts",
+            "description": "The idempotency key was used for a different body",
         },
     },
     tags=["Prices"],
-    summary="Record a manual or collected price",
+    summary="Record a price of a known drive's offer",
 )
 @inject
 def record_price(
     prices: Prices,
-    ingestion: Ingestion,
     entry: Annotated[
         PriceInput,
         Body(
             openapi_examples={
-                "manual": {
-                    "summary": "Manually describe an offer",
+                "drive": {
+                    "summary": "Price a drive at a store (replace the example UUID)",
                     "value": {
+                        "drive_id": "44444444-4444-4444-8444-444444444444",
                         "store": "other",
                         "seller": "Example seller",
-                        "mpn": "ST18000NM000J",
                         "condition": "manufacturer_recertified",
-                        "capacity_gb": 18000,
                         "title": "Seagate Exos X18",
                         "item_price_cents": 18900,
                         "shipping_cents": 0,
@@ -287,19 +257,6 @@ def record_price(
                     "value": {
                         "offer_id": "11111111-1111-4111-8111-111111111111",
                         "item_price_cents": 17900,
-                    },
-                },
-                "collected": {
-                    "summary": "Queue an unmatched collected offer",
-                    "value": {
-                        "store": "serverpartdeals",
-                        "provenance": "collected",
-                        "on_unmatched": "queue",
-                        "title": "18 TB hard drive",
-                        "url": "https://example.com/drives/18tb",
-                        "capacity_gb": 18000,
-                        "item_price_cents": 18900,
-                        "shipping_cents": None,
                     },
                 },
                 "out_of_stock": {
@@ -318,28 +275,23 @@ def record_price(
             description="New UUID for each submission. Retry using the same key and body; changing the body returns 409."
         ),
     ],
-    response: Response,
 ) -> dict[str, Any]:
-    """Record a price, whoever submits it. The Idempotency-Key names the submission: sent again
-    with the same body it is answered as it was the first time, without doing the work again;
-    sent with a different body it is refused (409).
+    """Record a price of an offer whose drive is already known. The Idempotency-Key names the
+    submission: sent again with the same body it is answered as it was the first time, without
+    doing the work again; sent with a different body it is refused (409).
 
-    Either name offer_id (omit store, MPN and condition), or describe the offer with store,
-    MPN and condition. Store `other` also requires seller. A new drive needs capacity_gb.
-    With on_unmatched=queue, MPN and condition may be absent, but title and URL are required.
-    An in-stock observation needs a positive item price. An out-of-stock observation without
-    a price reuses the last price; a manual entry cannot do this for an offer never priced.
-    Collected observations also honor saved review decisions and ignore never-priced sold-out
-    offers. provenance defaults to manual and on_unmatched defaults to reject.
-    """
-    # Until the price and the collected-observation endpoints are apart, chosen by what is sent.
-    result = (
-        prices.record(entry.offer_id, entry, idempotency_key)
-        if entry.offer_id is not None
-        else ingestion.ingest(entry, idempotency_key)
-    )
-    response.status_code = {"recorded": 201, "queued": 202, "ignored": 200}[result["status"]]
-    return result
+    Either name offer_id, or name drive_id with the store, seller and condition it is offered in
+    (store `other` also requires seller); an offer new to them is made, with title and url when
+    given, else titled by its drive's MPN. What says what a drive is (its MPN, capacity, brand,
+    specifications or other MPNs) is refused: make or correct the drive first (POST /drives,
+    PATCH /drives/{id}). A store page as collected is taken in at POST /ingestions; a collector
+    sends here only a recheck of an offer it names (provenance collected), which never releases
+    the offer's hold.
+
+    An in-stock observation needs a positive item price. An out-of-stock observation without a
+    price reuses the last price; a manual entry cannot do this for an offer never priced. An
+    unchanged price is recorded with price_id null, counted as a check."""
+    return prices.record(entry, idempotency_key)
 
 
 @router.post(
@@ -380,12 +332,7 @@ def ingest(
 
     A price of an offer already known by id, a recheck among them, goes to POST /prices: it
     gives no new evidence of what the page is."""
-    # Until /prices takes only offers already known, the ingestion is of its old shape: built
-    # from what was already validated, which /prices itself would now refuse.
-    collected = PriceInput.model_construct(
-        **dict(entry), offer_id=None, provenance="collected", on_unmatched="queue"
-    )
-    result = ingestion.ingest(collected, idempotency_key)
+    result = ingestion.ingest(entry, idempotency_key)
     response.status_code = {"recorded": 201, "queued": 202, "ignored": 200}[result["status"]]
     return result
 

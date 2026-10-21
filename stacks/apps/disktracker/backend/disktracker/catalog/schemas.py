@@ -98,42 +98,44 @@ Provenance = Literal["manual", "collected"]
 
 
 class PriceInput(ObservationInput):
-    """One observed price, from a person or a collector alike. The offer it is for is either
-    named (offer_id) or described: its store, MPN, condition and, for a one-off store, seller.
-
-    on_unmatched says what to do with a described offer that cannot be matched to a drive (its
-    MPN or condition is unknown, its drive's capacity is unknown, or its capacity disagrees with
-    the drive's): reject refuses the price; queue keeps it for review, which needs the page and
-    title a reviewer is shown."""
+    """One observed price of an offer whose drive is already known, from a person or a collector
+    rechecking it. The offer is named (offer_id), or its drive is (drive_id), with the store,
+    seller and condition it is offered in: an offer new to them is made, titled and addressed by
+    title and url when given. Nothing here says what a drive is: a drive is made or corrected
+    beforehand, and a store page described is taken in at /ingestions."""
 
     offer_id: UUID | None = Field(
         default=None,
-        description="Existing offer UUID; when supplied, omit store, MPN and condition.",
+        description="Existing offer UUID; when supplied, omit drive_id, store, condition, title and URL.",
+    )
+    drive_id: UUID | None = Field(
+        default=None,
+        validate_default=True,
+        description="Existing drive UUID, for an offer named by its store, seller and condition.",
     )
     provenance: Provenance = Field(
         default="manual",
-        description="Who submitted the price; the offer store identifies where it was seen.",
-    )
-    on_unmatched: Literal["reject", "queue"] = Field(
-        default="reject",
-        description="Reject unmatched input with a field error, or queue it for review. Queue requires title and URL.",
+        description="Who submitted the price. A collector submits here only a recheck of an offer it names.",
     )
     store: StoreKey | None = Field(
         default=None,
         validate_default=True,
-        description="Source key from GET /api/sources, not its UUID. Required unless offer_id is given; other requires seller.",
+        description="Source key from GET /api/sources, not its UUID. Required with drive_id; other requires seller.",
     )
     seller: str = Field(default="", max_length=120)
-    mpn: NormalizedMpn | None = Field(default=None, validate_default=True)
     condition: Condition | None = Field(default=None, validate_default=True)
-    title: str | None = Field(default=None, min_length=1, max_length=160, validate_default=True)
-    url: HttpUrl | None = Field(default=None, validate_default=True)
-    capacity_gb: Capacity | None = None
-    # What the submitter says of the drive. Other MPNs it goes by are declared for it; the
-    # specifications and brand fill in only what nobody has entered.
-    aliases: list[NormalizedMpn] = []
-    specifications: Specifications | None = None
-    brand: str | None = Field(default=None, min_length=1, max_length=60)
+    title: str | None = Field(default=None, min_length=1, max_length=160)
+    url: HttpUrl | None = None
+
+    @field_validator("drive_id")
+    @classmethod
+    def offer_or_drive(cls, drive_id: UUID | None, info: ValidationInfo) -> UUID | None:
+        named = info.data.get("offer_id") is not None
+        if named and drive_id is not None:
+            raise ValueError("Name the offer or its drive, not both.")
+        if not named and drive_id is None:
+            raise ValueError("Name the offer, or the drive it is of.")
+        return drive_id
 
     @field_validator("provenance")
     @classmethod
@@ -146,11 +148,11 @@ class PriceInput(ObservationInput):
 
     @field_validator("store")
     @classmethod
-    def named_or_described(cls, store: str | None, info: ValidationInfo) -> str | None:
+    def named_or_placed(cls, store: str | None, info: ValidationInfo) -> str | None:
         named = info.data.get("offer_id") is not None
         if named and store is not None:
             raise ValueError("Leave the store out when the offer is named.")
-        if not named and store is None:
+        if info.data.get("drive_id") is not None and store is None:
             raise ValueError("Choose a store.")
         return store
 
@@ -161,24 +163,15 @@ class PriceInput(ObservationInput):
             raise ValueError("Name the seller when the store is Other.")
         return seller
 
-    @field_validator("mpn", "condition")
+    @field_validator("condition")
     @classmethod
-    def identified_unless_review_is_asked_for[T](
-        cls, value: T | None, info: ValidationInfo
-    ) -> T | None:
+    def a_condition_unless_named(cls, condition: str | None, info: ValidationInfo) -> str | None:
         named = info.data.get("offer_id") is not None
-        if named and value is not None:
+        if named and condition is not None:
             raise ValueError("Leave this out when the offer is named.")
-        if not named and value is None and info.data.get("on_unmatched") != "queue":
-            raise ValueError("Enter this, or ask for the price to be reviewed.")
-        return value
-
-    @field_validator("title", "url")
-    @classmethod
-    def shown_to_a_reviewer[T](cls, value: T | None, info: ValidationInfo) -> T | None:
-        if value is None and info.data.get("on_unmatched") == "queue":
-            raise ValueError("A price to be reviewed needs its page and title.")
-        return value
+        if info.data.get("drive_id") is not None and condition is None:
+            raise ValueError("Choose its condition.")
+        return condition
 
 
 class IngestionInput(ObservationInput):

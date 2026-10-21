@@ -631,10 +631,8 @@ describe('Admin page', () => {
     const recordPrice = vi.fn<DisktrackerApi['recordPrice']>(async () => recordedOn(listing));
     renderApp({ listOffers: async () => [listing], offersToRecheck: async () => [listing], recordPrice });
     const row = () => within(within(screen.getByRole('region', { name: /Recheck by hand/ })).getAllByRole('row')[1]);
-    const identity = {
-      mpn: 'WD120EFBX', store: 'other', seller: 'Micro Center', condition: 'new', title: 'WD Red Plus 12TB',
-      url: 'https://store.test/red', capacity_gb: null, observed_at: null, notes: '',
-    };
+    // A recheck names the offer it is of: it says nothing of what the offer is.
+    const identity = { offer_id: listing.id, observed_at: null, notes: '' };
     await screen.findByRole('region', { name: /Recheck by hand/ });
     await user.click(row().getByRole('button', { name: 'No change' }));
     expect(recordPrice).toHaveBeenLastCalledWith({ ...identity, item_price_cents: 20000, shipping_cents: 500, in_stock: true }, 'save-key');

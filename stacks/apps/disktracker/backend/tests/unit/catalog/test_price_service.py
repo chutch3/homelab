@@ -10,13 +10,12 @@ from disktracker.catalog.schemas import PriceInput
 
 
 def a_price(**fields: Any) -> PriceInput:
+    """A price a person enters for a drive at a store."""
     return PriceInput.model_validate(
         {
+            "drive_id": "22222222-2222-4222-8222-222222222222",
             "store": "serverpartdeals",
-            "mpn": "ST18000NM000J",
             "condition": "new",
-            "title": "Exos X18",
-            "url": "https://www.serverpartdeals.com/products/x18",
             "item_price_cents": 1_000_000,
             "shipping_cents": 500,
             **fields,
@@ -39,7 +38,7 @@ def a_recheck(**fields: Any) -> PriceInput:
 
 def test_a_collected_sold_out_price_is_only_a_stock_state() -> None:
     """Whatever a store shows while sold out (a placeholder, say) is not a price."""
-    price = observation(a_recheck(in_stock=False))
+    price = observation(a_recheck(in_stock=False), collected=True)
 
     assert (price["item_price_cents"], price["shipping_cents"], price["in_stock"]) == (
         None, None, False,
@@ -47,21 +46,23 @@ def test_a_collected_sold_out_price_is_only_a_stock_state() -> None:
 
 
 @pytest.mark.parametrize(
-    "entry",
-    [a_price(provenance="manual", in_stock=False), a_recheck(in_stock=True)],
+    ("entry", "collected"),
+    [(a_price(in_stock=False), False), (a_recheck(in_stock=True), True)],
     ids=["entered sold out", "collected in stock"],
 )
-def test_any_other_price_is_recorded_as_given(entry: PriceInput) -> None:
-    price = observation(entry)
+def test_any_other_price_is_recorded_as_given(entry: PriceInput, collected: bool) -> None:
+    price = observation(entry, collected)
 
     assert (price["item_price_cents"], price["shipping_cents"]) == (1_000_000, 500)
 
 
-def test_a_save_key_is_bound_to_what_was_sent_under_it() -> None:
+def test_a_save_key_is_bound_to_what_was_sent_under_it_and_where() -> None:
     sent = [
-        fingerprint(a_price()),
-        fingerprint(a_price()),
-        fingerprint(a_price(item_price_cents=999)),
+        fingerprint("price", a_price()),
+        fingerprint("price", a_price()),
+        fingerprint("price", a_price(item_price_cents=999)),
+        fingerprint("ingestion", a_price()),
     ]
 
     assert sent[0] == sent[1] != sent[2]
+    assert sent[3] != sent[0]

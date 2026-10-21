@@ -726,20 +726,21 @@ describe('App shopping view', () => {
     expect(screen.getByRole('radio', { name: /^Recertified/ })).toBeChecked();
   }, 20000);
 
-  it('records a price for a new offer identified by MPN, store, seller, and condition, keeping filters when it is hidden', async () => {
+  it('records a price for a new offer of a drive made by its MPN, at its store, seller, and condition, keeping filters when it is hidden', async () => {
     window.history.replaceState(null, '', '/?q=Small');
     const user = userEvent.setup();
     let listings = [...shoppingListings];
+    const made = makeDrive('ST20000NM007D', { capacity_gb: 20000 });
+    const createDrive = vi.fn<DisktrackerApi['createDrive']>(async () => made);
     const recordPrice = vi.fn<DisktrackerApi['recordPrice']>(async input => {
-      const mpn = input.mpn ?? '';
-      const saved = makeOffer('saved', { title: input.title ?? mpn, mpn, store: input.store ?? 'other', seller: input.seller,
-        condition: input.condition ?? 'new', capacity_gb: input.capacity_gb ?? 0, url: input.url ?? null });
+      const saved = makeOffer('saved', { drive: made, title: input.title ?? made.mpn, mpn: made.mpn, store: input.store ?? 'other',
+        seller: input.seller, condition: input.condition ?? 'new', capacity_gb: made.capacity_gb, url: input.url ?? null });
       listings = [...listings, saved];
       return recordedOn(saved, saved.latest.id);
     });
     // Searched for Small, the server lists only the small drive; asked for the saved one under the same filters, nothing.
     const { asked, drives } = server(query => drivePage(query.drive_id ? [] : rowsOf([shoppingListings[0]])));
-    renderApp({ listOffers: async () => listings, recordPrice, drives });
+    renderApp({ listOffers: async () => listings, createDrive, recordPrice, drives });
     await screen.findByRole('table', { name: 'Drive prices' });
     await user.click(within(screen.getByRole('banner')).getByRole('button', { name: 'Record price' }));
     const dialog = screen.getByRole('dialog', { name: 'Record price' });
@@ -775,9 +776,10 @@ describe('App shopping view', () => {
       'Offer title', 'Notes']);
     await user.type(form.getByRole('textbox', { name: 'Offer title' }), 'New drive');
     await user.click(form.getByRole('button', { name: 'Save price' }));
+    expect(createDrive).toHaveBeenCalledWith({ mpn: 'ST20000NM007D', capacity_gb: 20000 });
     expect(recordPrice).toHaveBeenCalledWith({
-      mpn: 'ST20000NM007D', store: 'other', seller: 'Beach Audio', condition: 'refurbished',
-      title: 'New drive', url: null, capacity_gb: 20000, item_price_cents: 25000, shipping_cents: 0,
+      drive_id: 'drive-ST20000NM007D', store: 'other', seller: 'Beach Audio', condition: 'refurbished',
+      title: 'New drive', url: null, item_price_cents: 25000, shipping_cents: 0,
       in_stock: true, observed_at: null, notes: '',
     }, 'save-key');
     expect(await screen.findByText('It is hidden by your filters.')).toBeVisible();
@@ -785,7 +787,7 @@ describe('App shopping view', () => {
     expect(screen.getByLabelText('Search drives')).toHaveValue('Small');
     expect(visibleNames()).toEqual(['Small drive']);
     await user.click(screen.getByRole('button', { name: 'Show drive' }));
-    const details = within(screen.getByRole('dialog', { name: '18 TB drive' }));
+    const details = within(screen.getByRole('dialog', { name: '20 TB drive' }));
     expect(details.getByRole('table', { name: 'Offers' })).toBeVisible();
     expect(new URLSearchParams(window.location.search).get('q')).toBe('Small');
   });
@@ -853,7 +855,7 @@ describe('App shopping view', () => {
     await user.selectOptions(form.getByLabelText('Store', { exact: true }), 'goharddrive');
     await user.selectOptions(form.getByLabelText('Condition', { exact: true }), 'new');
     await user.type(form.getByLabelText('Item price (USD)', { exact: true }), '250{Enter}');
-    expect(recordPrice).toHaveBeenCalledWith(expect.objectContaining({ mpn: 'ST20000NM007D', item_price_cents: 25000 }), 'save-key');
+    expect(recordPrice).toHaveBeenCalledWith(expect.objectContaining({ drive_id: 'drive-ST20000NM007D', item_price_cents: 25000 }), 'save-key');
   }, 15000);
 
   it('saves and starts another new price, keeping the store and condition', async () => {
@@ -902,7 +904,7 @@ describe('App shopping view', () => {
     await user.selectOptions(form.getByLabelText('Store', { exact: true }), 'goharddrive');
     await user.click(form.getByRole('button', { name: 'Save price' }));
     expect(recordPrice).toHaveBeenCalledWith(expect.objectContaining({
-      mpn: 'ST18000NM000J', capacity_gb: 18000, condition: 'refurbished', item_price_cents: 21999,
+      drive_id: 'drive-ST18000NM000J', condition: 'refurbished', item_price_cents: 21999,
       title: 'Seagate Exos X18 ST18000NM000J 18TB 7200RPM SATA Recertified Hard Drive',
     }), 'save-key');
   }, 15000);
@@ -926,7 +928,7 @@ describe('App shopping view', () => {
     await waitFor(() => expect(form.getByRole('status')).toHaveTextContent('Nothing could be read from that text. Not found: title, MPN, capacity, condition, price.'));
   }, 15000);
 
-  it("records a later price for an existing offer from its row, keeping that offer's identity", async () => {
+  it('records a later price for an existing offer from its row, naming that offer', async () => {
     const user = userEvent.setup();
     const drive = makeDrive('ST18000NM000J');
     const offer = makeOffer('offer', { drive, mpn: drive.mpn, title: 'Seagate Exos X18', store: 'serverpartdeals', seller: '',
@@ -943,9 +945,7 @@ describe('App shopping view', () => {
     expect(offers.getByRole('link', { name: 'View at store' })).toHaveAttribute('href', 'https://example.com/x18');
     await user.type(offers.getByRole('textbox', { name: 'New price for Seagate Exos X18' }), '170{Enter}');
     expect(recordPrice).toHaveBeenCalledWith({
-      mpn: 'ST18000NM000J', store: 'serverpartdeals', seller: '', condition: 'manufacturer_recertified',
-      title: 'Seagate Exos X18', url: 'https://example.com/x18', capacity_gb: null, item_price_cents: 17000,
-      shipping_cents: 0, in_stock: true, observed_at: null, notes: '',
+      offer_id: offer.id, item_price_cents: 17000, shipping_cents: 0, in_stock: true, observed_at: null, notes: '',
     }, 'save-key');
     expect(await screen.findByRole('status')).toHaveTextContent('Recorded $170.00 for Seagate Exos X18.');
     expect(screen.queryByRole('dialog', { name: 'Record price' })).not.toBeInTheDocument();
@@ -988,9 +988,10 @@ describe('App shopping view', () => {
     await user.selectOptions(form.getByLabelText('Condition', { exact: true }), 'new');
     await user.type(form.getByLabelText('Item price (USD)', { exact: true }), '529.99');
     await user.click(form.getByRole('button', { name: 'Save price' }));
+    // Of the drive already recorded: none is made.
     expect(recordPrice).toHaveBeenCalledWith({
-      mpn: 'ST18000NM000J', store: 'goharddrive', seller: '', condition: 'new', title: 'Exos X18 from GoHardDrive',
-      url: null, capacity_gb: null, item_price_cents: 52999, shipping_cents: 0, in_stock: true,
+      drive_id: drive.id, store: 'goharddrive', seller: '', condition: 'new', title: 'Exos X18 from GoHardDrive',
+      url: null, item_price_cents: 52999, shipping_cents: 0, in_stock: true,
       observed_at: null, notes: '',
     }, 'save-key');
   }, 15000);
@@ -1045,9 +1046,7 @@ describe('App shopping view', () => {
     await user.click(offers.getByRole('button', { name: 'Record price' }));
     await user.click(offers.getByRole('button', { name: 'Out of stock' }));
     expect(recordPrice).toHaveBeenCalledWith({
-      mpn: 'ST18000NM000J', store: offer.store, seller: offer.seller, condition: offer.condition,
-      title: offer.title, url: offer.url, capacity_gb: null, item_price_cents: null, shipping_cents: 0,
-      in_stock: false, observed_at: null, notes: '',
+      offer_id: offer.id, item_price_cents: null, shipping_cents: 0, in_stock: false, observed_at: null, notes: '',
     }, 'save-key');
   });
 

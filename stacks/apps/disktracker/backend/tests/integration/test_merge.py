@@ -8,7 +8,7 @@ from uuid import uuid4
 
 from fastapi.testclient import TestClient
 from httpx import Response
-from test_api import post, price_payload, scraped_payload
+from test_api import entered, post, price_payload, scraped_payload
 from test_persistence import LOCK, crossing, meanwhile
 
 from disktracker.main import create_app
@@ -22,7 +22,12 @@ def drive(client: TestClient, mpn: str, **fields: Any) -> dict[str, Any]:
 
 
 def offer(client: TestClient, mpn: str, key: str | None = None, **fields: Any) -> str:
-    recorded = post(client, "/api/prices", price_payload(mpn=mpn, capacity_gb=16000, **fields), key)
+    recorded = post(
+        client,
+        "/api/prices",
+        entered(client, price_payload(mpn=mpn, capacity_gb=16000, **fields)),
+        key,
+    )
     assert recorded.status_code == 201, recorded.text
     offer_id: str = recorded.json()["offer_id"]
     return offer_id

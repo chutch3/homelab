@@ -74,7 +74,10 @@ class Container(containers.DeclarativeContainer):
     collector_client = providers.Singleton(CollectorClient, url=config.collector_url)
 
     price_service = providers.Factory(
-        PriceService, session_factory=database.provided.session, offers=offer_repository
+        PriceService,
+        session_factory=database.provided.session,
+        drives=drive_repository,
+        offers=offer_repository,
     )
     ingestion_service = providers.Factory(
         IngestionService,
