@@ -338,7 +338,8 @@ class TestHoldDoubtedOffers:
             collected(db, "settled", "Q2R41A", "HPE Q2R41A 2-pack", 4000)
             db.execute(
                 insert(scraped_matches).values(
-                    source="serverorbit", url=f"{BASE}settled", mpn="Q2R41A",
+                    source="serverorbit", url=f"{BASE}settled",
+                    drive_id=select(drives.c.id).where(drives.c.mpn == "Q2R41A").scalar_subquery(),
                     condition="refurbished", ignored=False,
                 )
             )  # fmt: skip

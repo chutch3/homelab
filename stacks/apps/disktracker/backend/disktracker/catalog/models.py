@@ -99,9 +99,9 @@ class ReviewItem(Base):
 
 
 class ScrapedMatch(Base):
-    """What a reviewer decided a listing is (the MPN and condition it was resolved to, or nothing
-    to track), applied to later collected prices of that listing only; with the title it was
-    decided on, so that a page that reads otherwise is judged again."""
+    """What a reviewer decided a listing is (the drive and condition it was resolved to, or
+    nothing to track), applied to later collected prices of that listing only; with the title it
+    was decided on, so that a page that reads otherwise is judged again."""
 
     __tablename__ = "scraped_matches"
     store: Mapped[str] = mapped_column("source", String(40), primary_key=True)
@@ -110,7 +110,10 @@ class ScrapedMatch(Base):
     # The listing's MPN and condition as read: "" where the page gave none.
     read_mpn: Mapped[str] = mapped_column(String(100), primary_key=True, server_default="")
     read_condition: Mapped[str] = mapped_column(String(40), primary_key=True, server_default="")
-    mpn: Mapped[str | None] = mapped_column(String(100))
+    # Gone with its drive: its pages are judged again from what they say next.
+    drive_id: Mapped[uuid.UUID | None] = mapped_column(
+        Uuid, ForeignKey("drives.id", ondelete="CASCADE")
+    )
     condition: Mapped[str | None] = mapped_column(String(40))
     ignored: Mapped[bool] = mapped_column(Boolean, server_default="false")
     reviewed_title: Mapped[str | None] = mapped_column(String(160))

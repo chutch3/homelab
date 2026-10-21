@@ -42,7 +42,7 @@ OFFERS = text(
     " latest.item_price_cents, latest.shipping_cents, latest.in_stock,"
     " latest.observed_at AS latest_at, prices.counted, prices.first_at, prices.last_at,"
     " EXISTS (SELECT 1 FROM scraped_matches m WHERE m.source = l.store AND m.url = l.url"
-    "  AND m.seller = l.seller AND m.mpn = d.mpn AND m.condition = l.condition"
+    "  AND m.seller = l.seller AND m.drive_id = l.drive_id AND m.condition = l.condition"
     "  AND NOT m.ignored) AS settled,"
     " EXISTS (SELECT 1 FROM unmatched u WHERE u.source = l.store AND u.url = l.url"
     "  AND u.seller = l.seller AND u.mpn = d.mpn AND u.condition = l.condition) AS queued"

@@ -89,7 +89,7 @@ class DriveService:
             drives = self.drives.lock_drives(session, (source_id, target_id))
             values = merged_drive(drives[target_id], drives[source_id])
             combined = self.offers.consolidate(session, source_id, target_id)
-            self.reviews.repoint_conflicts(session, source_id, target_id)
+            self.reviews.repoint(session, source_id, target_id)
             self.drives.absorb(session, source_id, target_id, values)
             result = {
                 "status": "merged",

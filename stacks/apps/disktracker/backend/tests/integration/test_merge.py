@@ -299,3 +299,25 @@ def test_a_decision_on_a_drive_merged_away_as_it_waits_is_refused_and_its_item_s
 
     assert [result.status_code for result in results] == [200, 404], [r.text for r in results]
     assert waiting == [item]
+
+
+def test_what_a_reviewer_decided_a_page_was_is_the_target_once_merged(database_url: str) -> None:
+    """A page decided to be the absorbed drive, read again after the merge, is recorded as the
+    drive it became, without waiting for review again."""
+    page = scraped_payload(
+        url="https://spd.test/c", mpn=None, title="Drive 16TB", capacity_gb=16000
+    )
+    with TestClient(create_app()) as client:
+        target = drive(client, "AAA1")
+        source = drive(client, "BBB1")
+        item = post(client, "/api/ingestions", page).json()["review_item_id"]
+        client.put(
+            f"/api/review-items/{item}/decision",
+            json={"decision": "match", "drive_id": source["id"], "condition": "new"},
+        )
+        merge(client, source["id"], target["id"])
+        later = post(client, "/api/ingestions", {**page, "observed_at": "2026-10-03T12:00:00Z"})
+        recorded = client.get(f"/api/offers/{later.json()['offer_id']}").json()["drive"]["id"]
+
+    assert later.status_code == 201, later.text
+    assert recorded == target["id"]

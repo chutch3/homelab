@@ -35,7 +35,6 @@ class ReviewService:
             replay = self.reviews.claim_decision(session, item_id, decision.model_dump(mode="json"))
             if replay is not None:
                 return replay
-            drive = None
             if isinstance(decision, MatchDecision):
                 # Every MPN this may touch, then the drive, before the item: what the drive goes
                 # by, and the others its page gave (the catalog-wide lock order).
@@ -43,16 +42,14 @@ class ReviewService:
                 goes_by = self.drives.identifiers(session, decision.drive_id)
                 self.drives.hold(session, [*goes_by, *aliases])
                 # Merged away while its MPNs were awaited, it is gone.
-                drive = self.drives.lock_drives(session, [decision.drive_id]).get(decision.drive_id)
-                if drive is None:
+                if not self.drives.lock_drives(session, [decision.drive_id]):
                     raise DriveNotFound()
             item = self.reviews.take(session, item_id)
             if isinstance(decision, MatchDecision):
-                assert drive is not None
-                result = self._match(session, item, decision, drive["mpn"])
+                result = self._match(session, item, decision)
             else:
                 self.reviews.remember(
-                    session, listing_of(item), mpn=None, condition=None, ignored=True,
+                    session, listing_of(item), drive_id=None, condition=None, ignored=True,
                     reviewed_title=item["title"],
                 )  # fmt: skip
                 result = {"status": "ignored", "offer_id": None}
@@ -61,7 +58,7 @@ class ReviewService:
             return result
 
     def _match(
-        self, session: Session, item: dict[str, Any], decision: MatchDecision, mpn: str
+        self, session: Session, item: dict[str, Any], decision: MatchDecision
     ) -> dict[str, Any]:
         drive_id = decision.drive_id
         price = ObservationInput.model_validate(
@@ -82,7 +79,7 @@ class ReviewService:
             if self.drives.owner_of(session, alias) is None:
                 self.drives.attach_alias(session, drive_id, alias)
         self.reviews.remember(
-            session, listing_of(item), mpn=mpn, condition=decision.condition,
+            session, listing_of(item), drive_id=drive_id, condition=decision.condition,
             ignored=False, reviewed_title=item["title"],
         )  # fmt: skip
         return {"status": "matched", "offer_id": str(offer_id)}

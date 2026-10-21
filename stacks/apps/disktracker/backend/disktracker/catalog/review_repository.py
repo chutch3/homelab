@@ -7,11 +7,11 @@ from datetime import datetime
 from typing import Any, NamedTuple, Self
 from uuid import UUID
 
-from sqlalchemy import delete, func, literal_column, update
+from sqlalchemy import delete, func, literal_column, select, update
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.orm import Session
 
-from disktracker.catalog.models import ReviewDecision, ReviewItem, ScrapedMatch
+from disktracker.catalog.models import Drive, ReviewDecision, ReviewItem, ScrapedMatch
 from disktracker.catalog.rules import decided_again
 from disktracker.database import by_column, columns
 from disktracker.errors import ReviewItemNotFound
@@ -51,7 +51,11 @@ class ReviewRepository:
         """What a reviewer decided this listing is, if one has; no other listing's decision,
         though it shares the page."""
         decided = session.get(ScrapedMatch, tuple(listing))
-        return None if decided is None else columns(decided)
+        if decided is None:
+            return None
+        # With the MPN its drive goes by now, which is what identifies what is collected.
+        mpn = session.scalar(select(Drive.mpn).where(Drive.id == decided.drive_id))
+        return columns(decided) | {"mpn": mpn}
 
     def queue(
         self, session: Session, listing: Listing, fields: dict[str, Any], seen_at: datetime
@@ -96,7 +100,7 @@ class ReviewRepository:
         session: Session,
         listing: Listing,
         *,
-        mpn: str | None,
+        drive_id: UUID | None,
         condition: str | None,
         ignored: bool,
         reviewed_title: str,
@@ -104,7 +108,7 @@ class ReviewRepository:
         """Keep what a reviewer decided a listing is, and the title they decided on, for later
         collected prices of that listing."""
         decision = {
-            "mpn": mpn, "condition": condition, "ignored": ignored,
+            "drive_id": drive_id, "condition": condition, "ignored": ignored,
             "reviewed_title": reviewed_title,
         }  # fmt: skip
         key = dict(
@@ -161,11 +165,17 @@ class ReviewRepository:
         session.execute(delete(ReviewItem).where(ReviewItem.id == item_id))
         return taken
 
-    def repoint_conflicts(self, session: Session, from_drive: UUID, to_drive: UUID) -> None:
+    def repoint(self, session: Session, from_drive: UUID, to_drive: UUID) -> None:
         """What waits for review as conflicting with one drive conflicts with another now (the one
-        it was merged into); what was submitted is left as it was."""
+        it was merged into), and listings decided to be the one are the other; what was submitted
+        is left as it was."""
         session.execute(
             update(ReviewItem)
             .where(ReviewItem.conflict_drive_id == from_drive)
             .values(conflict_drive_id=to_drive)
+        )
+        session.execute(
+            update(ScrapedMatch)
+            .where(ScrapedMatch.drive_id == from_drive)
+            .values(drive_id=to_drive)
         )
