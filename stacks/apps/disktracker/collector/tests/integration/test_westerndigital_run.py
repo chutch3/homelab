@@ -91,8 +91,6 @@ def run_collector(store: HTTPServer, disktracker: HTTPServer, delay: str = "0") 
 
 def offer(url: str, **fields: Any) -> dict[str, Any]:
     return {
-        "provenance": "collected",
-        "on_unmatched": "queue",
         "store": "westerndigital",
         "seller": "",
         "url": url,

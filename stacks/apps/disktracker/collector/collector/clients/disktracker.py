@@ -21,12 +21,13 @@ from disktracker_api import Client
 from disktracker_api.api.collection import heartbeat, start_run, update_run
 from disktracker_api.api.listing_tools import list_condition_rules
 from disktracker_api.api.offers import list_offers
-from disktracker_api.api.prices import record_price
+from disktracker_api.api.prices import ingest, record_price
 from disktracker_api.models import (
     ConditionRule,
     Heartbeat,
     HeartbeatAnswer,
     HTTPValidationError,
+    IngestionInput,
     ManualSourceView,
     OfferSummary,
     PriceInput,
@@ -108,12 +109,23 @@ class DisktrackerClient:
         # openapi-python-client 0.29.1 puts header values into the request unconverted, and
         # httpx only accepts str headers, so the key goes in as its string form.
         header_key = cast(UUID, str(key))
-        body = PriceInput.from_dict(offer.payload(observed_at))
+        payload = offer.payload(observed_at)
+
+        def send() -> Response[Any]:
+            # A page read afresh is taken in; a recheck of an offer disktracker knows is only a
+            # price of it, and gives no new evidence of what the page is.
+            if offer.offer_id is None:
+                return ingest.sync_detailed(
+                    client=self.api, body=IngestionInput.from_dict(payload),
+                    idempotency_key=header_key,
+                )  # fmt: skip
+            return record_price.sync_detailed(
+                client=self.api, body=PriceInput.from_dict(payload), idempotency_key=header_key
+            )
+
         for attempt in range(1, ATTEMPTS + 1):
             try:
-                response = record_price.sync_detailed(
-                    client=self.api, body=body, idempotency_key=header_key
-                )
+                response = send()
             except (httpx.HTTPError, ValueError) as error:
                 failure: dict[str, object] = {"status": None, "detail": str(error)}
             else:

@@ -88,9 +88,10 @@ class ScrapedOffer:
         return fields
 
     def payload(self, observed_at: datetime) -> dict[str, Any]:
-        """The offer as a price submitted to disktracker: collected, under the store it was read
-        from, and to wait for review when disktracker cannot match it to a drive. A recheck names
-        the offer it is of, and gives only what its page shows of the price."""
+        """The offer as submitted to disktracker: a page read afresh, under the store it was read
+        from, is taken in (and waits for review when disktracker cannot match it to a drive); a
+        recheck is a collected price of the offer it names, giving only what its page shows of
+        the price."""
         if self.offer_id is not None:
             return {
                 "offer_id": str(self.offer_id),
@@ -104,8 +105,6 @@ class ScrapedOffer:
         return {
             **{name: value for name, value in fields.items() if name != "source"},
             "store": fields["source"],
-            "provenance": "collected",
-            "on_unmatched": "queue",
             "observed_at": observed_at.isoformat(),
         }
 

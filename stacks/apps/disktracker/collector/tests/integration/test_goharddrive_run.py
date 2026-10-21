@@ -114,8 +114,6 @@ def ghd_source(goharddrive: HTTPServer) -> dict[str, Any]:
 
 def offer(url: str, **fields: Any) -> dict[str, Any]:
     return {
-        "provenance": "collected",
-        "on_unmatched": "queue",
         "store": "goharddrive",
         "seller": "",
         "url": url,
@@ -345,7 +343,7 @@ def test_a_run_announces_itself_and_posts_each_drive_as_soon_as_its_page_is_read
             content_type="application/json",
         )
 
-    disktracker.expect_request("/api/prices", method="POST").respond_with_handler(record)
+    disktracker.expect_request("/api/ingestions", method="POST").respond_with_handler(record)
     know_offers(disktracker, [], store="goharddrive")
 
     result = run_collector(goharddrive, disktracker)

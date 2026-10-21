@@ -118,8 +118,6 @@ def test_one_run_posts_every_serverpartdeals_offer_to_disktracker(
 
     def offer(**fields: Any) -> dict[str, Any]:
         return {
-            "provenance": "collected",
-            "on_unmatched": "queue",
             "store": "serverpartdeals",
             "seller": "",
             "shipping_cents": 0,
@@ -338,7 +336,9 @@ def test_a_run_says_it_has_started_before_it_reads_the_store(
     paths = [request.path for request, _ in disktracker.log]
     # Registered, then asked whether to stop, before the store is read.
     assert (
-        paths.index(RUNS) < paths.index(f"{RUNS}/{registered['id']}") < paths.index("/api/prices")
+        paths.index(RUNS)
+        < paths.index(f"{RUNS}/{registered['id']}")
+        < paths.index("/api/ingestions")
     )
     # The heartbeat between runs names no run; the one during the run names it.
     assert heartbeats(disktracker) == [[], [registered["id"]]]
@@ -1260,7 +1260,7 @@ def test_debug_logging_shows_every_request_the_collector_makes(
     base = base_of(serverpartdeals)
     assert any(request.startswith(f"HTTP Request: GET {base}/robots.txt") for request in requests)
     assert any(
-        request.startswith(f"HTTP Request: POST {base_of(disktracker)}/api/prices")
+        request.startswith(f"HTTP Request: POST {base_of(disktracker)}/api/ingestions")
         for request in requests
     )
     assert any(

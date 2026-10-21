@@ -182,11 +182,18 @@ def know_offers(
     ).respond_with_json(offers)
 
 
+# Where the collector sends what it read: a page afresh is taken in, and a recheck of an offer
+# disktracker knows is a price of it.
+INGESTIONS, PRICES = "/api/ingestions", "/api/prices"
+
+
 def record_everything(disktracker: HTTPServer) -> None:
-    disktracker.expect_request("/api/prices", method="POST").respond_with_json(
-        {"status": "recorded", "offer_id": str(RECORDED), "price_id": None, "review_item_id": None},
-        status=201,
-    )
+    for path in (INGESTIONS, PRICES):
+        disktracker.expect_request(path, method="POST").respond_with_json(
+            {"status": "recorded", "offer_id": str(RECORDED), "price_id": None,
+             "review_item_id": None},
+            status=201,
+        )  # fmt: skip
 
 
 def reply_in_turn(disktracker: HTTPServer, replies: list[tuple[str, int]]) -> None:
@@ -197,7 +204,8 @@ def reply_in_turn(disktracker: HTTPServer, replies: list[tuple[str, int]]) -> No
         body, status = next(pending)
         return Response(body, status=status, content_type="application/json")
 
-    disktracker.expect_request("/api/prices", method="POST").respond_with_handler(reply)
+    for path in (INGESTIONS, PRICES):
+        disktracker.expect_request(path, method="POST").respond_with_handler(reply)
 
 
 def scraped(status: str, offer_id: UUID | None = None, review_item_id: UUID | None = None) -> str:
@@ -213,8 +221,8 @@ def scraped(status: str, offer_id: UUID | None = None, review_item_id: UUID | No
 
 
 def posts(disktracker: HTTPServer) -> list[Request]:
-    """The offers posted to disktracker, in order."""
-    return [request for request, _ in disktracker.log if request.path == "/api/prices"]
+    """The pages posted to disktracker afresh, in order."""
+    return [request for request, _ in disktracker.log if request.path == INGESTIONS]
 
 
 def run_reports(disktracker: HTTPServer) -> list[dict[str, Any]]:
@@ -257,7 +265,5 @@ def rechecks(disktracker: HTTPServer) -> list[dict[str, Any]]:
     paths = [request.path for request, _ in disktracker.log]
     after = paths.index("/api/offers") + 1
     return [
-        json.loads(request.data)
-        for request, _ in disktracker.log[after:]
-        if request.path == "/api/prices"
+        json.loads(request.data) for request, _ in disktracker.log[after:] if request.path == PRICES
     ]
