@@ -247,6 +247,33 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/ingestions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Take in a collected store page
+         * @description Take in one observation of a store page as collected: match it to a drive (registering
+         *     one new under a known MPN and capacity), record its price, or queue it for review when it
+         *     cannot be matched or is in doubt, or ignore it as an earlier review decided. One
+         *     observation, one outcome: the Idempotency-Key answers it again as it was the first time,
+         *     without doing the work again, and refuses a different body (409).
+         *
+         *     A price of an offer already known by id, a recheck among them, goes to POST /prices: it
+         *     gives no new evidence of what the page is.
+         */
+        post: operations["ingest"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/listing-text": {
         parameters: {
             query?: never;
@@ -953,6 +980,72 @@ export interface components {
              * @enum {string}
              */
             decision: "ignore";
+        };
+        /**
+         * IngestionInput
+         * @description One observation of a store page as a collector read it: the offer described, never named,
+         *     by its store, the MPN and condition the page gives (either may be missing) and, for a one-off
+         *     store, its seller. One that cannot be matched to a drive waits for review, which shows the
+         *     reviewer its page and title.
+         */
+        IngestionInput: {
+            /**
+             * Aliases
+             * @default []
+             */
+            aliases?: string[];
+            /** Brand */
+            brand?: string | null;
+            /** Capacity Gb */
+            capacity_gb?: number | null;
+            /** Condition */
+            condition?: ("new" | "manufacturer_recertified" | "refurbished" | "used") | null;
+            /**
+             * In Stock
+             * @default true
+             */
+            in_stock?: boolean;
+            /**
+             * Item Price Cents
+             * @description Positive item price in US cents, excluding shipping. Required when in stock; when out of stock, omission reuses the previous price.
+             */
+            item_price_cents?: number | null;
+            /** Mpn */
+            mpn?: string | null;
+            /**
+             * Notes
+             * @default
+             */
+            notes?: string;
+            /**
+             * Observed At
+             * @description When the price was observed, with a timezone offset. Omit to use server time; backdated prices are accepted.
+             */
+            observed_at?: string | null;
+            /**
+             * Seller
+             * @default
+             */
+            seller?: string;
+            /**
+             * Shipping Cents
+             * @description Shipping in US cents: 0 means free, null means unknown. Unknown shipping contributes zero to totals.
+             * @default 0
+             */
+            shipping_cents?: number | null;
+            specifications?: components["schemas"]["Specifications-Input"] | null;
+            /**
+             * Store
+             * @description Source key from GET /api/sources; other requires seller.
+             */
+            store: string;
+            /** Title */
+            title: string;
+            /**
+             * Url
+             * Format: uri
+             */
+            url: string;
         };
         /**
          * ListingFacts
@@ -3360,6 +3453,69 @@ export interface operations {
                 };
             };
             /** @description The drives differ on what both know, or the save key was used for another merge */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    ingest: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description New UUID for each observation. Retry using the same key and body; changing the body returns 409. */
+                "idempotency-key": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["IngestionInput"];
+            };
+        };
+        responses: {
+            /** @description Ignored: nothing was kept */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PriceResult"];
+                };
+            };
+            /** @description Recorded, or an unchanged price counted as a check (price_id is null) */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PriceResult"];
+                };
+            };
+            /** @description Queued for review */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PriceResult"];
+                };
+            };
+            /** @description The idempotency key was used for a different body */
             409: {
                 headers: {
                     [name: string]: unknown;

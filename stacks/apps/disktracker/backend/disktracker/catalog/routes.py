@@ -27,6 +27,7 @@ from disktracker.catalog.schemas import (
     DrivePage,
     DriveQuery,
     IgnoreDecision,
+    IngestionInput,
     ListingFacts,
     ListingText,
     MatchDecision,
@@ -337,6 +338,54 @@ def record_price(
         if entry.offer_id is not None
         else ingestion.ingest(entry, idempotency_key)
     )
+    response.status_code = {"recorded": 201, "queued": 202, "ignored": 200}[result["status"]]
+    return result
+
+
+@router.post(
+    "/ingestions",
+    status_code=201,
+    response_model=PriceResult,
+    responses={
+        201: {
+            "description": "Recorded, or an unchanged price counted as a check (price_id is null)"
+        },
+        202: {"model": PriceResult, "description": "Queued for review"},
+        200: {"model": PriceResult, "description": "Ignored: nothing was kept"},
+        409: {
+            "model": ErrorResponse,
+            "description": "The idempotency key was used for a different body",
+        },
+    },
+    tags=["Prices"],
+    summary="Take in a collected store page",
+)
+@inject
+def ingest(
+    ingestion: Ingestion,
+    entry: IngestionInput,
+    idempotency_key: Annotated[
+        UUID,
+        Header(
+            description="New UUID for each observation. Retry using the same key and body; changing the body returns 409."
+        ),
+    ],
+    response: Response,
+) -> dict[str, Any]:
+    """Take in one observation of a store page as collected: match it to a drive (registering
+    one new under a known MPN and capacity), record its price, or queue it for review when it
+    cannot be matched or is in doubt, or ignore it as an earlier review decided. One
+    observation, one outcome: the Idempotency-Key answers it again as it was the first time,
+    without doing the work again, and refuses a different body (409).
+
+    A price of an offer already known by id, a recheck among them, goes to POST /prices: it
+    gives no new evidence of what the page is."""
+    # Until /prices takes only offers already known, the ingestion is of its old shape: built
+    # from what was already validated, which /prices itself would now refuse.
+    collected = PriceInput.model_construct(
+        **dict(entry), offer_id=None, provenance="collected", on_unmatched="queue"
+    )
+    result = ingestion.ingest(collected, idempotency_key)
     response.status_code = {"recorded": 201, "queued": 202, "ignored": 200}[result["status"]]
     return result
 

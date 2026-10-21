@@ -8,6 +8,7 @@ from disktracker.catalog.schemas import (
     ConditionRule,
     DriveEdit,
     IgnoreDecision,
+    IngestionInput,
     ListingText,
     MatchDecision,
     PriceInput,
@@ -121,18 +122,21 @@ def test_a_price_needs_an_item_price() -> None:
 
 
 @pytest.mark.parametrize(
-    "entered",
+    ("model", "entered"),
     [
-        a_price(item_price_cents=0),
+        (PriceInput, a_price(item_price_cents=0)),
         # Sold out with a price of nothing is no better: there is no price to carry.
-        a_price(item_price_cents=0, in_stock=False),
-        a_price(item_price_cents=0, provenance="collected", on_unmatched="queue"),
+        (PriceInput, a_price(item_price_cents=0, in_stock=False)),
+        (IngestionInput, a_price(item_price_cents=0, store="serverpartdeals", seller="")),
     ],
+    ids=["entered", "entered sold out", "collected"],
 )
-def test_a_price_of_nothing_is_not_a_price_whoever_enters_it(entered: dict[str, Any]) -> None:
+def test_a_price_of_nothing_is_not_a_price_whoever_enters_it(
+    model: type, entered: dict[str, Any]
+) -> None:
     """A store writes 0 for a drive it sells only by quote; recorded, it would be the lowest
     price of everything."""
-    assert refused(PriceInput, entered) == [
+    assert refused(model, entered) == [
         (("item_price_cents",), "Value error, Enter a price above zero.")
     ]
 
@@ -173,11 +177,14 @@ def test_a_price_names_its_offer_or_describes_it_but_not_both() -> None:
     ]
 
 
-def test_a_price_at_a_one_off_store_names_its_seller() -> None:
-    assert refused(PriceInput, a_price(seller="")) == [
+@pytest.mark.parametrize("model", [PriceInput, IngestionInput])
+def test_a_price_at_a_one_off_store_names_its_seller(
+    model: type[PriceInput] | type[IngestionInput],
+) -> None:
+    assert refused(model, a_price(seller="")) == [
         (("seller",), "Value error, Name the seller when the store is Other.")
     ]
-    assert PriceInput.model_validate(a_price(store="serverpartdeals", seller="")).seller == ""
+    assert model.model_validate(a_price(store="serverpartdeals", seller="")).seller == ""
 
 
 @pytest.mark.parametrize(

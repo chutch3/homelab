@@ -29,6 +29,8 @@ from .heartbeat import Heartbeat
 from .heartbeat_answer import HeartbeatAnswer
 from .http_validation_error import HTTPValidationError
 from .ignore_decision import IgnoreDecision
+from .ingestion_input import IngestionInput
+from .ingestion_input_condition_type_0 import IngestionInputConditionType0
 from .list_catalog_drives_issue_type_0 import ListCatalogDrivesIssueType0
 from .list_drives_condition_item import ListDrivesConditionItem
 from .list_drives_form_factor_type_0 import ListDrivesFormFactorType0
@@ -209,6 +211,8 @@ __all__ = (
     "HeartbeatAnswer",
     "HTTPValidationError",
     "IgnoreDecision",
+    "IngestionInput",
+    "IngestionInputConditionType0",
     "ListCatalogDrivesIssueType0",
     "ListDrivesConditionItem",
     "ListDrivesFormFactorType0",

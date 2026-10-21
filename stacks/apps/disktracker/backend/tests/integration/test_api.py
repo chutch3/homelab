@@ -376,14 +376,14 @@ def test_a_drives_brand_is_corrected_by_hand_and_then_left_alone_by_the_collecto
         "intended_use": [],
     }
     with TestClient(create_app()) as client:
-        drive = post(client, "/api/prices", scraped_payload(brand="Dell")).json()
+        drive = post(client, "/api/ingestions", scraped_payload(brand="Dell")).json()
         offer = client.get("/api/offers").json()[0]
         path = f"/api/drives/{offer['drive']['id']}"
         body = {"capacity_gb": 18000, "specifications": specifications}
         named = client.patch(path, json={**body, "brand": "  Seagate "})
         post(
             client,
-            "/api/prices",
+            "/api/ingestions",
             scraped_payload(brand="Dell", observed_at="2026-09-23T12:00:00Z"),
         )
         after_a_run = client.get("/api/offers").json()[0]["drive"]["brand"]
@@ -576,8 +576,6 @@ def test_an_mpn_another_drive_goes_by_is_refused_naming_that_drive_and_nothing_m
 
 def scraped_payload(**fields: Any) -> dict[str, Any]:
     return {
-        "provenance": "collected",
-        "on_unmatched": "queue",
         "store": "serverpartdeals",
         "url": "https://www.serverpartdeals.com/products/seagate-exos-x18",
         "title": "Seagate Exos X18 ST18000NM000J 18TB Recertified",
@@ -607,7 +605,7 @@ def test_the_review_queue_can_be_read_a_part_at_a_time_by_store_and_reason(
             ]
         ):
             queued = client.post(
-                "/api/prices",
+                "/api/ingestions",
                 json=scraped_payload(
                     store=source,
                     mpn=mpn,
@@ -644,12 +642,12 @@ def test_a_sold_out_scraped_offer_records_only_that_it_is_out_of_stock(
 ) -> None:
     placeholder = {"in_stock": False, "item_price_cents": 1_000_000}
     with TestClient(create_app()) as client:
-        unseen = post(client, "/api/prices", scraped_payload(**placeholder))
+        unseen = post(client, "/api/ingestions", scraped_payload(**placeholder))
         nothing = client.get("/api/offers").json()
-        post(client, "/api/prices", scraped_payload())
+        post(client, "/api/ingestions", scraped_payload())
         sold_out = post(
             client,
-            "/api/prices",
+            "/api/ingestions",
             scraped_payload(**placeholder, observed_at="2026-09-22T12:00:00Z"),
         )
         [offer] = client.get("/api/offers").json()
@@ -666,7 +664,7 @@ def test_a_scraped_offer_with_an_mpn_and_condition_is_recorded_as_a_sourced_pric
     database_url: str,
 ) -> None:
     with TestClient(create_app()) as client:
-        result = post(client, "/api/prices", scraped_payload())
+        result = post(client, "/api/ingestions", scraped_payload())
         assert result.status_code == 201, result.text
         assert result.json()["status"] == "recorded"
         [offer] = client.get("/api/offers").json()
@@ -687,12 +685,12 @@ def test_a_scraped_offer_with_an_mpn_and_condition_is_recorded_as_a_sourced_pric
 def test_scraped_offers_that_cannot_be_matched_wait_in_the_review_queue(database_url: str) -> None:
     base = "https://www.serverpartdeals.com/products/"
     with TestClient(create_app()) as client:
-        first = post(client, "/api/prices", scraped_payload(mpn=None, url=base + "mystery"))
+        first = post(client, "/api/ingestions", scraped_payload(mpn=None, url=base + "mystery"))
         assert first.status_code == 202, first.text
         assert first.json()["status"] == "queued"
         again = post(
             client,
-            "/api/prices",
+            "/api/ingestions",
             scraped_payload(
                 mpn=None,
                 url=base + "mystery",
@@ -701,11 +699,11 @@ def test_scraped_offers_that_cannot_be_matched_wait_in_the_review_queue(database
             ),
         )
         assert again.json()["review_item_id"] == first.json()["review_item_id"]
-        post(client, "/api/prices", scraped_payload(url=base + "odd-condition", condition=None))
-        post(client, "/api/prices", scraped_payload())
+        post(client, "/api/ingestions", scraped_payload(url=base + "odd-condition", condition=None))
+        post(client, "/api/ingestions", scraped_payload())
         post(
             client,
-            "/api/prices",
+            "/api/ingestions",
             scraped_payload(
                 url=base + "wrong-capacity",
                 seller="x",
@@ -715,7 +713,7 @@ def test_scraped_offers_that_cannot_be_matched_wait_in_the_review_queue(database
         )
         post(
             client,
-            "/api/prices",
+            "/api/ingestions",
             scraped_payload(url=base + "new-drive", mpn="ST20000NM007D", capacity_gb=None),
         )
         queue = {item["url"]: item for item in client.get("/api/review-items").json()}
@@ -749,7 +747,7 @@ def test_an_offer_whose_page_comes_to_be_doubted_is_held_out_of_every_report_unt
         for days, item in ((40.5, 37999), (0.001, 36999)):
             recorded = post(
                 client,
-                "/api/prices",
+                "/api/ingestions",
                 {
                     **page,
                     "item_price_cents": item,
@@ -768,7 +766,7 @@ def test_an_offer_whose_page_comes_to_be_doubted_is_held_out_of_every_report_unt
             }
 
         counted = reports()
-        queued = post(client, "/api/prices", {
+        queued = post(client, "/api/ingestions", {
             **page, "title": "Seagate Exos X18 ST18000NM000J 18TB Recertified 4-pack",
             "observed_at": now.isoformat(),
         })  # fmt: skip
@@ -812,7 +810,7 @@ def test_a_collected_offer_no_single_drive_could_be_waits_for_a_person_to_say_wh
         title="HPE P09094-H213.2TB SAS 12GBPS Smart Carrier", capacity_gb=213200,
     )  # fmt: skip
     with TestClient(create_app()) as client:
-        queued = [post(client, "/api/prices", entry) for entry in (bundle, huge, misread)]
+        queued = [post(client, "/api/ingestions", entry) for entry in (bundle, huge, misread)]
         queue = {item["url"]: item["reason"] for item in client.get("/api/review-items").json()}
         # A person says what the second one is: a 960 GB drive.
         decided = client.put(
@@ -820,7 +818,7 @@ def test_a_collected_offer_no_single_drive_could_be_waits_for_a_person_to_say_wh
             json={"decision": "match", "mpn": "KPM7XVUG960G", "condition": "new",
                   "capacity_gb": 960},
         )  # fmt: skip
-        later = post(client, "/api/prices", {**huge, "observed_at": "2026-09-22T12:00:00Z"})
+        later = post(client, "/api/ingestions", {**huge, "observed_at": "2026-09-22T12:00:00Z"})
         # Entered by hand, it is what the person says it is.
         entered = post(
             client,
@@ -848,11 +846,11 @@ def test_a_queued_listing_leaves_the_review_queue_once_a_later_scrape_of_it_is_r
     base = "https://www.serverpartdeals.com/products/"
     with TestClient(create_app()) as client:
         queued = post(
-            client, "/api/prices", scraped_payload(url=base + "mystery", title="Exos 4-pack")
+            client, "/api/ingestions", scraped_payload(url=base + "mystery", title="Exos 4-pack")
         )
-        post(client, "/api/prices", scraped_payload(mpn=None, url=base + "another"))
-        fuller = post(client, "/api/prices", scraped_payload(url=base + "another"))
-        later = post(client, "/api/prices", scraped_payload(url=base + "mystery"))
+        post(client, "/api/ingestions", scraped_payload(mpn=None, url=base + "another"))
+        fuller = post(client, "/api/ingestions", scraped_payload(url=base + "another"))
+        later = post(client, "/api/ingestions", scraped_payload(url=base + "mystery"))
         waiting = [(item["url"], item["mpn"]) for item in client.get("/api/review-items").json()]
 
     assert queued.json()["status"] == "queued"
@@ -872,12 +870,12 @@ def test_a_capacity_conflict_is_shown_with_the_drive_and_settled_either_way(
         # Recorded long ago with a capacity misread from its title.
         stored = post(client, "/api/prices", price_payload(mpn=mpn, capacity_gb=213200))
         conflicts = [
-            post(client, "/api/prices", scraped_payload(url=base + name, mpn=mpn,
+            post(client, "/api/ingestions", scraped_payload(url=base + name, mpn=mpn,
                  title=f"HPE {mpn} 3.2TB SAS", capacity_gb=3200, condition="refurbished",
                  seller=name)).json()["review_item_id"]
             for name in ("kept", "corrected", "refused")
         ]  # fmt: skip
-        unnamed = post(client, "/api/prices", scraped_payload(url=base + "unnamed", mpn=None))
+        unnamed = post(client, "/api/ingestions", scraped_payload(url=base + "unnamed", mpn=None))
         queue = {item["id"]: item for item in client.get("/api/review-items").json()}
 
         def decide(item: str, **decision: Any) -> Any:
@@ -910,7 +908,7 @@ def test_resolving_a_queued_offer_records_it_and_later_scrapes_match_directly(
 ) -> None:
     url = "https://www.serverpartdeals.com/products/mystery"
     with TestClient(create_app()) as client:
-        queued = post(client, "/api/prices", scraped_payload(mpn=None, condition=None, url=url))
+        queued = post(client, "/api/ingestions", scraped_payload(mpn=None, condition=None, url=url))
         item_id = queued.json()["review_item_id"]
         resolved = client.put(
             f"/api/review-items/{item_id}/decision",
@@ -928,7 +926,7 @@ def test_resolving_a_queued_offer_records_it_and_later_scrapes_match_directly(
         assert client.get("/api/review-items").json() == []
         later = post(
             client,
-            "/api/prices",
+            "/api/ingestions",
             scraped_payload(
                 mpn=None,
                 condition=None,
@@ -953,13 +951,13 @@ def test_ignoring_a_queued_offer_keeps_later_scrapes_of_it_out_of_the_queue(
 ) -> None:
     url = "https://www.serverpartdeals.com/products/not-a-drive"
     with TestClient(create_app()) as client:
-        queued = post(client, "/api/prices", scraped_payload(mpn=None, url=url)).json()
+        queued = post(client, "/api/ingestions", scraped_payload(mpn=None, url=url)).json()
         ignored = client.put(
             f"/api/review-items/{queued['review_item_id']}/decision", json={"decision": "ignore"}
         )
         assert ignored.status_code == 200, ignored.text
         assert client.get("/api/review-items").json() == []
-        later = post(client, "/api/prices", scraped_payload(mpn=None, url=url))
+        later = post(client, "/api/ingestions", scraped_payload(mpn=None, url=url))
         assert later.status_code == 200
         assert later.json() == {
             "status": "ignored",
@@ -975,11 +973,11 @@ def test_a_scraped_offer_names_the_other_mpns_its_drive_goes_by(database_url: st
     """MPNs no drive goes by yet become its drive's; a page that later uses one is of that drive."""
     base = "https://www.serverpartdeals.com/products/"
     with TestClient(create_app()) as client:
-        maker = post(client, "/api/prices", scraped_payload(
+        maker = post(client, "/api/ingestions", scraped_payload(
             url=base + "bare", mpn="WUH721816AL5205", title="WD Ultrastar WUH721816AL5205 16TB",
             aliases=["0hnhwc"], capacity_gb=16000, condition="refurbished",
         ))  # fmt: skip
-        oem = post(client, "/api/prices", scraped_payload(
+        oem = post(client, "/api/ingestions", scraped_payload(
             url=base + "dell-g14", mpn="0HNHWC", capacity_gb=16000, condition="new",
             title="Dell 0HNHWC 16TB SAS",
         ))  # fmt: skip
@@ -1010,8 +1008,8 @@ def test_a_scraped_offer_naming_an_mpn_another_drive_goes_by_waits_whole_for_a_p
                 client, post(client, "/api/prices", price_payload(mpn="ST18000NM000J"))
             )
             client.post(f"/api/drives/{owner['drive']['id']}/aliases", json={"mpn": "0XYZ"})
-        recorded = post(client, "/api/prices", page).json()
-        conflicting = post(client, "/api/prices", {
+        recorded = post(client, "/api/ingestions", page).json()
+        conflicting = post(client, "/api/ingestions", {
             **page, "aliases": ["0XYZ"], "brand": "Seagate", "item_price_cents": 30000,
             "observed_at": "2026-09-22T12:00:00Z",
         })  # fmt: skip
@@ -1113,17 +1111,17 @@ def test_a_scraped_offer_names_its_drive_s_brand_until_one_is_known(database_url
     with TestClient(create_app()) as client:
         manual = post(client, "/api/prices", price_payload(mpn="WD120EFBX", capacity_gb=12000))
         assert saved_offer(client, manual)["drive"]["brand"] is None
-        first = post(client, "/api/prices", scraped_payload(brand="Seagate"))
+        first = post(client, "/api/ingestions", scraped_payload(brand="Seagate"))
         later = post(
             client,
-            "/api/prices",
+            "/api/ingestions",
             scraped_payload(
                 brand="Dell", item_price_cents=35999, observed_at="2026-09-23T12:00:00Z"
             ),
         )
         unnamed = post(
             client,
-            "/api/prices",
+            "/api/ingestions",
             scraped_payload(
                 mpn="WD120EFBX",
                 capacity_gb=12000,
@@ -1132,7 +1130,7 @@ def test_a_scraped_offer_names_its_drive_s_brand_until_one_is_known(database_url
             ),
         )
         brands = {o["mpn"]: o["drive"]["brand"] for o in client.get("/api/offers").json()}
-        too_long = post(client, "/api/prices", scraped_payload(brand="x" * 61))
+        too_long = post(client, "/api/ingestions", scraped_payload(brand="x" * 61))
 
     assert (first.status_code, later.status_code, unnamed.status_code) == (201, 201, 201)
     assert brands == {"ST18000NM000J": "Seagate", "WD120EFBX": None}
@@ -1143,7 +1141,7 @@ def test_a_scraped_offer_fills_in_specifications_nobody_has_entered(database_url
     with TestClient(create_app()) as client:
         first = post(
             client,
-            "/api/prices",
+            "/api/ingestions",
             scraped_payload(
                 specifications={"media_type": "hdd", "form_factor": "3_5", "interface": "sas"}
             ),
@@ -1165,7 +1163,7 @@ def test_a_scraped_offer_fills_in_specifications_nobody_has_entered(database_url
 
         later = post(
             client,
-            "/api/prices",
+            "/api/ingestions",
             scraped_payload(
                 item_price_cents=35999,
                 observed_at="2026-09-23T12:00:00Z",
@@ -1523,7 +1521,7 @@ def test_a_source_with_offers_or_queued_offers_is_kept_and_so_is_other(database_
     with TestClient(create_app()) as client:
         sources = {source["key"]: source["id"] for source in client.get("/api/sources").json()}
         post(client, "/api/prices", price_payload(store="serverpartdeals", seller=""))
-        post(client, "/api/prices", scraped_payload(store="goharddrive", mpn=None))
+        post(client, "/api/ingestions", scraped_payload(store="goharddrive", mpn=None))
         refused = {
             key: client.delete(f"/api/sources/{sources[key]}")
             for key in ("serverpartdeals", "goharddrive", "other")
@@ -1868,7 +1866,7 @@ def test_a_person_and_a_collector_record_prices_through_the_same_operation(
     database_url: str,
 ) -> None:
     with TestClient(create_app()) as client:
-        collected = post(client, "/api/prices", collected_payload())
+        collected = post(client, "/api/ingestions", collected_payload())
         manual = post(client, "/api/prices", price_payload(store="serverpartdeals", seller="x"))
         by_seller = {offer["seller"]: offer for offer in client.get("/api/offers").json()}
 
@@ -1928,8 +1926,8 @@ def test_a_retry_replays_whatever_was_done_whether_recorded_queued_or_ignored(
         answers = []
         for payload in (collected_payload(), unmatched, sold_out):
             key = str(uuid4())
-            first, retry = (post(client, "/api/prices", payload, key) for _ in range(2))
-            changed = post(client, "/api/prices", {**payload, "item_price_cents": 1}, key)
+            first, retry = (post(client, "/api/ingestions", payload, key) for _ in range(2))
+            changed = post(client, "/api/ingestions", {**payload, "item_price_cents": 1}, key)
             answers.append((first.status_code, first.json()["status"], retry.status_code))
             assert retry.json() == first.json()
             assert changed.status_code == 409
@@ -1958,8 +1956,8 @@ def test_a_price_whose_recording_fails_partway_leaves_nothing_behind(database_ur
     key = str(uuid4())
     payload = collected_payload(aliases=["ST18000NM000J-2E3101"], brand="Seagate")
     with TestClient(create_app(), raise_server_exceptions=False) as client:
-        post(client, "/api/prices", collected_payload(mpn=None))
-        failed = post(client, "/api/prices", payload, key)
+        post(client, "/api/ingestions", collected_payload(mpn=None))
+        failed = post(client, "/api/ingestions", payload, key)
         offers = client.get("/api/offers").json()
         queue = client.get("/api/review-items").json()
         engine = create_engine(database_url)
@@ -1967,7 +1965,7 @@ def test_a_price_whose_recording_fails_partway_leaves_nothing_behind(database_ur
             connection.execute(text("DROP TRIGGER refuse ON mpn_aliases"))
             drives = connection.execute(text("SELECT count(*) FROM drives")).scalar_one()
         engine.dispose()
-        retried = post(client, "/api/prices", payload, key)
+        retried = post(client, "/api/ingestions", payload, key)
 
     assert failed.status_code == 500
     # No offer, no drive, and the offer still waits for review as it did before.
@@ -1989,7 +1987,9 @@ def test_a_manual_price_queued_for_review_is_recorded_as_manual_when_resolved(
             f"/api/review-items/{queued.json()['review_item_id']}/decision",
             json={"decision": "match", "mpn": "ST18000NM000J", "condition": "new"},
         )
-        collected = post(client, "/api/prices", scraped_payload(mpn=None, condition=None)).json()
+        collected = post(
+            client, "/api/ingestions", scraped_payload(mpn=None, condition=None)
+        ).json()
         waiting_collected = client.get("/api/review-items").json()
         recorded = client.get(f"/api/offers/{resolved.json()['offer_id']}").json()
     assert [item["provenance"] for item in waiting] == ["manual"]
@@ -2043,7 +2043,7 @@ MATCH = {
 
 
 def queued_item(client: TestClient, **fields: Any) -> str:
-    queued = post(client, "/api/prices", scraped_payload(mpn=None, condition=None, **fields))
+    queued = post(client, "/api/ingestions", scraped_payload(mpn=None, condition=None, **fields))
     assert queued.status_code == 202, queued.text
     item_id: str = queued.json()["review_item_id"]
     return item_id
@@ -2142,7 +2142,7 @@ def test_a_drive_is_corrected_a_field_at_a_time(database_url: str) -> None:
     with TestClient(create_app()) as client:
         recorded = post(
             client,
-            "/api/prices",
+            "/api/ingestions",
             scraped_payload(
                 brand="Seagate",
                 specifications={"media_type": "hdd", "interface": "sas", "intended_use": ["nas"]},
@@ -2299,20 +2299,20 @@ def test_a_hold_is_released_only_by_fresh_evidence_of_the_offer_it_is_on(databas
     page = scraped_payload(url="https://www.serverpartdeals.com/products/exos")
     at = lambda days: (now - timedelta(days=days)).isoformat()
     with TestClient(create_app()) as client:
-        new = post(client, "/api/prices", {**page, "condition": "new", "observed_at": at(2)})
+        new = post(client, "/api/ingestions", {**page, "condition": "new", "observed_at": at(2)})
         refurbished = post(
-            client, "/api/prices", {**page, "condition": "refurbished", "observed_at": at(2)}
+            client, "/api/ingestions", {**page, "condition": "refurbished", "observed_at": at(2)}
         )
         ids = {"new": new.json()["offer_id"], "refurbished": refurbished.json()["offer_id"]}
         bundle = "Seagate Exos X18 ST18000NM000J 18TB 4-pack"
         post(
             client,
-            "/api/prices",
+            "/api/ingestions",
             {**page, "condition": "new", "title": bundle, "observed_at": at(1.5)},
         )
         queued = post(
             client,
-            "/api/prices",
+            "/api/ingestions",
             {**page, "condition": "refurbished", "title": bundle, "observed_at": at(1.4)},
         )
         both_held = held_reasons(database_url)
@@ -2336,7 +2336,7 @@ def test_a_hold_is_released_only_by_fresh_evidence_of_the_offer_it_is_on(databas
 
         clean = post(
             client,
-            "/api/prices",
+            "/api/ingestions",
             {**page, "condition": "new", "item_price_cents": 34000, "observed_at": at(1)},
         )
         after_clean = held_reasons(database_url)

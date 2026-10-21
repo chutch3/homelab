@@ -135,6 +135,15 @@ class PriceInput(ObservationInput):
     specifications: Specifications | None = None
     brand: str | None = Field(default=None, min_length=1, max_length=60)
 
+    @field_validator("provenance")
+    @classmethod
+    def collected_pages_are_ingested(cls, provenance: str, info: ValidationInfo) -> str:
+        if provenance == "collected" and info.data.get("offer_id") is None:
+            raise ValueError(
+                "Send a collected page of an offer not named by id to /api/ingestions."
+            )
+        return provenance
+
     @field_validator("store")
     @classmethod
     def named_or_described(cls, store: str | None, info: ValidationInfo) -> str | None:
@@ -170,6 +179,33 @@ class PriceInput(ObservationInput):
         if value is None and info.data.get("on_unmatched") == "queue":
             raise ValueError("A price to be reviewed needs its page and title.")
         return value
+
+
+class IngestionInput(ObservationInput):
+    """One observation of a store page as a collector read it: the offer described, never named,
+    by its store, the MPN and condition the page gives (either may be missing) and, for a one-off
+    store, its seller. One that cannot be matched to a drive waits for review, which shows the
+    reviewer its page and title."""
+
+    store: StoreKey = Field(description="Source key from GET /api/sources; other requires seller.")
+    seller: str = Field(default="", max_length=120)
+    mpn: NormalizedMpn | None = None
+    condition: Condition | None = None
+    title: str = Field(min_length=1, max_length=160)
+    url: HttpUrl
+    capacity_gb: Capacity | None = None
+    # What the page says of the drive. Other MPNs it goes by are declared for it; the
+    # specifications and brand fill in only what nobody has entered.
+    aliases: list[NormalizedMpn] = []
+    specifications: Specifications | None = None
+    brand: str | None = Field(default=None, min_length=1, max_length=60)
+
+    @field_validator("seller")
+    @classmethod
+    def other_stores_need_a_seller(cls, seller: str, info: ValidationInfo) -> str:
+        if info.data.get("store") == "other" and not seller:
+            raise ValueError("Name the seller when the store is Other.")
+        return seller
 
 
 class MatchDecision(Contract):

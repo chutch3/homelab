@@ -72,21 +72,21 @@ def test_offers_of_the_same_store_seller_and_condition_are_one_with_both_their_p
     with TestClient(create_app()) as client:
         target = drive(client, "WUH721816AL5205")
         source = drive(client, "0HNHWC")
-        survivor = post(client, "/api/prices", {**page, "mpn": "WUH721816AL5205", "url": "https://spd.test/wd",
+        survivor = post(client, "/api/ingestions", {**page, "mpn": "WUH721816AL5205", "url": "https://spd.test/wd",
                         "title": "WD 16TB", "item_price_cents": 17500, "observed_at": "2026-10-02T12:00:00Z"}).json()  # fmt: skip
         key = str(uuid4())
         dell = {**page, "mpn": "0HNHWC", "url": "https://spd.test/dell", "title": "Dell 16TB",
                 "item_price_cents": 18000, "observed_at": "2026-10-01T12:00:00Z"}  # fmt: skip
-        absorbed = post(client, "/api/prices", dell, key).json()
+        absorbed = post(client, "/api/ingestions", dell, key).json()
         # Its page then reads as several drives: held.
         post(
             client,
-            "/api/prices",
+            "/api/ingestions",
             {**dell, "title": "Dell 16TB 4-pack", "observed_at": "2026-10-03T12:00:00Z"},
         )
         merged = merge(client, source["id"], target["id"])
         kept = client.get(f"/api/offers/{survivor['offer_id']}").json()
-        again = post(client, "/api/prices", dell, key)
+        again = post(client, "/api/ingestions", dell, key)
         gone = client.get(f"/api/offers/{absorbed['offer_id']}")
 
     assert merged.json()["combined_offers"] == [
@@ -164,7 +164,7 @@ def test_what_was_found_to_be_the_absorbed_drive_waiting_for_review_is_the_targe
         target = drive(client, "AAA1")
         source = drive(client, "BBB1")
         client.post(f"/api/drives/{source['id']}/aliases", json={"mpn": "0XYZ"})
-        post(client, "/api/prices", scraped_payload(url="https://spd.test/c", mpn="CCC1", title="Drive 16TB",
+        post(client, "/api/ingestions", scraped_payload(url="https://spd.test/c", mpn="CCC1", title="Drive 16TB",
                                                     capacity_gb=16000, aliases=["0XYZ"]))  # fmt: skip
         merge(client, source["id"], target["id"])
         [item] = client.get("/api/review-items").json()
@@ -224,7 +224,7 @@ def test_a_merge_and_a_review_decision_at_once_both_finish(database_url: str) ->
         target = drive(client, "AAA1")
         source = drive(client, "BBB1")
         client.post(f"/api/drives/{source['id']}/aliases", json={"mpn": "0XYZ"})
-        item = post(client, "/api/prices", scraped_payload(
+        item = post(client, "/api/ingestions", scraped_payload(
             url="https://spd.test/c", mpn="CCC1", condition="new", title="Drive 16TB",
             capacity_gb=16000, aliases=["0XYZ"],
         )).json()["review_item_id"]  # fmt: skip

@@ -101,7 +101,7 @@ def test_a_page_of_review_items_is_counted_with_the_items_it_was_read_from(
         for number in range(2):
             post(
                 client,
-                "/api/prices",
+                "/api/ingestions",
                 scraped_payload(mpn=None, url=f"https://store.test/drive-{number}"),
             )
         # Queued after the queue is counted, before its items are read.
@@ -153,7 +153,7 @@ def test_deleting_a_source_is_undone_in_every_area_when_any_part_of_it_fails(
         source = client.post("/api/sources", json=source_input())
         assert source.status_code == 201, source.text
         store, url = source.json()["key"], "https://orbit.test/p/1"
-        queued = post(client, "/api/prices", scraped_payload(store=store, mpn=None, url=url))
+        queued = post(client, "/api/ingestions", scraped_payload(store=store, mpn=None, url=url))
         item = queued.json()["review_item_id"]
         client.put(f"/api/review-items/{item}/decision", json={"decision": "ignore"})
         run_sql(
@@ -163,7 +163,7 @@ def test_deleting_a_source_is_undone_in_every_area_when_any_part_of_it_fails(
             " FOR EACH ROW EXECUTE FUNCTION refuse();",
         )
         failed = client.delete(f"/api/sources/{source.json()['id']}")
-        later = post(client, "/api/prices", scraped_payload(store=store, mpn=None, url=url))
+        later = post(client, "/api/ingestions", scraped_payload(store=store, mpn=None, url=url))
     decisions = run_sql(
         database_url, "SELECT ignored FROM scraped_matches WHERE source = :store", store=store
     )
@@ -181,7 +181,7 @@ def test_the_same_review_decision_sent_twice_at_once_records_one_price(database_
         "capacity_gb": 18000,
     }
     with TestClient(create_app()) as client:
-        queued = post(client, "/api/prices", scraped_payload(mpn=None, condition=None))
+        queued = post(client, "/api/ingestions", scraped_payload(mpn=None, condition=None))
         path = f"/api/review-items/{queued.json()['review_item_id']}/decision"
         with ThreadPoolExecutor(max_workers=2) as executor:
             answers = list(executor.map(lambda _: client.put(path, json=decision), range(2)))
@@ -304,7 +304,7 @@ def test_two_pages_naming_each_others_mpns_at_once_are_both_taken(database_url: 
         ThreadPoolExecutor(max_workers=2) as executor,
     ):
         answers = [
-            executor.submit(post, client, "/api/prices", body, str(keys[role]))
+            executor.submit(post, client, "/api/ingestions", body, str(keys[role]))
             for role, body in (("a", first), ("b", second))
         ]
         results = [answer.result() for answer in answers]
@@ -330,10 +330,10 @@ def test_a_review_decision_and_a_page_collected_again_at_once_both_finish(
         "collect": lambda statement, locks: statement.startswith("INSERT INTO unmatched"),
     }
     with TestClient(create_app()) as client:
-        item = post(client, "/api/prices", page).json()["review_item_id"]
+        item = post(client, "/api/ingestions", page).json()["review_item_id"]
         decide = lambda: client.put(f"/api/review-items/{item}/decision", json=decision)
         collect = lambda: post(
-            client, "/api/prices", {**page, "observed_at": "2026-09-22T12:00:00Z"}
+            client, "/api/ingestions", {**page, "observed_at": "2026-09-22T12:00:00Z"}
         )
         roles = {"INSERT INTO review_decisions": "review", "INSERT INTO save_receipts": "collect"}
 

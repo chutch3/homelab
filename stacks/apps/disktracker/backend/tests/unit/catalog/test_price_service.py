@@ -24,9 +24,22 @@ def a_price(**fields: Any) -> PriceInput:
     )
 
 
+def a_recheck(**fields: Any) -> PriceInput:
+    """A collector's price of an offer it names, as its page shows it now."""
+    return PriceInput.model_validate(
+        {
+            "offer_id": "11111111-1111-4111-8111-111111111111",
+            "provenance": "collected",
+            "item_price_cents": 1_000_000,
+            "shipping_cents": 500,
+            **fields,
+        }
+    )
+
+
 def test_a_collected_sold_out_price_is_only_a_stock_state() -> None:
     """Whatever a store shows while sold out (a placeholder, say) is not a price."""
-    price = observation(a_price(provenance="collected", in_stock=False))
+    price = observation(a_recheck(in_stock=False))
 
     assert (price["item_price_cents"], price["shipping_cents"], price["in_stock"]) == (
         None, None, False,
@@ -35,11 +48,11 @@ def test_a_collected_sold_out_price_is_only_a_stock_state() -> None:
 
 @pytest.mark.parametrize(
     "entry",
-    [{"provenance": "manual", "in_stock": False}, {"provenance": "collected", "in_stock": True}],
+    [a_price(provenance="manual", in_stock=False), a_recheck(in_stock=True)],
     ids=["entered sold out", "collected in stock"],
 )
-def test_any_other_price_is_recorded_as_given(entry: dict[str, Any]) -> None:
-    price = observation(a_price(**entry))
+def test_any_other_price_is_recorded_as_given(entry: PriceInput) -> None:
+    price = observation(entry)
 
     assert (price["item_price_cents"], price["shipping_cents"]) == (1_000_000, 500)
 

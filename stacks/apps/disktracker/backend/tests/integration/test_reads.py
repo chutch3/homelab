@@ -291,7 +291,7 @@ def test_offers_are_narrowed_to_a_drive_or_to_those_needing_a_check_by_hand(
 ) -> None:
     with TestClient(create_app()) as client:
         offers = catalogue(client)
-        post(client, "/api/prices", scraped_payload(observed_at=ago(30)))
+        post(client, "/api/ingestions", scraped_payload(observed_at=ago(30)))
         drive_id = client.get(f"/api/offers/{offers['spd']}").json()["drive"]["id"]
         of_drive = client.get("/api/offers", params={"drive_id": drive_id}).json()
         overdue = client.get("/api/offers", params={"needs_recheck": True}).json()
@@ -437,8 +437,8 @@ def test_a_held_offer_is_still_a_drive_to_manage(database_url: str) -> None:
     with TestClient(create_app()) as client:
         page = scraped_payload(url="https://www.serverpartdeals.com/products/bundle", mpn="R0P90A",
                                title="HPE R0P90A 6TB", capacity_gb=6000, condition="refurbished")  # fmt: skip
-        post(client, "/api/prices", page)
-        post(client, "/api/prices", {**page, "title": "HPE R0P90A 48TB (8x6) 6-pack",
+        post(client, "/api/ingestions", page)
+        post(client, "/api/ingestions", {**page, "title": "HPE R0P90A 48TB (8x6) 6-pack",
                                      "observed_at": ago(0.001)})  # fmt: skip
         listed = client.get("/api/drives").json()["total"]
         managed = client.get("/api/catalog-drives").json()
@@ -499,10 +499,10 @@ def test_a_held_offer_is_in_no_price_range_though_it_and_its_prices_are_still_sh
         eligible = record(client, seller="Shop", condition="new", item_price_cents=20000,
                           shipping_cents=0, observed_at=ago(0.01))  # fmt: skip
         page = scraped_payload(condition="new", item_price_cents=10000, observed_at=ago(0.02))
-        held = post(client, "/api/prices", page).json()["offer_id"]
+        held = post(client, "/api/ingestions", page).json()["offer_id"]
         post(
             client,
-            "/api/prices",
+            "/api/ingestions",
             {**page, "title": f"{page['title']} 4-pack", "observed_at": ago(0.01)},
         )
         [row] = client.get("/api/drives", params={"range_days": 30}).json()["items"]
