@@ -69,25 +69,25 @@ it('reads and changes offers, prices, drives and review items at their own addre
   ]);
 });
 
-it('asks the server for a page of drives with every filter as a query parameter', async () => {
+it('asks the server for a page of the market with every filter as a query parameter', async () => {
   const asked: string[] = [];
-  const page = { items: [], total: 0, offers: 0, sold_out: 0, limit: 25, offset: 50, as_of: '2026-09-22T12:00:00Z',
+  const page = { items: [], total: 0, offers: 0, sold_out: 0, catalogued: 0, limit: 25, offset: 50, as_of: '2026-09-22T12:00:00Z',
     lowest: { total: [], unit: [] }, filter_options: { brands: [], capacities: [], conditions: [] } };
   const api = new HttpDisktrackerApi(async url => { asked.push(String(url)); return new Response(JSON.stringify(page)); }, '/api');
 
-  expect(await api.drives({
+  expect(await api.market({
     q: 'exos x18', brand: ['Seagate', 'unknown'], capacity: [18000], condition: ['new'], store: ['goharddrive'],
     max_total_cents: 20000, interface: 'sata', intended_use: 'nas', in_stock: false, recent_only: true,
     recent_days: 7, sort: 'total-desc', range_days: 30, limit: 25, offset: 50,
   })).toEqual(page);
-  await api.drives({ recent_days: 7, sort: 'unit-asc', range_days: 90, limit: 50, offset: 0 });
-  await api.drives({ drive_id: 'd', recent_days: 7, sort: 'unit-asc', range_days: 90, limit: 1, offset: 0 });
+  await api.market({ recent_days: 7, sort: 'unit-asc', range_days: 90, limit: 50, offset: 0 });
+  await api.market({ drive_id: 'd', recent_days: 7, sort: 'unit-asc', range_days: 90, limit: 1, offset: 0 });
 
   expect(asked).toEqual([
-    '/api/drives?q=exos+x18&brand=Seagate&brand=unknown&capacity=18000&condition=new&store=goharddrive&max_total_cents=20000'
+    '/api/reports/market?q=exos+x18&brand=Seagate&brand=unknown&capacity=18000&condition=new&store=goharddrive&max_total_cents=20000'
       + '&interface=sata&intended_use=nas&in_stock=false&recent_only=true&recent_days=7&sort=total-desc&range_days=30&limit=25&offset=50',
-    '/api/drives?recent_days=7&sort=unit-asc&range_days=90&limit=50&offset=0',
-    '/api/drives?drive_id=d&recent_days=7&sort=unit-asc&range_days=90&limit=1&offset=0',
+    '/api/reports/market?recent_days=7&sort=unit-asc&range_days=90&limit=50&offset=0',
+    '/api/reports/market?drive_id=d&recent_days=7&sort=unit-asc&range_days=90&limit=1&offset=0',
   ]);
 });
 

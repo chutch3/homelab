@@ -1,7 +1,7 @@
 import { NativeSelect, Table } from '@mantine/core';
 import type { Condition, Observation, PriceRange } from './api';
 import { ageLabel } from './admin-overview';
-import { conditionChoices, priceLabel } from './drive-conditions';
+import { marketChoices, priceLabel } from './drive-conditions';
 import type { DriveGroup } from './drive-groups';
 import { capacityLabel, conditionLabel, dollars, doubts, driveName, sellerLabel } from './listing-display';
 import { isRecent, periods, type Period, type Sort } from './listing-query';
@@ -38,11 +38,11 @@ export function DriveTable({ groups, sort, onSort, onSelect, now, recentDays, le
       <NativeSelect size="xs" aria-label="Days the range looks back over" value={String(rangeDays)} data={periods.map(days => ({ value: String(days), label: `${days} days` }))}
         onChange={event => onRangeDays(Number(event.currentTarget.value) as Period)} /></span></Table.Th>{heading('checked', 'Checked')}</Table.Tr></Table.Thead>
     <Table.Tbody>{groups.map(group => {
-      const listing = group.representative, { latest } = listing;
+      const listing = group.offer, { latest } = listing;
       const age = now.getTime() - Date.parse(listing.last_checked_at);
-      // One store can sell a drive in several conditions: stores are counted, not offers.
-      const stores = new Set(group.listings.map(sellerLabel)).size;
-      const others = conditionChoices(group.listings).filter(choice => choice.condition !== listing.condition);
+      // One store can sell a drive in several conditions: the market counts stores, not offers.
+      const { stores } = group;
+      const others = marketChoices(group.conditions).filter(choice => choice.condition !== listing.condition);
       return <Table.Tr key={group.key} className="drive-row" onClick={() => onSelect(group.key, listing.condition)}>
         <Table.Td data-label="Drive"><button type="button" className="drive-link" title={listing.title}>{driveName(listing.drive)}
           {/* Names are not unique: the MPN is what tells two drives of the same name apart. */}

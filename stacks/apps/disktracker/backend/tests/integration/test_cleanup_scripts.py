@@ -388,8 +388,8 @@ class TestHoldDoubtedOffers:
         with TestClient(create_app()) as client:
             # Recent enough to be ranked, all of them.
             asked = {"recent_days": 30}
-            counted = {o["mpn"] for o in client.get("/api/drives", params=asked).json()["items"]
-                       for o in o["offers"]}  # fmt: skip
+            market = "/api/reports/market"
+            counted = {r["drive"]["mpn"] for r in client.get(market, params=asked).json()["items"]}
             [item] = [
                 i for i in client.get("/api/review-items").json() if i["url"] == f"{BASE}bundle"
             ]
@@ -397,8 +397,7 @@ class TestHoldDoubtedOffers:
                 f"/api/review-items/{item['id']}/decision",
                 json=match(client, "R0P90A", "refurbished", 6000),
             )
-            settled = {o["mpn"] for o in client.get("/api/drives", params=asked).json()["items"]
-                       for o in o["offers"]}  # fmt: skip
+            settled = {r["drive"]["mpn"] for r in client.get(market, params=asked).json()["items"]}
 
         assert counted == {"ST18000NM000J", "R0Q67A", "Q2R41A"}
         assert decided.status_code == 200, decided.text

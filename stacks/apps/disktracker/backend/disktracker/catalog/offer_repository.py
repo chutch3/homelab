@@ -1,12 +1,13 @@
 """Offers, their prices, and the receipts that keep a price saved twice from being recorded
-twice. Each method works on the session of the operation that calls it and never commits: the
-operation decides what is kept together.
+twice: written, and read as offers with their latest price or their history. Each method works on
+the session of the operation that calls it and never commits: the operation decides what is kept
+together.
 
 Recording a price is only that: for a drive that already exists, an offer is found or made, and
 the price kept or counted as a check. It never makes a drive, changes one, names its other MPNs,
 holds or releases an offer, or decides what a store page is; those are the callers'."""
 
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from datetime import datetime
 from typing import Any
 from uuid import UUID
@@ -14,9 +15,11 @@ from uuid import UUID
 from sqlalchemy import delete, func, select, update
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.orm import Session
+from sqlalchemy.sql import Select
 
-from disktracker.catalog.models import Drive, Offer, Price, Receipt
+from disktracker.catalog.models import Drive, MpnAlias, Offer, Price, Receipt
 from disktracker.catalog.rules import combined_offer, replayed, unchanged, with_carried_price
+from disktracker.catalog.views import price_view, summary_view
 from disktracker.collection.models import Source
 from disktracker.database import columns
 from disktracker.errors import OfferNotFound, UnknownStore
@@ -206,3 +209,84 @@ class OfferRepository:
             session.execute(delete(Offer).where(Offer.id == absorbed.id))
             combined.append((absorbed.id, survivor.id))
         return combined
+
+    # Offers and their prices, read.
+
+    def summaries(self, session: Session, chosen: Select[Any]) -> list[dict[str, Any]]:
+        """The chosen offers with their latest price, in a fixed number of queries."""
+        offers = list(session.scalars(chosen))
+        ids = [offer.id for offer in offers]
+        drive_ids = {offer.drive_id for offer in offers}
+        latest = {
+            price.offer_id: price
+            for price in session.scalars(
+                select(Price)
+                .where(Price.offer_id.in_(ids))
+                .distinct(Price.offer_id)
+                .order_by(Price.offer_id, *LATEST_FIRST)
+            )
+        }
+        drives = {
+            drive.id: drive
+            for drive in session.scalars(select(Drive).where(Drive.id.in_(drive_ids)))
+        }
+        names = dict(session.execute(select(Source.key, Source.name)).tuples().all())
+        aliases: dict[UUID, list[str]] = {}
+        for alias in session.scalars(
+            select(MpnAlias).where(MpnAlias.drive_id.in_(drive_ids)).order_by(MpnAlias.alias)
+        ):
+            aliases.setdefault(alias.drive_id, []).append(alias.alias)
+        return [
+            summary_view(
+                offer,
+                drives[offer.drive_id],
+                aliases.get(offer.drive_id, []),
+                latest[offer.id],
+                names[offer.store],
+                offer.held_reason,
+            )
+            for offer in offers
+        ]
+
+    def with_history(self, session: Session, offer_id: UUID) -> dict[str, Any]:
+        """One offer with every price it has had, oldest first."""
+        [offer] = self.summaries(session, select(Offer).where(Offer.id == offer_id)) or [None]
+        if offer is None:
+            raise OfferNotFound()
+        prices = session.scalars(
+            select(Price)
+            .where(Price.offer_id == offer_id)
+            .order_by(Price.observed_at, Price.entered_at, Price.id)
+        )
+        return {
+            **offer,
+            "observations": [price_view(price, offer["capacity_gb"]) for price in prices],
+        }
+
+    def prices_since(
+        self, session: Session, offer_ids: Sequence[UUID], since: datetime
+    ) -> dict[str, list[dict[str, Any]]]:
+        """The prices of these offers in effect from a moment on, oldest first, by offer."""
+        found: dict[str, list[dict[str, Any]]] = {str(offer_id): [] for offer_id in offer_ids}
+        if not offer_ids:
+            return found
+        for price in session.scalars(
+            select(Price)
+            .where(
+                Price.offer_id.in_(offer_ids),
+                (Price.observed_at >= since) | Price.id.in_(holding(offer_ids, since)),
+            )
+            .order_by(Price.observed_at, Price.entered_at, Price.id)
+        ):
+            found[str(price.offer_id)].append(columns(price))
+        return found
+
+
+def holding(offers: Any, since: datetime) -> Select[Any]:
+    """The price each of these offers had as a moment came: its last one recorded before it."""
+    return (
+        select(Price.id)
+        .where(Price.offer_id.in_(offers), Price.observed_at < since)
+        .distinct(Price.offer_id)
+        .order_by(Price.offer_id, *LATEST_FIRST)
+    )

@@ -11,6 +11,7 @@ from ..types import UNSET, Unset
 from typing import cast
 
 if TYPE_CHECKING:
+  from ..models.condition_prices import ConditionPrices
   from ..models.drive import Drive
   from ..models.offer_summary import OfferSummary
   from ..models.price_range import PriceRange
@@ -19,29 +20,30 @@ if TYPE_CHECKING:
 
 
 
-T = TypeVar("T", bound="DriveRow")
+T = TypeVar("T", bound="MarketRow")
 
 
 
 @_attrs_define
-class DriveRow:
-    """ A drive as the list shows it: by its cheapest matching offer in stock (else its cheapest
-    matching offer), with every offer of it that matches, and the range of its price in the
-    representative's condition. key: what the app opens the drive by.
+class MarketRow:
+    """ A drive as the market shows it: by its cheapest matching offer in stock (else its cheapest
+    matching offer), with how many stores and sellers offer it and what each condition it is
+    offered in costs, among the offers that match, and the range of its price in the condition of
+    the offer it is shown by.
 
         Attributes:
+            conditions (list[ConditionPrices]):
             drive (Drive):
-            key (str):
-            offers (list[OfferSummary]):
+            offer (OfferSummary): An offer with its latest price; what a table of offers needs.
             range_ (None | PriceRange):
-            representative (OfferSummary): An offer with its latest price; what a table of offers needs.
+            stores (int):
      """
 
+    conditions: list[ConditionPrices]
     drive: Drive
-    key: str
-    offers: list[OfferSummary]
+    offer: OfferSummary
     range_: None | PriceRange
-    representative: OfferSummary
+    stores: int
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
 
@@ -49,19 +51,20 @@ class DriveRow:
 
 
     def to_dict(self) -> dict[str, Any]:
+        from ..models.condition_prices import ConditionPrices # noqa: PLC0415
         from ..models.drive import Drive # noqa: PLC0415
         from ..models.offer_summary import OfferSummary # noqa: PLC0415
         from ..models.price_range import PriceRange # noqa: PLC0415
+        conditions = []
+        for conditions_item_data in self.conditions:
+            conditions_item = conditions_item_data.to_dict()
+            conditions.append(conditions_item)
+
+
+
         drive = self.drive.to_dict()
 
-        key = self.key
-
-        offers = []
-        for offers_item_data in self.offers:
-            offers_item = offers_item_data.to_dict()
-            offers.append(offers_item)
-
-
+        offer = self.offer.to_dict()
 
         range_: dict[str, Any] | None
         if isinstance(self.range_, PriceRange):
@@ -69,17 +72,17 @@ class DriveRow:
         else:
             range_ = self.range_
 
-        representative = self.representative.to_dict()
+        stores = self.stores
 
 
         field_dict: dict[str, Any] = {}
         field_dict.update(self.additional_properties)
         field_dict.update({
+            "conditions": conditions,
             "drive": drive,
-            "key": key,
-            "offers": offers,
+            "offer": offer,
             "range": range_,
-            "representative": representative,
+            "stores": stores,
         })
 
         return field_dict
@@ -88,25 +91,29 @@ class DriveRow:
 
     @classmethod
     def from_dict(cls: type[T], src_dict: Mapping[str, Any]) -> T:
+        from ..models.condition_prices import ConditionPrices # noqa: PLC0415
         from ..models.drive import Drive # noqa: PLC0415
         from ..models.offer_summary import OfferSummary # noqa: PLC0415
         from ..models.price_range import PriceRange # noqa: PLC0415
         d = dict(src_dict)
+        conditions = []
+        _conditions = d.pop("conditions")
+        for conditions_item_data in (_conditions):
+            conditions_item = ConditionPrices.from_dict(conditions_item_data)
+
+
+
+            conditions.append(conditions_item)
+
+
         drive = Drive.from_dict(d.pop("drive"))
 
 
 
 
-        key = d.pop("key")
-
-        offers = []
-        _offers = d.pop("offers")
-        for offers_item_data in (_offers):
-            offers_item = OfferSummary.from_dict(offers_item_data)
+        offer = OfferSummary.from_dict(d.pop("offer"))
 
 
-
-            offers.append(offers_item)
 
 
         def _parse_range_(data: object) -> None | PriceRange:
@@ -127,22 +134,19 @@ class DriveRow:
         range_ = _parse_range_(d.pop("range"))
 
 
-        representative = OfferSummary.from_dict(d.pop("representative"))
+        stores = d.pop("stores")
 
-
-
-
-        drive_row = cls(
+        market_row = cls(
+            conditions=conditions,
             drive=drive,
-            key=key,
-            offers=offers,
+            offer=offer,
             range_=range_,
-            representative=representative,
+            stores=stores,
         )
 
 
-        drive_row.additional_properties = d
-        return drive_row
+        market_row.additional_properties = d
+        return market_row
 
     @property
     def additional_keys(self) -> list[str]:

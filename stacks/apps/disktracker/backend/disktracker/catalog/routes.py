@@ -26,8 +26,6 @@ from disktracker.catalog.schemas import (
     DriveDetail,
     DriveEdit,
     DriveInput,
-    DrivePage,
-    DriveQuery,
     IgnoreDecision,
     IngestionInput,
     ListingFacts,
@@ -85,22 +83,6 @@ def paged[T](response: Response, found: tuple[list[T], int]) -> list[T]:
     items, total = found
     response.headers["X-Total-Count"] = str(total)
     return items
-
-
-@router.get(
-    "/drives", response_model=DrivePage, tags=["Drives"], summary="Browse and filter drives"
-)
-@inject
-def list_drives(catalog: Catalog, query: Annotated[DriveQuery, Query()]) -> dict[str, Any]:
-    """The drives that match, a page at a time, each shown by its cheapest matching offer in
-    stock, with the lowest prices among every match and the filter options of every drive.
-
-    Repeat a parameter for several choices, e.g. `brand=Seagate&brand=Toshiba`. Choices within
-    a filter use OR; different filters use AND. Filters match offers, then group them by drive.
-    Each filter option counts the drives choosing it would give, with every other filter as
-    asked. total counts matching drives before pagination; offers counts matching offers.
-    """
-    return catalog.drives(query)
 
 
 @router.post(

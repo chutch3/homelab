@@ -37,8 +37,8 @@ def offer_facts() -> Select[Any]:
 def every_offer_facts() -> Select[Any]:
     """One row for each offer, held or not: what it is filtered, grouped and ordered by. Its total and
     total per terabyte are as its latest price gives them, to the cent; it was checked when it
-    was last priced, or later; its names are its title, MPN, its drive's other MPNs and who sells
-    it, as search reads them."""
+    was last priced, or later; it is sold by its store, or for a one-off store by its seller; its
+    names are its title, MPN, its drive's other MPNs and who sells it, as search reads them."""
     latest = latest_prices()
     aliases = (
         select(
@@ -67,6 +67,7 @@ def every_offer_facts() -> Select[Any]:
                 latest.c.observed_at, func.coalesce(Offer.last_checked_at, latest.c.observed_at)
             ).label("checked"),
             func.concat_ws(" ", Offer.title, Drive.mpn, aliases.c.aliases, seller).label("names"),
+            seller.label("sold_by"),
             Drive.capacity_gb,
             Drive.brand,
             Drive.specifications,

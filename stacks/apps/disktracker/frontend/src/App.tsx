@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState, type MouseEvent } from 'react';
 import { Alert, Button, CloseButton, NativeSelect, Text } from '@mantine/core';
-import type { Condition, DisktrackerApi, DrivePage, DriveQuery, DriveScope, OfferSummary, PriceMark, PriceRange, Source, RecordedPrice } from './api';
+import type { Condition, DisktrackerApi, Market, MarketQuery, DriveScope, OfferSummary, PriceMark, PriceRange, Source, RecordedPrice } from './api';
 import { AdminView } from './AdminView';
 import { entryDefaults } from './entry-validation';
 import { conditions } from './listing-display';
@@ -8,7 +8,7 @@ import { DriveDetails, driveIdOf } from './DriveDetails';
 import { DriveTable } from './DriveTable';
 import { EntryForm } from './EntryForm';
 import { ListingFilters } from './ListingFilters';
-import { groupKeyFor, type DriveGroup } from './drive-groups';
+import { groupKeyFor, groupOf, type DriveGroup } from './drive-groups';
 import { periods, readQuery, scopeOf, scopeSearch, sorts, writeQuery, queryErrors, type ListingQuery, type Period, type Sort } from './listing-query';
 import { Pager } from './Pager';
 import { usePageSize } from './paging';
@@ -26,7 +26,7 @@ type Dependencies = {
 const ENTRY_DEFAULTS = 'disktracker.entry-defaults';
 
 /** The drive query the server takes for the app's filters, a page of the list. */
-export function driveQuery(query: ListingQuery, recentDays: number, page: number, size: number): DriveQuery {
+export function driveQuery(query: ListingQuery, recentDays: number, page: number, size: number): MarketQuery {
   const total = query.maxTotal.trim();
   return {
     ...scopeOf(query),
@@ -39,7 +39,7 @@ export function driveQuery(query: ListingQuery, recentDays: number, page: number
 
 export function App({ api, base, storage, now, nextId, recentDays = 7 }: Dependencies) {
   /** The page of drives the Prices page shows, as the server worked it out. */
-  const [drivesPage, setDrivesPage] = useState<DrivePage | null>(null);
+  const [drivesPage, setDrivesPage] = useState<Market | null>(null);
   const [error, setError] = useState('');
   const [loadError, setLoadError] = useState('');
   /** Counts changes made here: what was loaded is loaded again after each. */
@@ -99,7 +99,7 @@ export function App({ api, base, storage, now, nextId, recentDays = 7 }: Depende
   const loadDrives = useCallback((active: () => boolean = () => true) => {
     if (invalidFilters) return Promise.resolve();
     setLoadError('');
-    return api.drives(JSON.parse(asked) as DriveQuery).then(found => {
+    return api.market(JSON.parse(asked) as MarketQuery).then(found => {
       if (!active()) return;
       // A page left empty by its drives going away gives way to the last page there is.
       if (!found.items.length && found.offset > 0 && found.total > 0) { setPage(Math.ceil(found.total / found.limit) - 1); return; }
@@ -130,9 +130,9 @@ export function App({ api, base, storage, now, nextId, recentDays = 7 }: Depende
   const checkedAt = useMemo(() => drivesPage ? new Date(drivesPage.as_of) : now(), [drivesPage]);
   /** How much waits on a person: hand-entered offers to recheck, and offers to match. */
   const waiting = overdue.length + queueAll;
-  const groups: DriveGroup[] = (drivesPage?.items ?? []).map(row => ({ key: row.key, drive: row.drive, listings: row.offers, representative: row.representative }));
+  const groups: DriveGroup[] = (drivesPage?.items ?? []).map(groupOf);
   const leaders = { total: new Set(drivesPage?.lowest.total ?? []), unit: new Set(drivesPage?.lowest.unit ?? []) };
-  const ranges: Record<string, PriceRange> = Object.fromEntries((drivesPage?.items ?? []).flatMap(row => row.range ? [[row.key, row.range]] : []));
+  const ranges: Record<string, PriceRange> = Object.fromEntries(groups.flatMap(group => group.range ? [[group.key, group.range]] : []));
   const options = drivesPage?.filter_options ?? { brands: [], capacities: [], conditions: [] };
   /** Whether there are any drives at all, whatever the filters: every drive has a capacity. */
   const anyDrives = options.capacities.length > 0;
@@ -149,7 +149,7 @@ export function App({ api, base, storage, now, nextId, recentDays = 7 }: Depende
     try {
       const offer = await api.offer(offerId);
       const key = groupKeyFor(offer);
-      const shown = await api.drives({ ...driveQuery(query, recentDays, 0, 1), drive_id: driveIdOf(key) });
+      const shown = await api.market({ ...driveQuery(query, recentDays, 0, 1), drive_id: driveIdOf(key) });
       setNotice({ text: `Saved ${offer.title}.`, saved: { key, condition: offer.condition, title: offer.title, hidden: shown.total === 0 } });
     } catch {
       // The price is saved whatever else could not be read: saying so is enough.
@@ -227,7 +227,7 @@ export function App({ api, base, storage, now, nextId, recentDays = 7 }: Depende
           : total === 0 ? <div className="empty">{anyDrives ? 'No drives match these filters.'
             : <><p>No drives yet.</p><Button onClick={addOffer}>Record your first price</Button></>}</div>
           : <DriveTable groups={groups} sort={query.sort} onSort={sort => setQuery({ ...query, sort })}
-              onSelect={(key, condition) => setSelected({ key, condition, title: groups.find(group => group.key === key)?.representative.title ?? '' })} now={checkedAt} recentDays={recentDays} leaders={leaders} ranges={ranges} rangeDays={query.days} onRangeDays={days => setQuery({ ...query, days })} />}
+              onSelect={(key, condition) => setSelected({ key, condition, title: groups.find(group => group.key === key)?.offer.title ?? '' })} now={checkedAt} recentDays={recentDays} leaders={leaders} ranges={ranges} rangeDays={query.days} onRangeDays={days => setQuery({ ...query, days })} />}
         {!invalidFilters && <Pager label="Drives" page={page} total={total} pageSize={listingsPerPage} onPage={setPage} onPageSize={setListingsPerPage} />}
       </>}
       </div>

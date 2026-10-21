@@ -1,4 +1,4 @@
-"""Reading the catalog the way the Prices page does: drives filtered, ordered and paged by the
+"""Reading the market the way the Prices page does (/reports/market): drives filtered, ordered and paged by the
 server with the filter options of every drive; a drive's offers and prices asked for by the
 drive or offer, not by lists of ids; and what drives cost today as a report over every drive."""
 
@@ -72,8 +72,8 @@ def mpns(page: dict[str, Any]) -> list[str]:
 def test_drives_are_served_a_page_at_a_time_cheapest_terabyte_first(database_url: str) -> None:
     with TestClient(create_app()) as client:
         offers = catalogue(client)
-        first = client.get("/api/drives", params={"limit": 2}).json()
-        second = client.get("/api/drives", params={"limit": 2, "offset": 2}).json()
+        first = client.get("/api/reports/market", params={"limit": 2}).json()
+        second = client.get("/api/reports/market", params={"limit": 2, "offset": 2}).json()
     # $9.50/TB (12 TB at $114), $10.00/TB (18 TB at $180), then $20.00/TB; the sold-out drive is
     # left out until asked for.
     assert mpns(first) + mpns(second) == ["WUH721212ALE6L4", "ST18000NM000J", "ST8000VN004"]
@@ -82,10 +82,36 @@ def test_drives_are_served_a_page_at_a_time_cheapest_terabyte_first(database_url
     assert (first["offers"], first["sold_out"]) == (4, 1)
     assert datetime.fromisoformat(first["as_of"]) >= NOW
     seagate = first["items"][1]
-    # A drive is shown by its cheapest offer in stock, with every offer of it that matches.
-    assert seagate["representative"]["id"] == offers["spd"]
-    assert {offer["id"] for offer in seagate["offers"]} == {offers["spd"], offers["shop"]}
-    assert seagate["key"] == f"drive:{seagate['drive']['id']}"
+    # A drive is shown by its cheapest offer in stock.
+    assert seagate["offer"]["id"] == offers["spd"]
+    # Every drive with an offer that counts, whatever the filters.
+    assert first["catalogued"] == 4
+
+
+def test_a_drive_says_how_many_stores_offer_it_and_what_each_condition_costs(
+    database_url: str,
+) -> None:
+    """Among the offers that match: stores and sellers counted once each, and each condition it
+    is offered in with its offers, those in stock and the lowest total of those."""
+    with TestClient(create_app()) as client:
+        catalogue(client)
+        record(client, seller="Third", condition="used", item_price_cents=15000, in_stock=False)
+        market = "/api/reports/market"
+        rows = {
+            row["drive"]["mpn"]: row
+            for row in client.get(market, params={"in_stock": False}).json()["items"]
+        }
+        in_stock = {row["drive"]["mpn"]: row for row in client.get(market).json()["items"]}
+
+    seagate = rows["ST18000NM000J"]
+    assert seagate["stores"] == 3
+    assert seagate["conditions"] == [
+        {"condition": "new", "offers": 2, "in_stock": 2, "lowest_total_cents": 18000},
+        {"condition": "used", "offers": 1, "in_stock": 0, "lowest_total_cents": None},
+    ]
+    # Only what matches: in stock, the used offer is no offer of it.
+    seagate = in_stock["ST18000NM000J"]
+    assert (seagate["stores"], len(seagate["conditions"])) == (2, 1)
 
 
 def test_each_filter_option_counts_the_drives_choosing_it_would_give(database_url: str) -> None:
@@ -95,9 +121,9 @@ def test_each_filter_option_counts_the_drives_choosing_it_would_give(database_ur
     with TestClient(create_app()) as client:
         catalogue(client)
         narrowed = client.get(
-            "/api/drives", params={"brand": "Western Digital", "limit": 1, "offset": 5}
+            "/api/reports/market", params={"brand": "Western Digital", "limit": 1, "offset": 5}
         ).json()
-        searched = client.get("/api/drives", params={"q": "ST18000NM000J"}).json()
+        searched = client.get("/api/reports/market", params={"q": "ST18000NM000J"}).json()
 
     assert narrowed["total"] == 1 and narrowed["items"] == []
     # In stock unless asked otherwise: the used Exos X16 is sold out.
@@ -130,7 +156,7 @@ def test_drives_are_narrowed_by_each_filter(database_url: str) -> None:
         offers = catalogue(client)
 
         def found(**query: Any) -> list[str]:
-            answer = client.get("/api/drives", params=query)
+            answer = client.get("/api/reports/market", params=query)
             assert answer.status_code == 200, answer.text
             return sorted(mpns(answer.json()))
 
@@ -161,7 +187,7 @@ def test_drives_are_narrowed_by_each_filter(database_url: str) -> None:
             "ST18000NM000J", "ST8000VN004", "WUH721212ALE6L4"
         ]  # fmt: skip
         refused = [
-            client.get("/api/drives", params=query).status_code
+            client.get("/api/reports/market", params=query).status_code
             for query in (
                 {"sort": "cheapest"},
                 {"limit": 0},
@@ -183,18 +209,20 @@ def test_a_drive_is_placed_by_the_offers_that_match_in_the_order_asked_for(
         offers = catalogue(client)
 
         def order(sort: str) -> list[str]:
-            return mpns(client.get("/api/drives", params={"sort": sort}).json())
+            return mpns(client.get("/api/reports/market", params={"sort": sort}).json())
 
         by_total = order("total-desc")
         by_capacity = order("capacity-asc")
         by_check = order("checked-asc")
         # Asked for its dearer store only, the 18 TB drive is shown by that offer.
-        shop_only = client.get("/api/drives", params={"q": "shop", "in_stock": False}).json()
+        shop_only = client.get(
+            "/api/reports/market", params={"q": "shop", "in_stock": False}
+        ).json()
     assert by_total == ["ST18000NM000J", "ST8000VN004", "WUH721212ALE6L4"]
     assert by_capacity == ["ST8000VN004", "WUH721212ALE6L4", "ST18000NM000J"]
     assert by_check[0] == "ST8000VN004"
     rows = {row["drive"]["mpn"]: row for row in shop_only["items"]}
-    assert rows["ST18000NM000J"]["representative"]["id"] == offers["shop"]
+    assert rows["ST18000NM000J"]["offer"]["id"] == offers["shop"]
     # A drive no store has in stock comes after every drive that can be bought.
     assert mpns(shop_only)[-1] == "ST14000NM001G"
 
@@ -204,7 +232,7 @@ def test_the_lowest_prices_are_marked_across_every_drive_that_matches_not_the_pa
 ) -> None:
     with TestClient(create_app()) as client:
         offers = catalogue(client)
-        page = client.get("/api/drives", params={"limit": 1, "offset": 2}).json()
+        page = client.get("/api/reports/market", params={"limit": 1, "offset": 2}).json()
     # Only offers in stock and checked recently can be lowest.
     assert page["lowest"] == {
         "total": [offers["ghd"]],
@@ -227,7 +255,7 @@ def test_each_drive_comes_with_the_range_of_its_lowest_price_over_the_days_asked
                     client, price_payload(**common, item_price_cents=cents, observed_at=ago(days))
                 ),
             )
-        answer = client.get("/api/drives", params={"range_days": 30})
+        answer = client.get("/api/reports/market", params={"range_days": 30})
         assert answer.status_code == 200, answer.text
         [row] = answer.json()["items"]
     # $200 held from the period's start until ten days ago, $180 since.
@@ -344,10 +372,10 @@ def test_offers_as_cheap_as_each_other_are_all_the_lowest_and_a_recheck_makes_on
         second = record(client, seller="Two", item_price_cents=18000, shipping_cents=0)
         old = record(client, seller="Old", item_price_cents=17000, shipping_cents=0,
                      observed_at=ago(30))  # fmt: skip
-        before = client.get("/api/drives").json()["lowest"]
+        before = client.get("/api/reports/market").json()["lowest"]
         # Checked today at the price it has had for a month.
         record(client, seller="Old", item_price_cents=17000, shipping_cents=0)
-        after = client.get("/api/drives").json()["lowest"]
+        after = client.get("/api/reports/market").json()["lowest"]
     assert before == {"total": sorted([first, second]), "unit": sorted([first, second])}
     assert after == {"total": [old], "unit": [old]}
 
@@ -446,7 +474,7 @@ def test_a_held_offer_is_still_a_drive_to_manage(database_url: str) -> None:
         post(client, "/api/ingestions", page)
         post(client, "/api/ingestions", {**page, "title": "HPE R0P90A 48TB (8x6) 6-pack",
                                      "observed_at": ago(0.001)})  # fmt: skip
-        listed = client.get("/api/drives").json()["total"]
+        listed = client.get("/api/reports/market").json()["total"]
         managed = client.get("/api/catalog-drives").json()
 
     assert (listed, catalog_mpns(managed)) == (0, ["R0P90A"])
@@ -511,13 +539,13 @@ def test_a_held_offer_is_in_no_price_range_though_it_and_its_prices_are_still_sh
             "/api/ingestions",
             {**page, "title": f"{page['title']} 4-pack", "observed_at": ago(0.01)},
         )
-        [row] = client.get("/api/drives", params={"range_days": 30}).json()["items"]
+        [row] = client.get("/api/reports/market", params={"range_days": 30}).json()["items"]
         detail = client.get(f"/api/drives/{row['drive']['id']}", params={"range_days": 30}).json()
         history = client.get("/api/prices", params={"offer_id": held}).json()
 
     # Priced minutes ago: no whole day of prices yet.
     only_eligible = {"today": 20000, "low": 20000, "high": 20000, "average": 20000, "days": 0}
-    assert [offer["id"] for offer in row["offers"]] == [eligible]
+    assert (row["offer"]["id"], row["stores"]) == (eligible, 1)
     assert row["range"] == only_eligible
     assert detail["ranges"]["new"] == only_eligible
     assert sorted(offer["id"] for offer in detail["offers"]) == sorted([eligible, held])

@@ -6,7 +6,15 @@ from dependency_injector.wiring import Provide, inject
 from fastapi import APIRouter, Depends, Query
 
 from disktracker.container import Container
-from disktracker.reporting.schemas import PriceMark, StoreFreshness, TodayQuery, TrendQuery, Trends
+from disktracker.reporting.schemas import (
+    Market,
+    MarketQuery,
+    PriceMark,
+    StoreFreshness,
+    TodayQuery,
+    TrendQuery,
+    Trends,
+)
 from disktracker.reporting.service import ReportingService
 
 router = APIRouter(prefix="/api")
@@ -28,6 +36,26 @@ def price_trends(reporting: Reporting, query: Annotated[TrendQuery, Query()]) ->
     shared drives. Results are recalculated when relevant data changes or a new UTC day begins.
     """
     return reporting.trends(query.days, query.by, query.recent_days, query.scope())
+
+
+@router.get(
+    "/reports/market", response_model=Market, tags=["Reports"], summary="Read the market for drives"
+)
+@inject
+def market(reporting: Reporting, query: Annotated[MarketQuery, Query()]) -> dict[str, Any]:
+    """The drives that match, a page at a time, each shown by its cheapest matching offer in
+    stock, with how many stores and sellers offer it and what each condition it is offered in
+    costs among the matches, and the range of its price; with the lowest prices among every
+    match, the filter options of every drive, and how many drives there are to buy at all.
+
+    Repeat a parameter for several choices, e.g. `brand=Seagate&brand=Toshiba`. Choices within
+    a filter use OR; different filters use AND. Filters match offers, then group them by drive.
+    Each filter option counts the drives choosing it would give, with every other filter as
+    asked. total counts matching drives before pagination; offers counts matching offers. Only
+    offers that count (none held for review) are in the market. drive_id: whether one drive is
+    among the matches.
+    """
+    return reporting.market(query)
 
 
 @router.get(

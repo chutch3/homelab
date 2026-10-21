@@ -1,4 +1,5 @@
-"""Reporting's one workflow: a trend, worked out once a day and kept."""
+"""Reporting: the market as the Prices page reads it, trends (worked out once a day and kept),
+today's prices and how fresh each store's prices are."""
 
 import json
 from collections.abc import Callable
@@ -6,7 +7,9 @@ from datetime import UTC, datetime
 from typing import Any, cast
 
 from disktracker.catalog.schemas import DriveScope
+from disktracker.reporting.ranges import price_range
 from disktracker.reporting.repository import ReportingRepository
+from disktracker.reporting.schemas import MarketQuery
 from disktracker.reporting.today import marks
 from disktracker.reporting.trends import By, trends
 
@@ -54,6 +57,18 @@ class ReportingService:
             days, by, recent_days, kept_as(scope), body, now, changes.revision
         )
         return body
+
+    def market(self, query: MarketQuery) -> dict[str, Any]:
+        """A part of the market, each drive with the range of its price over the days asked for,
+        in the condition it is shown in."""
+        now = self.now()
+        read = self.repository.market(query, now)
+        items = [
+            listed.row
+            | {"range": price_range(listed.prices, now, query.range_days, query.recent_days)}
+            for listed in read.listed
+        ]
+        return {"items": items, **read.page}
 
     def prices_today(self, recent_days: int, scope: DriveScope) -> list[dict[str, Any]]:
         """What each drive in scope costs today in each condition it is in stock in, by the

@@ -12,31 +12,32 @@ from typing import cast
 import datetime
 
 if TYPE_CHECKING:
-  from ..models.drive_row import DriveRow
   from ..models.filter_options import FilterOptions
   from ..models.lowest import Lowest
+  from ..models.market_row import MarketRow
 
 
 
 
 
-T = TypeVar("T", bound="DrivePage")
+T = TypeVar("T", bound="Market")
 
 
 
 @_attrs_define
-class DrivePage:
-    """ A part of the drive list. total: drives that match; offers: offers that match; sold_out:
-    drives left out only because no store has them in stock. as_of: the moment recency and
-    ranges are judged against.
+class Market:
+    """ A part of the market. total: drives that match; offers: offers that match; sold_out: drives
+    left out only because no store has them in stock; catalogued: drives with an offer that
+    counts, whatever the filters. as_of: the moment recency and ranges are judged against.
 
         Attributes:
             as_of (datetime.datetime):
+            catalogued (int):
             filter_options (FilterOptions): What the filters can choose from: every option the catalogue has, each with how
                 many drives
                 choosing it would give, with the search and every other filter as asked but not its own
                 group's, whichever page is shown.
-            items (list[DriveRow]):
+            items (list[MarketRow]):
             limit (int):
             lowest (Lowest): The offers with the lowest total and the lowest total per terabyte among every offer that
                 matches, in stock and checked recently.
@@ -47,8 +48,9 @@ class DrivePage:
      """
 
     as_of: datetime.datetime
+    catalogued: int
     filter_options: FilterOptions
-    items: list[DriveRow]
+    items: list[MarketRow]
     limit: int
     lowest: Lowest
     offers: int
@@ -62,10 +64,12 @@ class DrivePage:
 
 
     def to_dict(self) -> dict[str, Any]:
-        from ..models.drive_row import DriveRow # noqa: PLC0415
         from ..models.filter_options import FilterOptions # noqa: PLC0415
         from ..models.lowest import Lowest # noqa: PLC0415
+        from ..models.market_row import MarketRow # noqa: PLC0415
         as_of = self.as_of.isoformat()
+
+        catalogued = self.catalogued
 
         filter_options = self.filter_options.to_dict()
 
@@ -93,6 +97,7 @@ class DrivePage:
         field_dict.update(self.additional_properties)
         field_dict.update({
             "as_of": as_of,
+            "catalogued": catalogued,
             "filter_options": filter_options,
             "items": items,
             "limit": limit,
@@ -109,14 +114,16 @@ class DrivePage:
 
     @classmethod
     def from_dict(cls: type[T], src_dict: Mapping[str, Any]) -> T:
-        from ..models.drive_row import DriveRow # noqa: PLC0415
         from ..models.filter_options import FilterOptions # noqa: PLC0415
         from ..models.lowest import Lowest # noqa: PLC0415
+        from ..models.market_row import MarketRow # noqa: PLC0415
         d = dict(src_dict)
         as_of = datetime.datetime.fromisoformat(d.pop("as_of"))
 
 
 
+
+        catalogued = d.pop("catalogued")
 
         filter_options = FilterOptions.from_dict(d.pop("filter_options"))
 
@@ -126,7 +133,7 @@ class DrivePage:
         items = []
         _items = d.pop("items")
         for items_item_data in (_items):
-            items_item = DriveRow.from_dict(items_item_data)
+            items_item = MarketRow.from_dict(items_item_data)
 
 
 
@@ -148,8 +155,9 @@ class DrivePage:
 
         total = d.pop("total")
 
-        drive_page = cls(
+        market = cls(
             as_of=as_of,
+            catalogued=catalogued,
             filter_options=filter_options,
             items=items,
             limit=limit,
@@ -161,8 +169,8 @@ class DrivePage:
         )
 
 
-        drive_page.additional_properties = d
-        return drive_page
+        market.additional_properties = d
+        return market
 
     @property
     def additional_keys(self) -> list[str]:

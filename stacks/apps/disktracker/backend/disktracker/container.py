@@ -59,7 +59,9 @@ class Container(containers.DeclarativeContainer):
     offer_repository = providers.Factory(OfferRepository, now=clock, next_id=next_id)
     review_repository = providers.Factory(ReviewRepository, next_id=next_id)
     condition_rule_repository = providers.Factory(ConditionRuleRepository)
-    catalog_queries = providers.Factory(CatalogQueries, snapshot_factory=database.provided.snapshot)
+    catalog_queries = providers.Factory(
+        CatalogQueries, snapshot_factory=database.provided.snapshot, offers=offer_repository
+    )
     collection_repository = providers.Factory(
         CollectionRepository,
         session_factory=database.provided.session,
@@ -69,6 +71,7 @@ class Container(containers.DeclarativeContainer):
         ReportingRepository,
         session_factory=database.provided.session,
         snapshot_factory=database.provided.snapshot,
+        offers=offer_repository,
     )
 
     collector_client = providers.Singleton(CollectorClient, url=config.collector_url)

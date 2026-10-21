@@ -877,8 +877,8 @@ def test_an_offer_whose_page_comes_to_be_doubted_is_held_out_of_every_report_unt
 
         def reports() -> dict[str, Any]:
             return {
-                "drives": client.get("/api/drives").json()["total"],
-                "lowest": client.get("/api/drives").json()["lowest"]["unit"],
+                "drives": client.get("/api/reports/market").json()["total"],
+                "lowest": client.get("/api/reports/market").json()["lowest"]["unit"],
                 "today": len(client.get("/api/reports/prices-today").json()),
                 "trend": client.get("/api/trends", params={"days": 30}).json()["market"]["counted"],
             }

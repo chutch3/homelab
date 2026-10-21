@@ -485,10 +485,6 @@ class ListingFacts(Contract):
 
 # Reading drives the way the Prices page does.
 
-Sort = Literal[
-    "unit-asc", "unit-desc", "total-asc", "total-desc",
-    "capacity-asc", "capacity-desc", "checked-desc", "checked-asc",
-]  # fmt: skip
 RANGE_DAYS = (30, 90, 180)
 
 
@@ -540,26 +536,6 @@ class DriveScope(Contract):
         return DriveScope(**{name: getattr(self, name) for name in DriveScope.model_fields})
 
 
-class DriveQuery(RangeQuery, DriveScope):
-    """Which drives to list, in what order, and which part of the list. Filters apply to offers:
-    a drive is listed when any offer of it matches, and is shown by the cheapest of those in
-    stock."""
-
-    model_config = ConfigDict(extra="forbid")
-    drive_id: UUID | None = Field(default=None, description="Only this drive, if it matches")
-    max_total_cents: int | None = Field(
-        default=None, ge=0, description="Maximum item price plus known shipping, in US cents."
-    )
-    in_stock: bool = Field(default=True, description="Only offers in stock; false for all")
-    recent_only: bool = Field(default=False, description="Only offers checked recently")
-    sort: Sort = Field(
-        default="unit-asc",
-        description="unit sorts by total dollars per TB; total includes known shipping; checked sorts by last check time.",
-    )
-    limit: int = Field(default=50, ge=1, le=500, description="Maximum drives in this page.")
-    offset: int = Field(default=0, ge=0, description="Number of matching items to skip.")
-
-
 # What a drive may need from a person: its specifications entered, or an offer of it in stock
 # checked again (one not checked within recent_days).
 DriveIssue = Literal["unknown_specifications", "stale"]
@@ -590,41 +566,6 @@ class PriceRange(Contract):
     days: int
 
 
-class DriveRow(Contract):
-    """A drive as the list shows it: by its cheapest matching offer in stock (else its cheapest
-    matching offer), with every offer of it that matches, and the range of its price in the
-    representative's condition. key: what the app opens the drive by."""
-
-    key: str
-    drive: Drive
-    representative: OfferSummary
-    offers: list[OfferSummary]
-    range: PriceRange | None
-
-
-class Choice[T](Contract):
-    value: T
-    drives: int
-
-
-class FilterOptions(Contract):
-    """What the filters can choose from: every option the catalogue has, each with how many drives
-    choosing it would give, with the search and every other filter as asked but not its own
-    group's, whichever page is shown."""
-
-    brands: list[Choice[str]]
-    capacities: list[Choice[int]]
-    conditions: list[Choice[Condition]]
-
-
-class Lowest(Contract):
-    """The offers with the lowest total and the lowest total per terabyte among every offer that
-    matches, in stock and checked recently."""
-
-    total: list[UUID]
-    unit: list[UUID]
-
-
 class CatalogDrive(Contract):
     """A drive to manage: named by the title of the offer it is shown by (its cheapest in stock,
     else its cheapest), with how many offers it has and what it needs."""
@@ -650,22 +591,6 @@ class CatalogDrivePage(Contract):
     issues: DriveIssueCounts
     limit: int
     offset: int
-
-
-class DrivePage(Contract):
-    """A part of the drive list. total: drives that match; offers: offers that match; sold_out:
-    drives left out only because no store has them in stock. as_of: the moment recency and
-    ranges are judged against."""
-
-    items: list[DriveRow]
-    total: int
-    offers: int
-    sold_out: int
-    limit: int
-    offset: int
-    as_of: datetime
-    lowest: Lowest
-    filter_options: FilterOptions
 
 
 class DriveDetail(Contract):

@@ -1,11 +1,11 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import type { Condition, DisktrackerApi, DrivePage, DriveQuery, Observation } from '../../src/api';
+import type { Condition, DisktrackerApi, Market, MarketQuery, Observation } from '../../src/api';
 import { emptySpecifications, type SpecValue } from '../../src/specifications';
 import { checkedAt, historyPrices, makeDrive, makeOffer, makeReviewItem, recordedOn, shoppingListings } from '../fixtures/listings';
 import { memoryStorage, namesIn, renderApp } from '../fixtures/render-app';
-import { catalogPage, detailOf, drivePage, noOptions, pricesOf, rowsOf } from '../fixtures/responses';
+import { catalogPage, detailOf, marketPage, noOptions, pricesOf, rowsOf } from '../fixtures/responses';
 
 afterEach(() => { cleanup(); window.history.replaceState(null, '', '/'); });
 
@@ -14,10 +14,10 @@ function visibleNames() {
 }
 
 /** A server answering each page of drives as the test says it would, keeping every query asked. */
-function server(answer: (query: DriveQuery) => DrivePage) {
-  const asked: DriveQuery[] = [];
-  const drives: DisktrackerApi['drives'] = async query => { asked.push(query); return answer(query); };
-  return { asked, drives };
+function server(answer: (query: MarketQuery) => Market) {
+  const asked: MarketQuery[] = [];
+  const market: DisktrackerApi['market'] = async query => { asked.push(query); return answer(query); };
+  return { asked, market };
 }
 
 describe('App shopping view', () => {
@@ -30,9 +30,9 @@ describe('App shopping view', () => {
     const fresh = makeOffer('Fresh drive', { last_checked_at: ago(3) },
       { shipping_cents: null, shipping_known: false, total_cents: 21600, price_per_tb: '12.00' });
     // The server's order, and the offer it says is the lowest per terabyte.
-    const { asked, drives } = server(query => drivePage(rowsOf(query.sort === 'checked-asc' ? [stale, fresh, soldOut] : [stale, soldOut, fresh]),
+    const { asked, market } = server(query => marketPage(rowsOf(query.sort === 'checked-asc' ? [stale, fresh, soldOut] : [stale, soldOut, fresh]),
       { lowest: { total: [], unit: ['Fresh drive'] } }));
-    renderApp({ listOffers: async () => [stale, soldOut, fresh], drives });
+    renderApp({ listOffers: async () => [stale, soldOut, fresh], market });
     const table = within(await screen.findByRole('table', { name: 'Drive prices' }));
     expect(table.getAllByRole('columnheader').map(header => header.textContent))
       .toEqual(['Drive', 'Capacity', '$/TB ↑', 'Total', 'Item price vs low, last' + '30 days90 days180 days', 'Checked']);
@@ -60,7 +60,7 @@ describe('App shopping view', () => {
     const drive = makeDrive('ST18000NM000J');
     const offers = [makeOffer('spd', { drive, mpn: drive.mpn, title: 'Exos X18', store: 'serverpartdeals', seller: '' })];
     const range = { today: 18000, low: 17000, high: 19000, average: 18222, days: 90 };
-    renderApp({ listOffers: async () => offers, drives: async query => drivePage(rowsOf(offers, { [`drive:${drive.id}`]: range }), {}, query) });
+    renderApp({ listOffers: async () => offers, market: async query => marketPage(rowsOf(offers, { [drive.id]: range }), {}, query) });
     const table = within(await screen.findByRole('table', { name: 'Drive prices' }));
     expect(table.getByRole('columnheader', { name: /^Item price vs low, last/ })).toBeVisible();
     const pictured = await table.findByRole('img', { name: 'Today $180.00, 5.9% above the lowest. Over 90 days: lowest $170.00, average $182.22, highest $190.00.' });
@@ -78,8 +78,8 @@ describe('App shopping view', () => {
       180: { today: 18000, low: 17000, high: 19000, average: 18300, days: 100 },
     };
     // Dearest per terabyte of 56 drives, so the server puts it on the second page.
-    const { asked, drives } = server(query => drivePage(rowsOf([...others, exos], { [`drive:${drive.id}`]: ranges[query.range_days as 30 | 90 | 180] }), {}, query));
-    renderApp({ listOffers: async () => [...others, exos], drives });
+    const { asked, market } = server(query => marketPage(rowsOf([...others, exos], { [drive.id]: ranges[query.range_days as 30 | 90 | 180] }), {}, query));
+    renderApp({ listOffers: async () => [...others, exos], market });
     await screen.findByRole('table', { name: 'Drive prices' });
     const pages = within(screen.getByRole('navigation', { name: 'Drives pages' }));
     await user.click(pages.getByRole('button', { name: 'Next page' }));
@@ -106,10 +106,10 @@ describe('App shopping view', () => {
     const soldOut = makeOffer('Sold out drive', { drive: makeDrive('ST10000NM001G') }, { in_stock: false });
     const cheap = makeOffer('Cheap drive', { drive: makeDrive('ST18000NM000J') });
     const dear = makeOffer('Dear drive', { drive: makeDrive('ST20000NM007D') });
-    const { asked, drives } = server(query => query.in_stock === false
-      ? drivePage(rowsOf([cheap, dear, soldOut]))
-      : drivePage(rowsOf([cheap, dear]), { sold_out: 1 }));
-    renderApp({ listOffers: async () => [soldOut, dear, cheap], drives });
+    const { asked, market } = server(query => query.in_stock === false
+      ? marketPage(rowsOf([cheap, dear, soldOut]))
+      : marketPage(rowsOf([cheap, dear]), { sold_out: 1 }));
+    renderApp({ listOffers: async () => [soldOut, dear, cheap], market });
     await screen.findByRole('table', { name: 'Drive prices' });
     expect(asked[0].in_stock).toBeUndefined();
     expect(visibleNames()).toEqual(['Cheap drive', 'Dear drive']);
@@ -148,12 +148,12 @@ describe('App shopping view', () => {
     const direct = makeOffer('Ultrastar direct', { drive: ultrastar, mpn: ultrastar.mpn, store: 'serverpartdeals', seller: '' });
     const store = makeOffer('Exos at Beach Audio', { drive: makeDrive('ST18000NM000J'), mpn: 'ST18000NM000J', store: 'other', seller: 'Beach Audio' });
     const soldOut = makeOffer('Sold out drive', { drive: makeDrive('ST20000NM007D'), mpn: 'ST20000NM007D', store: 'goharddrive', seller: '' }, { in_stock: false });
-    const { asked, drives } = server(query => drivePage(rowsOf(
+    const { asked, market } = server(query => marketPage(rowsOf(
       query.store?.includes('other') ? [store]
         : query.q === '0hnhwc' ? [direct]
           : query.q === 'beach audio' ? [store]
             : query.in_stock === false ? [direct, store, soldOut] : [direct, store])));
-    renderApp({ listOffers: async () => [direct, store, soldOut], drives });
+    renderApp({ listOffers: async () => [direct, store, soldOut], market });
     await screen.findByRole('table', { name: 'Drive prices' });
     await user.click(screen.getByRole('button', { name: 'More filters' }));
     await user.click(screen.getByRole('textbox', { name: 'Store' }));
@@ -212,9 +212,9 @@ describe('App shopping view', () => {
     const user = userEvent.setup();
     const capacities = [{ value: 12000, drives: 1 }, { value: 18000, drives: 1 }, { value: 20000, drives: 1 }];
     const [small, large, pricey] = shoppingListings;
-    const { asked, drives } = server(query => drivePage(rowsOf(query.capacity?.length ? [small, pricey] : [small, large, pricey]),
+    const { asked, market } = server(query => marketPage(rowsOf(query.capacity?.length ? [small, pricey] : [small, large, pricey]),
       { filter_options: { ...noOptions(), capacities } }));
-    const app = renderApp({ drives });
+    const app = renderApp({ market });
     await screen.findByRole('table', { name: 'Drive prices' });
     expect(screen.queryByLabelText('Minimum capacity (TB)')).not.toBeInTheDocument();
     const capacity = screen.getByRole('textbox', { name: 'Capacity' });
@@ -229,7 +229,7 @@ describe('App shopping view', () => {
     expect(new URLSearchParams(window.location.search).getAll('capacity')).toEqual(['12000', '20000']);
     expect(screen.getByLabelText('Active filters')).toHaveTextContent('12 TB');
     app.unmount();
-    renderApp({ drives });
+    renderApp({ market });
     await screen.findByRole('table', { name: 'Drive prices' });
     expect(asked.at(-1)?.capacity).toEqual([12000, 20000]);
   });
@@ -237,8 +237,8 @@ describe('App shopping view', () => {
   it('filters by brand, listed as the server counts them, with drives of no known brand under Unknown', async () => {
     const user = userEvent.setup();
     const brands = [{ value: 'Seagate', drives: 2 }, { value: 'Western Digital', drives: 1 }, { value: 'unknown', drives: 1 }];
-    const { asked, drives } = server(() => drivePage(rowsOf(shoppingListings), { filter_options: { ...noOptions(), brands } }));
-    renderApp({ drives });
+    const { asked, market } = server(() => marketPage(rowsOf(shoppingListings), { filter_options: { ...noOptions(), brands } }));
+    renderApp({ market });
     await screen.findByRole('table', { name: 'Drive prices' });
     await user.click(screen.getByRole('button', { name: 'More filters' }));
     await user.click(screen.getByRole('textbox', { name: 'Brand' }));
@@ -252,8 +252,8 @@ describe('App shopping view', () => {
 
   it('asks for a maximum total like every other filter, once typing pauses or at once on Enter', async () => {
     const user = userEvent.setup();
-    const { asked, drives } = server(() => drivePage(rowsOf(shoppingListings)));
-    renderApp({ drives });
+    const { asked, market } = server(() => marketPage(rowsOf(shoppingListings)));
+    renderApp({ market });
     await screen.findByRole('table', { name: 'Drive prices' });
     const total = screen.getByLabelText('Maximum total (USD)');
     await user.type(total, '180');
@@ -268,7 +268,7 @@ describe('App shopping view', () => {
   it('keeps the filters used most in view, and counts the rest on More filters', async () => {
     const user = userEvent.setup();
     const conditions = [{ value: 'new' as const, drives: 3 }];
-    renderApp({ drives: async query => drivePage(rowsOf(shoppingListings), { filter_options: { ...noOptions(), conditions } }, query) });
+    renderApp({ market: async query => marketPage(rowsOf(shoppingListings), { filter_options: { ...noOptions(), conditions } }, query) });
     await screen.findByRole('table', { name: 'Drive prices' });
     const filters = within(screen.getByRole('region', { name: 'Filter drives' }));
     const shown = () => [...filters.getAllByRole('textbox'), ...filters.getAllByRole('combobox')]
@@ -298,7 +298,7 @@ describe('App shopping view', () => {
       { drive, mpn: drive.mpn, store: 'serverpartdeals', seller: '', url: 'https://spd.test/x18' });
     const ghd = makeOffer('Seagate 18TB Exos X18 ST18000NM000J 7200 RPM SATA 6Gb/s',
       { drive, mpn: drive.mpn, store: 'goharddrive', seller: '', url: 'https://ghd.test/x18' }, { total_cents: 20000, price_per_tb: '11.11' });
-    renderApp({ listOffers: async () => [spd, ghd], drives: async () => drivePage(rowsOf([spd, ghd])) });
+    renderApp({ listOffers: async () => [spd, ghd], market: async () => marketPage(rowsOf([spd, ghd])) });
     const table = within(await screen.findByRole('table', { name: 'Drive prices' }));
     await user.click(table.getByRole('button', { name: 'Seagate 18 TB SATA hard drive ST18000NM000J' }));
     expect(await screen.findByRole('heading', { name: 'Seagate 18 TB SATA hard drive' })).toBeVisible();
@@ -335,7 +335,7 @@ describe('App shopping view', () => {
     const huge = makeOffer('Kioxia KPM7XVUG960G 960TB', { capacity_gb: 960000, doubt: 'implausible_capacity' });
     const bundle = makeOffer('HPE R0P90A 48TB (8x6) 6-pack', { capacity_gb: 48000, doubt: 'not_a_single_drive' });
     const plain = makeOffer('Exos X18 18TB');
-    renderApp({ listOffers: async () => [huge, bundle, plain], drives: async () => drivePage(rowsOf([huge, bundle, plain])) });
+    renderApp({ listOffers: async () => [huge, bundle, plain], market: async () => marketPage(rowsOf([huge, bundle, plain])) });
     const table = within(await screen.findByRole('table', { name: 'Drive prices' }));
     const row = (name: string) => within(table.getByTitle(name).closest('tr')!);
     expect(row('Kioxia KPM7XVUG960G 960TB').getByText('Capacity unverified')).toHaveAttribute('title',
@@ -351,8 +351,8 @@ describe('App shopping view', () => {
     const hdd = makeDrive('ST18000NM000J', { specifications: specs('hdd', '3_5') });
     const card = makeDrive('SDSQXAA-128G', { capacity_gb: 128, specifications: specs('flash_card', 'microsd') });
     const exos = makeOffer('Exos X18', { drive: hdd, mpn: hdd.mpn }), extreme = makeOffer('Extreme 128GB', { drive: card, mpn: card.mpn, capacity_gb: 128 });
-    const { asked, drives } = server(query => drivePage(rowsOf(query.media_type === 'flash_card' ? [extreme] : [exos, extreme])));
-    renderApp({ drives });
+    const { asked, market } = server(query => marketPage(rowsOf(query.media_type === 'flash_card' ? [extreme] : [exos, extreme])));
+    renderApp({ market });
     const table = within(await screen.findByRole('table', { name: 'Drive prices' }));
     expect(table.getByText('128 GB')).toBeVisible();
     expect(table.getByText('18 TB')).toBeVisible();
@@ -373,8 +373,8 @@ describe('App shopping view', () => {
       makeOffer('Other seller', { drive, mpn: drive.mpn, seller: 'GoHardDrive' }, { total_cents: 99999, price_per_tb: '99.99' }),
       makeOffer('Unrelated drive'),
     ];
-    const { asked, drives } = server(query => drivePage(rowsOf(query.recording_type === 'cmr' ? listings.slice(0, 2) : listings)));
-    const app = renderApp({ listOffers: async () => listings, drives });
+    const { asked, market } = server(query => marketPage(rowsOf(query.recording_type === 'cmr' ? listings.slice(0, 2) : listings)));
+    const app = renderApp({ listOffers: async () => listings, market });
     await user.click(await screen.findByTitle('Verified drive'));
     expect(await screen.findByText('ST18000NM003D, 2 stores')).toBeVisible();
     // One condition is nothing to choose between: it is named, not offered as a choice.
@@ -391,7 +391,7 @@ describe('App shopping view', () => {
     await waitFor(() => expect(visibleNames()).toEqual(['Verified drive']));
     expect(new URLSearchParams(window.location.search).get('recording')).toBe('cmr');
     app.unmount();
-    renderApp({ listOffers: async () => listings, drives });
+    renderApp({ listOffers: async () => listings, market });
     await screen.findByRole('table', { name: 'Drive prices' });
     expect(asked.at(-1)?.recording_type).toBe('cmr');
     await user.click(screen.getByRole('button', { name: 'Clear filters' }));
@@ -578,12 +578,12 @@ describe('App shopping view', () => {
       makeOffer('ghd', { drive, mpn: drive.mpn, title: 'Exos X20', store: 'goharddrive', seller: '' }),
       makeOffer('Unrelated drive', { observations: historyPrices, latest: historyPrices[1] }),
     ];
-    const drives = vi.fn<DisktrackerApi['drives']>(async query => drivePage(rowsOf(offers), {}, query));
+    const market = vi.fn<DisktrackerApi['market']>(async query => marketPage(rowsOf(offers), {}, query));
     const opened = vi.fn<DisktrackerApi['drive']>(async () => detailOf(offers.slice(0, 2)));
     const prices = vi.fn<DisktrackerApi['prices']>(async request => pricesOf(offers.slice(0, 2), request));
-    renderApp({ listOffers: async () => offers, drives, drive: opened, prices });
+    renderApp({ listOffers: async () => offers, market, drive: opened, prices });
     await user.click(await screen.findByTitle('Exos X20'));
-    expect(drives).toHaveBeenCalledWith({ condition: ['new'], recent_days: 7, sort: 'total-desc', range_days: 30, limit: 50, offset: 0 });
+    expect(market).toHaveBeenCalledWith({ condition: ['new'], recent_days: 7, sort: 'total-desc', range_days: 30, limit: 50, offset: 0 });
     // Nothing is asked of a drive's prices until it is opened, and then by the drive, over the period shown.
     expect(opened).toHaveBeenCalledWith(drive.id, 30, 7);
     expect(prices).toHaveBeenCalledWith({ driveId: drive.id, since: new Date(checkedAt.getTime() - 30 * 86_400_000).toISOString(), limit: 500, offset: 0 });
@@ -602,14 +602,14 @@ describe('App shopping view', () => {
     const eNew = offer('e-new', exos, 'Exos X18', 'serverpartdeals', 'new', 50000);
     const conditions_ = [{ value: 'new' as const, drives: 2 }, { value: 'manufacturer_recertified' as const, drives: 1 }, { value: 'refurbished' as const, drives: 1 }];
     // What the server answers for each choice of conditions: the drives, each shown by its cheapest offer in them.
-    const { asked, drives } = server(query => {
+    const { asked, market } = server(query => {
       const chosen = query.condition ?? [];
       const rows = chosen.length === 0 ? rowsOf([uRefurbished, uNew, uRecertified, eNew])
         : chosen.includes('refurbished') ? rowsOf([uRefurbished, uNew, eNew])
           : rowsOf([eNew, uNew]);
-      return drivePage(rows, { filter_options: { ...noOptions(), conditions: conditions_ } });
+      return marketPage(rows, { filter_options: { ...noOptions(), conditions: conditions_ } });
     });
-    renderApp({ listOffers: async () => [uNew, uRecertified, uRefurbished, eNew], drives });
+    renderApp({ listOffers: async () => [uNew, uRecertified, uRefurbished, eNew], market });
     const table = within(await screen.findByRole('table', { name: 'Drive prices' }));
     const conditions = within(screen.getByRole('group', { name: 'Condition' }));
     const pressed = () => conditions.getAllByRole('button').filter(button => button.getAttribute('aria-pressed') === 'true').map(button => button.textContent);
@@ -672,7 +672,7 @@ describe('App shopping view', () => {
     renderApp({
       listOffers: async () => listings,
       // Shown by its cheapest offer in stock, or by its recertified one when that is the condition asked for.
-      drives: async query => drivePage(rowsOf(query.condition?.includes('manufacturer_recertified')
+      market: async query => marketPage(rowsOf(query.condition?.includes('manufacturer_recertified')
         ? [olderRecertified] : [refurbishedGhd, fresh, olderRecertified, refurbishedSpd]), {
         filter_options: { ...noOptions(), conditions: [{ value: 'manufacturer_recertified', drives: 1 }] },
       }, query),
@@ -739,8 +739,8 @@ describe('App shopping view', () => {
       return recordedOn(saved, saved.latest.id);
     });
     // Searched for Small, the server lists only the small drive; asked for the saved one under the same filters, nothing.
-    const { asked, drives } = server(query => drivePage(query.drive_id ? [] : rowsOf([shoppingListings[0]])));
-    renderApp({ listOffers: async () => listings, createDrive, recordPrice, drives });
+    const { asked, market } = server(query => marketPage(query.drive_id ? [] : rowsOf([shoppingListings[0]])));
+    renderApp({ listOffers: async () => listings, createDrive, recordPrice, market });
     await screen.findByRole('table', { name: 'Drive prices' });
     await user.click(within(screen.getByRole('banner')).getByRole('button', { name: 'Record price' }));
     const dialog = screen.getByRole('dialog', { name: 'Record price' });
@@ -1023,7 +1023,7 @@ describe('App shopping view', () => {
       { item_price_cents: 40000, shipping_cents: null, shipping_known: false, total_cents: 40000, price_per_tb: '22.22',
         observed_at: '2026-09-20T12:00:00Z' });
     // The server shows the drive by its offer in stock.
-    renderApp({ listOffers: async () => [soldOut, stocked], drives: async () => drivePage(rowsOf([stocked, soldOut])) });
+    renderApp({ listOffers: async () => [soldOut, stocked], market: async () => marketPage(rowsOf([stocked, soldOut])) });
     const table = within(await screen.findByRole('table', { name: 'Drive prices' }));
     expect(table.getByText('Pricier shop +1 more')).toBeVisible();
     await user.click(table.getByTitle('Seagate Exos X18'));
@@ -1053,9 +1053,9 @@ describe('App shopping view', () => {
   it('connects filters, sorting, URL state, and Clear filters', async () => {
     const user = userEvent.setup();
     const [small, large, pricey] = shoppingListings;
-    const { asked, drives } = server(query => drivePage(rowsOf(query.max_total_cents ? [small]
+    const { asked, market } = server(query => marketPage(rowsOf(query.max_total_cents ? [small]
       : query.sort === 'total-asc' ? [small, large, pricey] : [large, small, pricey])));
-    const app = renderApp({ drives });
+    const app = renderApp({ market });
     await screen.findByRole('table', { name: 'Drive prices' });
     await user.selectOptions(screen.getByLabelText('Sort by'), 'total-asc');
     expect(asked.at(-1)?.sort).toBe('total-asc');
@@ -1065,7 +1065,7 @@ describe('App shopping view', () => {
     await waitFor(() => expect(visibleNames()).toEqual(['Small drive']));
     expect(new URLSearchParams(window.location.search).get('maxTotal')).toBe('180');
     app.unmount();
-    renderApp({ drives });
+    renderApp({ market });
     await screen.findByRole('table', { name: 'Drive prices' });
     expect(screen.getByLabelText('Maximum total (USD)')).toHaveValue('180');
     expect(screen.getByLabelText('Sort by')).toHaveValue('total-asc');
@@ -1080,7 +1080,7 @@ describe('App shopping view', () => {
     window.history.replaceState(null, '', '/?q=does-not-exist');
     // Nothing matches, though there are drives: the server's options count them.
     const capacities = [{ value: 18000, drives: 3 }];
-    renderApp({ drives: async query => drivePage(query.q ? [] : rowsOf(shoppingListings), { filter_options: { ...noOptions(), capacities } }) });
+    renderApp({ market: async query => marketPage(query.q ? [] : rowsOf(shoppingListings), { filter_options: { ...noOptions(), capacities } }) });
     expect(await screen.findByText('No drives match these filters.')).toBeVisible();
     await userEvent.click(screen.getByRole('button', { name: 'Clear filters' }));
     expect(await screen.findByRole('table', { name: 'Drive prices' })).toBeVisible();

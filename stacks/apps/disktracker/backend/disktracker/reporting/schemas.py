@@ -6,7 +6,14 @@ from uuid import UUID
 
 from pydantic import ConfigDict, Field, field_validator
 
-from disktracker.catalog.schemas import Condition, DriveScope
+from disktracker.catalog.schemas import (
+    Condition,
+    Drive,
+    DriveScope,
+    OfferSummary,
+    PriceRange,
+    RangeQuery,
+)
 from disktracker.contract import Contract
 
 # The days a trend can look back over.
@@ -120,3 +127,92 @@ class StoreFreshness(Contract):
     offers: int
     latest_checked_at: datetime
     median_checked_at: datetime
+
+
+Sort = Literal[
+    "unit-asc", "unit-desc", "total-asc", "total-desc",
+    "capacity-asc", "capacity-desc", "checked-desc", "checked-asc",
+]  # fmt: skip
+
+
+class MarketQuery(RangeQuery, DriveScope):
+    """Which drives of the market to list, in what order, and which part of the list. Filters
+    apply to offers: a drive is listed when any offer of it matches, and is shown by the cheapest
+    of those in stock. drive_id: only this drive, if it matches (whether the filters hide it)."""
+
+    model_config = ConfigDict(extra="forbid")
+    drive_id: UUID | None = Field(default=None, description="Only this drive, if it matches")
+    max_total_cents: int | None = Field(
+        default=None, ge=0, description="Maximum item price plus known shipping, in US cents."
+    )
+    in_stock: bool = Field(default=True, description="Only offers in stock; false for all")
+    recent_only: bool = Field(default=False, description="Only offers checked recently")
+    sort: Sort = Field(
+        default="unit-asc",
+        description="unit sorts by total dollars per TB; total includes known shipping; checked sorts by last check time.",
+    )
+    limit: int = Field(default=50, ge=1, le=500, description="Maximum drives in this page.")
+    offset: int = Field(default=0, ge=0, description="Number of matching items to skip.")
+
+
+class ConditionPrices(Contract):
+    """A condition a drive is offered in among the offers that match: how many offers, how many
+    of them in stock, and the lowest total of those (null when none is)."""
+
+    condition: Condition
+    offers: int
+    in_stock: int
+    lowest_total_cents: int | None
+
+
+class MarketRow(Contract):
+    """A drive as the market shows it: by its cheapest matching offer in stock (else its cheapest
+    matching offer), with how many stores and sellers offer it and what each condition it is
+    offered in costs, among the offers that match, and the range of its price in the condition of
+    the offer it is shown by."""
+
+    drive: Drive
+    offer: OfferSummary
+    stores: int
+    conditions: list[ConditionPrices]
+    range: PriceRange | None
+
+
+class Choice[T](Contract):
+    value: T
+    drives: int
+
+
+class FilterOptions(Contract):
+    """What the filters can choose from: every option the catalogue has, each with how many drives
+    choosing it would give, with the search and every other filter as asked but not its own
+    group's, whichever page is shown."""
+
+    brands: list[Choice[str]]
+    capacities: list[Choice[int]]
+    conditions: list[Choice[Condition]]
+
+
+class Lowest(Contract):
+    """The offers with the lowest total and the lowest total per terabyte among every offer that
+    matches, in stock and checked recently."""
+
+    total: list[UUID]
+    unit: list[UUID]
+
+
+class Market(Contract):
+    """A part of the market. total: drives that match; offers: offers that match; sold_out: drives
+    left out only because no store has them in stock; catalogued: drives with an offer that
+    counts, whatever the filters. as_of: the moment recency and ranges are judged against."""
+
+    items: list[MarketRow]
+    total: int
+    offers: int
+    sold_out: int
+    limit: int
+    offset: int
+    catalogued: int
+    as_of: datetime
+    lowest: Lowest
+    filter_options: FilterOptions

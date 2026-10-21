@@ -5,7 +5,7 @@ import { ApiValidationError, type CollectorStatus, type Run, type ConditionRule,
 import { emptySpecifications } from '../../src/specifications';
 import { checkedAt, historyPrices, knownStores, makeDrive, makeOffer, makeSource, makeReviewItem, recordedOn, savedSource, sitemapSettings } from '../fixtures/listings';
 import { memoryStorage, namesIn, renderApp } from '../fixtures/render-app';
-import { catalogPage, drivePage, rowsOf } from '../fixtures/responses';
+import { catalogPage, marketPage, rowsOf } from '../fixtures/responses';
 
 beforeEach(() => { window.history.replaceState(null, '', '/admin'); });
 afterEach(() => { cleanup(); window.history.replaceState(null, '', '/'); });
@@ -137,7 +137,7 @@ describe('Admin page', () => {
     at('drives');
     const user = userEvent.setup();
     const rows = rowsOf(catalogue());
-    const named = (title: string) => rows.filter(row => row.representative.title === title);
+    const named = (title: string) => rows.filter(row => row.offer.title === title);
     // What the server answers for each need asked for.
     const answers = { stale: [...named('Ultrastar HC550')], unknown_specifications: [...named('Ultrastar HC550'), ...named('WD Red Plus')] };
     const catalogDrives = vi.fn<DisktrackerApi['catalogDrives']>(async query =>
@@ -163,7 +163,7 @@ describe('Admin page', () => {
     const user = userEvent.setup();
     const rows = rowsOf(catalogue());
     const catalogDrives = vi.fn<DisktrackerApi['catalogDrives']>(async query =>
-      catalogPage(query.q ? rows.filter(row => row.representative.title === 'Ultrastar HC550') : rows, {}, query));
+      catalogPage(query.q ? rows.filter(row => row.offer.title === 'Ultrastar HC550') : rows, {}, query));
     renderApp({ listOffers: async () => catalogue(), catalogDrives });
     await screen.findByRole('table', { name: 'Drives' });
     await user.type(screen.getByLabelText('Search drives'), 'wuh7218');
@@ -1627,12 +1627,12 @@ describe('Admin page', () => {
     const user = userEvent.setup();
     const exos = makeOffer('Exos X18 18TB', { drive: makeDrive('ST18000NM000J'), mpn: 'ST18000NM000J' });
     const searched: (string | undefined)[] = [];
-    const drives = vi.fn<DisktrackerApi['drives']>(async query => {
+    const catalogDrives = vi.fn<DisktrackerApi['catalogDrives']>(async query => {
       searched.push(query.q);
-      return drivePage(rowsOf(query.q && 'exos x18'.includes(query.q.toLowerCase()) ? [exos] : []));
+      return catalogPage(rowsOf(query.q && 'exos x18'.includes(query.q.toLowerCase()) ? [exos] : []));
     });
     const decide = vi.fn<DisktrackerApi['decide']>(async () => ({ status: 'matched', offer_id: 'o' }));
-    renderApp({ listOffers: async () => catalogue(), reviewItems: async () => [makeReviewItem('mystery', { title: 'Mystery 18TB drive', capacity_gb: 18000 })], drives, decide });
+    renderApp({ listOffers: async () => catalogue(), reviewItems: async () => [makeReviewItem('mystery', { title: 'Mystery 18TB drive', capacity_gb: 18000 })], catalogDrives, decide });
     const review = within(await screen.findByRole('region', { name: /Needs matching/ }));
     await user.click(await review.findByRole('button', { name: 'Resolve' }));
     const form = within(screen.getByRole('dialog', { name: 'Resolve offer' }));

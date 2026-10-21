@@ -6,7 +6,6 @@ from typing import Any
 from uuid import UUID
 
 from disktracker.catalog.offer_repository import OfferRepository
-from disktracker.catalog.queries import offer_with_history
 from disktracker.catalog.schemas import OfferEdit
 from disktracker.database import SessionFactory
 
@@ -23,7 +22,7 @@ class OfferService:
         with self.session_factory() as session:
             self.offers.lock(session, offer_id)
             self.offers.edit(session, offer_id, fields)
-            offer = offer_with_history(session, offer_id)
+            offer = self.offers.with_history(session, offer_id)
             session.commit()
             return offer
 

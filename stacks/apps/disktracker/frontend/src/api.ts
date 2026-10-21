@@ -64,13 +64,14 @@ export type DriveScope = Omit<NonNullable<operations['price_trends']['parameters
 export type RecordedPrice = { priceId: string };
 export type PriceResult = Schemas['PriceResult'];
 
-/** Which drives to list, as the server takes it: filters apply to offers, and a drive is listed when
- * any offer of it matches. Left out, a filter does not narrow. */
-export type DriveQuery = NonNullable<operations['list_drives']['parameters']['query']>;
+/** Which drives of the market to list, as the server takes it: filters apply to offers, and a drive is
+ * listed when any offer of it matches. Left out, a filter does not narrow. */
+export type MarketQuery = NonNullable<operations['market']['parameters']['query']>;
 export type PriceRange = Schemas['PriceRange'];
-export type DriveRow = Schemas['DriveRow'];
+export type MarketRow = Schemas['MarketRow'];
+export type ConditionPrices = Schemas['ConditionPrices'];
 export type FilterOptions = Schemas['FilterOptions'];
-export type DrivePage = Schemas['DrivePage'];
+export type Market = Schemas['Market'];
 export type DriveDetail = Schemas['DriveDetail'];
 /** Which of every drive to manage: by any name an offer of it goes by, and by what it needs. */
 export type CatalogDriveQuery = NonNullable<operations['list_catalog_drives']['parameters']['query']>;
@@ -86,8 +87,8 @@ export type PriceMark = Schemas['PriceMark'];
 export type StoreFreshness = Schemas['StoreFreshness'];
 
 export interface DisktrackerApi {
-  /** A page of the drives that match, with what is said of every match and the filter options of every drive. */
-  drives(query: DriveQuery): Promise<DrivePage>;
+  /** A page of the market: the drives that match, with what is said of every match and the filter options of every drive. */
+  market(query: MarketQuery): Promise<Market>;
   /** A page of every drive to manage, held offers and all, with what each needs and how many of every drive need each thing. */
   catalogDrives(query: CatalogDriveQuery): Promise<CatalogDrivePage>;
   /** A drive with every offer of it, in every condition, with its ranges over rangeDays. */
@@ -231,7 +232,7 @@ export class HttpDisktrackerApi implements DisktrackerApi {
     return this.send(`/offers/${id}`, undefined, undefined, 'DELETE');
   }
   storeFreshness(): Promise<StoreFreshness[]> { return this.send('/reports/store-freshness'); }
-  drives(query: DriveQuery): Promise<DrivePage> { return this.send(`/drives?${searchOf(query)}`); }
+  market(query: MarketQuery): Promise<Market> { return this.send(`/reports/market?${searchOf(query)}`); }
   catalogDrives(query: CatalogDriveQuery): Promise<CatalogDrivePage> { return this.send(`/catalog-drives?${searchOf(query)}`); }
   drive(id: string, rangeDays: number, recentDays: number): Promise<DriveDetail> {
     return this.send(`/drives/${id}?range_days=${rangeDays}&recent_days=${recentDays}`);

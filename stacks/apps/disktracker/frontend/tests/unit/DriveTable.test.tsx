@@ -19,7 +19,7 @@ it('DriveTable renders one row per listing, sort indicators, price leaders, and 
   await userEvent.click(within(heading).getByRole('button'));
   expect(onSort).toHaveBeenCalledWith('total-desc');
   await userEvent.click(screen.getByTitle('Large drive'));
-  expect(onSelect).toHaveBeenCalledWith(groups.find(group => group.representative.id === 'Large drive')!.key, 'new');
+  expect(onSelect).toHaveBeenCalledWith(groups.find(group => group.offer.id === 'Large drive')!.key, 'new');
   expect(screen.getByText('Lowest total')).toBeVisible();
   expect(screen.getByText('Lowest $/TB')).toBeVisible();
   expect(screen.queryByText(/In stock|Unknown/)).not.toBeInTheDocument();
@@ -61,7 +61,7 @@ it("shows each drive's price range for the days asked about, and leaves the cell
   const known = makeOffer('Known drive', { drive: makeDrive('ST18000NM000J') });
   const waiting = makeOffer('Waiting drive');
   const groups = groupsOf([known, waiting]);
-  const key = groups.find(group => group.representative.id === 'Known drive')!.key;
+  const key = groups.find(group => group.offer.id === 'Known drive')!.key;
   render(<MantineProvider env="test"><DriveTable groups={groups} sort="unit-asc" onSort={() => {}} onSelect={() => {}}
     now={checkedAt} recentDays={7} leaders={{ total: new Set(), unit: new Set() }}
     ranges={{ [key]: { today: 18000, low: 17000, high: 19000, average: 18222, days: 90 } }} rangeDays={90} onRangeDays={() => {}} /></MantineProvider>);

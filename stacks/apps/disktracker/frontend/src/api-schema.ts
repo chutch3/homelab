@@ -151,17 +151,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /**
-         * Browse and filter drives
-         * @description The drives that match, a page at a time, each shown by its cheapest matching offer in
-         *     stock, with the lowest prices among every match and the filter options of every drive.
-         *
-         *     Repeat a parameter for several choices, e.g. `brand=Seagate&brand=Toshiba`. Choices within
-         *     a filter use OR; different filters use AND. Filters match offers, then group them by drive.
-         *     Each filter option counts the drives choosing it would give, with every other filter as
-         *     asked. total counts matching drives before pagination; offers counts matching offers.
-         */
-        get: operations["list_drives"];
+        get?: never;
         put?: never;
         /**
          * Make a drive
@@ -406,6 +396,36 @@ export interface paths {
          *     that is not there, deleted already or never kept, is answered the same way.
          */
         delete: operations["delete_price"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/reports/market": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read the market for drives
+         * @description The drives that match, a page at a time, each shown by its cheapest matching offer in
+         *     stock, with how many stores and sellers offer it and what each condition it is offered in
+         *     costs among the matches, and the range of its price; with the lowest prices among every
+         *     match, the filter options of every drive, and how many drives there are to buy at all.
+         *
+         *     Repeat a parameter for several choices, e.g. `brand=Seagate&brand=Toshiba`. Choices within
+         *     a filter use OR; different filters use AND. Filters match offers, then group them by drive.
+         *     Each filter option counts the drives choosing it would give, with every other filter as
+         *     asked. total counts matching drives before pagination; offers counts matching offers. Only
+         *     offers that count (none held for review) are in the market. drive_id: whether one drive is
+         *     among the matches.
+         */
+        get: operations["market"];
+        put?: never;
+        post?: never;
+        delete?: never;
         options?: never;
         head?: never;
         patch?: never;
@@ -780,6 +800,24 @@ export interface components {
             offer_id: string;
         };
         /**
+         * ConditionPrices
+         * @description A condition a drive is offered in among the offers that match: how many offers, how many
+         *     of them in stock, and the lowest total of those (null when none is).
+         */
+        ConditionPrices: {
+            /**
+             * Condition
+             * @enum {string}
+             */
+            condition: "new" | "manufacturer_recertified" | "refurbished" | "used";
+            /** In Stock */
+            in_stock: number;
+            /** Lowest Total Cents */
+            lowest_total_cents: number | null;
+            /** Offers */
+            offers: number;
+        };
+        /**
          * ConditionRule
          * @description Text matching the pattern (a case-insensitive regular expression) names the condition;
          *     rules are read in order and the first match wins.
@@ -879,48 +917,6 @@ export interface components {
             stale: number;
             /** Unknown Specifications */
             unknown_specifications: number;
-        };
-        /**
-         * DrivePage
-         * @description A part of the drive list. total: drives that match; offers: offers that match; sold_out:
-         *     drives left out only because no store has them in stock. as_of: the moment recency and
-         *     ranges are judged against.
-         */
-        DrivePage: {
-            /**
-             * As Of
-             * Format: date-time
-             */
-            as_of: string;
-            filter_options: components["schemas"]["FilterOptions"];
-            /** Items */
-            items: components["schemas"]["DriveRow"][];
-            /** Limit */
-            limit: number;
-            lowest: components["schemas"]["Lowest"];
-            /** Offers */
-            offers: number;
-            /** Offset */
-            offset: number;
-            /** Sold Out */
-            sold_out: number;
-            /** Total */
-            total: number;
-        };
-        /**
-         * DriveRow
-         * @description A drive as the list shows it: by its cheapest matching offer in stock (else its cheapest
-         *     matching offer), with every offer of it that matches, and the range of its price in the
-         *     representative's condition. key: what the app opens the drive by.
-         */
-        DriveRow: {
-            drive: components["schemas"]["Drive"];
-            /** Key */
-            key: string;
-            /** Offers */
-            offers: components["schemas"]["OfferSummary"][];
-            range: components["schemas"]["PriceRange"] | null;
-            representative: components["schemas"]["OfferSummary"];
         };
         /**
          * ErrorResponse
@@ -1244,6 +1240,51 @@ export interface components {
              * @enum {string}
              */
             transport: "direct" | "browser";
+        };
+        /**
+         * Market
+         * @description A part of the market. total: drives that match; offers: offers that match; sold_out: drives
+         *     left out only because no store has them in stock; catalogued: drives with an offer that
+         *     counts, whatever the filters. as_of: the moment recency and ranges are judged against.
+         */
+        Market: {
+            /**
+             * As Of
+             * Format: date-time
+             */
+            as_of: string;
+            /** Catalogued */
+            catalogued: number;
+            filter_options: components["schemas"]["FilterOptions"];
+            /** Items */
+            items: components["schemas"]["MarketRow"][];
+            /** Limit */
+            limit: number;
+            lowest: components["schemas"]["Lowest"];
+            /** Offers */
+            offers: number;
+            /** Offset */
+            offset: number;
+            /** Sold Out */
+            sold_out: number;
+            /** Total */
+            total: number;
+        };
+        /**
+         * MarketRow
+         * @description A drive as the market shows it: by its cheapest matching offer in stock (else its cheapest
+         *     matching offer), with how many stores and sellers offer it and what each condition it is
+         *     offered in costs, among the offers that match, and the range of its price in the condition of
+         *     the offer it is shown by.
+         */
+        MarketRow: {
+            /** Conditions */
+            conditions: components["schemas"]["ConditionPrices"][];
+            drive: components["schemas"]["Drive"];
+            offer: components["schemas"]["OfferSummary"];
+            range: components["schemas"]["PriceRange"] | null;
+            /** Stores */
+            stores: number;
         };
         /**
          * MatchDecision
@@ -3152,69 +3193,6 @@ export interface operations {
             };
         };
     };
-    list_drives: {
-        parameters: {
-            query?: {
-                /** @description Words in a title, MPN or seller */
-                q?: string;
-                /** @description Brands, unknown for none named */
-                brand?: string[];
-                /** @description Capacity choices in decimal GB. Repeat the parameter for multiple choices. */
-                capacity?: number[];
-                /** @description Condition choices; repeat the parameter for multiple choices. */
-                condition?: ("new" | "manufacturer_recertified" | "refurbished" | "used")[];
-                /** @description Source keys, not UUIDs; repeat for multiple stores. */
-                store?: string[];
-                media_type?: ("hdd" | "ssd" | "flash_card" | "unknown") | null;
-                form_factor?: ("3_5" | "2_5" | "m_2" | "microsd" | "sd" | "unknown") | null;
-                interface?: ("sata" | "sas" | "nvme_pcie" | "usb" | "unknown") | null;
-                recording_type?: ("cmr" | "smr" | "unknown") | null;
-                intended_use?: ("nas" | "surveillance" | "enterprise" | "desktop" | "archive") | "unknown" | null;
-                /** @description What checked recently means */
-                recent_days?: number;
-                /** @description How far back each price range looks, in days. */
-                range_days?: 30 | 90 | 180;
-                /** @description Only this drive, if it matches */
-                drive_id?: string | null;
-                /** @description Maximum item price plus known shipping, in US cents. */
-                max_total_cents?: number | null;
-                /** @description Only offers in stock; false for all */
-                in_stock?: boolean;
-                /** @description Only offers checked recently */
-                recent_only?: boolean;
-                /** @description unit sorts by total dollars per TB; total includes known shipping; checked sorts by last check time. */
-                sort?: "unit-asc" | "unit-desc" | "total-asc" | "total-desc" | "capacity-asc" | "capacity-desc" | "checked-desc" | "checked-asc";
-                /** @description Maximum drives in this page. */
-                limit?: number;
-                /** @description Number of matching items to skip. */
-                offset?: number;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["DrivePage"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
     create_drive: {
         parameters: {
             query?: never;
@@ -3827,6 +3805,69 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    market: {
+        parameters: {
+            query?: {
+                /** @description Words in a title, MPN or seller */
+                q?: string;
+                /** @description Brands, unknown for none named */
+                brand?: string[];
+                /** @description Capacity choices in decimal GB. Repeat the parameter for multiple choices. */
+                capacity?: number[];
+                /** @description Condition choices; repeat the parameter for multiple choices. */
+                condition?: ("new" | "manufacturer_recertified" | "refurbished" | "used")[];
+                /** @description Source keys, not UUIDs; repeat for multiple stores. */
+                store?: string[];
+                media_type?: ("hdd" | "ssd" | "flash_card" | "unknown") | null;
+                form_factor?: ("3_5" | "2_5" | "m_2" | "microsd" | "sd" | "unknown") | null;
+                interface?: ("sata" | "sas" | "nvme_pcie" | "usb" | "unknown") | null;
+                recording_type?: ("cmr" | "smr" | "unknown") | null;
+                intended_use?: ("nas" | "surveillance" | "enterprise" | "desktop" | "archive") | "unknown" | null;
+                /** @description What checked recently means */
+                recent_days?: number;
+                /** @description How far back each price range looks, in days. */
+                range_days?: 30 | 90 | 180;
+                /** @description Only this drive, if it matches */
+                drive_id?: string | null;
+                /** @description Maximum item price plus known shipping, in US cents. */
+                max_total_cents?: number | null;
+                /** @description Only offers in stock; false for all */
+                in_stock?: boolean;
+                /** @description Only offers checked recently */
+                recent_only?: boolean;
+                /** @description unit sorts by total dollars per TB; total includes known shipping; checked sorts by last check time. */
+                sort?: "unit-asc" | "unit-desc" | "total-asc" | "total-desc" | "capacity-asc" | "capacity-desc" | "checked-desc" | "checked-asc";
+                /** @description Maximum drives in this page. */
+                limit?: number;
+                /** @description Number of matching items to skip. */
+                offset?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Market"];
+                };
             };
             /** @description Validation Error */
             422: {

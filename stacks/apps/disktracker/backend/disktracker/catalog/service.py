@@ -10,7 +10,6 @@ from uuid import UUID
 from disktracker.catalog.queries import CatalogQueries
 from disktracker.catalog.schemas import (
     CatalogDriveQuery,
-    DriveQuery,
     OfferQuery,
     PriceQuery,
     RangeQuery,
@@ -27,15 +26,6 @@ class CatalogService:
     def catalog_drives(self, query: CatalogDriveQuery) -> dict[str, Any]:
         """A page of every drive to manage, with what each needs."""
         return self.queries.catalog_drives(query, self.now())
-
-    def drives(self, query: DriveQuery) -> dict[str, Any]:
-        """A page of the drive list, each drive with the range of its price over the days asked
-        for, in the condition it is shown in."""
-        now = self.now()
-        page = self.queries.drive_page(query, now)
-        for row in page["items"]:
-            row["range"] = price_range(row.pop("kin"), now, query.range_days, query.recent_days)
-        return page
 
     def drive(self, drive_id: UUID, query: RangeQuery) -> dict[str, Any]:
         """A drive with its offers, and the range of its price in each condition it is offered

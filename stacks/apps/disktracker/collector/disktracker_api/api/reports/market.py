@@ -8,24 +8,24 @@ from ...client import AuthenticatedClient, Client
 from ...types import Response, UNSET
 from ... import errors
 
-from ...models.drive_page import DrivePage
 from ...models.http_validation_error import HTTPValidationError
-from ...models.list_drives_condition_item import check_list_drives_condition_item
-from ...models.list_drives_condition_item import ListDrivesConditionItem
-from ...models.list_drives_form_factor_type_0 import check_list_drives_form_factor_type_0
-from ...models.list_drives_form_factor_type_0 import ListDrivesFormFactorType0
-from ...models.list_drives_intended_use_type_0 import check_list_drives_intended_use_type_0
-from ...models.list_drives_intended_use_type_0 import ListDrivesIntendedUseType0
-from ...models.list_drives_interface_type_0 import check_list_drives_interface_type_0
-from ...models.list_drives_interface_type_0 import ListDrivesInterfaceType0
-from ...models.list_drives_media_type_type_0 import check_list_drives_media_type_type_0
-from ...models.list_drives_media_type_type_0 import ListDrivesMediaTypeType0
-from ...models.list_drives_range_days import check_list_drives_range_days
-from ...models.list_drives_range_days import ListDrivesRangeDays
-from ...models.list_drives_recording_type_type_0 import check_list_drives_recording_type_type_0
-from ...models.list_drives_recording_type_type_0 import ListDrivesRecordingTypeType0
-from ...models.list_drives_sort import check_list_drives_sort
-from ...models.list_drives_sort import ListDrivesSort
+from ...models.market import Market
+from ...models.market_condition_item import check_market_condition_item
+from ...models.market_condition_item import MarketConditionItem
+from ...models.market_form_factor_type_0 import check_market_form_factor_type_0
+from ...models.market_form_factor_type_0 import MarketFormFactorType0
+from ...models.market_intended_use_type_0 import check_market_intended_use_type_0
+from ...models.market_intended_use_type_0 import MarketIntendedUseType0
+from ...models.market_interface_type_0 import check_market_interface_type_0
+from ...models.market_interface_type_0 import MarketInterfaceType0
+from ...models.market_media_type_type_0 import check_market_media_type_type_0
+from ...models.market_media_type_type_0 import MarketMediaTypeType0
+from ...models.market_range_days import check_market_range_days
+from ...models.market_range_days import MarketRangeDays
+from ...models.market_recording_type_type_0 import check_market_recording_type_type_0
+from ...models.market_recording_type_type_0 import MarketRecordingTypeType0
+from ...models.market_sort import check_market_sort
+from ...models.market_sort import MarketSort
 from ...types import UNSET, Unset
 from typing import cast
 from typing import Literal, cast
@@ -38,20 +38,20 @@ def _get_kwargs(
     q: str | Unset = '',
     brand: list[str] | Unset = UNSET,
     capacity: list[int] | Unset = UNSET,
-    condition: list[ListDrivesConditionItem] | Unset = UNSET,
+    condition: list[MarketConditionItem] | Unset = UNSET,
     store: list[str] | Unset = UNSET,
-    media_type: ListDrivesMediaTypeType0 | None | Unset = UNSET,
-    form_factor: ListDrivesFormFactorType0 | None | Unset = UNSET,
-    interface: ListDrivesInterfaceType0 | None | Unset = UNSET,
-    recording_type: ListDrivesRecordingTypeType0 | None | Unset = UNSET,
-    intended_use: ListDrivesIntendedUseType0 | Literal['unknown'] | None | Unset = UNSET,
+    media_type: MarketMediaTypeType0 | None | Unset = UNSET,
+    form_factor: MarketFormFactorType0 | None | Unset = UNSET,
+    interface: MarketInterfaceType0 | None | Unset = UNSET,
+    recording_type: MarketRecordingTypeType0 | None | Unset = UNSET,
+    intended_use: Literal['unknown'] | MarketIntendedUseType0 | None | Unset = UNSET,
     recent_days: int | Unset = 7,
-    range_days: ListDrivesRangeDays | Unset = 90,
+    range_days: MarketRangeDays | Unset = 90,
     drive_id: None | Unset | UUID = UNSET,
     max_total_cents: int | None | Unset = UNSET,
     in_stock: bool | Unset = True,
     recent_only: bool | Unset = False,
-    sort: ListDrivesSort | Unset = 'unit-asc',
+    sort: MarketSort | Unset = 'unit-asc',
     limit: int | Unset = 50,
     offset: int | Unset = 0,
 
@@ -184,7 +184,7 @@ def _get_kwargs(
 
     _kwargs: dict[str, Any] = {
         "method": "get",
-        "url": "/api/drives",
+        "url": "/api/reports/market",
         "params": params,
     }
 
@@ -193,9 +193,9 @@ def _get_kwargs(
 
 
 
-def _parse_response(*, client: AuthenticatedClient | Client, response: httpx.Response) -> DrivePage | HTTPValidationError | None:
+def _parse_response(*, client: AuthenticatedClient | Client, response: httpx.Response) -> HTTPValidationError | Market | None:
     if response.status_code == 200:
-        response_200 = DrivePage.from_dict(response.json())
+        response_200 = Market.from_dict(response.json())
 
 
 
@@ -214,7 +214,7 @@ def _parse_response(*, client: AuthenticatedClient | Client, response: httpx.Res
         return None
 
 
-def _build_response(*, client: AuthenticatedClient | Client, response: httpx.Response) -> Response[DrivePage | HTTPValidationError]:
+def _build_response(*, client: AuthenticatedClient | Client, response: httpx.Response) -> Response[HTTPValidationError | Market]:
     return Response(
         status_code=HTTPStatus(response.status_code),
         content=response.content,
@@ -229,55 +229,59 @@ def sync_detailed(
     q: str | Unset = '',
     brand: list[str] | Unset = UNSET,
     capacity: list[int] | Unset = UNSET,
-    condition: list[ListDrivesConditionItem] | Unset = UNSET,
+    condition: list[MarketConditionItem] | Unset = UNSET,
     store: list[str] | Unset = UNSET,
-    media_type: ListDrivesMediaTypeType0 | None | Unset = UNSET,
-    form_factor: ListDrivesFormFactorType0 | None | Unset = UNSET,
-    interface: ListDrivesInterfaceType0 | None | Unset = UNSET,
-    recording_type: ListDrivesRecordingTypeType0 | None | Unset = UNSET,
-    intended_use: ListDrivesIntendedUseType0 | Literal['unknown'] | None | Unset = UNSET,
+    media_type: MarketMediaTypeType0 | None | Unset = UNSET,
+    form_factor: MarketFormFactorType0 | None | Unset = UNSET,
+    interface: MarketInterfaceType0 | None | Unset = UNSET,
+    recording_type: MarketRecordingTypeType0 | None | Unset = UNSET,
+    intended_use: Literal['unknown'] | MarketIntendedUseType0 | None | Unset = UNSET,
     recent_days: int | Unset = 7,
-    range_days: ListDrivesRangeDays | Unset = 90,
+    range_days: MarketRangeDays | Unset = 90,
     drive_id: None | Unset | UUID = UNSET,
     max_total_cents: int | None | Unset = UNSET,
     in_stock: bool | Unset = True,
     recent_only: bool | Unset = False,
-    sort: ListDrivesSort | Unset = 'unit-asc',
+    sort: MarketSort | Unset = 'unit-asc',
     limit: int | Unset = 50,
     offset: int | Unset = 0,
 
-) -> Response[DrivePage | HTTPValidationError]:
-    """ Browse and filter drives
+) -> Response[HTTPValidationError | Market]:
+    """ Read the market for drives
 
      The drives that match, a page at a time, each shown by its cheapest matching offer in
-    stock, with the lowest prices among every match and the filter options of every drive.
+    stock, with how many stores and sellers offer it and what each condition it is offered in
+    costs among the matches, and the range of its price; with the lowest prices among every
+    match, the filter options of every drive, and how many drives there are to buy at all.
 
     Repeat a parameter for several choices, e.g. `brand=Seagate&brand=Toshiba`. Choices within
     a filter use OR; different filters use AND. Filters match offers, then group them by drive.
     Each filter option counts the drives choosing it would give, with every other filter as
-    asked. total counts matching drives before pagination; offers counts matching offers.
+    asked. total counts matching drives before pagination; offers counts matching offers. Only
+    offers that count (none held for review) are in the market. drive_id: whether one drive is
+    among the matches.
 
     Args:
         q (str | Unset): Words in a title, MPN or seller Default: ''.
         brand (list[str] | Unset): Brands, unknown for none named
         capacity (list[int] | Unset): Capacity choices in decimal GB. Repeat the parameter for
             multiple choices.
-        condition (list[ListDrivesConditionItem] | Unset): Condition choices; repeat the parameter
-            for multiple choices.
+        condition (list[MarketConditionItem] | Unset): Condition choices; repeat the parameter for
+            multiple choices.
         store (list[str] | Unset): Source keys, not UUIDs; repeat for multiple stores.
-        media_type (ListDrivesMediaTypeType0 | None | Unset):
-        form_factor (ListDrivesFormFactorType0 | None | Unset):
-        interface (ListDrivesInterfaceType0 | None | Unset):
-        recording_type (ListDrivesRecordingTypeType0 | None | Unset):
-        intended_use (ListDrivesIntendedUseType0 | Literal['unknown'] | None | Unset):
+        media_type (MarketMediaTypeType0 | None | Unset):
+        form_factor (MarketFormFactorType0 | None | Unset):
+        interface (MarketInterfaceType0 | None | Unset):
+        recording_type (MarketRecordingTypeType0 | None | Unset):
+        intended_use (Literal['unknown'] | MarketIntendedUseType0 | None | Unset):
         recent_days (int | Unset): What checked recently means Default: 7.
-        range_days (ListDrivesRangeDays | Unset): How far back each price range looks, in days.
+        range_days (MarketRangeDays | Unset): How far back each price range looks, in days.
             Default: 90.
         drive_id (None | Unset | UUID): Only this drive, if it matches
         max_total_cents (int | None | Unset): Maximum item price plus known shipping, in US cents.
         in_stock (bool | Unset): Only offers in stock; false for all Default: True.
         recent_only (bool | Unset): Only offers checked recently Default: False.
-        sort (ListDrivesSort | Unset): unit sorts by total dollars per TB; total includes known
+        sort (MarketSort | Unset): unit sorts by total dollars per TB; total includes known
             shipping; checked sorts by last check time. Default: 'unit-asc'.
         limit (int | Unset): Maximum drives in this page. Default: 50.
         offset (int | Unset): Number of matching items to skip. Default: 0.
@@ -287,7 +291,7 @@ def sync_detailed(
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        Response[DrivePage | HTTPValidationError]
+        Response[HTTPValidationError | Market]
      """
 
 
@@ -326,55 +330,59 @@ def sync(
     q: str | Unset = '',
     brand: list[str] | Unset = UNSET,
     capacity: list[int] | Unset = UNSET,
-    condition: list[ListDrivesConditionItem] | Unset = UNSET,
+    condition: list[MarketConditionItem] | Unset = UNSET,
     store: list[str] | Unset = UNSET,
-    media_type: ListDrivesMediaTypeType0 | None | Unset = UNSET,
-    form_factor: ListDrivesFormFactorType0 | None | Unset = UNSET,
-    interface: ListDrivesInterfaceType0 | None | Unset = UNSET,
-    recording_type: ListDrivesRecordingTypeType0 | None | Unset = UNSET,
-    intended_use: ListDrivesIntendedUseType0 | Literal['unknown'] | None | Unset = UNSET,
+    media_type: MarketMediaTypeType0 | None | Unset = UNSET,
+    form_factor: MarketFormFactorType0 | None | Unset = UNSET,
+    interface: MarketInterfaceType0 | None | Unset = UNSET,
+    recording_type: MarketRecordingTypeType0 | None | Unset = UNSET,
+    intended_use: Literal['unknown'] | MarketIntendedUseType0 | None | Unset = UNSET,
     recent_days: int | Unset = 7,
-    range_days: ListDrivesRangeDays | Unset = 90,
+    range_days: MarketRangeDays | Unset = 90,
     drive_id: None | Unset | UUID = UNSET,
     max_total_cents: int | None | Unset = UNSET,
     in_stock: bool | Unset = True,
     recent_only: bool | Unset = False,
-    sort: ListDrivesSort | Unset = 'unit-asc',
+    sort: MarketSort | Unset = 'unit-asc',
     limit: int | Unset = 50,
     offset: int | Unset = 0,
 
-) -> DrivePage | HTTPValidationError | None:
-    """ Browse and filter drives
+) -> HTTPValidationError | Market | None:
+    """ Read the market for drives
 
      The drives that match, a page at a time, each shown by its cheapest matching offer in
-    stock, with the lowest prices among every match and the filter options of every drive.
+    stock, with how many stores and sellers offer it and what each condition it is offered in
+    costs among the matches, and the range of its price; with the lowest prices among every
+    match, the filter options of every drive, and how many drives there are to buy at all.
 
     Repeat a parameter for several choices, e.g. `brand=Seagate&brand=Toshiba`. Choices within
     a filter use OR; different filters use AND. Filters match offers, then group them by drive.
     Each filter option counts the drives choosing it would give, with every other filter as
-    asked. total counts matching drives before pagination; offers counts matching offers.
+    asked. total counts matching drives before pagination; offers counts matching offers. Only
+    offers that count (none held for review) are in the market. drive_id: whether one drive is
+    among the matches.
 
     Args:
         q (str | Unset): Words in a title, MPN or seller Default: ''.
         brand (list[str] | Unset): Brands, unknown for none named
         capacity (list[int] | Unset): Capacity choices in decimal GB. Repeat the parameter for
             multiple choices.
-        condition (list[ListDrivesConditionItem] | Unset): Condition choices; repeat the parameter
-            for multiple choices.
+        condition (list[MarketConditionItem] | Unset): Condition choices; repeat the parameter for
+            multiple choices.
         store (list[str] | Unset): Source keys, not UUIDs; repeat for multiple stores.
-        media_type (ListDrivesMediaTypeType0 | None | Unset):
-        form_factor (ListDrivesFormFactorType0 | None | Unset):
-        interface (ListDrivesInterfaceType0 | None | Unset):
-        recording_type (ListDrivesRecordingTypeType0 | None | Unset):
-        intended_use (ListDrivesIntendedUseType0 | Literal['unknown'] | None | Unset):
+        media_type (MarketMediaTypeType0 | None | Unset):
+        form_factor (MarketFormFactorType0 | None | Unset):
+        interface (MarketInterfaceType0 | None | Unset):
+        recording_type (MarketRecordingTypeType0 | None | Unset):
+        intended_use (Literal['unknown'] | MarketIntendedUseType0 | None | Unset):
         recent_days (int | Unset): What checked recently means Default: 7.
-        range_days (ListDrivesRangeDays | Unset): How far back each price range looks, in days.
+        range_days (MarketRangeDays | Unset): How far back each price range looks, in days.
             Default: 90.
         drive_id (None | Unset | UUID): Only this drive, if it matches
         max_total_cents (int | None | Unset): Maximum item price plus known shipping, in US cents.
         in_stock (bool | Unset): Only offers in stock; false for all Default: True.
         recent_only (bool | Unset): Only offers checked recently Default: False.
-        sort (ListDrivesSort | Unset): unit sorts by total dollars per TB; total includes known
+        sort (MarketSort | Unset): unit sorts by total dollars per TB; total includes known
             shipping; checked sorts by last check time. Default: 'unit-asc'.
         limit (int | Unset): Maximum drives in this page. Default: 50.
         offset (int | Unset): Number of matching items to skip. Default: 0.
@@ -384,7 +392,7 @@ def sync(
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        DrivePage | HTTPValidationError
+        HTTPValidationError | Market
      """
 
 
@@ -418,55 +426,59 @@ async def asyncio_detailed(
     q: str | Unset = '',
     brand: list[str] | Unset = UNSET,
     capacity: list[int] | Unset = UNSET,
-    condition: list[ListDrivesConditionItem] | Unset = UNSET,
+    condition: list[MarketConditionItem] | Unset = UNSET,
     store: list[str] | Unset = UNSET,
-    media_type: ListDrivesMediaTypeType0 | None | Unset = UNSET,
-    form_factor: ListDrivesFormFactorType0 | None | Unset = UNSET,
-    interface: ListDrivesInterfaceType0 | None | Unset = UNSET,
-    recording_type: ListDrivesRecordingTypeType0 | None | Unset = UNSET,
-    intended_use: ListDrivesIntendedUseType0 | Literal['unknown'] | None | Unset = UNSET,
+    media_type: MarketMediaTypeType0 | None | Unset = UNSET,
+    form_factor: MarketFormFactorType0 | None | Unset = UNSET,
+    interface: MarketInterfaceType0 | None | Unset = UNSET,
+    recording_type: MarketRecordingTypeType0 | None | Unset = UNSET,
+    intended_use: Literal['unknown'] | MarketIntendedUseType0 | None | Unset = UNSET,
     recent_days: int | Unset = 7,
-    range_days: ListDrivesRangeDays | Unset = 90,
+    range_days: MarketRangeDays | Unset = 90,
     drive_id: None | Unset | UUID = UNSET,
     max_total_cents: int | None | Unset = UNSET,
     in_stock: bool | Unset = True,
     recent_only: bool | Unset = False,
-    sort: ListDrivesSort | Unset = 'unit-asc',
+    sort: MarketSort | Unset = 'unit-asc',
     limit: int | Unset = 50,
     offset: int | Unset = 0,
 
-) -> Response[DrivePage | HTTPValidationError]:
-    """ Browse and filter drives
+) -> Response[HTTPValidationError | Market]:
+    """ Read the market for drives
 
      The drives that match, a page at a time, each shown by its cheapest matching offer in
-    stock, with the lowest prices among every match and the filter options of every drive.
+    stock, with how many stores and sellers offer it and what each condition it is offered in
+    costs among the matches, and the range of its price; with the lowest prices among every
+    match, the filter options of every drive, and how many drives there are to buy at all.
 
     Repeat a parameter for several choices, e.g. `brand=Seagate&brand=Toshiba`. Choices within
     a filter use OR; different filters use AND. Filters match offers, then group them by drive.
     Each filter option counts the drives choosing it would give, with every other filter as
-    asked. total counts matching drives before pagination; offers counts matching offers.
+    asked. total counts matching drives before pagination; offers counts matching offers. Only
+    offers that count (none held for review) are in the market. drive_id: whether one drive is
+    among the matches.
 
     Args:
         q (str | Unset): Words in a title, MPN or seller Default: ''.
         brand (list[str] | Unset): Brands, unknown for none named
         capacity (list[int] | Unset): Capacity choices in decimal GB. Repeat the parameter for
             multiple choices.
-        condition (list[ListDrivesConditionItem] | Unset): Condition choices; repeat the parameter
-            for multiple choices.
+        condition (list[MarketConditionItem] | Unset): Condition choices; repeat the parameter for
+            multiple choices.
         store (list[str] | Unset): Source keys, not UUIDs; repeat for multiple stores.
-        media_type (ListDrivesMediaTypeType0 | None | Unset):
-        form_factor (ListDrivesFormFactorType0 | None | Unset):
-        interface (ListDrivesInterfaceType0 | None | Unset):
-        recording_type (ListDrivesRecordingTypeType0 | None | Unset):
-        intended_use (ListDrivesIntendedUseType0 | Literal['unknown'] | None | Unset):
+        media_type (MarketMediaTypeType0 | None | Unset):
+        form_factor (MarketFormFactorType0 | None | Unset):
+        interface (MarketInterfaceType0 | None | Unset):
+        recording_type (MarketRecordingTypeType0 | None | Unset):
+        intended_use (Literal['unknown'] | MarketIntendedUseType0 | None | Unset):
         recent_days (int | Unset): What checked recently means Default: 7.
-        range_days (ListDrivesRangeDays | Unset): How far back each price range looks, in days.
+        range_days (MarketRangeDays | Unset): How far back each price range looks, in days.
             Default: 90.
         drive_id (None | Unset | UUID): Only this drive, if it matches
         max_total_cents (int | None | Unset): Maximum item price plus known shipping, in US cents.
         in_stock (bool | Unset): Only offers in stock; false for all Default: True.
         recent_only (bool | Unset): Only offers checked recently Default: False.
-        sort (ListDrivesSort | Unset): unit sorts by total dollars per TB; total includes known
+        sort (MarketSort | Unset): unit sorts by total dollars per TB; total includes known
             shipping; checked sorts by last check time. Default: 'unit-asc'.
         limit (int | Unset): Maximum drives in this page. Default: 50.
         offset (int | Unset): Number of matching items to skip. Default: 0.
@@ -476,7 +488,7 @@ async def asyncio_detailed(
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        Response[DrivePage | HTTPValidationError]
+        Response[HTTPValidationError | Market]
      """
 
 
@@ -515,55 +527,59 @@ async def asyncio(
     q: str | Unset = '',
     brand: list[str] | Unset = UNSET,
     capacity: list[int] | Unset = UNSET,
-    condition: list[ListDrivesConditionItem] | Unset = UNSET,
+    condition: list[MarketConditionItem] | Unset = UNSET,
     store: list[str] | Unset = UNSET,
-    media_type: ListDrivesMediaTypeType0 | None | Unset = UNSET,
-    form_factor: ListDrivesFormFactorType0 | None | Unset = UNSET,
-    interface: ListDrivesInterfaceType0 | None | Unset = UNSET,
-    recording_type: ListDrivesRecordingTypeType0 | None | Unset = UNSET,
-    intended_use: ListDrivesIntendedUseType0 | Literal['unknown'] | None | Unset = UNSET,
+    media_type: MarketMediaTypeType0 | None | Unset = UNSET,
+    form_factor: MarketFormFactorType0 | None | Unset = UNSET,
+    interface: MarketInterfaceType0 | None | Unset = UNSET,
+    recording_type: MarketRecordingTypeType0 | None | Unset = UNSET,
+    intended_use: Literal['unknown'] | MarketIntendedUseType0 | None | Unset = UNSET,
     recent_days: int | Unset = 7,
-    range_days: ListDrivesRangeDays | Unset = 90,
+    range_days: MarketRangeDays | Unset = 90,
     drive_id: None | Unset | UUID = UNSET,
     max_total_cents: int | None | Unset = UNSET,
     in_stock: bool | Unset = True,
     recent_only: bool | Unset = False,
-    sort: ListDrivesSort | Unset = 'unit-asc',
+    sort: MarketSort | Unset = 'unit-asc',
     limit: int | Unset = 50,
     offset: int | Unset = 0,
 
-) -> DrivePage | HTTPValidationError | None:
-    """ Browse and filter drives
+) -> HTTPValidationError | Market | None:
+    """ Read the market for drives
 
      The drives that match, a page at a time, each shown by its cheapest matching offer in
-    stock, with the lowest prices among every match and the filter options of every drive.
+    stock, with how many stores and sellers offer it and what each condition it is offered in
+    costs among the matches, and the range of its price; with the lowest prices among every
+    match, the filter options of every drive, and how many drives there are to buy at all.
 
     Repeat a parameter for several choices, e.g. `brand=Seagate&brand=Toshiba`. Choices within
     a filter use OR; different filters use AND. Filters match offers, then group them by drive.
     Each filter option counts the drives choosing it would give, with every other filter as
-    asked. total counts matching drives before pagination; offers counts matching offers.
+    asked. total counts matching drives before pagination; offers counts matching offers. Only
+    offers that count (none held for review) are in the market. drive_id: whether one drive is
+    among the matches.
 
     Args:
         q (str | Unset): Words in a title, MPN or seller Default: ''.
         brand (list[str] | Unset): Brands, unknown for none named
         capacity (list[int] | Unset): Capacity choices in decimal GB. Repeat the parameter for
             multiple choices.
-        condition (list[ListDrivesConditionItem] | Unset): Condition choices; repeat the parameter
-            for multiple choices.
+        condition (list[MarketConditionItem] | Unset): Condition choices; repeat the parameter for
+            multiple choices.
         store (list[str] | Unset): Source keys, not UUIDs; repeat for multiple stores.
-        media_type (ListDrivesMediaTypeType0 | None | Unset):
-        form_factor (ListDrivesFormFactorType0 | None | Unset):
-        interface (ListDrivesInterfaceType0 | None | Unset):
-        recording_type (ListDrivesRecordingTypeType0 | None | Unset):
-        intended_use (ListDrivesIntendedUseType0 | Literal['unknown'] | None | Unset):
+        media_type (MarketMediaTypeType0 | None | Unset):
+        form_factor (MarketFormFactorType0 | None | Unset):
+        interface (MarketInterfaceType0 | None | Unset):
+        recording_type (MarketRecordingTypeType0 | None | Unset):
+        intended_use (Literal['unknown'] | MarketIntendedUseType0 | None | Unset):
         recent_days (int | Unset): What checked recently means Default: 7.
-        range_days (ListDrivesRangeDays | Unset): How far back each price range looks, in days.
+        range_days (MarketRangeDays | Unset): How far back each price range looks, in days.
             Default: 90.
         drive_id (None | Unset | UUID): Only this drive, if it matches
         max_total_cents (int | None | Unset): Maximum item price plus known shipping, in US cents.
         in_stock (bool | Unset): Only offers in stock; false for all Default: True.
         recent_only (bool | Unset): Only offers checked recently Default: False.
-        sort (ListDrivesSort | Unset): unit sorts by total dollars per TB; total includes known
+        sort (MarketSort | Unset): unit sorts by total dollars per TB; total includes known
             shipping; checked sorts by last check time. Default: 'unit-asc'.
         limit (int | Unset): Maximum drives in this page. Default: 50.
         offset (int | Unset): Number of matching items to skip. Default: 0.
@@ -573,7 +589,7 @@ async def asyncio(
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        DrivePage | HTTPValidationError
+        HTTPValidationError | Market
      """
 
 
