@@ -1,0 +1,66 @@
+x-homelab:
+    requires: [authentik, reverse-proxy]
+
+version: "3.9"
+
+services:
+    freecad:
+        image: lscr.io/linuxserver/freecad:1.1.4-ls155
+        environment:
+            - PUID=1000
+            - PGID=1000
+            - TZ=${TZ:-America/New_York}
+            # Start with software rendering; no GPU device assignment is required.
+            - AUTO_GPU=false
+            - LIBGL_ALWAYS_SOFTWARE=1
+            - FILE_MANAGER_PATH=/config/Projects
+        volumes:
+            - freecad_data:/config
+            # Swarm uses an explicit tmpfs mount instead of Compose's shm_size.
+            - type: tmpfs
+              target: /dev/shm
+              tmpfs:
+                  size: 1073741824
+        networks:
+            - traefik-public
+        deploy:
+            # One shared desktop/profile. Stop the old writer before replacing it.
+            replicas: 1
+            update_config:
+                order: stop-first
+            rollback_config:
+                order: stop-first
+            placement:
+                constraints:
+                    - node.labels.old != true
+            labels:
+                - "traefik.enable=true"
+                - "traefik.swarm.network=traefik-public"
+                - "traefik.http.routers.freecad.rule=Host(`freecad.${BASE_DOMAIN}`)"
+                - "traefik.http.routers.freecad.entrypoints=websecure"
+                - "traefik.http.routers.freecad.tls.certresolver=dns"
+                - "traefik.http.routers.freecad.middlewares=authentik@swarm"
+                - "traefik.http.routers.freecad.service=freecad"
+                # TLS ends at Traefik; Selkies proxies its WebSocket paths internally.
+                - "traefik.http.services.freecad.loadbalancer.server.port=3000"
+                - "traefik.http.services.freecad.loadbalancer.server.scheme=http"
+                - "homepage.group=Development"
+                - "homepage.name=FreeCAD"
+                - "homepage.icon=freecad.png"
+                - "homepage.href=https://freecad.${BASE_DOMAIN}/"
+                - "homepage.description=3D CAD workstation"
+            restart_policy:
+                condition: any
+                delay: 5s
+
+networks:
+    traefik-public:
+        external: true
+
+volumes:
+    freecad_data:
+        driver: local
+        driver_opts:
+            type: "none"
+            o: "bind"
+            device: "/mnt/iscsi/app-data/freecad"
