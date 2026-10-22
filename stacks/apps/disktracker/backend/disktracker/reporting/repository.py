@@ -188,10 +188,11 @@ class ReportingRepository:
                     *(func.count().filter(value) for value in need.values()),
                 ).select_from(shown)
             ).one()
+            views = self.drives.views(session, [row.drive_id for row in rows])
             return {
                 "items": [
                     {
-                        "drive": self.drives.view(session, row.drive_id),
+                        "drive": views[row.drive_id],
                         "title": row.title,
                         "offers": row.offers,
                         "issues": [

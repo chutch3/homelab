@@ -70,6 +70,16 @@ class DriveRepository:
             select(MpnAlias.drive_id).where(MpnAlias.alias == mpn)
         )
 
+    def owners(self, session: Session, mpns: Iterable[str]) -> dict[str, UUID]:
+        """The drive each of these MPNs goes by, as its own or another of its MPNs, read
+        together whatever their number; those no drive goes by are left out."""
+        wanted = list(mpns)
+        own = session.execute(select(Drive.mpn, Drive.id).where(Drive.mpn.in_(wanted)))
+        other = session.execute(
+            select(MpnAlias.alias, MpnAlias.drive_id).where(MpnAlias.alias.in_(wanted))
+        )
+        return dict(other.tuples().all()) | dict(own.tuples().all())
+
     def capacity_of(self, session: Session, mpn: str) -> int | None:
         """The capacity of the drive that goes by this MPN; None when none does."""
         owner = self.owner_of(session, mpn)
@@ -150,13 +160,24 @@ class DriveRepository:
 
     def view(self, session: Session, drive_id: UUID) -> dict[str, Any]:
         """A drive as the API shows it, with every other MPN it goes by."""
-        drive = session.get(Drive, drive_id)
-        if drive is None:
+        found = self.views(session, [drive_id])
+        if drive_id not in found:
             raise DriveNotFound()
-        aliases = session.scalars(
-            select(MpnAlias.alias).where(MpnAlias.drive_id == drive_id).order_by(MpnAlias.alias)
-        )
-        return drive_view(drive, list(aliases))
+        return found[drive_id]
+
+    def views(self, session: Session, drive_ids: Iterable[UUID]) -> dict[UUID, dict[str, Any]]:
+        """These drives as the API shows them, by id, read together whatever their number;
+        those that are not there are left out."""
+        ids = list(drive_ids)
+        aliases: dict[UUID, list[str]] = {drive_id: [] for drive_id in ids}
+        for drive_id, alias in session.execute(
+            select(MpnAlias.drive_id, MpnAlias.alias)
+            .where(MpnAlias.drive_id.in_(ids))
+            .order_by(MpnAlias.alias)
+        ).tuples():
+            aliases[drive_id].append(alias)
+        drives = session.scalars(select(Drive).where(Drive.id.in_(ids)))
+        return {drive.id: drive_view(drive, aliases[drive.id]) for drive in drives}
 
     def identifiers(self, session: Session, drive_id: UUID) -> set[str]:
         """Every MPN a drive goes by: its own, and the others."""

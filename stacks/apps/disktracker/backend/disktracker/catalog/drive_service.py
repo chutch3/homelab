@@ -43,11 +43,8 @@ class DriveService:
                 ids, total = found[lookup.offset :][: lookup.limit], len(found)
             else:
                 ids, total = self.drives.named(session, lookup.q, lookup.limit, lookup.offset)
-            titles = self.drives.titles(session, ids)
-            items = [
-                {"drive": self.drives.view(session, drive_id), "title": titles[drive_id]}
-                for drive_id in ids
-            ]
+            titles, views = self.drives.titles(session, ids), self.drives.views(session, ids)
+            items = [{"drive": views[drive_id], "title": titles[drive_id]} for drive_id in ids]
             return {"items": items, "total": total, "limit": lookup.limit, "offset": lookup.offset}
 
     def create(self, entry: DriveInput) -> dict[str, Any]:

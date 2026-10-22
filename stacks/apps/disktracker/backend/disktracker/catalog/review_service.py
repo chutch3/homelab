@@ -39,12 +39,8 @@ class ReviewService:
         one does (as its own MPN or another); and how many there are, in the same snapshot."""
         with self.snapshot_factory() as session:
             items, total = self.reviews.waiting(session, store, reason, limit, offset)
-            owners = {
-                mpn: owner
-                for mpn in {item.mpn for item in items if item.mpn}
-                if (owner := self.drives.owner_of(session, mpn)) is not None
-            }
-            drives = {owner: self.drives.view(session, owner) for owner in set(owners.values())}
+            owners = self.drives.owners(session, {item.mpn for item in items if item.mpn})
+            drives = self.drives.views(session, set(owners.values()))
             return [
                 review_item_view(item, drives[owners[item.mpn]] if item.mpn in owners else None)
                 for item in items

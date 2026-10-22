@@ -7,6 +7,7 @@ from typing import Any
 from uuid import uuid4
 
 from fastapi.testclient import TestClient
+from sqlalchemy import Engine, event
 from test_api import entered, post, price_payload, scraped_payload
 
 from disktracker.main import create_app
@@ -557,3 +558,49 @@ def test_a_held_offer_is_in_no_price_range_though_it_and_its_prices_are_still_sh
     assert ranges["new"] == only_eligible
     assert sorted(offer["id"] for offer in of_it) == sorted([eligible, held])
     assert [price["item_price_cents"] for price in history["items"]] == [10000]
+
+
+def statements(read: Any) -> int:
+    """How many statements the database is sent while reading."""
+    sent: list[str] = []
+
+    def count(connection: Any, cursor: Any, statement: str, *_: Any) -> None:
+        sent.append(statement)
+
+    event.listen(Engine, "before_cursor_execute", count)
+    try:
+        assert read().status_code == 200
+    finally:
+        event.remove(Engine, "before_cursor_execute", count)
+    return len(sent)
+
+
+def test_reading_many_drives_costs_no_more_statements_than_reading_one(
+    database_url: str,
+) -> None:
+    """Found, kept in the inventory or named by what waits for review, drives are read together:
+    a page of 25 costs what a page of one does."""
+    with TestClient(create_app()) as client:
+        for number in range(25):
+            mpn = f"ST{number:02d}000NM000J"
+            client.post("/api/drives", json={"mpn": mpn, "capacity_gb": 18000})
+            client.post(f"/api/drives/{client.get('/api/drives', params={'mpn': mpn}).json()['items'][0]['drive']['id']}/aliases",
+                        json={"mpn": f"0ALIAS{number:02d}"})  # fmt: skip
+            post(client, "/api/ingestions", scraped_payload(
+                url=f"https://www.serverpartdeals.com/products/{number}", mpn=mpn,
+                title=f"Drive {number} 4-pack", capacity_gb=18000,
+            ))  # fmt: skip
+
+        def costs(path: str, **many: Any) -> tuple[int, int]:
+            return (
+                statements(lambda: client.get(path, params={**many, "limit": 1})),
+                statements(lambda: client.get(path, params={**many, "limit": 25})),
+            )
+
+        found = costs("/api/drives", q="NM000J")
+        inventory = costs("/api/reports/drive-inventory")
+        waiting = costs("/api/review-items")
+
+    assert found[0] == found[1]
+    assert inventory[0] == inventory[1]
+    assert waiting[0] == waiting[1]
