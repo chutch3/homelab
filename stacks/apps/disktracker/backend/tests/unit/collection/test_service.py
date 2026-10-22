@@ -1,19 +1,15 @@
-"""What the collection service decides: when a source is due and in what order, how a source is
-shown, and what the collector is asked when a source is tried. Its repository, the catalog's
-queries and the collector client are its own ports, stood in for by fakes."""
+"""What the collection service decides: when a source is due and in what order, and how a source
+is shown. Its repository is its own port, stood in for by a fake. Trying a source is the preview
+service's (test_preview_service.py)."""
 
 from datetime import UTC, datetime, timedelta
 from typing import Any, cast
 from uuid import UUID
 
 import pytest
-from pydantic import TypeAdapter
 
-from disktracker.catalog.condition_rule_service import ConditionRuleService
-from disktracker.catalog.drive_service import DriveService
-from disktracker.collection.client import CollectorClient
 from disktracker.collection.repository import CollectionRepository, Sourced
-from disktracker.collection.schemas import PagePreview, ShopifySourceInput, SourcePreviewInput
+from disktracker.collection.schemas import ShopifySourceInput
 from disktracker.collection.service import CollectionService, due_at, source_key
 
 NOW = datetime(2026, 9, 22, 12, tzinfo=UTC)
@@ -94,41 +90,9 @@ class FakeRepository:
         return None, self.running, self.kept
 
 
-class FakeRules:
-    def all(self) -> list[dict[str, Any]]:
-        return [{"pattern": "recertified", "condition": "manufacturer_recertified"}]
-
-
-class FakeDrives:
-    def __init__(self, capacities: dict[str, int] | None = None) -> None:
-        self.capacities = capacities or {}
-
-    def capacity(self, mpn: str) -> int | None:
-        return self.capacities.get(mpn)
-
-
-class FakeCollector:
-    """Answers a preview as it is set to, and keeps what it was asked."""
-
-    def __init__(self, answer: dict[str, Any]) -> None:
-        self.answer = answer
-        self.asked: list[dict[str, Any]] = []
-
-    def preview(self, source: dict[str, Any]) -> dict[str, Any]:
-        self.asked.append(source)
-        return self.answer
-
-
-def service(
-    repository: FakeRepository,
-    collector: FakeCollector | None = None,
-    drives: FakeDrives | None = None,
-) -> CollectionService:
+def service(repository: FakeRepository) -> CollectionService:
     return CollectionService(
         cast(CollectionRepository, repository),
-        cast(ConditionRuleService, FakeRules()),
-        cast(DriveService, drives or FakeDrives()),
-        cast(CollectorClient, collector),
         now=lambda: NOW,
         next_id=lambda: NEW_ID,
     )
@@ -207,53 +171,6 @@ class TestSourcesShown:
         [values] = repository.added
         assert (values["id"], values["key"]) == (NEW_ID, "serverorbit")
         assert added["next_run_at"] == NOW
-
-
-OFFER = {
-    "title": "Seagate Exos X18 ST18000NM000J 20TB",
-    "mpn": "ST18000NM000J",
-    "condition": "new",
-    "capacity_gb": 20000,
-    "in_stock": True,
-}
-
-
-class TestPreview:
-    def test_the_collector_is_asked_for_the_source_as_it_would_be_saved(self) -> None:
-        collector = FakeCollector({"status": "nothing", "reason": None, "offer": None})
-        source: PagePreview = TypeAdapter(SourcePreviewInput).validate_python(
-            {"name": "Server Orbit!", "kind": "shopify", "base_url": "https://orbit.test",
-             "settings": {"collections": ["all"]}}
-        )  # fmt: skip
-
-        preview = service(FakeRepository(), collector).preview_source(source)
-
-        assert collector.asked == [
-            {
-                "key": "serverorbit",
-                "kind": "shopify",
-                "base_url": "https://orbit.test",
-                "transport": "direct",
-                "obey_robots": True,
-                "settings": {"collections": ["all"], "free_shipping": False},
-                "conditions": FakeRules().all(),
-                "page_url": None,
-            }
-        ]
-        # Without an offer there is nothing to judge.
-        assert preview == {"status": "nothing", "reason": None, "offer": None, "verdict": None}
-
-    def test_an_offer_is_judged_against_the_drive_as_the_catalog_has_it(self) -> None:
-        collector = FakeCollector({"status": "found", "reason": None, "offer": OFFER})
-        drives = FakeDrives({"ST18000NM000J": 18000})
-        source: PagePreview = TypeAdapter(SourcePreviewInput).validate_python(
-            {"name": "Orbit", "kind": "shopify", "base_url": "https://orbit.test",
-             "settings": {"collections": ["all"]}}
-        )  # fmt: skip
-
-        preview = service(FakeRepository(), collector, drives).preview_source(source)
-
-        assert preview["verdict"] == {"outcome": "review", "reason": "capacity_conflict"}
 
 
 @pytest.mark.parametrize(

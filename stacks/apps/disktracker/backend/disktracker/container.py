@@ -18,6 +18,7 @@ from disktracker.catalog.price_service import PriceService
 from disktracker.catalog.review_repository import ReviewRepository
 from disktracker.catalog.review_service import ReviewService
 from disktracker.collection.client import CollectorClient
+from disktracker.collection.preview_service import PreviewService
 from disktracker.collection.repository import CollectionRepository
 from disktracker.collection.service import CollectionService
 from disktracker.database import Database
@@ -117,11 +118,14 @@ class Container(containers.DeclarativeContainer):
     collection_service = providers.Factory(
         CollectionService,
         repository=collection_repository,
+        now=clock,
+        next_id=next_id,
+    )
+    preview_service = providers.Factory(
+        PreviewService,
         rules=condition_rule_service,
         drives=drive_service,
         collector=collector_client,
-        now=clock,
-        next_id=next_id,
     )
     reporting_service = providers.Factory(
         ReportingService, repository=reporting_repository, now=clock

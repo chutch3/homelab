@@ -7,6 +7,7 @@ from uuid import UUID
 from dependency_injector.wiring import Provide, inject
 from fastapi import APIRouter, Depends, Query, Response
 
+from disktracker.collection.preview_service import PreviewService
 from disktracker.collection.schemas import (
     CollectorStatus,
     Heartbeat,
@@ -33,6 +34,7 @@ router = APIRouter(prefix="/api")
 
 
 Collection = Annotated[CollectionService, Depends(Provide[Container.collection_service])]
+Previews = Annotated[PreviewService, Depends(Provide[Container.preview_service])]
 
 
 @router.get(
@@ -155,10 +157,10 @@ def delete_source(collection: Collection, source_id: UUID) -> None:
     responses={503: {"model": ErrorResponse, "description": "The collector is unavailable"}},
 )
 @inject
-def preview_source(collection: Collection, entry: SourcePreviewInput) -> dict[str, Any]:
+def preview_source(previews: Previews, entry: SourcePreviewInput) -> dict[str, Any]:
     """Try a source, saved or not: one offer as the collector reads it, and what recording
     it would do. Nothing is kept."""
-    return collection.preview_source(entry)
+    return previews.preview_source(entry)
 
 
 @router.post(
@@ -169,11 +171,11 @@ def preview_source(collection: Collection, entry: SourcePreviewInput) -> dict[st
     responses={503: {"model": ErrorResponse, "description": "The collector is unavailable"}},
 )
 @inject
-def inspect_link(collection: Collection, entry: SourceInspectionInput) -> dict[str, Any]:
+def inspect_link(previews: Previews, entry: SourceInspectionInput) -> dict[str, Any]:
     """From a link to one product page of a store: the sources that would read the store,
     best first, each with the offer it reads from that page and what recording it would
     do. Nothing is kept."""
-    return collection.inspect_link(entry)
+    return previews.inspect_link(entry)
 
 
 @router.post(

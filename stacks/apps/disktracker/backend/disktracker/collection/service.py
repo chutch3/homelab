@@ -10,19 +10,13 @@ from uuid import UUID
 
 from croniter import croniter
 
-from disktracker.catalog.condition_rule_service import ConditionRuleService
-from disktracker.catalog.drive_service import DriveService
-from disktracker.catalog.rules import normalize_mpn, preview_verdict
-from disktracker.collection.client import CollectorClient
 from disktracker.collection.repository import CollectionRepository, Sourced
 from disktracker.collection.schemas import (
     Heartbeat,
-    PagePreview,
     RunQuery,
     RunStart,
     RunUpdate,
     SourceBase,
-    SourceInspectionInput,
 )
 from disktracker.collection.settings import KINDS
 
@@ -53,14 +47,10 @@ class CollectionService:
     def __init__(
         self,
         repository: CollectionRepository,
-        rules: ConditionRuleService,
-        drives: DriveService,
-        collector: CollectorClient,
         now: Callable[[], datetime],
         next_id: Callable[[], UUID],
     ) -> None:
-        self.repository, self.collector = repository, collector
-        self.rules, self.drives = rules, drives
+        self.repository = repository
         self.now, self.next_id = now, next_id
 
     # Sources, and when each is due.
@@ -145,46 +135,3 @@ class CollectionService:
         busy = {run["source"] for run in running}
         waiting = [source["key"] for source in self._due(sources) if source["key"] not in busy]
         return {"seen_at": seen, "running": running, "waiting": waiting}
-
-    # Trying a store before it is collected. Nothing is kept.
-
-    def _condition_rules(self) -> list[dict[str, Any]]:
-        return self.rules.all()
-
-    def _verdict_on(self, offer: dict[str, Any]) -> dict[str, str | None]:
-        """What disktracker would do with an offer the collector read, were it recorded."""
-        known = None
-        if offer["mpn"]:
-            known = self.drives.capacity(normalize_mpn(offer["mpn"]))
-        outcome, reason = preview_verdict(offer, known)
-        return {"outcome": outcome, "reason": reason}
-
-    def preview_source(self, source: PagePreview) -> dict[str, Any]:
-        """One offer as the collector reads it from a source, saved or not, and what recording
-        it would do."""
-        preview = self.collector.preview(
-            {
-                "key": source_key(source.name),
-                "kind": source.kind,
-                "base_url": source.base_url,
-                "transport": source.transport,
-                "obey_robots": source.obey_robots,
-                "settings": source.settings.model_dump(),
-                "conditions": self._condition_rules(),
-                "page_url": source.page_url or None,
-            }
-        )
-        offer = preview["offer"]
-        return {**preview, "verdict": None if offer is None else self._verdict_on(offer)}
-
-    def inspect_link(self, entry: SourceInspectionInput) -> dict[str, Any]:
-        """The sources that would read the store a product page is from, best first, each with
-        the offer it reads from that page and what recording it would do."""
-        inspected = self.collector.inspect(
-            {"url": entry.url, "transport": entry.transport, "conditions": self._condition_rules()}
-        )
-        candidates = [
-            {**candidate, "verdict": self._verdict_on(candidate["offer"])}
-            for candidate in inspected["candidates"]
-        ]
-        return {**inspected, "candidates": candidates}
