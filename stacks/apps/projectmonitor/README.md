@@ -1,11 +1,12 @@
 # Project Monitor
 
-Project Monitor is a CI build dashboard, imported into this monorepo from
-[`vmware-archive/projectmonitor`](https://github.com/vmware-archive/projectmonitor)
+Project Monitor is a CI build dashboard created by **Pivotal Labs and the original
+Project Monitor contributors**. This homelab fork imports the application from
+[`vmware-archive/projectmonitor`](https://github.com/vmware-archive/projectmonitor/tree/2b85d1701007d832cbc4b49aa3c94cbacb076884)
 at commit `2b85d1701007d832cbc4b49aa3c94cbacb076884`. The forked application and its
-original tests live in `app/`; there is no nested Git repository or submodule to
-initialize. Upstream licenses and notices are retained. The original dependency
-lock is recorded in `Gemfile.upstream.lock`.
+original tests live in [`app/`](app/); there is no nested Git repository or
+submodule to initialize. The original dependency lock is recorded in
+[`Gemfile.upstream.lock`](Gemfile.upstream.lock).
 
 The runtime is Ruby **3.4.11**, Rails **8.1.4**, Puma, and MariaDB **10.11.14**.
 Node **22.23.4** comes from the official Node image for asset compilation and
@@ -13,6 +14,26 @@ browser tests; npm rejects local runtimes older than Node 22.
 The image uses the official Ruby Debian Bookworm base and runs as UID/GID 1000.
 One application image serves four roles: web, delayed-job worker, EventMachine
 poller, and Clockwork housekeeping. MariaDB has its own service and OCFS2 volume.
+
+## Upstream credit and licenses
+
+Credit for the original application belongs to Pivotal Labs and the
+[upstream contributors](https://github.com/vmware-archive/projectmonitor/graphs/contributors).
+The homelab work updates dependencies, adds container and Swarm integration, and
+adapts compatibility and test tooling; it does not claim original authorship.
+
+The upstream files are preserved verbatim:
+
+- [`app/LICENSE`](app/LICENSE): the BSD 2-clause license text.
+- [`app/MIT.LICENSE`](app/MIT.LICENSE): the MIT license with
+  **Copyright (c) 2010 Pivotal Labs**.
+- [`app/NOTICE`](app/NOTICE): **Copyright 2022 VMware, Inc.** and the upstream
+  licensing notice.
+
+The [application README](app/README.md) also retains upstream's 2018 Pivotal Labs
+credit. Keep these files and third-party notices with the imported source and
+distributions. The Docker build copies the application README and all three files
+into `/app` in the production image.
 
 ## Build, test, publish, deploy
 
@@ -85,12 +106,22 @@ contain class-body SQL from early Rails versions and must not be replayed as a
 fresh-install procedure. `db:prepare` records those versions from the snapshot.
 An existing installation should be brought to the upstream schema version
 `20161014211931` and backed up before importing its database.
+An existing production database upgrade has not been tested.
 
 All routes currently require Authentik. If using CI webhooks, configure a
 separately reviewed machine-authentication policy for the webhook route before
 pointing external senders at it. Polling requires no public webhook access.
 
 ## Compatibility scope
+
+| Component | Upstream | Homelab fork |
+| --- | --- | --- |
+| Ruby | 2.3.1 | 3.4.11, official Debian Bookworm image |
+| Rails | 4.2.7 | 8.1.4 |
+| Web server | Unicorn | Puma |
+| Database | Bundled MySQL installation | Separate MariaDB 10.11.14 service |
+| Browser tests | Qt WebKit / PhantomJS | Chromium, Selenium, and Playwright |
+| Deployment | Standalone scripts | Swarm compose, declarative pre-flight, standard homelab tasks |
 
 The fork preserves the application behavior. Compatibility changes cover removed
 Rails callbacks, relation and serialization APIs, URI/File APIs, dynamic method

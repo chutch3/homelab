@@ -1,7 +1,8 @@
 # Project Monitor application
 
-Project Monitor aggregates CI build status into a dashboard intended for a shared
-monitor. This directory contains the application imported from
+Project Monitor was created by **Pivotal Labs and the original Project Monitor
+contributors**. It aggregates CI build status into a dashboard intended for a
+shared monitor. This directory contains the application imported from
 [`vmware-archive/projectmonitor`](https://github.com/vmware-archive/projectmonitor/tree/2b85d1701007d832cbc4b49aa3c94cbacb076884).
 
 Use the [service README](../README.md) for the supported runtime, database setup,
@@ -62,5 +63,17 @@ Cloud Foundry deployment helpers and their tests, legacy scheduler settings,
 certificate files, and historical database migrations remain for compatibility
 review. They are not the homelab deployment procedure.
 
-Copyright (c) 2018 Pivotal Labs. Original licenses and notices are retained in
-`LICENSE`, `MIT.LICENSE`, and `NOTICE`.
+## Credits and licenses
+
+Copyright (c) 2018 Pivotal Labs.
+
+Credit for the original application belongs to Pivotal Labs and the
+[upstream contributors](https://github.com/vmware-archive/projectmonitor/graphs/contributors).
+This homelab fork maintains the dependencies, deployment, and compatibility
+tooling. The pinned upstream source above records the origin of the imported code.
+
+The original [BSD license text](LICENSE), [MIT license](MIT.LICENSE) with
+Copyright (c) 2010 Pivotal Labs, and [VMware notice](NOTICE) with
+Copyright 2022 VMware, Inc. are retained verbatim. Keep these files and third-party
+notices with the source and distributions; the production image includes them
+alongside this README in `/app`.
