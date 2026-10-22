@@ -8,7 +8,7 @@ from datetime import datetime
 from typing import Any
 
 from sqlalchemy import Boolean, DateTime, ForeignKey, Index, Integer, String, Text, Uuid
-from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy.dialects.postgresql import ARRAY, JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
 from disktracker.database import Base
@@ -117,6 +117,8 @@ class ScrapedMatch(Base):
     condition: Mapped[str | None] = mapped_column(String(40))
     ignored: Mapped[bool] = mapped_column(Boolean, server_default="false")
     reviewed_title: Mapped[str | None] = mapped_column(String(160))
+    # Other MPNs another drive goes by the reviewer accepted its page naming: settled.
+    settled_aliases: Mapped[list[str]] = mapped_column(ARRAY(String(100)), server_default="{}")
 
 
 class ConditionRule(Base):

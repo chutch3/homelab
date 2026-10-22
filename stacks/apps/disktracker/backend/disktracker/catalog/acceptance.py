@@ -77,9 +77,13 @@ def judged(
         return Verdict("queued", "missing_capacity")
     if known.drive is not None and stated not in (None, known.capacity):
         return Verdict("queued", "capacity_conflict")
+    # Another drive's MPNs a reviewer accepted the page naming stay that drive's, and settled.
+    settled = set(decided.get("settled_aliases") or ()) if decided else set()
     fresh = []
     for alias in dict.fromkeys(seen.aliases):
         owner = known.owners.get(alias)
+        if alias in settled and owner not in (None, known.drive):
+            continue
         if owner is None:
             fresh.append(alias)
         elif owner != known.drive:

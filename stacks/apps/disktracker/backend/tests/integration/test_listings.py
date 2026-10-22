@@ -146,3 +146,28 @@ def test_an_accepted_listing_gives_its_drive_what_its_page_said_where_nobody_has
     assert (drive["brand"], drive["specifications"]["interface"]) == ("Seagate", "sas")
     assert drive["aliases"] == ["0FRESH"]
     assert taken["aliases"] == ["0TAKEN"]
+
+
+def test_an_accepted_alias_conflict_is_settled_and_only_a_new_one_reopens_review(
+    database_url: str,
+) -> None:
+    """The reviewer accepts a page naming an MPN another drive goes by: that MPN stays the other
+    drive's, and the same page collected again is recorded. Naming one more MPN another drive
+    goes by is new evidence: it waits for review again."""
+    with TestClient(create_app()) as client:
+        for mpn in ("0TAKEN", "0LATER"):
+            client.post("/api/drives", json={"mpn": mpn, "capacity_gb": 16000})
+        page = listing(aliases=["0TAKEN"], condition="new", observed_at="2026-10-01T12:00:00Z")
+        queued = post(client, "/api/ingestions", page).json()
+        accepted = match(client, queued["review_item_id"])
+        again = post(client, "/api/ingestions", {**page, "observed_at": "2026-10-02T12:00:00Z"})
+        more = post(client, "/api/ingestions", {
+            **page, "aliases": ["0TAKEN", "0LATER"], "observed_at": "2026-10-03T12:00:00Z",
+        })  # fmt: skip
+        reasons = [item["reason"] for item in client.get("/api/review-items").json()]
+
+    assert queued["status"] == "queued"
+    assert accepted.status_code == 200, accepted.text
+    assert (again.status_code, again.json()["status"]) == (201, "recorded")
+    assert (more.status_code, more.json()["status"]) == (202, "queued")
+    assert reasons == ["alias_conflict"]

@@ -91,6 +91,19 @@ def test_a_page_naming_an_mpn_another_drive_goes_by_waits_whole_for_review() -> 
     assert judged(seen(aliases=("0HNHWC",)), IDENTITY, None, new).reason == "alias_conflict"
 
 
+def test_another_drives_mpn_a_reviewer_accepted_is_settled_and_only_a_new_one_reopens_review() -> (
+    None
+):
+    """Accepted, it stays the other drive's: neither the drive's nor a conflict."""
+    taken = known(owners={"0HNHWC": OTHER, "0LATER": OTHER})
+    accepted = decided(settled_aliases=["0HNHWC"])
+
+    assert judged(seen(aliases=("0HNHWC",)), IDENTITY, accepted, taken) == Verdict("recorded")
+    assert judged(seen(aliases=("0HNHWC", "0LATER")), IDENTITY, accepted, taken) == Verdict(
+        "queued", "alias_conflict", conflict=("0LATER", OTHER)
+    )
+
+
 def test_the_other_mpns_a_page_gives_are_those_no_drive_goes_by_yet_once_each() -> None:
     mine = known(owners={"0MINE": DRIVE})
 

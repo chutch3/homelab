@@ -130,12 +130,14 @@ class ReviewRepository:
         condition: str | None,
         ignored: bool,
         reviewed_title: str,
+        settled_aliases: list[str],
     ) -> None:
-        """Keep what a reviewer decided a listing is, and the title they decided on, for later
-        collected prices of that listing."""
+        """Keep what a reviewer decided a listing is, the title they decided on, and the MPNs
+        another drive goes by they accepted its page naming, for later collected prices of that
+        listing."""
         decision = {
             "drive_id": drive_id, "condition": condition, "ignored": ignored,
-            "reviewed_title": reviewed_title,
+            "reviewed_title": reviewed_title, "settled_aliases": settled_aliases,
         }  # fmt: skip
         key = dict(
             zip(("store", "url", "seller", "read_mpn", "read_condition"), listing, strict=True)

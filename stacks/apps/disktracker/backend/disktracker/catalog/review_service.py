@@ -70,7 +70,7 @@ class ReviewService:
             else:
                 self.reviews.remember(
                     session, listing_of(item), drive_id=None, condition=None, ignored=True,
-                    reviewed_title=item["title"],
+                    reviewed_title=item["title"], settled_aliases=[],
                 )  # fmt: skip
                 result = {"status": "ignored", "offer_id": None}
             self.reviews.answer_decision(session, item_id, result)
@@ -95,11 +95,16 @@ class ReviewService:
         # What the page said of the drive, where nobody has said it. Another MPN it gave that
         # another drive goes by stays that drive's: nothing is merged.
         self.drives.describe(session, drive_id, item["specifications"], item["brand"])
+        settled = []
         for alias in dict.fromkeys(item["aliases"] or []):
-            if self.drives.owner_of(session, alias) is None:
+            owner = self.drives.owner_of(session, alias)
+            if owner is None:
                 self.drives.attach_alias(session, drive_id, alias)
+            elif owner != drive_id:
+                # Accepted as naming another drive's MPN: settled, for later pages of it.
+                settled.append(alias)
         self.reviews.remember(
             session, listing_of(item), drive_id=drive_id, condition=decision.condition,
-            ignored=False, reviewed_title=item["title"],
+            ignored=False, reviewed_title=item["title"], settled_aliases=settled,
         )  # fmt: skip
         return {"status": "matched", "offer_id": str(offer_id)}
