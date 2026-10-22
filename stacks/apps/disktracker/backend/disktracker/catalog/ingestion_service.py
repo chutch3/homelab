@@ -1,6 +1,6 @@
 """Taking in one observation of a store page as collected, its offer described rather than
 named: what its listing has been decided to be, what disktracker knows of its drive, and what
-that makes of it (catalog.acceptance): the drive it is of registered when new, the price recorded
+that makes of it (catalog.verdict): the drive it is of registered when new, the price recorded
 through the one price writer and what its page says of the drive kept; or it waits for review,
 or is ignored. One piece of work with its save key: all of it is kept, or none. What would become
 of a page is foreseen the same way, keeping nothing."""
@@ -12,13 +12,13 @@ from uuid import UUID
 
 from sqlalchemy.orm import Session
 
-from disktracker.catalog.acceptance import Known, Seen, Verdict, judged
 from disktracker.catalog.drive_repository import DriveRepository
 from disktracker.catalog.offer_repository import OfferRepository
 from disktracker.catalog.price_service import fingerprint, observation, recorded
 from disktracker.catalog.review_repository import Listing, ReviewRepository
 from disktracker.catalog.rules import as_decided, normalize_mpn, queued_fields
 from disktracker.catalog.schemas import IngestionInput
+from disktracker.catalog.verdict import Known, Seen, Verdict, judged
 from disktracker.database import SessionFactory
 
 
@@ -85,7 +85,7 @@ class IngestionService:
         hold: bool,
     ) -> Known:
         """What disktracker knows of the drive a page's offer is identified as: what the
-        judgement of it reads (catalog.acceptance.Known). Held, the drive is held against other
+        judgement of it reads (catalog.verdict.Known). Held, the drive is held against other
         changes before anything of it is read, so what is judged is what is written to."""
         mpn = None if identity is None else identity["mpn"]
         drive = None if mpn is None else self.drives.owner_of(session, mpn)

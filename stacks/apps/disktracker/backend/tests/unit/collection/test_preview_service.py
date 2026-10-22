@@ -5,9 +5,9 @@ from typing import Any, cast
 
 from pydantic import TypeAdapter
 
-from disktracker.catalog.acceptance import Verdict
 from disktracker.catalog.condition_rule_service import ConditionRuleService
 from disktracker.catalog.ingestion_service import IngestionService
+from disktracker.catalog.verdict import Verdict
 from disktracker.collection.client import CollectorClient
 from disktracker.collection.preview_service import PreviewService
 from disktracker.collection.schemas import PagePreview, SourcePreviewInput

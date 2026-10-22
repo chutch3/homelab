@@ -89,7 +89,7 @@ class DriveRepository:
         """The drive that goes by this MPN, held against other changes until the operation ends,
         or a new one under it with this capacity: what collecting needs of a drive. A capacity
         given that is not the drive's is refused, and a new drive needs one, whatever was judged
-        of it before (catalog.acceptance)."""
+        of it before (catalog.verdict)."""
         hold_mpn(session, mpn)
         owner = self.owner_of(session, mpn)
         if owner is None:

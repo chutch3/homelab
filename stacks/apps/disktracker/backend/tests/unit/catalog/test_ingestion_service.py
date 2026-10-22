@@ -1,4 +1,4 @@
-"""How taking in a page goes once it is judged (catalog.acceptance, tested on its own): what the
+"""How taking in a page goes once it is judged (catalog.verdict, tested on its own): what the
 service asks of its repositories for each verdict, the drive held before anything of it is read,
 and a page foreseen without holding or keeping anything. Its repositories and session factories
 are stood in for; locks and atomicity are tests/integration's."""

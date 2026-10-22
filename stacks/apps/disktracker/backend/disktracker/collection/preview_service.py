@@ -4,9 +4,9 @@ recording the offer would do. Nothing is kept."""
 
 from typing import Any
 
-from disktracker.catalog.acceptance import Verdict
 from disktracker.catalog.condition_rule_service import ConditionRuleService
 from disktracker.catalog.ingestion_service import IngestionService
+from disktracker.catalog.verdict import Verdict
 from disktracker.collection.client import CollectorClient
 from disktracker.collection.schemas import PagePreview, SourceInspectionInput
 from disktracker.collection.service import source_key

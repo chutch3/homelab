@@ -6,7 +6,7 @@ from uuid import UUID
 
 import pytest
 
-from disktracker.catalog.acceptance import Known, Seen, Verdict, judged
+from disktracker.catalog.verdict import Known, Seen, Verdict, judged
 
 DRIVE, OTHER = UUID(int=1), UUID(int=2)
 IDENTITY = {"mpn": "ST18000NM000J", "store": "serverpartdeals", "seller": "", "condition": "new"}
