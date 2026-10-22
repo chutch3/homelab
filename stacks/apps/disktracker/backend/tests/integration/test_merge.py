@@ -8,6 +8,7 @@ from uuid import uuid4
 
 from fastapi.testclient import TestClient
 from httpx import Response
+from sqlalchemy import create_engine, text
 from test_api import entered, post, price_payload, scraped_payload
 from test_persistence import LOCK, crossing, meanwhile
 
@@ -323,3 +324,37 @@ def test_what_a_reviewer_decided_a_page_was_is_the_target_once_merged(database_u
 
     assert later.status_code == 201, later.text
     assert recorded == target["id"]
+
+
+def test_a_merge_that_fails_partway_leaves_both_drives_as_they_were_and_can_be_sent_again(
+    database_url: str,
+) -> None:
+    """Failing as the absorbed drive is removed, after its offers have moved: none of it is kept,
+    its save key is not spent, and the same merge sent again goes through."""
+    engine = create_engine(database_url)
+    with TestClient(create_app(), raise_server_exceptions=False) as client:
+        target = drive(client, "AAA1")
+        source = drive(client, "BBB1")
+        moved = offer(client, "BBB1", seller="Shop B")
+        with engine.begin() as connection:
+            connection.execute(text(
+                "CREATE FUNCTION refuse() RETURNS trigger AS $$ BEGIN"
+                " RAISE EXCEPTION 'refused'; END $$ LANGUAGE plpgsql;"
+                " CREATE TRIGGER refuse BEFORE DELETE ON drives"
+                " FOR EACH ROW EXECUTE FUNCTION refuse();"
+            ))  # fmt: skip
+        key = str(uuid4())
+        failed = merge(client, source["id"], target["id"], key)
+        after_failure = (
+            client.get(f"/api/drives/{source['id']}").json(),
+            client.get(f"/api/drives/{target['id']}").json(),
+            client.get(f"/api/offers/{moved}").json()["drive"]["id"],
+        )
+        with engine.begin() as connection:
+            connection.execute(text("DROP TRIGGER refuse ON drives"))
+        retried = merge(client, source["id"], target["id"], key)
+    engine.dispose()
+
+    assert failed.status_code == 500
+    assert after_failure == (source, target, source["id"])
+    assert (retried.status_code, retried.json()["status"]) == (200, "merged")

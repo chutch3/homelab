@@ -154,6 +154,9 @@ def test_retry_after_lost_save_response_does_not_duplicate_the_price(page: Page)
     [offer] = page.request.get("/api/offers").json()
     prices = page.request.get("/api/prices", params={"offer_id": offer["id"]}).json()
     assert prices["total"] == 1
+    # The drive made before the first save is the one the retry used: none was made again.
+    found = page.request.get("/api/drives", params={"mpn": "WUH721212ALE6L4"}).json()
+    assert found["total"] == 1
 
 
 def test_blank_shipping_and_fees_count_as_free_so_every_total_is_known(page: Page) -> None:
