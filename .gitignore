@@ -380,3 +380,9 @@ vite.config.ts.timestamp-*
 
 # Turbo Repo
 .turbo
+
+# Personal CAD projects are application data, not infrastructure source.
+/docs/server-shelf/
+*.FCStd
+*.FCStd[0-9]*
+*.FCBak
