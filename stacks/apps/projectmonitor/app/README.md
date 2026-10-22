@@ -1,9 +1,14 @@
-# Project Monitor application
+# Project Monitor — vendored upstream fork
 
 Project Monitor was created by **Pivotal Labs and the original Project Monitor
 contributors**. It aggregates CI build status into a dashboard intended for a
 shared monitor. This directory contains the application imported from
 [`vmware-archive/projectmonitor`](https://github.com/vmware-archive/projectmonitor/tree/2b85d1701007d832cbc4b49aa3c94cbacb076884).
+
+This directory is the imported repository root; its nested `app/` directory is
+the standard Rails application directory. Homelab service configuration and task
+integration live one level above. See the [repository layout](../README.md#repository-layout)
+for the boundary and how upstream history is preserved.
 
 Use the [service README](../README.md) for the supported runtime, database setup,
 Swarm deployment, secrets, administrator bootstrap, and test commands. The

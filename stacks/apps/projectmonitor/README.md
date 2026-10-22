@@ -15,6 +15,37 @@ The image uses the official Ruby Debian Bookworm base and runs as UID/GID 1000.
 One application image serves four roles: web, delayed-job worker, EventMachine
 poller, and Clockwork housekeeping. MariaDB has its own service and OCFS2 volume.
 
+## Repository layout
+
+This service follows the monorepo's `app/` convention. Here, `app/` contains the
+**vendored fork's repository root**, including its dependencies, tests, licenses,
+and Rails directory structure. The nested `app/app/` is Rails' own application
+directory.
+
+```text
+projectmonitor/
+├── README.md                 # Homelab operation and fork provenance
+├── docker-compose.yml       # Swarm service definition
+├── pre-flight.yml           # Homelab provisioning
+├── compose.test.yml         # Disposable container test environment
+├── package.json             # Homelab task discovery
+├── scripts/                 # Homelab test and coverage integration
+├── Gemfile.upstream.lock    # Dependency lock from the pinned upstream commit
+└── app/                     # Vendored Project Monitor repository root
+    ├── README.md            # Application guidance and upstream credits
+    ├── LICENSE, MIT.LICENSE, NOTICE
+    ├── Gemfile, Gemfile.lock
+    ├── app/                 # Rails models, views, controllers, and assets
+    ├── config/, db/, lib/
+    ├── spec/                # Application tests
+    └── Dockerfile, docker/  # Container support added for this fork
+```
+
+The import is a source snapshot at the pinned upstream commit, followed by the
+homelab changes. Upstream's full Git history remains in the linked repository;
+it was not imported into this monorepo. The fork is maintained here, with no
+separate GitHub fork, submodule, or automatic upstream synchronization.
+
 ## Upstream credit and licenses
 
 Credit for the original application belongs to Pivotal Labs and the
