@@ -9,7 +9,8 @@ from uuid import UUID
 
 from croniter import croniter
 
-from disktracker.catalog.queries import CatalogQueries
+from disktracker.catalog.condition_rule_service import ConditionRuleService
+from disktracker.catalog.drive_service import DriveService
 from disktracker.catalog.rules import normalize_mpn, preview_verdict, source_key
 from disktracker.collection.client import CollectorClient
 from disktracker.collection.repository import CollectionRepository, Sourced
@@ -45,12 +46,14 @@ class CollectionService:
     def __init__(
         self,
         repository: CollectionRepository,
-        catalog: CatalogQueries,
+        rules: ConditionRuleService,
+        drives: DriveService,
         collector: CollectorClient,
         now: Callable[[], datetime],
         next_id: Callable[[], UUID],
     ) -> None:
-        self.repository, self.catalog, self.collector = repository, catalog, collector
+        self.repository, self.collector = repository, collector
+        self.rules, self.drives = rules, drives
         self.now, self.next_id = now, next_id
 
     # Sources, and when each is due.
@@ -139,13 +142,13 @@ class CollectionService:
     # Trying a store before it is collected. Nothing is kept.
 
     def _condition_rules(self) -> list[dict[str, Any]]:
-        return self.catalog.condition_rules()
+        return self.rules.all()
 
     def _verdict_on(self, offer: dict[str, Any]) -> dict[str, str | None]:
         """What disktracker would do with an offer the collector read, were it recorded."""
         known = None
         if offer["mpn"]:
-            known = self.catalog.drive_capacity(normalize_mpn(offer["mpn"]))
+            known = self.drives.capacity(normalize_mpn(offer["mpn"]))
         outcome, reason = preview_verdict(offer, known)
         return {"outcome": outcome, "reason": reason}
 

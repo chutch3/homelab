@@ -8,7 +8,8 @@ from uuid import UUID
 
 from pydantic import TypeAdapter
 
-from disktracker.catalog.queries import CatalogQueries
+from disktracker.catalog.condition_rule_service import ConditionRuleService
+from disktracker.catalog.drive_service import DriveService
 from disktracker.collection.client import CollectorClient
 from disktracker.collection.repository import CollectionRepository, Sourced
 from disktracker.collection.schemas import PagePreview, ShopifySourceInput, SourcePreviewInput
@@ -92,14 +93,16 @@ class FakeRepository:
         return None, self.running, self.kept
 
 
-class FakeCatalog:
+class FakeRules:
+    def all(self) -> list[dict[str, Any]]:
+        return [{"pattern": "recertified", "condition": "manufacturer_recertified"}]
+
+
+class FakeDrives:
     def __init__(self, capacities: dict[str, int] | None = None) -> None:
         self.capacities = capacities or {}
 
-    def condition_rules(self) -> list[dict[str, Any]]:
-        return [{"pattern": "recertified", "condition": "manufacturer_recertified"}]
-
-    def drive_capacity(self, mpn: str) -> int | None:
+    def capacity(self, mpn: str) -> int | None:
         return self.capacities.get(mpn)
 
 
@@ -118,11 +121,12 @@ class FakeCollector:
 def service(
     repository: FakeRepository,
     collector: FakeCollector | None = None,
-    catalog: FakeCatalog | None = None,
+    drives: FakeDrives | None = None,
 ) -> CollectionService:
     return CollectionService(
         cast(CollectionRepository, repository),
-        cast(CatalogQueries, catalog or FakeCatalog()),
+        cast(ConditionRuleService, FakeRules()),
+        cast(DriveService, drives or FakeDrives()),
         cast(CollectorClient, collector),
         now=lambda: NOW,
         next_id=lambda: NEW_ID,
@@ -231,7 +235,7 @@ class TestPreview:
                 "transport": "direct",
                 "obey_robots": True,
                 "settings": {"collections": ["all"], "free_shipping": False},
-                "conditions": FakeCatalog().condition_rules(),
+                "conditions": FakeRules().all(),
                 "page_url": None,
             }
         ]
@@ -240,12 +244,12 @@ class TestPreview:
 
     def test_an_offer_is_judged_against_the_drive_as_the_catalog_has_it(self) -> None:
         collector = FakeCollector({"status": "found", "reason": None, "offer": OFFER})
-        catalog = FakeCatalog({"ST18000NM000J": 18000})
+        drives = FakeDrives({"ST18000NM000J": 18000})
         source: PagePreview = TypeAdapter(SourcePreviewInput).validate_python(
             {"name": "Orbit", "kind": "shopify", "base_url": "https://orbit.test",
              "settings": {"collections": ["all"]}}
         )  # fmt: skip
 
-        preview = service(FakeRepository(), collector, catalog).preview_source(source)
+        preview = service(FakeRepository(), collector, drives).preview_source(source)
 
         assert preview["verdict"] == {"outcome": "review", "reason": "capacity_conflict"}

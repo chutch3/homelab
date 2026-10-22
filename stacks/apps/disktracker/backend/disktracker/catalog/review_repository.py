@@ -47,6 +47,32 @@ class ReviewRepository:
     def __init__(self, next_id: Callable[[], UUID]) -> None:
         self.next_id = next_id
 
+    def waiting(
+        self,
+        session: Session,
+        store: str | None,
+        reason: str | None,
+        limit: int | None,
+        offset: int,
+    ) -> tuple[list[ReviewItem], int]:
+        """The offers waiting for review, newest first: those seen at this store and waiting for
+        this reason when given, limit of them from offset; and how many there are in all,
+        whatever the limit."""
+        wanted = [
+            column == value
+            for column, value in ((ReviewItem.store, store), (ReviewItem.reason, reason))
+            if value is not None
+        ]
+        total = session.scalar(select(func.count()).select_from(ReviewItem).where(*wanted))
+        items = session.scalars(
+            select(ReviewItem)
+            .where(*wanted)
+            .order_by(ReviewItem.last_seen_at.desc(), ReviewItem.id)
+            .limit(limit)
+            .offset(offset)
+        )
+        return list(items), total or 0
+
     def decision_for(self, session: Session, listing: Listing) -> dict[str, Any] | None:
         """What a reviewer decided this listing is, if one has; no other listing's decision,
         though it shares the page."""

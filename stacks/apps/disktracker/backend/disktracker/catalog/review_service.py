@@ -15,6 +15,7 @@ from disktracker.catalog.offer_repository import OfferRepository
 from disktracker.catalog.review_repository import ReviewRepository, listing_of
 from disktracker.catalog.schemas import MatchDecision, ObservationInput
 from disktracker.catalog.schemas import ReviewDecision as Decision
+from disktracker.catalog.views import review_item_view
 from disktracker.database import SessionFactory
 from disktracker.errors import DriveNotFound
 
@@ -23,12 +24,31 @@ class ReviewService:
     def __init__(
         self,
         session_factory: SessionFactory,
+        snapshot_factory: SessionFactory,
         drives: DriveRepository,
         offers: OfferRepository,
         reviews: ReviewRepository,
     ) -> None:
-        self.session_factory = session_factory
+        self.session_factory, self.snapshot_factory = session_factory, snapshot_factory
         self.drives, self.offers, self.reviews = drives, offers, reviews
+
+    def items(
+        self, store: str | None, reason: str | None, limit: int | None, offset: int
+    ) -> tuple[list[dict[str, Any]], int]:
+        """The offers waiting for review, newest first, each with the drive its MPN names, if
+        one does (as its own MPN or another); and how many there are, in the same snapshot."""
+        with self.snapshot_factory() as session:
+            items, total = self.reviews.waiting(session, store, reason, limit, offset)
+            owners = {
+                mpn: owner
+                for mpn in {item.mpn for item in items if item.mpn}
+                if (owner := self.drives.owner_of(session, mpn)) is not None
+            }
+            drives = {owner: self.drives.view(session, owner) for owner in set(owners.values())}
+            return [
+                review_item_view(item, drives[owners[item.mpn]] if item.mpn in owners else None)
+                for item in items
+            ], total
 
     def decide(self, item_id: UUID, decision: Decision) -> dict[str, Any]:
         with self.session_factory() as session:

@@ -15,10 +15,8 @@ from disktracker.catalog.ingestion_service import IngestionService
 from disktracker.catalog.offer_repository import OfferRepository
 from disktracker.catalog.offer_service import OfferService
 from disktracker.catalog.price_service import PriceService
-from disktracker.catalog.queries import CatalogQueries
 from disktracker.catalog.review_repository import ReviewRepository
 from disktracker.catalog.review_service import ReviewService
-from disktracker.catalog.service import CatalogService
 from disktracker.collection.client import CollectorClient
 from disktracker.collection.repository import CollectionRepository
 from disktracker.collection.service import CollectionService
@@ -59,9 +57,6 @@ class Container(containers.DeclarativeContainer):
     offer_repository = providers.Factory(OfferRepository, now=clock, next_id=next_id)
     review_repository = providers.Factory(ReviewRepository, next_id=next_id)
     condition_rule_repository = providers.Factory(ConditionRuleRepository)
-    catalog_queries = providers.Factory(
-        CatalogQueries, snapshot_factory=database.provided.snapshot, offers=offer_repository
-    )
     collection_repository = providers.Factory(
         CollectionRepository,
         session_factory=database.provided.session,
@@ -94,6 +89,7 @@ class Container(containers.DeclarativeContainer):
     review_service = providers.Factory(
         ReviewService,
         session_factory=database.provided.session,
+        snapshot_factory=database.provided.snapshot,
         drives=drive_repository,
         offers=offer_repository,
         reviews=review_repository,
@@ -107,18 +103,22 @@ class Container(containers.DeclarativeContainer):
         reviews=review_repository,
     )
     offer_service = providers.Factory(
-        OfferService, session_factory=database.provided.session, offers=offer_repository
+        OfferService,
+        session_factory=database.provided.session,
+        snapshot_factory=database.provided.snapshot,
+        offers=offer_repository,
     )
     condition_rule_service = providers.Factory(
         ConditionRuleService,
         session_factory=database.provided.session,
+        snapshot_factory=database.provided.snapshot,
         rules=condition_rule_repository,
     )
-    catalog_service = providers.Factory(CatalogService, queries=catalog_queries, now=clock)
     collection_service = providers.Factory(
         CollectionService,
         repository=collection_repository,
-        catalog=catalog_queries,
+        rules=condition_rule_service,
+        drives=drive_service,
         collector=collector_client,
         now=clock,
         next_id=next_id,

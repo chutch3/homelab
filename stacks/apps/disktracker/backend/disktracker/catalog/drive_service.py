@@ -34,6 +34,11 @@ class DriveService:
         with self.snapshot_factory() as session:
             return self.drives.view(session, drive_id)
 
+    def capacity(self, mpn: str) -> int | None:
+        """The capacity of the drive that goes by an MPN; None when none does."""
+        with self.snapshot_factory() as session:
+            return self.drives.capacity_of(session, mpn)
+
     def find(self, lookup: DriveLookup) -> dict[str, Any]:
         """The drive that goes by an MPN, or those words name, a part at a time, each named."""
         with self.snapshot_factory() as session:

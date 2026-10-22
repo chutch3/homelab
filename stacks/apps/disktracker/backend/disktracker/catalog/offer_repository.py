@@ -248,6 +248,55 @@ class OfferRepository:
             for offer in offers
         ]
 
+    def listed(
+        self, session: Session, store: str | None, drive_id: UUID | None
+    ) -> list[dict[str, Any]]:
+        """Every offer, of one store or one drive when asked, held ones too, with its latest
+        price, by title."""
+        chosen = select(Offer).order_by(Offer.title, Offer.id)
+        if store is not None:
+            chosen = chosen.where(Offer.store == store)
+        if drive_id is not None:
+            chosen = chosen.where(Offer.drive_id == drive_id)
+        return self.summaries(session, chosen)
+
+    def price_page(
+        self,
+        session: Session,
+        drive_id: UUID | None,
+        offer_id: UUID | None,
+        since: datetime | None,
+        until: datetime | None,
+        limit: int,
+        offset: int,
+    ) -> tuple[list[dict[str, Any]], int]:
+        """The prices of a drive's offers, or of one offer, in effect at any time from since to
+        until: those recorded in it, and the one each offer had as it opened. Oldest first, limit
+        of them from offset, and how many there are in all."""
+        offers = select(Offer.id).where(
+            Offer.drive_id == drive_id if drive_id is not None else Offer.id == offer_id
+        )
+        wanted = [Price.offer_id.in_(offers)]
+        if until is not None:
+            wanted.append(Price.observed_at <= until)
+        if since is not None:
+            wanted.append((Price.observed_at >= since) | Price.id.in_(_holding(offers, since)))
+        total = session.scalar(select(func.count()).select_from(Price).where(*wanted)) or 0
+        found = session.execute(
+            select(Price, Drive.capacity_gb)
+            .join(Offer, Offer.id == Price.offer_id)
+            .join(Drive, Drive.id == Offer.drive_id)
+            .where(*wanted)
+            .order_by(Price.observed_at, Price.entered_at, Price.id)
+            .limit(limit)
+            .offset(offset)
+        ).tuples()
+        items = [
+            {**price_view(price, capacity), "offer_id": str(price.offer_id)}
+            for price, capacity in found
+        ]
+        return items, total
+
     def with_history(self, session: Session, offer_id: UUID) -> dict[str, Any]:
         """One offer with every price it has had, oldest first."""
         [offer] = self.summaries(session, select(Offer).where(Offer.id == offer_id)) or [None]
@@ -274,7 +323,7 @@ class OfferRepository:
             select(Price)
             .where(
                 Price.offer_id.in_(offer_ids),
-                (Price.observed_at >= since) | Price.id.in_(holding(offer_ids, since)),
+                (Price.observed_at >= since) | Price.id.in_(_holding(offer_ids, since)),
             )
             .order_by(Price.observed_at, Price.entered_at, Price.id)
         ):
@@ -282,7 +331,7 @@ class OfferRepository:
         return found
 
 
-def holding(offers: Any, since: datetime) -> Select[Any]:
+def _holding(offers: Any, since: datetime) -> Select[Any]:
     """The price each of these offers had as a moment came: its last one recorded before it."""
     return (
         select(Price.id)

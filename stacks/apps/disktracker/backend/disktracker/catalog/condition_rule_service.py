@@ -1,5 +1,5 @@
-"""Replacing the rules that read a condition from listing text, as one piece of work. They are
-read through catalog.reads."""
+"""The rules that read a condition from listing text: read in the order they are tried, and
+replaced as one piece of work."""
 
 from collections.abc import Sequence
 from typing import Any
@@ -10,8 +10,18 @@ from disktracker.database import SessionFactory
 
 
 class ConditionRuleService:
-    def __init__(self, session_factory: SessionFactory, rules: ConditionRuleRepository) -> None:
-        self.session_factory, self.rules = session_factory, rules
+    def __init__(
+        self,
+        session_factory: SessionFactory,
+        snapshot_factory: SessionFactory,
+        rules: ConditionRuleRepository,
+    ) -> None:
+        self.session_factory, self.snapshot_factory = session_factory, snapshot_factory
+        self.rules = rules
+
+    def all(self) -> list[dict[str, Any]]:
+        with self.snapshot_factory() as session:
+            return self.rules.all(session)
 
     def replace(self, rules: Sequence[ConditionRule]) -> list[dict[str, Any]]:
         """The rules, in the order given, in place of the ones kept before."""

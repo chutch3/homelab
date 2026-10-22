@@ -44,14 +44,12 @@ from disktracker.catalog.schemas import (
     ReviewReason,
     StoreKey,
 )
-from disktracker.catalog.service import CatalogService
 from disktracker.container import Container
 from disktracker.errors import ErrorResponse
 
 router = APIRouter(prefix="/api")
 
 
-Catalog = Annotated[CatalogService, Depends(Provide[Container.catalog_service])]
 Offers = Annotated[OfferService, Depends(Provide[Container.offer_service])]
 Rules = Annotated[ConditionRuleService, Depends(Provide[Container.condition_rule_service])]
 Prices = Annotated[PriceService, Depends(Provide[Container.price_service])]
@@ -169,22 +167,22 @@ def get_drive(drives: Drives, drive_id: UUID) -> dict[str, Any]:
     summary="List offers with their latest prices",
 )
 @inject
-def list_offers(catalog: Catalog, query: Annotated[OfferQuery, Query()]) -> list[dict[str, Any]]:
+def list_offers(offers: Offers, query: Annotated[OfferQuery, Query()]) -> list[dict[str, Any]]:
     """Return latest-price summaries, optionally narrowed by store or drive, ordered by title,
     held offers too. Offers entered by hand that are due a check are GET /reports/rechecks.
     This list is not paginated."""
-    return catalog.list_offers(query)
+    return offers.listed(query)
 
 
 @router.get("/prices", response_model=PricePage, tags=["Prices"], summary="Read price history")
 @inject
-def list_prices(catalog: Catalog, query: Annotated[PriceQuery, Query()]) -> dict[str, Any]:
+def list_prices(offers: Offers, query: Annotated[PriceQuery, Query()]) -> dict[str, Any]:
     """Supply exactly one of drive_id or offer_id. Return observations oldest first, ordered by
     observed_at, entered_at and id, using limit/offset pagination. since and until are inclusive;
     the result also includes each offer's last observation before since to establish the price
     in effect when the window opens. total counts matching observations, including those opening
     values, before pagination. An unknown drive or offer returns an empty page."""
-    return catalog.prices(query)
+    return offers.prices(query)
 
 
 @router.post(
@@ -336,7 +334,7 @@ def ingest(
 )
 @inject
 def review_items(
-    catalog: Catalog,
+    reviews: Reviews,
     response: Response,
     paging: Annotated[Paging, Depends()],
     store: StoreKey | None = None,
@@ -344,7 +342,7 @@ def review_items(
 ) -> list[dict[str, Any]]:
     """The offers waiting for review, newest first; by store and reason, and a part at a time,
     when asked. X-Total-Count says how many there are in all, whatever the limit."""
-    return paged(response, catalog.review_items(store, reason, paging.limit, paging.offset))
+    return paged(response, reviews.items(store, reason, paging.limit, paging.offset))
 
 
 @router.put(
@@ -382,10 +380,10 @@ def decide(
     responses={404: {"model": ErrorResponse, "description": "Offer not found"}},
 )
 @inject
-def get_offer(catalog: Catalog, offer_id: UUID) -> dict[str, Any]:
+def get_offer(offers: Offers, offer_id: UUID) -> dict[str, Any]:
     """Return an offer and its full price history, oldest first. Use GET /api/prices for a
     paginated history window."""
-    return catalog.offer(offer_id)
+    return offers.get(offer_id)
 
 
 @router.patch(
@@ -430,12 +428,10 @@ def delete_price(offers: Offers, price_id: UUID) -> None:
     summary="Extract drive details from listing text",
 )
 @inject
-def read_listing_text(catalog: Catalog, entry: ListingText) -> dict[str, object]:
+def read_listing_text(rules: Rules, entry: ListingText) -> dict[str, object]:
     """Extract MPN, capacity, condition, brand and price from pasted text using the current
     condition rules. Missing facts are null. This operation saves nothing."""
-    conditions = condition_rules(
-        (rule["pattern"], rule["condition"]) for rule in catalog.list_condition_rules()
-    )
+    conditions = condition_rules((rule["pattern"], rule["condition"]) for rule in rules.all())
     return read_listing(entry.text, conditions)._asdict()
 
 
@@ -446,10 +442,10 @@ def read_listing_text(catalog: Catalog, entry: ListingText) -> dict[str, object]
     summary="List condition recognition rules",
 )
 @inject
-def list_condition_rules(catalog: Catalog) -> list[dict[str, Any]]:
+def list_condition_rules(rules: Rules) -> list[dict[str, Any]]:
     """Return condition recognition rules in priority order. The first matching case-insensitive
     regular expression wins."""
-    return catalog.list_condition_rules()
+    return rules.all()
 
 
 @router.put(
