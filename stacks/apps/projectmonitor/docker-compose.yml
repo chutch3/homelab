@@ -1,0 +1,133 @@
+x-homelab:
+    requires: [reverse-proxy, authentik]
+
+x-app: &app
+    image: ${REGISTRY:-ghcr.io}/${REGISTRY_NAMESPACE:-chutch3}/projectmonitor:${IMAGE_TAG:-latest}
+    stop_grace_period: 90s
+    environment: &environment
+        RAILS_ENV: production
+        RAILS_SERVE_STATIC_FILES: "true"
+        RAILS_ALLOWED_HOSTS: projectmonitor.${BASE_DOMAIN},localhost,127.0.0.1
+        DATABASE_HOST: database
+        DATABASE_NAME: projectmonitor
+        DATABASE_USER: projectmonitor
+        DATABASE_PASSWORD_FILE: /run/secrets/projectmonitor_database_password
+        SECRET_KEY_BASE_FILE: /run/secrets/projectmonitor_secret_key_base
+        password_auth_pepper_FILE: /run/secrets/projectmonitor_password_pepper
+        certificate_bundle: /etc/ssl/certs/ca-certificates.crt
+        TZ: ${TZ:-UTC}
+    secrets:
+        - projectmonitor_database_password
+        - projectmonitor_secret_key_base
+        - projectmonitor_password_pepper
+    networks:
+        - backend
+        - traefik-public
+    deploy:
+        replicas: 1
+        update_config:
+            order: stop-first
+        restart_policy:
+            condition: any
+            delay: 10s
+
+services:
+    projectmonitor:
+        <<: *app
+        build:
+            context: app
+            target: production
+        command: [web]
+        healthcheck:
+            test: [CMD, ruby, -rnet/http, -e, "exit(Net::HTTP.get_response(URI('http://127.0.0.1:3000/version')).code == '200' ? 0 : 1)"]
+            interval: 30s
+            timeout: 5s
+            start_period: 120s
+            retries: 3
+        deploy:
+            replicas: 1
+            update_config:
+                order: stop-first
+                failure_action: rollback
+            restart_policy:
+                condition: any
+                delay: 10s
+            labels:
+                - "traefik.enable=true"
+                - "traefik.http.routers.projectmonitor.rule=Host(`projectmonitor.${BASE_DOMAIN}`)"
+                - "traefik.http.routers.projectmonitor.entrypoints=websecure"
+                - "traefik.http.routers.projectmonitor.tls.certresolver=dns"
+                - "traefik.http.routers.projectmonitor.middlewares=authentik@swarm"
+                - "traefik.http.services.projectmonitor.loadbalancer.server.port=3000"
+                - "traefik.swarm.network=traefik-public"
+                - "homepage.group=Development"
+                - "homepage.name=Project Monitor"
+                - "homepage.icon=mdi-monitor-dashboard"
+                - "homepage.href=https://projectmonitor.${BASE_DOMAIN}"
+                - "homepage.description=CI build dashboard"
+
+    worker:
+        <<: *app
+        command: [worker]
+
+    poller:
+        <<: *app
+        command: [poller]
+
+    housekeeping:
+        <<: *app
+        command: [housekeeping]
+
+    database:
+        image: mariadb:10.11.14
+        environment:
+            MARIADB_DATABASE: projectmonitor
+            MARIADB_USER: projectmonitor
+            MARIADB_PASSWORD_FILE: /run/secrets/projectmonitor_database_password
+            MARIADB_ROOT_PASSWORD_FILE: /run/secrets/projectmonitor_database_root_password
+        secrets:
+            - projectmonitor_database_password
+            - projectmonitor_database_root_password
+        volumes:
+            - database:/var/lib/mysql
+        networks:
+            - backend
+        healthcheck:
+            test: [CMD, healthcheck.sh, --connect, --innodb_initialized]
+            interval: 10s
+            timeout: 5s
+            retries: 10
+        deploy:
+            replicas: 1
+            placement:
+                constraints:
+                    - node.labels.database == true
+            update_config:
+                order: stop-first
+            restart_policy:
+                condition: any
+                delay: 10s
+
+networks:
+    traefik-public:
+        external: true
+    backend:
+        driver: overlay
+
+volumes:
+    database:
+        driver: local
+        driver_opts:
+            type: "none"
+            o: "bind"
+            device: /mnt/iscsi/app-data/projectmonitor/database
+
+secrets:
+    projectmonitor_database_password:
+        external: true
+    projectmonitor_database_root_password:
+        external: true
+    projectmonitor_secret_key_base:
+        external: true
+    projectmonitor_password_pepper:
+        external: true

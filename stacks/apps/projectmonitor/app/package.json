@@ -1,0 +1,15 @@
+{
+  "name": "projectmonitor-browser-tests",
+  "private": true,
+  "engines": { "node": ">=22" },
+  "scripts": {
+    "test": "bash script/test.sh",
+    "test:unit": "bash script/test.sh",
+    "test:integration": "bash script/test.sh",
+    "test:javascript": "node script/test-javascript.mjs"
+  },
+  "devDependencies": {
+    "jasmine-core": "^5.12.1",
+    "playwright": "^1.61.0"
+  }
+}

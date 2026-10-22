@@ -1,0 +1,17 @@
+.warnings
+  .github
+    = link_to 'GITHUB IS DOWN', 'http://status.github.com'
+  .heroku
+    = link_to 'HEROKU IS DOWN', 'http://status.heroku.com'
+  .rubygems
+    = link_to 'RUBYGEMS IS DOWN', 'http://status.rubygems.org'
+.loading-message
+  Loading Projects
+  %span.dot1> .
+  %span.dot2> .
+  %span.dot3> .
+.tiles
+:coffeescript
+  $ ->
+    new ProjectMonitor.Routers.HomeRouter()
+    Backbone.history.start({pushState: true})

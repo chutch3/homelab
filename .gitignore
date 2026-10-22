@@ -381,6 +381,36 @@ vite.config.ts.timestamp-*
 # Turbo Repo
 .turbo
 
+# Ruby / Rails
+# Keep Gemfile.lock, .ruby-version, and .ruby-gemset in version control.
+.bundle/
+vendor/bundle/
+vendor/cache/
+*.gem
+*.rbc
+.ruby-lsp/
+.yardoc/
+.sass-cache/
+.byebug_history
+.pry_history
+
+# Rails runtime files and compiled assets in vendored service applications.
+stacks/apps/*/app/log/*
+!stacks/apps/*/app/log/.gitignore
+!stacks/apps/*/app/log/.gitkeep
+!stacks/apps/*/app/log/.keep
+stacks/apps/*/app/tmp/*
+!stacks/apps/*/app/tmp/.gitignore
+!stacks/apps/*/app/tmp/.gitkeep
+!stacks/apps/*/app/tmp/.keep
+stacks/apps/*/app/public/assets/
+stacks/apps/*/app/public/packs/
+stacks/apps/*/app/public/packs-test/
+
+# Rails credential keys; encrypted credentials remain tracked.
+**/config/master.key
+**/config/credentials/*.key
+
 # Personal CAD projects are application data, not infrastructure source.
 /docs/server-shelf/
 *.FCStd

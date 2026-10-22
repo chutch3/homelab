@@ -1,0 +1,30 @@
+services:
+    database:
+        image: mariadb:10.11.14
+        environment:
+            MARIADB_DATABASE: projectmonitor_test
+            MARIADB_USER: projectmonitor
+            MARIADB_PASSWORD: projectmonitor-test-only
+            MARIADB_ROOT_PASSWORD: projectmonitor-test-root-only
+        tmpfs:
+            - /var/lib/mysql
+        healthcheck:
+            test: [CMD, healthcheck.sh, --connect, --innodb_initialized]
+            interval: 2s
+            timeout: 5s
+            retries: 60
+
+    tests:
+        build:
+            context: .
+            target: test
+        environment:
+            RAILS_ENV: test
+            DATABASE_HOST: database
+            DATABASE_USER: projectmonitor
+            DATABASE_NAME: projectmonitor_test
+            DATABASE_PASSWORD: projectmonitor-test-only
+        depends_on:
+            database:
+                condition: service_healthy
+        shm_size: 256mb

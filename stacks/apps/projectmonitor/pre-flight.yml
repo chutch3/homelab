@@ -1,0 +1,17 @@
+validate:
+  env:
+    - PROJECTMONITOR_DATABASE_PASSWORD
+    - PROJECTMONITOR_DATABASE_ROOT_PASSWORD
+    - PROJECTMONITOR_SECRET_KEY_BASE
+    - PROJECTMONITOR_PASSWORD_PEPPER
+  labels:
+    - { database: "true" }
+
+secrets:
+  - { name: projectmonitor_database_password, from_env: PROJECTMONITOR_DATABASE_PASSWORD }
+  - { name: projectmonitor_database_root_password, from_env: PROJECTMONITOR_DATABASE_ROOT_PASSWORD }
+  - { name: projectmonitor_secret_key_base, from_env: PROJECTMONITOR_SECRET_KEY_BASE }
+  - { name: projectmonitor_password_pepper, from_env: PROJECTMONITOR_PASSWORD_PEPPER }
+
+directories:
+  - { path: projectmonitor/database, owner: 999, group: 999 }

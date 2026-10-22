@@ -1,0 +1,50 @@
+/* Grid */
+$ninesixty-gutter-width: 12px;
+$ninesixty-fluid-gutter-width: 1%;
+$ninesixty-fluid-grid-width: 100%;
+$ninesixty-grid-width: 1896px;
+
+/* Variables */
+$transparent-white: transparentize(white, 0.25);
+
+$very-very-light-green: #d2e9dc;
+$very-light-green: #b9dcc8;
+$light-green: #a9d5bb;
+$green:  #93CDAD;
+$dark-green: #7cc39c;
+$very-dark-green: #67ae84;
+
+$very-very-light-red: #fdc3ac;
+$very-light-red: #f99e7f;
+$light-red: #f88b69;
+$red:  #f6704d;
+$dark-red: #f25e3e;
+$very-dark-red: #d5514b;
+
+$very-very-light-grey: #f1f4f0;
+$very-light-grey: #e7ede6;
+$light-grey: #e2e9e1;
+$grey:  #dbe3da;
+$dark-grey: #c9c9c9;
+$very-dark-grey: #bbbcb7;
+
+$disabled-grey: #7c7c79;
+
+$white: #ffffff;
+
+$very-light-yellow: #F9FF9D;
+$light-yellow: #EAF094;
+$yellow: #D1D684;
+$dark-yellow: #AEB36E;
+$very-dark-yellow: #A2954B;
+
+$blue: #99CBC6;
+$gray: #AAA499;
+$black: #000000;
+
+/* History Constants */
+$success-unicode-glyph: "\2022"; // unicode bullet
+$failure-unicode-glyph: "\00D7"; // unicode 'x'
+
+// Font
+$base-font-size: 13px;
