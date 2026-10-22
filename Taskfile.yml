@@ -281,6 +281,19 @@ tasks:
 
     # Stack names ride CLI_ARGS, ansible flags ride ARGS:
     #   task deploy ARGS="-e prune=false" -- paperless
+    logs:
+        desc: "Get the logs for a deployed stack — task logs -- paperless (omit for every stack)"
+        cmds:
+            - docker service logs {{.ARGS}} $(docker service ls --filter name={{.CLI_ARGS}} --format '{{"{{.Name}}"}}')
+        vars:
+            ARGS: '{{ .ARGS | default "--tail 100" }}'
+
+    logs:follow:
+        desc: "Follow the logs for a deployed stack — task logs:follow -- paperless (omit for every stack)"
+        cmds:
+            - task: logs
+              vars: { ARGS: "--follow --tail 100" }
+
     deploy:
         desc: "Deploy stacks — task deploy -- paperless (omit for every stack). Named stacks always deploy; what they need is ensured."
         env:
