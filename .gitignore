@@ -410,3 +410,9 @@ stacks/apps/*/app/public/packs-test/
 # Rails credential keys; encrypted credentials remain tracked.
 **/config/master.key
 **/config/credentials/*.key
+
+# Personal CAD projects are application data, not infrastructure source.
+/docs/server-shelf/
+*.FCStd
+*.FCStd[0-9]*
+*.FCBak

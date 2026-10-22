@@ -1,0 +1,8 @@
+validate:
+  env: [BASE_DOMAIN]
+
+# Provision on shared storage through the cluster-side preflight role.
+# Match LinuxServer's PUID/PGID and keep saved projects under its persistent home.
+directories:
+  - { path: freecad, owner: 1000, group: 1000 }
+  - { path: freecad/Projects, owner: 1000, group: 1000 }
