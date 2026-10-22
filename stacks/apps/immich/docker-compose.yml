@@ -15,7 +15,9 @@ services:
             DB_USERNAME: ${IMMICH_DB_USERNAME:-postgres}
             DB_PASSWORD: ${IMMICH_DB_PASSWORD}
             DB_DATABASE_NAME: ${IMMICH_DB_DATABASE_NAME:-immich}
-            REDIS_HOSTNAME: valkey
+            # Stack-qualified: the bare `valkey` alias is shared with searxng's
+            # valkey on traefik-public, so it resolves to both servers.
+            REDIS_HOSTNAME: immich_valkey
             TZ: ${TZ:-UTC}
             UPLOAD_LOCATION: /usr/src/app/upload
             # Authentik OIDC Configuration
