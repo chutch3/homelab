@@ -1,0 +1,32 @@
+language: ruby
+sudo: false
+cache: bundler
+
+branches:
+  only:
+    - master
+    - staging
+
+bundler_args: --without mysql development
+
+notifications:
+  email:
+    - common-effort@pivotallabs.com
+  webhooks:
+    urls:
+    - http://pulse.pivotallabs.com/projects/8b131d6e-a840-484a-8e95-fce826ec8a34/status
+    on_start: true
+rvm:
+  - 2.3.1
+
+cache:
+  bundler: true
+
+before_script:
+  - 'npm install phantomjs-prebuilt@2.1.7'
+  - "bundle exec rake travis:setup"
+  - "export DISPLAY=:99"
+  - "export PATH=node_modules/.bin/:$PATH"
+  - "sh -e /etc/init.d/xvfb start"
+
+script: "bundle exec rake travis"

@@ -1,0 +1,12 @@
+.bundle
+.git
+node_modules
+coverage
+log/*
+tmp/*
+public/assets
+config/settings.local.yml
+.env*
+config/auth.yml
+config/ci.yml
+**/*credentials*.yml

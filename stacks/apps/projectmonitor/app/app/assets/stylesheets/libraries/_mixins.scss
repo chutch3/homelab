@@ -1,0 +1,49 @@
+@mixin build_status($color) {
+  h1 {
+    @include linear-gradient(top, $color 90%, lighten($color, 10%) 10%);
+  }
+
+  aside {
+    background-color: lighten($color, 10%);
+  }
+  ol {
+    li {
+      background-color: lighten($color, 25%);
+    }
+  }
+}
+
+@mixin heavy_font {
+  font-family: 'Avenir LT W01 85 Heavy', Helvetica, sans-serif;
+  font-weight: normal;
+}
+
+@mixin medium_font {
+  font-family:'Avenir LT W01 65 Medium', Helvetica, sans-serif;
+  font-weight: normal;
+}
+
+@mixin roman_font {
+  font-family:'Avenir LT W01 55 Roman', Helvetica, sans-serif;
+  font-weight: normal;
+}
+
+@mixin light_font {
+  font-family: 'Avenir LT W01 35 Light', Helvetica, sans-serif;
+  font-weight: normal;
+}
+
+@mixin add-browser-prefixes($property,$value) {
+  -webkit-#{$property}:$value;
+     -moz-#{$property}:$value;
+      -ms-#{$property}:$value;
+       -o-#{$property}:$value;
+          #{$property}:$value;
+
+}
+
+@mixin striped-background($stripe1, $stripe2, $angle: -45deg, $size: 70px, $other-backgrounds: false) {
+  @include background-image(linear-gradient($angle, $stripe1 25%, $stripe2 25%, $stripe2 50%, $stripe1 50%, $stripe1 75%, $stripe2 75%, $stripe2), $other-backgrounds);
+  background-repeat: repeat;
+  background-size: #{$size}px #{$size}px;
+}

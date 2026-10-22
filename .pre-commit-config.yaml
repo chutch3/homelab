@@ -8,20 +8,26 @@ repos:
       rev: v6.0.0
       hooks:
           - id: trailing-whitespace
+            # Preserve the imported Rails source; compatibility changes are test-gated.
+            exclude: ^stacks/apps/projectmonitor/app/
           - id: end-of-file-fixer
+            exclude: ^stacks/apps/projectmonitor/app/
           - id: check-yaml
-            exclude: ^mkdocs\.yml$
+            exclude: ^(mkdocs\.yml$|stacks/apps/projectmonitor/app/(spec/|chef/|concourse/|\.travis\.yml$))
           - id: check-added-large-files
           - id: check-executables-have-shebangs
           - id: check-shebang-scripts-are-executable
           - id: detect-private-key
           - id: mixed-line-ending
             args: [--fix=lf]
+            exclude: ^stacks/apps/projectmonitor/app/
 
     - repo: https://github.com/adrienverge/yamllint.git
       rev: v1.37.1
       hooks:
           - id: yamllint
+            # Rails fixtures and configuration contain ERB, not standalone YAML.
+            exclude: ^stacks/apps/projectmonitor/app/
 
     - repo: https://github.com/AleksaC/hadolint-py
       rev: v2.14.0

@@ -1,0 +1,20 @@
+default: &default
+  adapter: mysql2
+  encoding: utf8mb4
+  host: <%= ENV.fetch('DATABASE_HOST', '127.0.0.1') %>
+  port: <%= ENV.fetch('DATABASE_PORT', '3306') %>
+  username: <%= ENV.fetch('DATABASE_USER', 'projectmonitor') %>
+  password: <%= ENV.fetch('DATABASE_PASSWORD', '').to_json %>
+  pool: <%= ENV.fetch('DATABASE_POOL', '10') %>
+
+development:
+  <<: *default
+  database: projectmonitor_development
+
+test:
+  <<: *default
+  database: projectmonitor_test
+
+production:
+  <<: *default
+  database: <%= ENV.fetch('DATABASE_NAME', 'projectmonitor') %>

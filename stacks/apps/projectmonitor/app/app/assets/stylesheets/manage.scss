@@ -1,0 +1,100 @@
+// Formerly of https://github.com/pivotal/pivotal-styles-sass
+$pivotal_red: #B90020;
+$pivotal_blue: #6D99D3;
+$pivotal_yellow: #C59E16;
+$pivotal_grey: #999999;
+$pivotal_dark_grey: #5D5C5C;
+$pivotal_font_family: ars-maquette-web, sans-serif;
+
+[colspan] {
+  text-align: center;
+}
+
+[colspan="1"] {
+  text-align: left;
+}
+
+[rowspan] {
+  vertical-align: middle;
+}
+
+[rowspan="1"] {
+  vertical-align: top;
+}
+
+.numerical {
+  text-align: right;
+}
+
+$brand_primary: $pivotal_blue;
+$brand_danger: $pivotal_red;
+$brand_info: lighten($brand_primary, 20%);
+$brand_warning: $pivotal_yellow;
+
+$state_danger_text: $pivotal_red;
+$state_success_text: #63AF64;
+
+$gray_light: $pivotal_grey;
+$grey_dark: $pivotal_dark_grey;
+$font_family_base: $pivotal_font_family;
+
+
+@import 'bootstrap';
+@import 'sections/autocomplete';
+
+.navbar-brand {
+  padding: 3px 15px;
+
+  a {
+    text-decoration: none;
+  }
+
+  img {
+    height: 45px;
+    margin-right: 15px;
+  }
+}
+
+.errorExplanation {
+  @extend .panel;
+  @extend .panel-danger;
+
+  h2 {
+    padding: 5px 20px;
+    margin: 0;
+    @extend .h4;
+    @extend .panel-heading;
+  }
+
+  p, ul {
+    margin: 10px 20px;
+    padding: 0;
+    @extend .panel-body;
+  }
+
+  ul {
+    margin-left: 40px;
+  }
+}
+
+table.projects {
+  thead tr {
+    border-bottom: 0px solid black;
+  }
+  th {
+    border-bottom: 0px solid black;
+  }
+  th, td {
+    padding: 2px 10px;
+  }
+  th:first-child, td:first-child {
+    padding-left: 0;
+  }
+}
+
+.button-link {
+  background: none;
+  border: none;
+  color: $pivotal_blue;
+  font-size: .8em;
+}

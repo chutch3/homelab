@@ -1,0 +1,325 @@
+{
+  "upstream": "2b85d1701007d832cbc4b49aa3c94cbacb076884",
+  "original": {
+    "app/models/cruise_control_project.rb": "f5bc9093305d1761a0610687818edeb3bea59d0e2b826ce58242a6b0394af14d",
+    "app/models/travis_project.rb": "e0444a00e669113ec3b70dba26c143e54dc5bd449536224ac5f45da1745f3e7a",
+    "app/models/tddium_project.rb": "6dcf45a187a60c9ff6898507d89fc14acaefbebef5e02da2889d767e34c4b28f",
+    "app/models/concourse_project.rb": "1c83be9e3d9896b7bfcedab2e088e75fbc0a9884e8f80c0bd57a6c3e47d6cfab",
+    "app/models/status_updater.rb": "82786c381f27c7a6ad890d033d0c88902392c4c2c68a07828638721e95383bea",
+    "app/models/team_city_project.rb": "2a307a49093757a657462734b2c11ac0ae2be57c4d2f96ab45978a5227487a31",
+    "app/models/jenkins_project.rb": "0e0e5dc3693163686ad8e7fbfe9119edd7603d5260e08bbd613764c694d13be0",
+    "app/models/volatility.rb": "5baadceaaf7f34c30c26b99dc46cd0aab31cafdff7eacc73cabbedb37eb16aa0",
+    "app/models/project_poller_helper.rb": "a1f3ff1627ecbe8d3df9bb10affe641f7cc11dfc73b83b1ccdbe7cd1f869229d",
+    "app/models/codeship_project.rb": "8420b55e52a0c822e79ce280ad91fe52bd446d285914854fa11436936edede30",
+    "app/models/project_status.rb": "a6074a3fc7b6026d8c1e7b6a793b434f2a83f9a43c5b5d3cbfd3a8891c117cef",
+    "app/models/circle_ci_project.rb": "633c0273197bea9bd249e1bac4b0bc61a95fc57879d4f3240714e0e9b4b739fd",
+    "app/models/semaphore_project.rb": "8f7f15f8dbd3e3ddeeddc28f4a6e4db46826992588c41984a3c336e5355a525d",
+    "app/models/user.rb": "31f3865d634425f936c92411ac125f00adc7a15004d18870174a15e6652d5cb3",
+    "app/models/payload_log_entry.rb": "6ef571e3e03d5544fd401d396c0ce44cdf2d1254e5bfb3f4303b63358be19e49",
+    "app/models/concourse_v1_project.rb": "b2e87e47181027927e9f324914691470d46ac84a93e7422622e8b992949e175c",
+    "app/models/aggregate_project.rb": "d17b7768b8ef68be148041dd2647d9475464d8eaac48c387aca8bceec45d8507",
+    "app/models/project.rb": "791ba1c301ad78c023cc4d43c65af434a792a003462bb8916c07fce8c147dc31",
+    "app/models/travis_pro_project.rb": "ed02ffb24a0c1f1ebd9c37e6b32183c6674bfa51f23bc860ffe2258937c0a4f0",
+    "app/models/team_city_rest_project.rb": "bea7d52173462623347c593aa53f162055154810ba57249148faf59019d41393",
+    "app/models/external_dependency.rb": "ffe5ab5bd42cfa1022de906ba54bee83355330dd485e8f6b0f402daa7c36e7a0",
+    "app/helpers/error_message_helper.rb": "bfbf868034972093d3babd46dd9339a1af75185457a3dbcc43ff9434749bd9e7",
+    "app/helpers/projects_helper.rb": "8f6cba52845f92c83bbcc5c01c5f986e635e9f50c6b466909464bd7c47de3759",
+    "app/helpers/project_monitor_helper.rb": "9ee233d56f20d7d77d0f26c1c63b5e42b6b75eaea6e998b73e2c2a4f9cf44a01",
+    "app/decorators/travis_project_decorator.rb": "355710f71b48cb9aacf4030e746e3fba88ef680cc86f2c55d202fb4abcef4836",
+    "app/decorators/circle_ci_project_decorator.rb": "a5279b60757e7d108ce1e878d28076bc5372bf4b784d88ecbaf04f5683a0775b",
+    "app/decorators/team_city_rest_project_decorator.rb": "931e7b569d2e7f4045de0f0a5fcb4a8dd876be57d0ba00ec7dc4a5b483dc408e",
+    "app/decorators/concourse_v1_project_decorator.rb": "8d1fd1f36349ecf56754fea5b900cf36b483abd89a67cd16653fd55baacea186",
+    "app/decorators/cruise_control_project_decorator.rb": "8a235bbde449ada5cb3ac2d56b4bba9bb028ac53d9e9569e21afc7f4e99bfc97",
+    "app/decorators/tddium_project_decorator.rb": "4f20a809e4a122ec1691bc5d4ac18d54a4752867f6a489278d121d566785cd23",
+    "app/decorators/jenkins_project_decorator.rb": "b779c24193c8c0db08f659f684591cd7b63f34b6c1f85b3848d513b41c000795",
+    "app/decorators/concourse_project_decorator.rb": "7dc5768de0c0cfdf6514a80574470bf263a137db0cfe9a15f07d9ac8c43c922c",
+    "app/decorators/semaphore_project_decorator.rb": "c3107f2b9e9f4051fd7ca1078236bf9bd35057476f480cf65ab63628269592c7",
+    "app/decorators/codeship_project_decorator.rb": "7fa4223d5b0fab1f9d2e2a1326b279fd1d272d2be4536f94b774142b606bedcd",
+    "app/decorators/team_city_project_decorator.rb": "4aebd21ed30084188f883466ea05c19b695a97a6ddeb4c8087992d3f95ebcdd5",
+    "app/decorators/project_decorator.rb": "a4970ea9c65cbbe999b05c7bb999069f23ec448a085d51f6d596c9fce6ad5d7b",
+    "app/decorators/travis_pro_project_decorator.rb": "27023d77fb7091d6757568effcdbce05e31542bfcdf60d3b947093b4885d4f4f",
+    "app/decorators/aggregate_project_decorator.rb": "7d86e53dd3706c55d65992106ea54ec5a9c25b374d14e4c877d72a244f98fcdd",
+    "app/controllers/status_controller.rb": "c5f67bf5d4590653d735aae2c10192f7e169d2ea7d788b6bddeeda565b27353f",
+    "app/controllers/versions_controller.rb": "33ef1e7bef1d1cb5fea26e35d05eef3d6c491e2890da77bd04d3d29d74f67606",
+    "app/controllers/users_controller.rb": "8df39415c11087b25d1321775fc40853a5a43ad87329cb6881692908ba89d4cb",
+    "app/controllers/home_controller.rb": "234795d73c6480922a861712d740600c7619800a8a47cfc57f77764967c24ef5",
+    "app/controllers/aggregate_projects_controller.rb": "1416a3818668b4b2fd235d4f509f42be8bf88897a42f9c643d6ffa8c88306ffd",
+    "app/controllers/projects_controller.rb": "374b9d3f5fcb9c085155a107a0861e1c797e2c6c8351b2f7f3e7f17845e368ba",
+    "app/controllers/application_controller.rb": "2e85f34d0ac915aca7685a3ea5cfa586542ba8804fe61c015db2126795fdede5",
+    "app/controllers/payload_log_entries_controller.rb": "44e5c36da1ecce8b015c5753b86abc87bc202130c49332bf8d584fc5a7beed3c",
+    "app/controllers/omniauth_callbacks_controller.rb": "30e83d3c4367d0865b629d5173a5fba8807e4c1d44d97419a568c4af5d452266",
+    "app/controllers/sessions_controller.rb": "8184f4f54606276de472265e2c4b61f8e993e8129113d69f12d27796e638b2ae",
+    "app/controllers/configuration_controller.rb": "722763b652328690b7fe2429f2d8acb30c5ee8238e22b332a6aedfd7429af9b0",
+    "app/models/project/state.rb": "0ba66662e8f4b9f920f51763f10e8bb880e463bd01575e06ff8cd7ac48460e7b",
+    "lib/tracker_histogram.rb": "b676a4b59e6fc4dc0d89b20025b3baf27c65c9b1454073cca48ba7e09095fd00",
+    "lib/tracker_api.rb": "032a16fc202226a37eb729eab492190778e7c6ea1d28a5a6a14726fdac9b3cf4",
+    "lib/payload_processor.rb": "506c6e9c95d65ada21db480823658f1d4b0e1cc4b899c2cc749b04beb41fecd8",
+    "lib/batch_job_runner.rb": "d7a96946fbf5cb06bddb517e19477aea506021ce7a70ee217a767f961bcaf2be",
+    "lib/tracker_project_strategy.rb": "e0298694aae276c258828228cda3c1adce0f5213ccd4dbdac29598b67ef1bcdf",
+    "lib/payload.rb": "1c8e67d1e80a62814f259f9263a059059fdabdc74a7583b609d112ce36756326",
+    "lib/cf_authenticator.rb": "6279d4dee95918b01f27e395935aa71b672940cc885d4fecfc8166bc28f3edac",
+    "lib/build_history.rb": "5f4b92ea7c996f43e5334e37b5d4131641b4a94c7391783788d91571e932787c",
+    "lib/ip_whitelisted_controller.rb": "d01f9d34d98ec4dc9ff76033100b5f95a273b56a855270a57ade80dbe853dfe5",
+    "lib/config_export.rb": "b889d90defb92c50a9170ebadb375b3736b7bd329f0c151a29941b2acedeba22",
+    "lib/concourse_project_strategy.rb": "a3daeac42ee966f8c5baf4b44c6b8f4181d6237046d5579647773bef11b63a65",
+    "lib/cf_deploy.rb": "d0802c2e2631b4a224c7784a2c8df99bd0ce6a919544a740f4828026ea90e57f",
+    "lib/net_http_builder.rb": "762a1e8ef99243f5c63b22ca70c90f65e485da5bc9be9990d8868a229e600c99",
+    "lib/historical_build.rb": "9522c40b83558130956ff31d89ede1efad771ac0c26e9c731f5bedb590dc3c9a",
+    "lib/project_workload_handler.rb": "f11cca8bb34a9850e17c3a9e73c2156a7f2a4cabbe978209b56dad1acef1467a",
+    "lib/tracker_histogram_bar.rb": "c64323c497c87dd458d966eb435ac48f3f1af8075c1a8603e07242f43cdf1f16",
+    "lib/project_polling_scheduler.rb": "97b771dac02287fb67a745197f6807160a6d18750a487718d04311ff2c0174b2",
+    "lib/remove_unused_tags.rb": "e49d04df243ef4e002e7e420aa4e0eb3fa483f9c4f9c7d2107244a4baa62dd0b",
+    "lib/tracker_project_validator.rb": "833d8da11beccded43a839cd98d160d8000bdd8f228b7510b73085b922565dc3",
+    "lib/asynchronous_http_requester.rb": "2c7efba57b0f3fe943fe4daf9acac1520fde659a8fe93bc7efdee722137bee67",
+    "lib/trim_payload_log_entries.rb": "50e2196e3d1b0fc68af19b474e2d4e26b1b4c34bdeb760037b2e0195bf019a92",
+    "lib/poll_state.rb": "d693cd49b890989134607882fbfd4693d43a7b46531c039fe932d1bcd8db3851",
+    "lib/project_statuses_trimmer.rb": "5d1346dac8a964a2820505cc71d308c857734998ca06e91828f6a6c2e1dc760b",
+    "lib/project_tracker_workload_handler.rb": "ef32f56b9ce958b1683ede4fcc130414124efe6250882288f4d7bafe248f5dfd",
+    "lib/synchronous_http_requester.rb": "e80143cc82cc3e2fe85e8fedc1a06df281bd33caaff75a31d2398b12c4b5eaa6",
+    "lib/project_poller.rb": "ddc518aa159638bdee4789882ad38d3d3a01bd4e74798f46717b1c5831c27834",
+    "lib/tracker_payload_parser.rb": "b06c6b2c800e57d44ed519317e3c5df4b3adacd3e8c5f3faeb99b196c9de8bb5",
+    "lib/job_runner.rb": "6a00fdb849f5f07394391653c20e175d39eb91aac9685050ac009ef592855524",
+    "lib/ci_polling_strategy.rb": "0dbf1c106e457476c095be9ab3f7ed782823a6299a087454d65427cad185a7fd",
+    "lib/cf_git_tagger.rb": "beabd91c35800ef14e223a8762c8651da678bbe520ecf82a1c8501e6df7ac60b",
+    "lib/concourse_authenticator.rb": "5c1cd4a53f6b6ba0bf069e0c88d20be4c371285cb6e2f753d776743c92529414",
+    "lib/project_polling_strategy_factory.rb": "1d706c64f912cb73337cd739504d64e7a085b4e501a74b892560b0eacc366057",
+    "lib/project_updater.rb": "cc6f49105fc942d281bb6a52990a3478981ae2ff13287f1435a18d36f812f91c",
+    "lib/poller_workload.rb": "4f98026c082b4f00658f51e47efa1348ac59cddd9e5042bb4ebc4016aef65545",
+    "lib/payload/tddium_payload.rb": "75b148a4c8f2789ec08f1f66986a340d01a49fbf91089a766cbb51583becf631",
+    "lib/payload/travis_json_payload.rb": "4d0a70c01ed5c1e63d600357a907415e1010e6b4ae5a8f6c2718bfe9221801fd",
+    "lib/payload/legacy_team_city_xml_payload.rb": "34853ae9e60de0de8045200d61b29339ffcc77bd58e73b6992054c3460900c51",
+    "lib/payload/team_city_json_payload.rb": "f06cb7ab1db7db20f5005f2edb50e09c777f3d5d74fa67cbbd3c77c9d2a94fbf",
+    "lib/payload/cruise_control_xml_payload.rb": "c70bea279c78ab71c169716bdd63add7d016dfe2d17e154ae71ede914db349fe",
+    "lib/payload/team_city_xml_payload.rb": "220387218c0bcfaa60aa3cda8d8de473dae5f1c1520296c9a7f04e47bba9d571",
+    "lib/payload/concourse_payload.rb": "8825477fa34f724518a6ad3da24c468df889205cb692d306657addcd16e49630",
+    "lib/payload/codeship_payload.rb": "1b93eebef92c65a42ff1f1a76f6d8df19b469b99f784a1d7d8c08af9c36e6cb6",
+    "lib/payload/semaphore_payload.rb": "28393b33ff8cd1e055149a00a687cc367b297d1cedc3a3b11205c6d11a541748",
+    "lib/payload/jenkins_xml_payload.rb": "30ef1ec56f964f69b77e88941e1a70470faf7affaadac7ec86164ec0105c9cf4",
+    "lib/payload/circle_ci_payload.rb": "21ba8b4a6561b542d1f264a80123f50a3fbba4b29edbc9f57e4ca9ba0143b0af",
+    "lib/payload/jenkins_json_payload.rb": "5080f0bff89cd77ebb3cfa07b97a930f49ffbef0d6bf11968f4c6370c2096682",
+    "lib/devise/encryptors/legacy.rb": "a000aa10f31023ce5a4239b3aec5c0ec229cd904ce7c3dcdfc4f7dc4ad4d27a4"
+  },
+  "changes": {
+    "app/controllers/aggregate_projects_controller.rb": {
+      "sha256": "2f4fb2f4866c6c121d0590bb4af99ff56ded2ac75e57d14ad5ee0e0c5e368e97",
+      "lines": [
+        2,
+        3,
+        29
+      ]
+    },
+    "app/controllers/configuration_controller.rb": {
+      "sha256": "109636bf01eb5ec5c7d94cd4d1c3e20d733d22057d71bd4b490a42a1ea355a70",
+      "lines": [
+        2,
+        10
+      ]
+    },
+    "app/controllers/home_controller.rb": {
+      "sha256": "c4d4d944548d107f4fb0cfbf98118bfd6771baeb8f078d5f8094f3a99cb06e00",
+      "lines": [
+        4
+      ]
+    },
+    "app/controllers/projects_controller.rb": {
+      "sha256": "1ab69d628c8724ba3eb4c9622929ec54237436b85d42f9498b113d7b693a87db",
+      "lines": [
+        2,
+        3,
+        4,
+        58
+      ]
+    },
+    "app/controllers/status_controller.rb": {
+      "sha256": "9b05c0573d8c8ba597cd1b558925b8272c49cb20c16ed4d803c158050b2823d8",
+      "lines": [
+        2,
+        41
+      ]
+    },
+    "app/controllers/users_controller.rb": {
+      "sha256": "3b679f28834dcf8e0fbdbb8024ac7e06ac8fed71597c87a92777b2a9d62dd18e",
+      "lines": [
+        2
+      ]
+    },
+    "app/controllers/versions_controller.rb": {
+      "sha256": "b9ea9c9ead943e42a2d99e35dd8ef35c598156ea9e351cc3ecba567ef4b41320",
+      "lines": [
+        2,
+        8,
+        18
+      ]
+    },
+    "app/models/aggregate_project.rb": {
+      "sha256": "205ba90943440143d6c2219e8b23a32793c0e832d6c732f109af81457e957a6e",
+      "lines": [
+        7
+      ]
+    },
+    "app/models/circle_ci_project.rb": {
+      "sha256": "11c7b72e4e36a1dad406e33856c86ef24689e81e61fd9ba2a5a3919d2144b56a",
+      "lines": [
+        5,
+        6,
+        7
+      ]
+    },
+    "app/models/concourse_project.rb": {
+      "sha256": "c1f9dc584d9719c8501b907c5ddc6429f85cc85a6397ca5a166e247bda38a6d2",
+      "lines": [
+        5,
+        6,
+        7
+      ]
+    },
+    "app/models/concourse_v1_project.rb": {
+      "sha256": "b64789ddc257f79eb15817cfee4ee7c8e61cc36b7329d47a1090ebad4121bc1f",
+      "lines": [
+        5,
+        6,
+        7
+      ]
+    },
+    "app/models/project.rb": {
+      "sha256": "d0499aa1f3267e9bb8a3a6f7ea98b78b39835354b4307b2f277726d606398e1b",
+      "lines": [
+        19,
+        20,
+        21,
+        25
+      ]
+    },
+    "app/models/semaphore_project.rb": {
+      "sha256": "d4c9fccee284f9a34ab8e92bbd4afd486c3a98178d319e2841907dc19e851c84",
+      "lines": [
+        6,
+        7,
+        8
+      ]
+    },
+    "app/models/status_updater.rb": {
+      "sha256": "388f5071187619e18abcb8ae51cd1dc6bff2ed506657f0723f3802c661ec5821",
+      "lines": [
+        14
+      ]
+    },
+    "app/models/tddium_project.rb": {
+      "sha256": "d238635c6ae5585e75dfd6646678a260cedf196d8c6db1d8d9723f07647f695c",
+      "lines": [
+        5,
+        6,
+        7
+      ]
+    },
+    "app/models/team_city_project.rb": {
+      "sha256": "b84b0a4484dfdb8564c402c9f9e8d4a723ce06ce96b980010e4cdc3ccc763de0",
+      "lines": [
+        6,
+        7,
+        8,
+        9,
+        10,
+        11
+      ]
+    },
+    "app/models/team_city_rest_project.rb": {
+      "sha256": "d69b4ab55e90e7f0d099632169141a4f2c105d32751f3b526c8fa182ace36fb0",
+      "lines": [
+        5,
+        6,
+        7,
+        8,
+        9,
+        10
+      ]
+    },
+    "app/models/travis_project.rb": {
+      "sha256": "664e5a4c238c8581c463c03d9c39e6d072af9e9e872d0401708327ec874c6e54",
+      "lines": [
+        7,
+        8,
+        9
+      ]
+    },
+    "app/models/user.rb": {
+      "sha256": "2889f6a550922f60a37e9733ce922cec019fa87d9e4ec10334d28cc27e1b1155",
+      "lines": [
+        10,
+        12
+      ]
+    },
+    "config/settings_loader.rb": {
+      "sha256": "54226109709b272a92f503741539046af1a433049e6d07e435c460c7b18c23bd",
+      "lines": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+        17,
+        18
+      ]
+    },
+    "docker/wait-for-database.rb": {
+      "sha256": "08c113bfe66f71119ab51de3bb88a12f61b7db9baf1627d5ed046568108b4bf8",
+      "lines": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+        17,
+        18,
+        19,
+        20,
+        21,
+        22,
+        23,
+        24,
+        25
+      ]
+    },
+    "lib/config_export.rb": {
+      "sha256": "fbd3d6910a714dd2bf88d7f9edf4eeb7bd2efe67fdcaacdffdc719fb4ec6c9ea",
+      "lines": [
+        45
+      ]
+    },
+    "lib/ip_whitelisted_controller.rb": {
+      "sha256": "b1b98db4d37d2434c91d89cec7f9aafccab9b70d1a28990aed7e69e838a538ec",
+      "lines": [
+        9,
+        10
+      ]
+    },
+    "lib/payload/travis_json_payload.rb": {
+      "sha256": "38c0623d17cf9de3fcd6c29520ffcf11c58458232e4eed5f74cd8ff93472692d",
+      "lines": [
+        30
+      ]
+    }
+  }
+}

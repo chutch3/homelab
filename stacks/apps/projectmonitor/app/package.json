@@ -1,0 +1,9 @@
+{
+  "name": "projectmonitor-browser-tests",
+  "private": true,
+  "scripts": { "test:javascript": "node script/test-javascript.mjs" },
+  "devDependencies": {
+    "jasmine-core": "^5.12.1",
+    "playwright": "^1.61.0"
+  }
+}

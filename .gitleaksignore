@@ -1,2 +1,7 @@
 # Only reviewed finding fingerprints belong here, not file paths.
 # Format: path:rule-id:line or commit:path:rule-id:line.
+
+# SHA-256 source hashes in the Project Monitor changed-line coverage manifest.
+stacks/apps/projectmonitor/app/script/compatibility-coverage.json:generic-api-key:55
+stacks/apps/projectmonitor/app/script/compatibility-coverage.json:generic-api-key:60
+stacks/apps/projectmonitor/app/script/compatibility-coverage.json:generic-api-key:84
