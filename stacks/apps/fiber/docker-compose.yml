@@ -35,6 +35,7 @@ services:
             - romm_db_password
             - nextcloud_db_password
             - paperless_db_password
+            - disktracker_db_password
         deploy:
             replicas: 1
             placement:
@@ -92,6 +93,8 @@ secrets:
     nextcloud_db_password:
         external: true
     paperless_db_password:
+        external: true
+    disktracker_db_password:
         external: true
 
 volumes:
