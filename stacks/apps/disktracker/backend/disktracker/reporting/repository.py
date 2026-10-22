@@ -94,7 +94,7 @@ class ReportingRepository:
                 .order_by(facts.c.title, facts.c.id)
             ).all()
             windows = self.offers.prices_since(session, [offer.id for offer in offers], since)
-            return [(offer.condition, windows[str(offer.id)], offer.checked) for offer in offers]
+            return [(offer.condition, windows[offer.id], offer.checked) for offer in offers]
 
     def drive_inventory(self, query: InventoryQuery, now: datetime) -> dict[str, Any]:
         """Every drive, those with no offer and those with held offers too, that the words match
@@ -231,7 +231,7 @@ class ReportingRepository:
                 offer["id"]: offer
                 for offer in self.offers.summaries(session, select(Offer).where(Offer.id.in_(ids)))
             }
-            return [found[str(offer_id)] for offer_id in ids]
+            return [found[offer_id] for offer_id in ids]
 
     def market(self, query: MarketQuery, now: datetime) -> MarketRead:
         """The drives with an offer that matches, a page of them, each shown by its cheapest
@@ -327,9 +327,9 @@ class ReportingRepository:
             )
             listed = []
             for row in page:
-                offer = shown_offers[str(row.id)]
+                offer = shown_offers[row.id]
                 drawn_from = [
-                    (windows[str(kin_offer.id)], kin_offer.checked)
+                    (windows[kin_offer.id], kin_offer.checked)
                     for kin_offer in kin
                     if (kin_offer.drive_id, kin_offer.condition) == (row.drive_id, row.condition)
                 ]

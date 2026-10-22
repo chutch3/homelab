@@ -134,5 +134,5 @@ def test_the_queue_is_read_with_the_drive_each_items_mpn_names(
 
     items, total = subject.items(None, None, 50, 0)
 
-    assert [item["drive"] for item in items] == [{"id": str(DRIVE), "mpn": "ST18000NM000J"}, None]
+    assert [item["drive"] for item in items] == [{"id": DRIVE, "mpn": "ST18000NM000J"}, None]
     assert total == 2

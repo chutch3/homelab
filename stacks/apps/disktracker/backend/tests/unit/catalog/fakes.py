@@ -121,7 +121,7 @@ class FakeDrives(Asked):
     def view(self, session: Any, drive_id: UUID) -> dict[str, Any]:
         if drive_id not in self.drives:
             raise DriveNotFound()
-        return {"id": str(drive_id), "mpn": self.drives[drive_id]["mpn"]}
+        return {"id": drive_id, "mpn": self.drives[drive_id]["mpn"]}
 
     def views(self, session: Any, drive_ids: Any) -> dict[UUID, dict[str, Any]]:
         return {drive_id: self.view(session, drive_id) for drive_id in drive_ids}

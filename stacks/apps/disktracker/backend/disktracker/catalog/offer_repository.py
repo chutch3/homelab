@@ -307,8 +307,7 @@ class OfferRepository:
             .offset(offset)
         ).tuples()
         items = [
-            {**price_view(price, capacity), "offer_id": str(price.offer_id)}
-            for price, capacity in found
+            {**price_view(price, capacity), "offer_id": price.offer_id} for price, capacity in found
         ]
         return items, total
 
@@ -329,9 +328,9 @@ class OfferRepository:
 
     def prices_since(
         self, session: Session, offer_ids: Sequence[UUID], since: datetime
-    ) -> dict[str, list[dict[str, Any]]]:
+    ) -> dict[UUID, list[dict[str, Any]]]:
         """The prices of these offers in effect from a moment on, oldest first, by offer."""
-        found: dict[str, list[dict[str, Any]]] = {str(offer_id): [] for offer_id in offer_ids}
+        found: dict[UUID, list[dict[str, Any]]] = {offer_id: [] for offer_id in offer_ids}
         if not offer_ids:
             return found
         for price in session.scalars(
@@ -342,7 +341,7 @@ class OfferRepository:
             )
             .order_by(Price.observed_at, Price.entered_at, Price.id)
         ):
-            found[str(price.offer_id)].append(columns(price))
+            found[price.offer_id].append(columns(price))
         return found
 
 

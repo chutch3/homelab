@@ -123,7 +123,7 @@ class TestFind:
         found = subject.find(DriveLookup(mpn="aaa1"))
 
         assert found == {
-            "items": [{"drive": {"id": str(TARGET), "mpn": "AAA1"}, "title": "Title of AAA1"}],
+            "items": [{"drive": {"id": TARGET, "mpn": "AAA1"}, "title": "Title of AAA1"}],
             "total": 1, "limit": 50, "offset": 0,
         }  # fmt: skip
 
