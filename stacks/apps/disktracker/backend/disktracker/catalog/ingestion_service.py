@@ -73,16 +73,24 @@ class IngestionService:
         with self.snapshot_factory() as session:
             decided = self.reviews.decision_for(session, listing)
             identity = as_decided(_said(listing), decided)
-            known = self._known(session, identity, aliases)
+            known = self._known(session, identity, aliases, hold=False)
             return judged(seen, identity, decided, known)
 
     def _known(
-        self, session: Session, identity: dict[str, Any] | None, aliases: list[str]
+        self,
+        session: Session,
+        identity: dict[str, Any] | None,
+        aliases: list[str],
+        *,
+        hold: bool,
     ) -> Known:
         """What disktracker knows of the drive a page's offer is identified as: what the
-        judgement of it reads (catalog.acceptance.Known)."""
+        judgement of it reads (catalog.acceptance.Known). Held, the drive is held against other
+        changes before anything of it is read, so what is judged is what is written to."""
         mpn = None if identity is None else identity["mpn"]
         drive = None if mpn is None else self.drives.owner_of(session, mpn)
+        if hold and drive is not None:
+            self.drives.lock_drives(session, [drive])
         owners = {
             alias: owner
             for alias in dict.fromkeys(aliases)
@@ -105,7 +113,7 @@ class IngestionService:
             return {"status": "ignored"}
         # Every MPN this may touch, before any row: the drive's, and the others its page gives.
         self.drives.hold(session, [identity["mpn"], *entry.aliases])
-        known = self._known(session, identity, entry.aliases)
+        known = self._known(session, identity, entry.aliases, hold=True)
         seen = Seen(entry.title, entry.capacity_gb, tuple(entry.aliases), entry.in_stock)
         verdict = judged(seen, identity, decided, known)
         if verdict.outcome == "ignored":

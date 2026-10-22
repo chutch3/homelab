@@ -13,6 +13,7 @@ from uuid import uuid4
 
 from fastapi.testclient import TestClient
 from sqlalchemy import Engine, create_engine, event, text
+from sqlalchemy.exc import OperationalError
 from test_api import (
     entered,
     followed_drives,
@@ -353,3 +354,46 @@ def test_a_review_decision_and_a_page_collected_again_at_once_both_finish(
             results = [answer.result() for answer in answers]
 
     assert [result.status_code for result in results] == [200, 202], [r.text for r in results]
+
+
+def test_a_drive_corrected_as_a_page_of_it_is_taken_in_never_takes_a_price_it_contradicts(
+    database_url: str,
+) -> None:
+    """The page says 18 TB of a drive recorded at 18 TB; a person corrects the drive to 20 TB
+    the moment before taking it in holds the drive. Whichever goes first, the page is never
+    recorded as a drive of a capacity it contradicts: taken in as 18 TB before the correction,
+    or waiting for review after it."""
+    elsewhere = create_engine(database_url)
+    corrected: list[bool] = []
+
+    def correct(connection: Any, cursor: Any, statement: str, *_: Any) -> None:
+        locking_drive = "FROM drives" in statement and "FOR UPDATE" in statement
+        if corrected or not locking_drive or connection.engine is elsewhere:
+            return
+        try:
+            with elsewhere.begin() as other:
+                # Waiting no longer than a moment for a drive another operation holds.
+                other.execute(text("SET LOCAL lock_timeout = '500ms'"))
+                other.execute(
+                    text("UPDATE drives SET capacity_gb = 20000 WHERE mpn = 'ST18000NM000J'")
+                )
+            corrected.append(True)
+        except OperationalError:
+            corrected.append(False)
+
+    with TestClient(create_app()) as client:
+        post(client, "/api/drives", {"mpn": "ST18000NM000J", "capacity_gb": 18000})
+        event.listen(Engine, "before_cursor_execute", correct)
+        try:
+            taken = post(client, "/api/ingestions", scraped_payload())
+        finally:
+            event.remove(Engine, "before_cursor_execute", correct)
+        [capacity] = run_sql(database_url, "SELECT capacity_gb FROM drives")
+    elsewhere.dispose()
+
+    assert taken.status_code in (201, 202), taken.text
+    if corrected == [True]:
+        # The correction came first: the page contradicts the drive.
+        assert (taken.json()["status"], capacity[0]) == ("queued", 20000)
+    else:
+        assert (taken.json()["status"], capacity[0]) == ("recorded", 18000)
