@@ -13,6 +13,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy.sql import Select
 
 from disktracker.catalog.models import Offer, ReviewItem, ScrapedMatch
+from disktracker.collection.lifecycle import RESTARTED, SUPERSEDED, abandoned, applies, same_start
 from disktracker.collection.models import (
     CONTACT,
     CollectorContact,
@@ -21,7 +22,6 @@ from disktracker.collection.models import (
 )
 from disktracker.database import SessionFactory, columns
 from disktracker.errors import (
-    RunConflict,
     RunNotFound,
     SourceExists,
     SourceKept,
@@ -32,10 +32,6 @@ from disktracker.errors import (
 # A source as kept, with when its last run started (None: never).
 Sourced = tuple[dict[str, Any], datetime | None]
 
-
-# Why a run marked running was abandoned: what disktracker can tell of it.
-RESTARTED = "The collector restarted, or stopped working on it, before it ended."
-SUPERSEDED = "A newer run of this store started before it ended."
 
 ZERO = dict.fromkeys(
     ("seen", "recorded", "queued", "ignored", "failed", "rechecked", "recheck_failed"), 0
@@ -125,8 +121,7 @@ class CollectionRepository:
             )
             run = session.get_one(CollectorRun, values["id"])
             if created is None:
-                if (run.source, run.started_at) != (values["source"], values["started_at"]):
-                    raise RunConflict("This run id was used for another run.")
+                same_start(columns(run), values)
                 return run_view(columns(run), source.stop_requested_at), False
             session.execute(
                 update(CollectorRun)
@@ -135,7 +130,7 @@ class CollectionRepository:
                     CollectorRun.status == "running",
                     CollectorRun.id != run.id,
                 )
-                .values(status="abandoned", updated_at=now, finished_at=now, reason=SUPERSEDED)
+                .values(**abandoned(SUPERSEDED, now))
             )
             session.commit()
             return run_view(columns(run), source.stop_requested_at), True
@@ -149,11 +144,8 @@ class CollectionRepository:
             ).first()
             if run is None:
                 raise RunNotFound()
-            if run.status != "running":
-                kept = {key: getattr(run, key) for key in values}
-                if kept != values:
-                    raise RunConflict(f"This run has already ended: {run.status}.")
-            else:
+            kept = {key: getattr(run, key) for key in values}
+            if applies(run.status, kept, values):
                 for key, value in values.items():
                     setattr(run, key, value)
                 run.updated_at = now
@@ -170,7 +162,7 @@ class CollectionRepository:
             session.execute(
                 update(CollectorRun)
                 .where(CollectorRun.status == "running", CollectorRun.id.not_in(runs))
-                .values(status="abandoned", updated_at=now, finished_at=now, reason=RESTARTED)
+                .values(**abandoned(RESTARTED, now))
             )
             session.commit()
 
