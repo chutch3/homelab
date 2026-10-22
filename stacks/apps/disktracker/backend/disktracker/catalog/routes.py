@@ -7,8 +7,6 @@ from uuid import UUID
 from dependency_injector.wiring import Provide, inject
 from fastapi import APIRouter, Body, Depends, Header, Query
 from fastapi.responses import Response
-from listing_text.listing import read_listing
-from listing_text.readers import condition_rules
 
 from disktracker.catalog.condition_rule_service import ConditionRuleService
 from disktracker.catalog.drive_service import DriveService
@@ -431,8 +429,7 @@ def delete_price(offers: Offers, price_id: UUID) -> None:
 def read_listing_text(rules: Rules, entry: ListingText) -> dict[str, object]:
     """Extract MPN, capacity, condition, brand and price from pasted text using the current
     condition rules. Missing facts are null. This operation saves nothing."""
-    conditions = condition_rules((rule["pattern"], rule["condition"]) for rule in rules.all())
-    return read_listing(entry.text, conditions)._asdict()
+    return rules.read_listing(entry.text)
 
 
 @router.get(
