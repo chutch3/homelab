@@ -85,3 +85,9 @@
     - dns_pihole_session_id is defined
     - dns_discovered_domains is defined
     - dns_discovered_domains | length > 0
+
+# The removals above are what get NXDOMAIN cached; drop it so a later
+# redeploy of this stack resolves without a manual flush.
+- name: Flush the negative DNS cache
+  ansible.builtin.include_tasks: flush-cache.yml
+  when: dns_discovered_domains is defined and dns_discovered_domains | length > 0
