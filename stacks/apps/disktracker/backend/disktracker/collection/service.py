@@ -2,6 +2,7 @@
 collecting them, and trying a store before it is collected. It applies what each request means
 and asks the repositories for whole operations; it never opens a session or commits."""
 
+import re
 from collections.abc import Callable
 from datetime import datetime
 from typing import Any, cast
@@ -11,7 +12,7 @@ from croniter import croniter
 
 from disktracker.catalog.condition_rule_service import ConditionRuleService
 from disktracker.catalog.drive_service import DriveService
-from disktracker.catalog.rules import normalize_mpn, preview_verdict, source_key
+from disktracker.catalog.rules import normalize_mpn, preview_verdict
 from disktracker.collection.client import CollectorClient
 from disktracker.collection.repository import CollectionRepository, Sourced
 from disktracker.collection.schemas import (
@@ -40,6 +41,12 @@ def due_at(source: dict[str, Any], last_started: datetime | None, now: datetime)
     if last_started is None:
         return now
     return cast(datetime, croniter(source["schedule"], last_started).get_next(datetime))
+
+
+def source_key(name: str) -> str:
+    """What a source's offers, prices and runs are recorded under: its name's letters and
+    digits, in lower case."""
+    return re.sub(r"[^a-z0-9]", "", name.lower())
 
 
 class CollectionService:

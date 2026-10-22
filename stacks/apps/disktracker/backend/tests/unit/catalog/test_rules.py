@@ -18,13 +18,11 @@ from disktracker.catalog.rules import (
     fill_unknown,
     merged_drive,
     missing_detail,
-    new_aliases,
     normalize_mpn,
     preview_verdict,
     queue_reason,
     queued_fields,
     replayed,
-    source_key,
     unchanged,
     with_carried_price,
 )
@@ -99,12 +97,6 @@ def test_the_mpn_is_reported_before_the_condition() -> None:
 )
 def test_queue_reason_for_a_price_that_could_not_be_recorded(error: Exception, reason: str) -> None:
     assert queue_reason(error) == reason
-
-
-def test_new_aliases_skips_the_drives_own_mpn_and_existing_aliases() -> None:
-    assert new_aliases(
-        ["WUH721816AL5205", "0HNHWC", "0F38376", "0HNHWC"], "WUH721816AL5205", ["0F38376"]
-    ) == ["0HNHWC"]
 
 
 def test_found_specifications_fill_only_what_is_still_unknown() -> None:
@@ -232,14 +224,6 @@ def test_the_verdict_says_what_recording_the_offer_would_do(
     offer: dict[str, Any], known: int | None, verdict: tuple[str, str | None]
 ) -> None:
     assert preview_verdict(offer, known) == verdict
-
-
-@pytest.mark.parametrize(
-    ("name", "key"),
-    [("ServerPartDeals", "serverpartdeals"), ("Server Orbit", "serverorbit"), ("B&H 2", "bh2")],
-)
-def test_a_sources_key_is_its_names_letters_and_digits_in_lower_case(name: str, key: str) -> None:
-    assert source_key(name) == key
 
 
 ANSWERED = {"status": "recorded", "offer_id": "o", "price_id": "p", "review_item_id": None}

@@ -3,7 +3,7 @@ whole decimal gigabytes (1 TB = 1000 GB), as drives and cards are sold; amounts 
 cents."""
 
 import re
-from collections.abc import Iterable, Mapping
+from collections.abc import Mapping
 from datetime import datetime
 from decimal import ROUND_HALF_UP, Decimal
 from typing import Any
@@ -141,28 +141,12 @@ def preview_verdict(offer: Mapping[str, Any], drive_capacity: int | None) -> tup
     return "recorded", None
 
 
-def source_key(name: str) -> str:
-    """What a source's offers, prices and runs are recorded under: its name's letters and
-    digits, in lower case."""
-    return re.sub(r"[^a-z0-9]", "", name.lower())
-
-
 def queue_reason(error: Exception) -> str:
     return {
         CapacityConflict: "capacity_conflict",
         CapacityRequired: "missing_capacity",
         PriceRequired: "missing_price",
     }[type(error)]
-
-
-def new_aliases(aliases: Iterable[str], mpn: str, known: Iterable[str]) -> list[str]:
-    seen = {mpn, *known}
-    fresh: list[str] = []
-    for alias in aliases:
-        if alias not in seen:
-            seen.add(alias)
-            fresh.append(alias)
-    return fresh
 
 
 def fill_unknown(current: Mapping[str, Any], found: Mapping[str, Any]) -> dict[str, Any]:

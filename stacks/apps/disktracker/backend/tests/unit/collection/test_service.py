@@ -6,6 +6,7 @@ from datetime import UTC, datetime, timedelta
 from typing import Any, cast
 from uuid import UUID
 
+import pytest
 from pydantic import TypeAdapter
 
 from disktracker.catalog.condition_rule_service import ConditionRuleService
@@ -13,7 +14,7 @@ from disktracker.catalog.drive_service import DriveService
 from disktracker.collection.client import CollectorClient
 from disktracker.collection.repository import CollectionRepository, Sourced
 from disktracker.collection.schemas import PagePreview, ShopifySourceInput, SourcePreviewInput
-from disktracker.collection.service import CollectionService, due_at
+from disktracker.collection.service import CollectionService, due_at, source_key
 
 NOW = datetime(2026, 9, 22, 12, tzinfo=UTC)
 NEW_ID = UUID(int=7)
@@ -253,3 +254,11 @@ class TestPreview:
         preview = service(FakeRepository(), collector, drives).preview_source(source)
 
         assert preview["verdict"] == {"outcome": "review", "reason": "capacity_conflict"}
+
+
+@pytest.mark.parametrize(
+    ("name", "key"),
+    [("ServerPartDeals", "serverpartdeals"), ("Server Orbit", "serverorbit"), ("B&H 2", "bh2")],
+)
+def test_a_sources_key_is_its_names_letters_and_digits_in_lower_case(name: str, key: str) -> None:
+    assert source_key(name) == key
