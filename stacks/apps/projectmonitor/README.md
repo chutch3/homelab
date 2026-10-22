@@ -8,6 +8,8 @@ initialize. Upstream licenses and notices are retained. The original dependency
 lock is recorded in `Gemfile.upstream.lock`.
 
 The runtime is Ruby **3.4.11**, Rails **8.1.4**, Puma, and MariaDB **10.11.14**.
+Node **22.23.4** comes from the official Node image for asset compilation and
+browser tests; npm rejects local runtimes older than Node 22.
 The image uses the official Ruby Debian Bookworm base and runs as UID/GID 1000.
 One application image serves four roles: web, delayed-job worker, EventMachine
 poller, and Clockwork housekeeping. MariaDB has its own service and OCFS2 volume.
@@ -147,7 +149,7 @@ python3 stacks/apps/projectmonitor/scripts/update-coverage-baseline.py /path/to/
 task test -- projectmonitor
 ```
 
-For development without Docker, provision Ruby 3.4.11, MariaDB, Node, and Chromium;
+For development without Docker, provision Ruby 3.4.11, MariaDB, Node 22+, and Chromium;
 create a disposable `projectmonitor_test` database and run `bundle install` inside
 `app/`. Then run the same Taskfile entry point with explicit test credentials:
 
