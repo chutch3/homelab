@@ -4,7 +4,7 @@ import userEvent from '@testing-library/user-event';
 import { MantineProvider } from '@mantine/core';
 import { ReviewQueue } from '../../src/ReviewQueue';
 import type { DisktrackerApi, ReviewItem } from '../../src/api';
-import { knownStores, makeDrive, makeOffer, makeReviewItem, unusedWrites } from '../fixtures/listings';
+import { findsNone, knownStores, makeDrive, makeOffer, makeReviewItem, unusedWrites } from '../fixtures/listings';
 import { memoryStorage } from '../fixtures/render-app';
 import { foundPage, rowsOf } from '../fixtures/responses';
 
@@ -76,7 +76,7 @@ it('resolves an offer with the details the scraper found filled in, making the d
   const decide = vi.fn<DisktrackerApi['decide']>(async () => ({ status: 'matched', offer_id: 'x' }));
   const createDrive = vi.fn<DisktrackerApi['createDrive']>(async () => makeDrive('ST18000NM000J'));
   const item = makeReviewItem('a', { mpn: 'ST18000NM000J', condition: null, capacity_gb: 18000, reason: 'missing_condition' });
-  const { review, user, handlers } = await renderQueue([item], { decide, createDrive });
+  const { review, user, handlers } = await renderQueue([item], { decide, createDrive, findDrives: findsNone });
   await user.click(review.getByRole('button', { name: 'Resolve' }));
   const form = within(screen.getByRole('dialog', { name: 'Resolve offer' }));
   expect(form.getByRole('textbox', { name: 'Drive' })).toHaveValue('ST18000NM000J');

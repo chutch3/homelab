@@ -1,9 +1,9 @@
 import type { DisktrackerApi, Drive } from './api';
 
 /** The drive the server finds going by an MPN, as its own or another of its MPNs; none when none
- * does, or it cannot say. */
+ * does. A lookup that fails is a failure, never taken to mean there is none. */
 export const findDrive = (api: DisktrackerApi, mpn: string): Promise<Drive | undefined> =>
-  api.findDrives({ mpn, limit: 1, offset: 0 }).then(page => page.items[0]?.drive).catch(() => undefined);
+  api.findDrives({ mpn, limit: 1, offset: 0 }).then(page => page.items[0]?.drive);
 
 /** The drive something new is said of, before anything is said of it: the one already known, else the one found
  * recorded under its MPN now, else one made under it with the capacity given. A drive found at a capacity other than

@@ -56,6 +56,9 @@ export const shoppingListings = [
  * entered by hand. */
 export const knownKinds = described as SourceKindDescription[];
 
+/** A drive lookup that looks, and finds none. */
+export const findsNone = async (): Promise<FoundDrives> => ({ items: [], total: 0, limit: 1, offset: 0 });
+
 export const unusedWrites = {
   trends: async (): Promise<Trends> => { throw new Error('Not used'); },
   editOffer: async (): Promise<Offer> => { throw new Error('Not used'); },

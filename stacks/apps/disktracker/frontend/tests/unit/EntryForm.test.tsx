@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MantineProvider } from '@mantine/core';
-import { knownStores, makeDrive, makeOffer, recordedOn, unusedWrites } from '../fixtures/listings';
+import { findsNone, knownStores, makeDrive, makeOffer, recordedOn, unusedWrites } from '../fixtures/listings';
 import { foundPage, rowsOf } from '../fixtures/responses';
 import { EntryForm } from '../../src/EntryForm';
 import { ApiValidationError, type Offer, type DisktrackerApi } from '../../src/api';
@@ -39,7 +39,7 @@ describe('EntryForm', () => {
     const createDrive = vi.fn<DisktrackerApi['createDrive']>(async () => makeDrive('ST20000NM007D', { id: 'new-drive', capacity_gb: 20000 }));
     const recordPrice = vi.fn<DisktrackerApi['recordPrice']>(async () => recordedOn(listing));
     const onSaved = vi.fn(async () => {});
-    render(<MantineProvider env="test"><EntryForm stores={knownStores} api={{ ...unusedWrites, createDrive, recordPrice }} listing={null}
+    render(<MantineProvider env="test"><EntryForm stores={knownStores} api={{ ...unusedWrites, findDrives: findsNone, createDrive, recordPrice }} listing={null}
       now={() => new Date('2026-09-21T12:00:00Z')} nextId={() => 'save-key'}
       onClose={() => {}} onSaved={onSaved} /></MantineProvider>);
     const form = within(screen.getByRole('dialog', { name: 'Record price' }));
@@ -68,7 +68,7 @@ describe('EntryForm', () => {
     const user = userEvent.setup();
     const createDrive = vi.fn<DisktrackerApi['createDrive']>(async () => makeDrive('X5', { capacity_gb: 1500 }));
     const recordPrice = vi.fn<DisktrackerApi['recordPrice']>(async () => recordedOn(listing));
-    render(<MantineProvider env="test"><EntryForm stores={knownStores} api={{ ...unusedWrites, createDrive, recordPrice }} listing={null}
+    render(<MantineProvider env="test"><EntryForm stores={knownStores} api={{ ...unusedWrites, findDrives: findsNone, createDrive, recordPrice }} listing={null}
       now={() => new Date('2026-09-21T12:00:00Z')} nextId={() => 'save-key'}
       onClose={() => {}} onSaved={async () => {}} /></MantineProvider>);
     const form = within(screen.getByRole('dialog', { name: 'Record price' }));
@@ -172,7 +172,7 @@ describe('EntryForm', () => {
   it('asks for a store name only for Other, and drops one typed before choosing a supported store', async () => {
     const user = userEvent.setup();
     const recordPrice = vi.fn<DisktrackerApi['recordPrice']>(async () => recordedOn(listing));
-    render(<MantineProvider env="test"><EntryForm stores={knownStores} api={{ ...unusedWrites, createDrive: async () => makeDrive('ST20000NM007D'), recordPrice }} listing={null}
+    render(<MantineProvider env="test"><EntryForm stores={knownStores} api={{ ...unusedWrites, findDrives: findsNone, createDrive: async () => makeDrive('ST20000NM007D'), recordPrice }} listing={null}
       now={() => new Date('2026-09-21T12:00:00Z')} nextId={() => 'save-key'}
       onClose={() => {}} onSaved={async () => {}} /></MantineProvider>);
     const form = within(screen.getByRole('dialog', { name: 'Record price' }));
@@ -192,7 +192,7 @@ describe('EntryForm', () => {
   it('opens More details to show a field the server rejected there', async () => {
     const user = userEvent.setup();
     const recordPrice = vi.fn<DisktrackerApi['recordPrice']>(async () => { throw new ApiValidationError({ notes: 'Notes were rejected.' }); });
-    render(<MantineProvider env="test"><EntryForm stores={knownStores} api={{ ...unusedWrites, createDrive: async () => makeDrive('ST20000NM007D'), recordPrice }} listing={null}
+    render(<MantineProvider env="test"><EntryForm stores={knownStores} api={{ ...unusedWrites, findDrives: findsNone, createDrive: async () => makeDrive('ST20000NM007D'), recordPrice }} listing={null}
       now={() => new Date('2026-09-21T12:00:00Z')} nextId={() => 'save-key'}
       onClose={() => {}} onSaved={async () => {}} /></MantineProvider>);
     const form = within(screen.getByRole('dialog', { name: 'Record price' }));
