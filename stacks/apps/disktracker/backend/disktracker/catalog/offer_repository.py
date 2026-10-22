@@ -166,6 +166,21 @@ class OfferRepository:
             .values(held_reason=reason)
         )
 
+    def priced(
+        self, session: Session, *, drive_id: UUID, store: str, seller: str, condition: str
+    ) -> bool:
+        """Whether the offer of this drive at this store, from this seller, in this condition has
+        a price: one a sold-out observation of it can carry on."""
+        offer = select(Offer.id).where(
+            Offer.drive_id == drive_id,
+            Offer.store == store,
+            Offer.seller == seller,
+            Offer.condition == condition,
+        )
+        return (
+            session.scalar(select(Price.id).where(Price.offer_id.in_(offer)).limit(1)) is not None
+        )
+
     def release(self, session: Session, offer_id: UUID) -> None:
         """Count an offer in rankings, distributions and trends again: only this one, whatever
         else shares its store page."""

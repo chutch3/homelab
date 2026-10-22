@@ -220,3 +220,66 @@ def test_without_a_collector_to_ask_a_source_cannot_be_tested(
     assert unset.json() == {"detail": "No collector is configured, so sources cannot be tested."}
     assert unreachable.json()["detail"].startswith("The collector could not be reached")
     assert crashed.json() == {"detail": "The collector failed to read it: KeyError('products')"}
+
+
+# A store disktracker collects, so its pages can be taken in before one is previewed.
+SPD = {**SOURCE, "name": "ServerPartDeals", "base_url": "https://www.serverpartdeals.com"}
+PAGE_AS_COLLECTED = {
+    "store": "serverpartdeals", "seller": "", "url": OFFER["url"], "title": OFFER["title"],
+    "mpn": OFFER["mpn"], "condition": OFFER["condition"], "capacity_gb": OFFER["capacity_gb"],
+    "item_price_cents": OFFER["item_price_cents"], "shipping_cents": 0,
+    "observed_at": "2026-10-01T12:00:00Z",
+}  # fmt: skip
+
+
+def ingest(client: TestClient, **fields: Any) -> dict[str, Any]:
+    taken = client.post(
+        "/api/ingestions",
+        json={**PAGE_AS_COLLECTED, **fields},
+        headers={"Idempotency-Key": str(uuid4())},
+    )
+    assert taken.status_code in (200, 201, 202), taken.text
+    answer: dict[str, Any] = taken.json()
+    return answer
+
+
+def test_a_page_a_reviewer_said_is_nothing_to_track_previews_as_ignored(
+    database_url: str, collector: FakeCollector
+) -> None:
+    """As ingestion follows what a reviewer decided of a listing, so does a preview of it."""
+    bundle = f"{OFFER['title']} 4-pack"
+    collector.finds(title=bundle, seller="")
+    with TestClient(create_app()) as client:
+        queued = ingest(client, title=bundle)
+        client.put(
+            f"/api/review-items/{queued['review_item_id']}/decision", json={"decision": "ignore"}
+        )
+        previewed = client.post("/api/source-previews", json=SPD)
+
+    assert previewed.json()["verdict"] == {"outcome": "ignored", "reason": "decided"}
+
+
+def test_a_sold_out_page_of_an_offer_with_a_price_previews_as_recorded(
+    database_url: str, collector: FakeCollector
+) -> None:
+    """Sold out, it is recorded at the price it last had; only one never priced is ignored."""
+    collector.finds(in_stock=False, item_price_cents=None, seller="")
+    with TestClient(create_app()) as client:
+        never_priced = client.post("/api/source-previews", json=SPD).json()["verdict"]
+        ingest(client)
+        priced = client.post("/api/source-previews", json=SPD).json()["verdict"]
+
+    assert never_priced == {"outcome": "ignored", "reason": "sold_out"}
+    assert priced == {"outcome": "recorded", "reason": None}
+
+
+def test_a_page_naming_another_drives_mpn_previews_as_waiting_for_review(
+    database_url: str, collector: FakeCollector
+) -> None:
+    """As ingestion queues it whole: no drive is merged for it."""
+    collector.finds(aliases=["0HNHWC"], seller="")
+    with TestClient(create_app()) as client:
+        client.post("/api/drives", json={"mpn": "0HNHWC", "capacity_gb": 18000})
+        previewed = client.post("/api/source-previews", json=SPD)
+
+    assert previewed.json()["verdict"] == {"outcome": "review", "reason": "alias_conflict"}

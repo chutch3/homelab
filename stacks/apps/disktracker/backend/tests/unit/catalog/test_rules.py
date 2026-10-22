@@ -4,8 +4,6 @@ from typing import Any
 import pytest
 
 from disktracker.catalog.rules import (
-    CapacityConflict,
-    CapacityRequired,
     DecisionConflict,
     IdempotencyConflict,
     PriceRequired,
@@ -19,8 +17,6 @@ from disktracker.catalog.rules import (
     merged_drive,
     missing_detail,
     normalize_mpn,
-    preview_verdict,
-    queue_reason,
     queued_fields,
     replayed,
     unchanged,
@@ -87,18 +83,6 @@ def test_the_mpn_is_reported_before_the_condition() -> None:
     assert missing_detail("ST18000NM000J", None) == "missing_condition"
 
 
-@pytest.mark.parametrize(
-    ("error", "reason"),
-    [
-        (CapacityConflict("x"), "capacity_conflict"),
-        (CapacityRequired(), "missing_capacity"),
-        (PriceRequired(), "missing_price"),
-    ],
-)
-def test_queue_reason_for_a_price_that_could_not_be_recorded(error: Exception, reason: str) -> None:
-    assert queue_reason(error) == reason
-
-
 def test_found_specifications_fill_only_what_is_still_unknown() -> None:
     current = {
         "media_type": "hdd",
@@ -161,69 +145,6 @@ def test_comparable_price_is_per_decimal_terabyte(
     item: int, shipping: int | None, capacity_gb: int, expected: tuple[int, str]
 ) -> None:
     assert comparable_price(item, shipping, capacity_gb) == expected
-
-
-def scraped(**fields: Any) -> dict[str, Any]:
-    """An offer as the collector reads it from a store."""
-    return {
-        "title": "Seagate Exos X18 ST18000NM000J 18TB",
-        "mpn": "ST18000NM000J",
-        "condition": "new",
-        "capacity_gb": 18000,
-        "in_stock": True,
-        **fields,
-    }
-
-
-@pytest.mark.parametrize(
-    ("offer", "known", "verdict"),
-    [
-        (scraped(mpn=None), 18000, ("review", "missing_mpn")),
-        (scraped(condition=None), 18000, ("review", "missing_condition")),
-        (scraped(capacity_gb=None), None, ("review", "missing_capacity")),
-        (
-            scraped(capacity_gb=20000, title="Seagate Exos ST18000NM000J 20TB"),
-            18000,
-            ("review", "capacity_conflict"),
-        ),
-        (scraped(in_stock=False), 18000, ("ignored", "sold_out")),
-        (
-            scraped(capacity_gb=20000, title="Seagate Exos ST18000NM000J 20TB"),
-            None,
-            ("recorded", None),
-        ),
-        (scraped(), 18000, ("recorded", None)),
-        # A drive's capacity is known, so the offer need not say it.
-        (scraped(capacity_gb=None), 18000, ("recorded", None)),
-        # What it is comes before whether it is sold out.
-        (scraped(mpn=None, in_stock=False), None, ("review", "missing_mpn")),
-        (scraped(title="HPE Q1J18A Bundle 25x1.8TB"), None, ("review", "not_a_single_drive")),
-        (scraped(capacity_gb=960000), None, ("review", "implausible_capacity")),
-        (
-            scraped(title="HPE R0P90A 6-pack", in_stock=False),
-            None,
-            ("review", "not_a_single_drive"),
-        ),
-    ],
-    ids=[
-        "no MPN",
-        "no condition",
-        "no capacity for a new drive",
-        "another capacity than the drive has",
-        "sold out",
-        "a new drive with its capacity",
-        "a known drive at its capacity",
-        "a known drive without a capacity",
-        "sold out and unidentified",
-        "not one drive",
-        "more than a drive holds",
-        "sold out and not one drive",
-    ],
-)
-def test_the_verdict_says_what_recording_the_offer_would_do(
-    offer: dict[str, Any], known: int | None, verdict: tuple[str, str | None]
-) -> None:
-    assert preview_verdict(offer, known) == verdict
 
 
 ANSWERED = {"status": "recorded", "offer_id": "o", "price_id": "p", "review_item_id": None}

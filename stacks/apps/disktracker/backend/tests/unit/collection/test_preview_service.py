@@ -1,12 +1,13 @@
 """What a source is asked to read when it is tried, and how what it reads is judged. The
-collector, the condition rules and the drives are the service's ports, stood in for by fakes."""
+collector, the condition rules and ingestion are the service's ports, stood in for by fakes."""
 
 from typing import Any, cast
 
 from pydantic import TypeAdapter
 
+from disktracker.catalog.acceptance import Verdict
 from disktracker.catalog.condition_rule_service import ConditionRuleService
-from disktracker.catalog.drive_service import DriveService
+from disktracker.catalog.ingestion_service import IngestionService
 from disktracker.collection.client import CollectorClient
 from disktracker.collection.preview_service import PreviewService
 from disktracker.collection.schemas import PagePreview, SourcePreviewInput
@@ -17,12 +18,16 @@ class FakeRules:
         return [{"pattern": "recertified", "condition": "manufacturer_recertified"}]
 
 
-class FakeDrives:
-    def __init__(self, capacities: dict[str, int] | None = None) -> None:
-        self.capacities = capacities or {}
+class FakeIngestion:
+    """Foresees what it is set to, and keeps what it was asked."""
 
-    def capacity(self, mpn: str) -> int | None:
-        return self.capacities.get(mpn)
+    def __init__(self, verdict: Verdict | None = None) -> None:
+        self.verdict = verdict or Verdict("recorded")
+        self.asked: list[dict[str, Any]] = []
+
+    def foresee(self, **page: Any) -> Verdict:
+        self.asked.append(page)
+        return self.verdict
 
 
 class FakeCollector:
@@ -37,15 +42,17 @@ class FakeCollector:
         return self.answer
 
 
-def service(collector: FakeCollector, drives: FakeDrives | None = None) -> PreviewService:
+def service(collector: FakeCollector, ingestion: FakeIngestion | None = None) -> PreviewService:
     return PreviewService(
         cast(ConditionRuleService, FakeRules()),
-        cast(DriveService, drives or FakeDrives()),
+        cast(IngestionService, ingestion or FakeIngestion()),
         cast(CollectorClient, collector),
     )
 
 
 OFFER = {
+    "url": "https://orbit.test/products/exos-x18",
+    "aliases": [],
     "title": "Seagate Exos X18 ST18000NM000J 20TB",
     "mpn": "ST18000NM000J",
     "condition": "new",
@@ -79,14 +86,22 @@ class TestPreview:
         # Without an offer there is nothing to judge.
         assert preview == {"status": "nothing", "reason": None, "offer": None, "verdict": None}
 
-    def test_an_offer_is_judged_against_the_drive_as_the_catalog_has_it(self) -> None:
+    def test_an_offer_is_foreseen_as_ingestion_would_take_it_under_the_sources_key(
+        self,
+    ) -> None:
         collector = FakeCollector({"status": "found", "reason": None, "offer": OFFER})
-        drives = FakeDrives({"ST18000NM000J": 18000})
+        ingestion = FakeIngestion(Verdict("queued", "capacity_conflict"))
         source: PagePreview = TypeAdapter(SourcePreviewInput).validate_python(
             {"name": "Orbit", "kind": "shopify", "base_url": "https://orbit.test",
              "settings": {"collections": ["all"]}}
         )  # fmt: skip
 
-        preview = service(collector, drives).preview_source(source)
+        preview = service(collector, ingestion).preview_source(source)
 
+        assert ingestion.asked == [
+            {"store": "orbit", "url": OFFER["url"], "seller": "", "mpn": "ST18000NM000J",
+             "condition": "new", "title": OFFER["title"], "capacity_gb": 20000, "aliases": [],
+             "in_stock": True}
+        ]  # fmt: skip
+        # Waiting for review, as a preview calls it.
         assert preview["verdict"] == {"outcome": "review", "reason": "capacity_conflict"}

@@ -10,11 +10,11 @@ from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.orm import Session
 
 from disktracker.catalog.models import Drive, MpnAlias
-from disktracker.catalog.rules import capacity_label, fill_unknown
+from disktracker.catalog.rules import fill_unknown
 from disktracker.catalog.schemas import Specifications
 from disktracker.catalog.views import drive_view
 from disktracker.database import columns
-from disktracker.errors import CapacityConflict, CapacityRequired, DriveNotFound, MpnTaken
+from disktracker.errors import DriveNotFound, MpnTaken
 from disktracker.facts import escaped, every_offer_facts
 
 
@@ -77,23 +77,18 @@ class DriveRepository:
 
     def register(self, session: Session, mpn: str, capacity_gb: int | None) -> UUID:
         """The drive that goes by this MPN, held against other changes until the operation ends,
-        or a new one under it with this capacity: what collecting needs of a drive. A capacity
-        given that is not the drive's is refused; a new drive needs one."""
+        or a new one under it with this capacity: what collecting needs of a drive. That a new
+        drive has a capacity, and a known one is not given another, is judged first
+        (catalog.acceptance)."""
         hold_mpn(session, mpn)
         owner = self.owner_of(session, mpn)
         if owner is None:
-            if capacity_gb is None:
-                raise CapacityRequired()
+            assert capacity_gb is not None
             owner = self.create(
                 session, mpn=mpn, capacity_gb=capacity_gb, brand=None,
                 specifications=Specifications().model_dump(mode="json"),
             ).id  # fmt: skip
         drive = session.scalars(select(Drive).where(Drive.id == owner).with_for_update()).one()
-        if capacity_gb is not None and capacity_gb != drive.capacity_gb:
-            raise CapacityConflict(
-                f"MPN {drive.mpn} is recorded as {capacity_label(drive.capacity_gb)}."
-                " Edit the drive's specifications to change its capacity."
-            )
         return drive.id
 
     def correct(

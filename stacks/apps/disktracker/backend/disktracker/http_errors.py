@@ -14,7 +14,6 @@ from disktracker.collection.client import CollectorUnavailable
 from disktracker.collection.settings import KINDS
 from disktracker.contract import Contract
 from disktracker.errors import (
-    CapacityConflict,
     DecisionConflict,
     DriveNotFound,
     IdempotencyConflict,
@@ -90,7 +89,6 @@ def located(issue: dict[str, Any]) -> dict[str, Any]:
 def register_error_handlers(app: FastAPI) -> None:
     @app.exception_handler(MpnTaken)
     @app.exception_handler(MergeConflict)
-    @app.exception_handler(CapacityConflict)
     @app.exception_handler(IdempotencyConflict)
     @app.exception_handler(DecisionConflict)
     @app.exception_handler(SourceKept)

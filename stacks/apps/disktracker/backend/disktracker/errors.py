@@ -1,14 +1,6 @@
 """What can go wrong in a workflow; disktracker.http_errors says how each is answered over HTTP."""
 
 
-class CapacityRequired(Exception):
-    """A drive not recorded yet needs its capacity."""
-
-
-class CapacityConflict(Exception):
-    """The capacity given is not the drive's; the message says what it is."""
-
-
 class PriceRequired(Exception):
     """An offer with no price yet needs one."""
 

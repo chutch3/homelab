@@ -11,8 +11,6 @@ from typing import Any
 from listing_text.readers import capacity_in
 
 from disktracker.errors import (
-    CapacityConflict,
-    CapacityRequired,
     DecisionConflict,
     IdempotencyConflict,
     MergeConflict,
@@ -119,34 +117,6 @@ def doubt(title: str | None, capacity_gb: int | None, mpn: str | None = None) ->
     if title and mpn and capacity_in(title, mpn) not in (None, capacity_gb):
         return "implausible_capacity"
     return None
-
-
-def preview_verdict(offer: Mapping[str, Any], drive_capacity: int | None) -> tuple[str, str | None]:
-    """What recording a scraped offer would do, and why: "recorded"; "review", when it would
-    wait in the Review queue; or "ignored", when it is sold out and so has no price to record.
-    drive_capacity is the capacity of the drive its MPN names, when disktracker knows it."""
-    reason = missing_detail(offer["mpn"], offer["condition"]) or doubt(
-        offer["title"], offer["capacity_gb"], offer["mpn"]
-    )
-    if reason is not None:
-        return "review", reason
-    if not offer["in_stock"]:
-        return "ignored", "sold_out"
-    if drive_capacity is None:
-        return (
-            ("review", "missing_capacity") if offer["capacity_gb"] is None else ("recorded", None)
-        )
-    if offer["capacity_gb"] not in (None, drive_capacity):
-        return "review", "capacity_conflict"
-    return "recorded", None
-
-
-def queue_reason(error: Exception) -> str:
-    return {
-        CapacityConflict: "capacity_conflict",
-        CapacityRequired: "missing_capacity",
-        PriceRequired: "missing_price",
-    }[type(error)]
 
 
 def fill_unknown(current: Mapping[str, Any], found: Mapping[str, Any]) -> dict[str, Any]:

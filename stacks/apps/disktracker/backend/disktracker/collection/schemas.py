@@ -331,7 +331,9 @@ class PreviewOffer(Contract):
 
 
 class PreviewVerdict(Contract):
-    """What disktracker would do with the offer: record it, hold it for review, or ignore it."""
+    """What taking the offer in would do now, as ingestion would: record it, hold it for review
+    (reason: why, as a review item says), or ignore it (reason: decided, as a reviewer decided of
+    its listing; sold_out, sold out with no price to carry on)."""
 
     outcome: Literal["recorded", "review", "ignored"]
     reason: str | None

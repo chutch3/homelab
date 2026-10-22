@@ -82,6 +82,7 @@ class Container(containers.DeclarativeContainer):
     ingestion_service = providers.Factory(
         IngestionService,
         session_factory=database.provided.session,
+        snapshot_factory=database.provided.snapshot,
         drives=drive_repository,
         offers=offer_repository,
         reviews=review_repository,
@@ -124,7 +125,7 @@ class Container(containers.DeclarativeContainer):
     preview_service = providers.Factory(
         PreviewService,
         rules=condition_rule_service,
-        drives=drive_service,
+        ingestion=ingestion_service,
         collector=collector_client,
     )
     reporting_service = providers.Factory(
