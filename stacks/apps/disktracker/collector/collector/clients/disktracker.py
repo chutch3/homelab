@@ -3,6 +3,7 @@
 Wraps the client generated from disktracker's OpenAPI spec (disktracker_api), adding retries
 with a stable idempotency key and turning every failure into the collector's own errors."""
 
+import json
 import logging
 from collections.abc import Callable, Sequence
 from dataclasses import asdict
@@ -104,12 +105,15 @@ class DisktrackerClient:
         return _read_list("offers", lambda: list_offers.sync_detailed(client=self.api, store=store))
 
     def post_scraped(self, offer: ScrapedOffer, observed_at: datetime) -> Posted:
-        # The same key on every attempt lets disktracker replay a save whose response was lost.
-        key = uuid5(NAMESPACE_URL, f"{offer.source}|{offer.url}|{observed_at.isoformat()}")
+        payload = offer.payload(observed_at)
+        # The same key on every attempt lets disktracker replay a save whose response was lost;
+        # each submission its own: what it is (taken in, or a recheck of its offer) and all it
+        # says, so listings of one page seen at one moment are never taken for one another.
+        operation = "ingestion" if offer.offer_id is None else "recheck"
+        key = uuid5(NAMESPACE_URL, f"{operation}|{json.dumps(payload, sort_keys=True)}")
         # openapi-python-client 0.29.1 puts header values into the request unconverted, and
         # httpx only accepts str headers, so the key goes in as its string form.
         header_key = cast(UUID, str(key))
-        payload = offer.payload(observed_at)
 
         def send() -> Response[Any]:
             # A page read afresh is taken in; a recheck of an offer disktracker knows is only a

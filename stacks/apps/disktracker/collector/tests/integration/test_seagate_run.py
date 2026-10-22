@@ -21,6 +21,7 @@ from tests.integration.harness import (
     run,
     serve_robots,
     source_json,
+    submissions,
 )
 
 IRONWOLF_PRO = "/products/nas-drives/ironwolf-pro-hard-drive/"
@@ -106,6 +107,8 @@ def test_one_page_gives_an_offer_for_each_model_it_prices(
         IRONWOLF_PRO,
     ]
     assert events(result.stdout)[-1]["seen"] == 8
+    # Eight listings of one page seen at one moment: eight submissions, each under its own key.
+    assert len({request.headers["Idempotency-Key"] for request in posts(disktracker)}) == 8
 
 
 def test_a_model_its_page_no_longer_prices_is_out_of_stock_without_another_fetch(
@@ -125,6 +128,9 @@ def test_a_model_its_page_no_longer_prices_is_out_of_stock_without_another_fetch
     assert result.returncode == 0, result.stderr
     assert prices_of(rechecks(disktracker)) == [(known["id"], None, False)]
     assert [request.path for request, _ in seagate.log].count(IRONWOLF_PRO) == 1
+    # The recheck and the page's fresh listings are seen at one moment: each its own key.
+    keys = [request.headers["Idempotency-Key"] for request in submissions(disktracker)]
+    assert len(keys) == 9 and len(set(keys)) == 9
 
 
 def test_an_offer_whose_page_left_the_sitemap_is_rechecked_as_its_own_model(

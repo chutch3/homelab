@@ -225,6 +225,11 @@ def posts(disktracker: HTTPServer) -> list[Request]:
     return [request for request, _ in disktracker.log if request.path == INGESTIONS]
 
 
+def submissions(disktracker: HTTPServer) -> list[Request]:
+    """Every observation submitted to disktracker, taken in or rechecked, in order."""
+    return [request for request, _ in disktracker.log if request.path in (INGESTIONS, PRICES)]
+
+
 def run_reports(disktracker: HTTPServer) -> list[dict[str, Any]]:
     """How each run ended, with its source and start: one for each run whose end was taken
     (repeated ends, sent again after a lost answer, count once)."""
