@@ -12,7 +12,7 @@ from fastapi.responses import FileResponse
 from disktracker.catalog import routes as catalog_routes
 from disktracker.collection import routes as collection_routes
 from disktracker.container import Container
-from disktracker.errors import register_error_handlers
+from disktracker.http_errors import register_error_handlers
 from disktracker.openapi import OPENAPI
 from disktracker.reporting import routes as reporting_routes
 

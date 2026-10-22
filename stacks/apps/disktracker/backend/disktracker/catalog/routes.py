@@ -45,7 +45,7 @@ from disktracker.catalog.schemas import (
     StoreKey,
 )
 from disktracker.container import Container
-from disktracker.errors import ErrorResponse
+from disktracker.http_errors import ErrorResponse
 
 router = APIRouter(prefix="/api")
 

@@ -27,7 +27,7 @@ from disktracker.collection.schemas import (
 from disktracker.collection.service import CollectionService
 from disktracker.collection.settings import KINDS
 from disktracker.container import Container
-from disktracker.errors import ErrorResponse
+from disktracker.http_errors import ErrorResponse
 
 router = APIRouter(prefix="/api")
 
