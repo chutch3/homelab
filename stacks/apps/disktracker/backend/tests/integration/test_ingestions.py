@@ -56,3 +56,16 @@ def test_a_collected_observation_of_a_described_offer_is_not_a_price(database_ur
 
     assert refused.status_code == 422
     assert "/api/ingestions" in refused.text
+
+
+def test_a_page_that_also_lists_its_own_mpn_among_its_others_makes_one_drive(
+    database_url: str,
+) -> None:
+    with TestClient(create_app()) as client:
+        taken = post(client, "/api/ingestions", scraped_payload(
+            mpn="OWNALIAS", aliases=["OWNALIAS", "0OTHER"], title="Drive 18TB",
+        ))  # fmt: skip
+        drive = client.get(f"/api/offers/{taken.json()['offer_id']}").json()["drive"]
+
+    assert (taken.status_code, taken.json()["status"]) == (201, "recorded"), taken.text
+    assert (drive["mpn"], drive["aliases"]) == ("OWNALIAS", ["0OTHER"])

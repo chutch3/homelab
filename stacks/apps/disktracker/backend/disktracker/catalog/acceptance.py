@@ -80,7 +80,8 @@ def judged(
     # Another drive's MPNs a reviewer accepted the page naming stay that drive's, and settled.
     settled = set(decided.get("settled_aliases") or ()) if decided else set()
     fresh = []
-    for alias in dict.fromkeys(seen.aliases):
+    # The page's own MPN is the drive's own, not another it goes by.
+    for alias in dict.fromkeys(alias for alias in seen.aliases if alias != mpn):
         owner = known.owners.get(alias)
         if alias in settled and owner not in (None, known.drive):
             continue

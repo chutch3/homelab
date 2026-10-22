@@ -104,6 +104,14 @@ def test_another_drives_mpn_a_reviewer_accepted_is_settled_and_only_a_new_one_re
     )
 
 
+def test_a_page_listing_its_own_mpn_among_its_others_does_not_name_it_twice() -> None:
+    new = known(drive=None, capacity=None, priced=False)
+
+    assert judged(seen(aliases=("ST18000NM000J", "0FRESH")), IDENTITY, None, new) == Verdict(
+        "recorded", capacity=18000, fresh=("0FRESH",)
+    )
+
+
 def test_the_other_mpns_a_page_gives_are_those_no_drive_goes_by_yet_once_each() -> None:
     mine = known(owners={"0MINE": DRIVE})
 
