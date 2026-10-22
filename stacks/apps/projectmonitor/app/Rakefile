@@ -10,4 +10,9 @@ require File.expand_path('../config/application', __FILE__)
 require 'rake'
 ProjectMonitor::Application.load_tasks
 
-task default: [:jshint, "jasmine:ci"]
+# RSpec installs a default prerequisite; replace it to run the full harness once.
+Rake::Task[:default].clear if Rake::Task.task_defined?(:default)
+desc 'Run Ruby specs, compatibility coverage, and JavaScript specs against the test database'
+task :default do
+  sh 'bash', 'script/test-all.sh'
+end

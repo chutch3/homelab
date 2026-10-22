@@ -1,6 +1,0 @@
-[submodule "chef-curl"]
-	path = chef-curl
-	url = git://github.com/phlipper/chef-curl.git
-[submodule "chef/cookbooks/chef-curl"]
-	path = chef/cookbooks/chef-curl
-	url = git://github.com/phlipper/chef-curl.git

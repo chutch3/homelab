@@ -106,13 +106,25 @@ against the projects you configure.
 Airbrake and New Relic reporting are inactive without explicit account settings.
 The system certificate bundle replaces the archived CA bundle in the deployment.
 
+## Retired tooling
+
+The fork removes Vagrant/Chef provisioning, the old host bootstrap script,
+upstream Travis/Concourse pipelines, Guard/autotest, obsolete Rails launchers,
+and setup tasks that replaced `config/database.yml`. Use the monorepo tasks above
+and the environment-driven database configuration. The default `bundle exec rake`
+now runs the full test entrypoint instead of removed Jasmine/JSHint tasks.
+
+Cloud Foundry helpers and their tests, legacy cron settings, bundled certificates,
+and UI help documents remain pending separate compatibility review. The original
+upstream commit provides the history of the removed tooling.
+
 ## Tests and coverage
 
 `task test -- projectmonitor` is discovered by the existing CI tooling through the
 service's `package.json`; no root Taskfile changes are needed. It builds the
 Dockerfile's test stage, starts disposable MariaDB, and runs:
 
-1. All 854 RSpec examples, including upstream browser and recorded API tests
+1. All 855 RSpec examples, including upstream browser and recorded API tests
    and regression tests for configuration and container startup.
 2. The changed-line coverage gate for application/library compatibility edits and
    the new settings loader and database readiness helper.

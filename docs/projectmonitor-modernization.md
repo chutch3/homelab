@@ -29,9 +29,15 @@ modified executable application/library line against the pinned upstream, plus
 the new settings loader and database readiness helper. It rejects stale file
 hashes and unexecuted changed lines.
 
+Obsolete VM provisioning, upstream CI pipelines, Rails launchers, and database
+setup tasks have been pruned. Developer documentation now points to the supported
+homelab tasks. The default Rake command runs the complete test entrypoint, with a
+regression test for dispatch and failure propagation. Application logic, provider
+adapters, fixtures, and all existing test examples remain.
+
 ## Validation and remaining limits
 
-Validation uses the same Ruby version and MariaDB release locally: 854 Ruby
+Validation uses the same Ruby version and MariaDB release locally: 855 Ruby
 examples and all 123 JavaScript specs pass, and all 70 changed executable lines
 covered by the compatibility gate are exercised. Checks include production asset
 compilation, login, project administration, background startup, job processing,

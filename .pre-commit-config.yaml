@@ -13,7 +13,7 @@ repos:
           - id: end-of-file-fixer
             exclude: ^stacks/apps/projectmonitor/app/
           - id: check-yaml
-            exclude: ^(mkdocs\.yml$|stacks/apps/projectmonitor/app/(spec/|chef/|concourse/|\.travis\.yml$))
+            exclude: ^(mkdocs\.yml$|stacks/apps/projectmonitor/app/spec/)
           - id: check-added-large-files
           - id: check-executables-have-shebangs
           - id: check-shebang-scripts-are-executable

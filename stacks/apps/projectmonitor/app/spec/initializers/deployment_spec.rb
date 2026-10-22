@@ -4,6 +4,22 @@ require 'tmpdir'
 require Rails.root.join('docker/wait-for-database')
 
 RSpec.describe 'Container startup' do
+  it 'runs the complete test entrypoint by default and propagates failures' do
+    Dir.mktmpdir do |directory|
+      command = File.join(directory, 'bash')
+      File.write(command, "#!/bin/sh\nprintf '%s\\n' \"$*\"\nexit \"$TEST_EXIT\"\n")
+      File.chmod(0755, command)
+      [0, 7].each do |exit_code|
+        output, status = Open3.capture2e(
+          { 'PATH' => "#{directory}:#{ENV.fetch('PATH')}", 'TEST_EXIT' => exit_code.to_s },
+          'bundle', 'exec', 'rake'
+        )
+        expect(output.lines.map(&:strip)).to include('script/test-all.sh')
+        expect(status.success?).to eq(exit_code.zero?)
+      end
+    end
+  end
+
   it 'registers the job worker once so shutdown cannot start a second worker' do
     output, status = Open3.capture2e(
       'bundle', 'exec', 'ruby', '-rrake', '-e',

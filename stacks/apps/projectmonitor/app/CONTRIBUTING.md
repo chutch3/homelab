@@ -1,87 +1,55 @@
 # Contributing
 
-This is the CONTRIBUTING.md for our project. Great to have you here. Have a look at our README.md if you're unfamiliar with Project Monitor.
+Project Monitor is maintained under `stacks/apps/projectmonitor/` in the homelab
+monorepo. See the [service README](../README.md) for runtime requirements and local
+setup.
 
-## Resources
+## Architecture
 
-Product Manager: [Mike McCormick](mailto:mmccormick@pivotal.io)  
-The google group for Project Monitor is [projectmonitor_pivotallabs](http://groups.google.com/group/projectmonitor_pivotallabs).  
-The public Tracker project for ProjectMonitor is [here](http://www.pivotaltracker.com/projects/2872).
+The Backbone/CoffeeScript frontend polls the Rails backend for updates. The
+backend polls CI providers or receives webhooks, and delayed-job workers process
+queued work. Separate EventMachine and Clockwork processes handle polling and
+housekeeping.
 
-## A high level introduction to Project Monitor
+The application renders project setup help from `docs/adding_a_project/` using
+Kramdown. Keep those documents when changing developer documentation.
 
-There are two distinct layers to Project Monitor:
+## Running tests
 
-1. the front end which polls the back end for updates and
-2. the back end which polls CI builds and receives webhook updates.
+From the homelab repository root:
 
-The front end is written in Backbone/CoffeeScript. Individual Backbone models are responsible for polling the database. Backbone views update when the model is updated.
-The back end receives updates through a REST/json interface, or it uses delayed_job to poll CI instances.
+```bash
+task test -- projectmonitor
+```
 
-## Development
+This provisions a disposable database and runs the Ruby/browser specs, the
+compatibility coverage gate, and the JavaScript specs. Follow the service README
+for `PROJECTMONITOR_TEST_LOCAL=1` when using a locally installed runtime.
 
-The public Tracker project for ProjectMonitor is [here](http://www.pivotaltracker.com/projects/2872).
+Inside an already configured application test environment, the equivalent full
+suite is:
 
-### Running tests
+```bash
+RAILS_ENV=test bundle exec rake
+```
 
-To run tests, run:
+The test entrypoint loads the schema into `projectmonitor_test`; use a disposable
+database with credentials dedicated to testing. It uses Chromium for both Selenium
+and Playwright. Install the dependencies with `bundle install` and `npm ci` when
+working outside the test image.
 
-    rake setup
-    rake spec
+For a focused Ruby example, use `bundle exec rspec path/to/spec.rb`. Run
+`npm run test:javascript` for the JavaScript suite. Run the full suite before
+submitting changes so the changed-line coverage gate can evaluate every affected
+application file.
 
-### Javascript tests
+## Compatibility changes
 
-To run Jasmine tests from the command line, run:
+Preserve application behavior and add regression coverage for compatibility
+edits. Do not remove assertions to make dependency upgrades pass. The coverage
+manifest is generated against the pinned upstream commit; the service README
+explains how to regenerate it after an application edit.
 
-    bundle exec rake jasmine:ci
-
-To run Jasmine tests from the browser, run:
-
-    bundle exec rake jasmine
-
-and visit the server [probably http://localhost:8888/](http://localhost:8888/) in the browser.
-
-### Set up Vagrant
-
-[Vagrant](http://www.vagrantup.com/) automatically sets up virtual machines to run 
-Jenkins. First install VirtualBox. Then run the following commands to set it up.
-
-    vagrant up
-
-Useful commands
-
-    vagrant ssh
-    vagrant halt
-    vagrant provision
-    vagrant destroy #If you just halt, it will not rebuild everything from scratch
-
-Once the VM has started, services will be available at `192.168.33.10`.
-
-### Development server
-
-To run a local development server and worker, run:
-
-    foreman start
-
-## Deploying to Github
-
-Project Monitor has been moved under the "Pivotal" organization. In order to have push privileges to the repo, you will need to request that your GitHub account is added as a collaborator.
-
-## Gotchas (when things do not appear to be working as expected, try these...)
-
-* Are the workers running? Have you checked the worker log in log/delayed_job.log?
-* You can run `rake projectmonitor:fetch_statuses` to force update the builds.
-
-## Bug triage
-
-If you encounter any bugs, feel free to file an issue in Github or contact our Product Manager: [Graham Siener](mailto:gsiener@pivotallabs.com).
-
-## CI
-
-CI for ProjectMonitor is [here](http://travis-ci.org/pivotal/projectmonitor), and it's aggregated at [ci.pivotallabs.com](http://ci.pivotallabs.com)
-(that's an instance of ProjectMonitor, of course).
-
-
-## A final word
-
-Please consider this a living document. When you've finished your work please take a minute to think of the developers who will follow in your footsteps. Is there anything missing from this document that you'd wished you'd known before you started coding?
+Keep the existing frontend assets, provider fixtures, licenses, and historical
+migrations unless a change explicitly addresses their behavior or retirement.
+Deployment uses the service's Dockerfile, Compose manifests, and pre-flight file.
