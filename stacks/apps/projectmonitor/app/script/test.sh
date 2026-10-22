@@ -5,7 +5,6 @@ cd "$(dirname "${BASH_SOURCE[0]}")/.."
 # Local mode uses an already-provisioned disposable MariaDB database and Ruby.
 # CI/default mode provisions the identical runtime through Docker Compose.
 if [[ ${PROJECTMONITOR_TEST_LOCAL:-0} == 1 ]]; then
-    cd app
     bundle check
     npm ci
     exec bash script/test-all.sh

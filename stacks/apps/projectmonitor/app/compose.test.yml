@@ -16,7 +16,7 @@ services:
 
     tests:
         build:
-            context: app
+            context: .
             target: test
         environment:
             RAILS_ENV: test

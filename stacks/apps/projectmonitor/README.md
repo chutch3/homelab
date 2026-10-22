@@ -6,7 +6,7 @@ Project Monitor contributors**. This homelab fork imports the application from
 at commit `2b85d1701007d832cbc4b49aa3c94cbacb076884`. The forked application and its
 original tests live in [`app/`](app/); there is no nested Git repository or
 submodule to initialize. The original dependency lock is recorded in
-[`Gemfile.upstream.lock`](Gemfile.upstream.lock).
+[`app/Gemfile.upstream.lock`](app/Gemfile.upstream.lock).
 
 The runtime is Ruby **3.4.11**, Rails **8.1.4**, Puma, and MariaDB **10.11.14**.
 Node **22.23.4** comes from the official Node image for asset compilation and
@@ -27,14 +27,15 @@ projectmonitor/
 ├── README.md                 # Homelab operation and fork provenance
 ├── docker-compose.yml       # Swarm service definition
 ├── pre-flight.yml           # Homelab provisioning
-├── compose.test.yml         # Disposable container test environment
-├── package.json             # Homelab task discovery
-├── scripts/                 # Homelab test and coverage integration
-├── Gemfile.upstream.lock    # Dependency lock from the pinned upstream commit
 └── app/                     # Vendored Project Monitor repository root
     ├── README.md            # Application guidance and upstream credits
     ├── LICENSE, MIT.LICENSE, NOTICE
     ├── Gemfile, Gemfile.lock
+    ├── Gemfile.upstream.lock # Original dependency lock for provenance
+    ├── package.json         # Browser test dependencies and homelab test commands
+    ├── package-lock.json
+    ├── compose.test.yml     # Disposable container test environment
+    ├── script/              # Test runners and coverage maintenance
     ├── app/                 # Rails models, views, controllers, and assets
     ├── config/, db/, lib/
     ├── spec/                # Application tests
@@ -185,10 +186,10 @@ upstream commit provides the history of the removed tooling.
 ## Tests and coverage
 
 `task test -- projectmonitor` is discovered by the existing CI tooling through the
-service's `package.json`; no root Taskfile changes are needed. It builds the
+application's `app/package.json`; no root Taskfile changes are needed. It builds the
 Dockerfile's test stage, starts disposable MariaDB, and runs:
 
-1. All 855 RSpec examples, including upstream browser and recorded API tests
+1. All RSpec examples, including upstream browser and recorded API tests
    and regression tests for configuration and container startup.
 2. The changed-line coverage gate for application/library compatibility edits and
    the new settings loader and database readiness helper.
@@ -207,7 +208,7 @@ unexecuted changed lines fail the test command. To regenerate after a compatibil
 edit, use a clean checkout of the exact upstream commit:
 
 ```bash
-python3 stacks/apps/projectmonitor/scripts/update-coverage-baseline.py /path/to/upstream
+python3 stacks/apps/projectmonitor/app/script/update-coverage-baseline.py /path/to/upstream
 task test -- projectmonitor
 ```
 

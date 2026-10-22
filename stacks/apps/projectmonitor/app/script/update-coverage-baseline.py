@@ -13,7 +13,7 @@ revision = subprocess.check_output(['git', '-C', str(upstream), 'rev-parse', 'HE
 if revision != UPSTREAM_COMMIT:
     raise SystemExit(f'Expected upstream {UPSTREAM_COMMIT}, got {revision}')
 subprocess.run(['git', '-C', str(upstream), 'diff', '--exit-code', 'HEAD', '--', 'app', 'lib'], check=True)
-app = Path(__file__).resolve().parent.parent / 'app'
+app = Path(__file__).resolve().parent.parent
 original = {}
 changes = {}
 for folder in ['app', 'lib']:
