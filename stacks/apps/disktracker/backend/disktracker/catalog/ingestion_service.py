@@ -10,6 +10,7 @@ from datetime import datetime
 from typing import Any
 from uuid import UUID
 
+from pydantic import BaseModel, ConfigDict, field_validator
 from sqlalchemy.orm import Session
 
 from disktracker.catalog.drive_repository import DriveRepository
@@ -20,6 +21,25 @@ from disktracker.catalog.rules import as_decided, normalize_mpn, queued_fields
 from disktracker.catalog.schemas import IngestionInput
 from disktracker.catalog.verdict import Known, Seen, Verdict, judged
 from disktracker.database import SessionFactory
+
+
+class CollectedPage(BaseModel):
+    """What a page as the collector read it says, apart from its store and price."""
+
+    model_config = ConfigDict(frozen=True)
+    url: str
+    seller: str = ""
+    mpn: str | None = None
+    condition: str | None = None
+    title: str
+    capacity_gb: int | None = None
+    aliases: list[str] = []
+    in_stock: bool
+
+    @field_validator("seller", mode="before")
+    @classmethod
+    def no_seller_is_blank(cls, seller: str | None) -> str:
+        return seller or ""
 
 
 class IngestionService:
@@ -51,25 +71,13 @@ class IngestionService:
             session.commit()
             return result
 
-    def foresee(
-        self,
-        *,
-        store: str,
-        url: str,
-        seller: str,
-        mpn: str | None,
-        condition: str | None,
-        title: str,
-        capacity_gb: int | None,
-        aliases: list[str],
-        in_stock: bool,
-    ) -> Verdict:
+    def foresee(self, store: str, page: CollectedPage) -> Verdict:
         """What taking in a page as collected would make of it now, as ingest would; nothing is
         kept."""
-        mpn = normalize_mpn(mpn) if mpn else None
-        aliases = [normalize_mpn(alias) for alias in aliases]
-        listing = Listing.of(store, url, seller, mpn, condition)
-        seen = Seen(title, capacity_gb, tuple(aliases), in_stock)
+        mpn = normalize_mpn(page.mpn) if page.mpn else None
+        aliases = [normalize_mpn(alias) for alias in page.aliases]
+        listing = Listing.of(store, page.url, page.seller, mpn, page.condition)
+        seen = Seen(page.title, page.capacity_gb, tuple(aliases), page.in_stock)
         with self.snapshot_factory() as session:
             decided = self.reviews.decision_for(session, listing)
             identity = as_decided(_said(listing), decided)

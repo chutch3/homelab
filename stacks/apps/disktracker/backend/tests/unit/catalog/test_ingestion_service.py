@@ -10,7 +10,7 @@ from uuid import UUID
 import pytest
 
 from disktracker.catalog.drive_repository import DriveRepository
-from disktracker.catalog.ingestion_service import IngestionService
+from disktracker.catalog.ingestion_service import CollectedPage, IngestionService
 from disktracker.catalog.offer_repository import OfferRepository
 from disktracker.catalog.review_repository import ReviewRepository
 from disktracker.catalog.schemas import IngestionInput
@@ -158,10 +158,10 @@ def test_a_page_is_foreseen_as_it_would_be_taken_in_holding_and_keeping_nothing(
     subject: IngestionService, drives: FakeDrives, offers: FakeOffers, reviews: FakeReviews,
     sessions: FakeSessions,
 ) -> None:  # fmt: skip
-    foreseen = subject.foresee(
-        store="serverpartdeals", url=URL, seller="", mpn="st18000nm000j", condition="new",
-        title="Exos X18", capacity_gb=20000, aliases=[], in_stock=True,
-    )  # fmt: skip
+    foreseen = subject.foresee("serverpartdeals", CollectedPage(
+        url=URL, mpn="st18000nm000j", condition="new", title="Exos X18", capacity_gb=20000,
+        in_stock=True,
+    ))  # fmt: skip
 
     assert (foreseen.outcome, foreseen.reason) == ("queued", "capacity_conflict")
     assert (drives.names(), offers.names(), reviews.names()) == ([], [], [])

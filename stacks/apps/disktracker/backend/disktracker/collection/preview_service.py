@@ -5,7 +5,7 @@ recording the offer would do. Nothing is kept."""
 from typing import Any
 
 from disktracker.catalog.condition_rule_service import ConditionRuleService
-from disktracker.catalog.ingestion_service import IngestionService
+from disktracker.catalog.ingestion_service import CollectedPage, IngestionService
 from disktracker.catalog.verdict import Verdict
 from disktracker.collection.client import CollectorClient
 from disktracker.collection.schemas import PagePreview, SourceInspectionInput
@@ -25,22 +25,6 @@ class PreviewService:
     ) -> None:
         self.rules, self.ingestion, self.collector = rules, ingestion, collector
 
-    def _condition_rules(self) -> list[dict[str, Any]]:
-        return self.rules.all()
-
-    def _verdict_on(self, offer: dict[str, Any], store: str) -> dict[str, str | None]:
-        """What taking in an offer the collector read would make of it now, as ingestion would:
-        under the store it would be collected as, with what disktracker knows of that store's
-        listing and the drive it is of."""
-        return shown(
-            self.ingestion.foresee(
-                store=store, url=offer["url"], seller=offer.get("seller") or "",
-                mpn=offer["mpn"], condition=offer["condition"], title=offer["title"],
-                capacity_gb=offer["capacity_gb"], aliases=offer["aliases"],
-                in_stock=offer["in_stock"],
-            )
-        )  # fmt: skip
-
     def preview_source(self, source: PagePreview) -> dict[str, Any]:
         """One offer as the collector reads it from a source, saved or not, and what recording
         it would do."""
@@ -52,22 +36,29 @@ class PreviewService:
                 "transport": source.transport,
                 "obey_robots": source.obey_robots,
                 "settings": source.settings.model_dump(),
-                "conditions": self._condition_rules(),
+                "conditions": self.rules.all(),
                 "page_url": source.page_url or None,
             }
         )
-        offer, store = preview["offer"], source_key(source.name)
-        return {**preview, "verdict": None if offer is None else self._verdict_on(offer, store)}
+        if preview["offer"] is None:
+            return {**preview, "verdict": None}
+        page = CollectedPage.model_validate(preview["offer"])
+        return {**preview, "verdict": shown(self.ingestion.foresee(source_key(source.name), page))}
 
     def inspect_link(self, entry: SourceInspectionInput) -> dict[str, Any]:
         """The sources that would read the store a product page is from, best first, each with
         the offer it reads from that page and what recording it would do."""
         inspected = self.collector.inspect(
-            {"url": entry.url, "transport": entry.transport, "conditions": self._condition_rules()}
+            {"url": entry.url, "transport": entry.transport, "conditions": self.rules.all()}
         )
         # Of a store not collected yet: no listing of it was decided, and none of its offers kept.
         candidates = [
-            {**candidate, "verdict": self._verdict_on(candidate["offer"], store="")}
+            {
+                **candidate,
+                "verdict": shown(
+                    self.ingestion.foresee("", CollectedPage.model_validate(candidate["offer"]))
+                ),
+            }
             for candidate in inspected["candidates"]
         ]
         return {**inspected, "candidates": candidates}

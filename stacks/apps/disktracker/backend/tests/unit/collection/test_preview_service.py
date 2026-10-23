@@ -6,7 +6,7 @@ from typing import Any, cast
 from pydantic import TypeAdapter
 
 from disktracker.catalog.condition_rule_service import ConditionRuleService
-from disktracker.catalog.ingestion_service import IngestionService
+from disktracker.catalog.ingestion_service import CollectedPage, IngestionService
 from disktracker.catalog.verdict import Verdict
 from disktracker.collection.client import CollectorClient
 from disktracker.collection.preview_service import PreviewService
@@ -23,10 +23,10 @@ class FakeIngestion:
 
     def __init__(self, verdict: Verdict | None = None) -> None:
         self.verdict = verdict or Verdict("recorded")
-        self.asked: list[dict[str, Any]] = []
+        self.asked: list[tuple[str, CollectedPage]] = []
 
-    def foresee(self, **page: Any) -> Verdict:
-        self.asked.append(page)
+    def foresee(self, store: str, page: CollectedPage) -> Verdict:
+        self.asked.append((store, page))
         return self.verdict
 
 
@@ -99,9 +99,10 @@ class TestPreview:
         preview = service(collector, ingestion).preview_source(source)
 
         assert ingestion.asked == [
-            {"store": "orbit", "url": OFFER["url"], "seller": "", "mpn": "ST18000NM000J",
-             "condition": "new", "title": OFFER["title"], "capacity_gb": 20000, "aliases": [],
-             "in_stock": True}
+            ("orbit", CollectedPage(
+                url=OFFER["url"], seller="", mpn="ST18000NM000J", condition="new",
+                title=OFFER["title"], capacity_gb=20000, aliases=[], in_stock=True,
+            ))
         ]  # fmt: skip
         # Waiting for review, as a preview calls it.
         assert preview["verdict"] == {"outcome": "review", "reason": "capacity_conflict"}
