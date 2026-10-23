@@ -171,7 +171,9 @@ class IngestionService:
     ) -> dict[str, Any]:
         submitted = entry.model_dump(mode="json") | {"provenance": "collected"}
         fields = queued_fields(submitted, identity, price, reason) | conflict
-        item_id = self.reviews.queue(session, listing, fields, entry.observed_at or self.clock.now())
+        item_id = self.reviews.queue(
+            session, listing, fields, entry.observed_at or self.clock.now()
+        )
         return {"status": "queued", "review_item_id": str(item_id)}
 
 
