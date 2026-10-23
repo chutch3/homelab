@@ -9,9 +9,12 @@ from typing import Annotated, Any, ClassVar, Literal
 
 from pydantic import (
     AfterValidator,
+    AnyHttpUrl,
     BeforeValidator,
     ConfigDict,
     Field,
+    TypeAdapter,
+    ValidationError,
     ValidationInfo,
     field_validator,
 )
@@ -19,6 +22,9 @@ from pydantic import (
 from disktracker.contract import Contract
 
 SettingType = Literal["text", "list", "flag"]
+
+# Checked as a URL, kept as entered: Pydantic's URL would add a trailing slash to a bare host.
+_HTTP_URL = TypeAdapter(AnyHttpUrl)
 
 
 @dataclass(frozen=True)
@@ -69,8 +75,10 @@ def _path(value: str) -> str:
 
 
 def _address(value: str) -> str:
-    if not re.fullmatch(r"https?://[^\s/]+\S*", value):
-        raise ValueError("Enter the API's address, starting http:// or https://.")
+    try:
+        _HTTP_URL.validate_python(value)
+    except ValidationError as error:
+        raise ValueError("Enter the API's address, starting http:// or https://.") from error
     return value
 
 

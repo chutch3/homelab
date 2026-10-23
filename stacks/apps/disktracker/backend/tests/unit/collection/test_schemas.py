@@ -211,6 +211,8 @@ class TestSettings:
             ("sitemap", {"sitemap_path": "sitemap.xml"}, "sitemap_path", "Start it with /."),
             ("sap_commerce", {"api_url": "api.wd.test", "site": "us"}, "api_url",
              "Enter the API's address, starting http:// or https://."),
+            ("sap_commerce", {"api_url": "http://:80/occ/v2", "site": "us"}, "api_url",
+             "Enter the API's address, starting http:// or https://."),
             ("sitemap", {**EMBEDDED_DATA, "data_items": "*.skus .*"}, "data_items",
              "A path has no spaces in it."),
             (
