@@ -466,7 +466,6 @@ def _price_changes(session: Session, scope: DriveScope) -> list[Sold]:
             condition=offer.condition,
             store=offer.store,
             capacity_gb=capacity_gb,
-            # An offer is checked whenever a price is recorded for it.
             last_checked_at=max(
                 changes[offer.id][-1].at,
                 offer.last_checked_at or datetime.min.replace(tzinfo=UTC),

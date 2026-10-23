@@ -8,7 +8,6 @@ from typing import Any
 
 from disktracker.errors import RunConflict
 
-# Why a run was abandoned, as the Admin page says it.
 RESTARTED = "The collector restarted, or stopped working on it, before it ended."
 SUPERSEDED = "A newer run of this store started before it ended."
 

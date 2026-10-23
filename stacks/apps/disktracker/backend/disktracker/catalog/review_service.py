@@ -80,7 +80,6 @@ class ReviewService:
             condition=decision.condition, title=item["title"], url=item["url"],
         )  # fmt: skip
         self.offers.record(offer_id, price.model_dump(), item["provenance"])
-        # A person has said what it is: it is no longer in doubt.
         self.offers.release(offer_id)
         # What the page said of the drive, where nobody has said it. Another MPN it gave that
         # another drive goes by stays that drive's: nothing is merged.

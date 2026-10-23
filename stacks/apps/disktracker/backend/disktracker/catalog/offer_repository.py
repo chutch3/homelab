@@ -216,8 +216,6 @@ class OfferRepository(Repository):
             combined.append((absorbed.id, survivor.id))
         return combined
 
-    # Offers and their prices, read.
-
     def summaries(self, chosen: Select[Any]) -> list[dict[str, Any]]:
         """The chosen offers with their latest price, in a fixed number of queries."""
         offers = list(self.session.scalars(chosen))

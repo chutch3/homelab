@@ -43,8 +43,6 @@ def run_view(run: dict[str, Any], stop_requested_at: datetime | None) -> dict[st
 
 
 class CollectionRepository(Repository):
-    # Sources.
-
     def sources(self, by_name: bool = False) -> list[Sourced]:
         """Every source, by name when asked, each with when its last run started."""
         chosen = select(Source).order_by(Source.name) if by_name else select(Source)
@@ -88,8 +86,6 @@ class CollectionRepository(Repository):
             raise SourceKept(
                 "Offers are recorded under this source. Switch it off instead."
             ) from error
-
-    # Runs, and the collector's word on them.
 
     def start_run(self, values: dict[str, Any], now: datetime) -> tuple[dict[str, Any], bool]:
         """Register a run as it starts, and whether it is new: the same start sent again is

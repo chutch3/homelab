@@ -11,7 +11,6 @@ from disktracker.collector.client import CollectorClient
 from disktracker.collector.schemas import PagePreview, SourceInspectionInput
 from disktracker.collector.service import source_key
 
-# What a verdict's outcome is called where a preview shows it.
 OUTCOMES = {"recorded": "recorded", "queued": "review", "ignored": "ignored"}
 
 

@@ -50,7 +50,6 @@ class Price(Base):
     item_price_cents: Mapped[int] = mapped_column(Integer)
     shipping_cents: Mapped[int | None] = mapped_column(Integer)
     in_stock: Mapped[bool] = mapped_column(Boolean, server_default="true")
-    # Who submitted it: manual or collected.
     provenance: Mapped[str] = mapped_column(
         "acquisition_method", String(40), server_default="manual"
     )
@@ -76,7 +75,6 @@ class ReviewItem(Base):
     url: Mapped[str] = mapped_column(Text)
     title: Mapped[str] = mapped_column(String(160))
     seller: Mapped[str] = mapped_column(String(120))
-    # The MPN and condition as the page gave them, None where it gave none.
     mpn: Mapped[str | None] = mapped_column(String(100))
     condition: Mapped[str | None] = mapped_column(String(40))
     capacity_gb: Mapped[int | None] = mapped_column(Integer)

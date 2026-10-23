@@ -21,7 +21,6 @@ from pydantic.json_schema import SkipJsonSchema
 from disktracker.catalog.rules import normalize_mpn
 from disktracker.contract import Contract
 
-# A drive's specifications, as plain entered values.
 MediaType = Literal["hdd", "ssd", "flash_card", "unknown"]
 FormFactor = Literal["3_5", "2_5", "m_2", "microsd", "sd", "unknown"]
 Interface = Literal["sata", "sas", "nvme_pcie", "usb", "unknown"]
@@ -93,7 +92,6 @@ class ObservationInput(Contract):
         return value
 
 
-# Who submitted a price: a person, or a collector. Where it was seen is the offer's store.
 Provenance = Literal["manual", "collected"]
 
 
@@ -345,9 +343,6 @@ class ConditionRule(Contract):
     condition: Condition
 
 
-# What the routes return.
-
-
 class Observation(Contract):
     id: UUID
     item_price_cents: int
@@ -424,7 +419,6 @@ class PriceResult(Contract):
     review_item_id: UUID | None = None
 
 
-# Why a scraped offer waits in the Review queue.
 ReviewReason = Literal[
     "missing_mpn",
     "missing_condition",
@@ -481,9 +475,6 @@ class ListingFacts(Contract):
     condition: Condition | None
     brand: str | None
     item_price_cents: int | None
-
-
-# Reading drives the way the Prices page does.
 
 
 class DriveScope(Contract):

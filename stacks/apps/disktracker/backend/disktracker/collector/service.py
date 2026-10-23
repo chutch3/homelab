@@ -53,8 +53,6 @@ class CollectionService:
     ) -> None:
         self.transactions, self.repository, self.clock = transactions, repository, clock
 
-    # Sources, and when each is due.
-
     def _view(self, sourced: Sourced, now: datetime) -> tuple[dict[str, Any], bool]:
         """A source as the API shows it, with when it is next due as of now, and whether that
         is because it was asked to run."""
@@ -116,8 +114,6 @@ class CollectionService:
         """Delete a source nothing is recorded under, with its runs and what it was told about
         scraped offers. One with offers, or queued offers, is kept, and so is Other."""
         self.repository.delete_source(source_id)
-
-    # Runs, and the collector's word on them.
 
     @transactional
     def start_run(self, start: RunStart) -> tuple[dict[str, Any], bool]:

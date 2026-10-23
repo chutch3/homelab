@@ -256,7 +256,6 @@ class SapCommerceSourceInput(CollectedSourceBase):
     settings: SapCommerceSettings = Field(description=SETTINGS)
 
 
-# A source as it is entered: the fields of its kind, chosen by kind.
 SourceInput = Annotated[
     ManualSourceInput | ShopifySourceInput | SitemapSourceInput | SapCommerceSourceInput,
     Field(discriminator="kind"),
@@ -310,9 +309,6 @@ class SourceInspectionInput(Contract):
     model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
     url: str = Field(max_length=2083, pattern=r"^https?://[^\s/]+\S*$")
     transport: SourceTransport = "direct"
-
-
-# What the routes return.
 
 
 class PreviewOffer(Contract):
@@ -475,7 +471,6 @@ class SapCommerceSourceView(SourceViewBase):
     settings: SapCommerceSettings
 
 
-# A source as the API shows it: the fields of its kind, chosen by kind.
 SourceView = Annotated[
     ManualSourceView | ShopifySourceView | SitemapSourceView | SapCommerceSourceView,
     Field(discriminator="kind"),

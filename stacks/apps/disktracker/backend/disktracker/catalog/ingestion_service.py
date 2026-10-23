@@ -139,7 +139,6 @@ class IngestionService:
             condition=identity["condition"], title=entry.title, url=listing.url,
         )  # fmt: skip
         price_id = self.offers.record(offer_id, price, "collected")
-        # Collected afresh and taken as it reads: no longer in doubt.
         self.offers.release(offer_id)
         specifications = entry.specifications
         self.drives.describe(
