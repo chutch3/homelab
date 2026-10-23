@@ -83,7 +83,7 @@ services:
         volumes:
             - alertmanager_data:/alertmanager
         configs:
-            - source: alertmanager_config_v5
+            - source: alertmanager_config_v6
               target: /etc/alertmanager/alertmanager.tmpl.yml
         deploy:
             endpoint_mode: dnsrr
@@ -361,7 +361,7 @@ configs:
         file: ./prometheus/prometheus.yml
     prometheus_alert_rules_v5:
         file: ./prometheus/alert-rules.yml
-    alertmanager_config_v5:
+    alertmanager_config_v6:
         file: ./alertmanager/alertmanager.yml
     grafana_dashboards_provisioning_v2:
         file: ./grafana/dashboards/dashboards.yml
