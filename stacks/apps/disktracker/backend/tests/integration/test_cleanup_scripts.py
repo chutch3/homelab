@@ -1,6 +1,6 @@
-"""The scripts that put right what earlier collector faults recorded: each run as it is run in
-production, as a script handed to Python with the database's address, against a database
-holding the faulty records and others that must be left alone."""
+"""The script that holds offers collected before they would have been doubted, run as it is run
+in production, as a script handed to Python with the database's address, against a database
+holding those offers and others that must be left alone."""
 
 import os
 import subprocess
@@ -25,7 +25,6 @@ drives, listings, mpn_aliases, observations, unmatched, scraped_matches = (
 SCRIPTS = Path(__file__).parents[3] / "scripts"
 NOW = datetime(2026, 10, 2, 12, tzinfo=UTC)
 BASE = "https://serverorbit.com/"
-UNCHANGED = "Nothing was changed. Run again with APPLY=1 to remove them."
 
 
 def run(script: str, database_url: str, **env: str) -> str:
@@ -58,43 +57,6 @@ def database(database_url: str) -> str:
             )
             assert added.status_code == 201, added.text
     return database_url
-
-
-def offer(
-    db: Connection, store: str, mpn: str, url: str, prices: list[int], alias: str | None = None
-) -> None:
-    """An offer of the drive with this MPN (made if no other offer has), at these prices."""
-    drive = db.execute(select(drives.c.id).where(drives.c.mpn == mpn)).scalar()
-    if drive is None:
-        drive = uuid4()
-        db.execute(insert(drives).values(id=drive, mpn=mpn, capacity_gb=16000))
-    if alias:
-        db.execute(insert(mpn_aliases).values(alias=alias, drive_id=drive))
-    listing = uuid4()
-    db.execute(
-        insert(listings).values(
-            id=listing,
-            title="Drive",
-            store=store,
-            seller="",
-            url=url,
-            condition="new",
-            drive_id=drive,
-        )
-    )
-    for price in prices:
-        db.execute(
-            insert(observations).values(
-                id=uuid4(),
-                listing_id=listing,
-                item_price_cents=price,
-                shipping_cents=0,
-                in_stock=True,
-                observed_at=NOW,
-                entered_at=NOW,
-                notes="",
-            )
-        )
 
 
 def queued(
@@ -139,152 +101,6 @@ def left(database_url: str) -> dict[str, list[object]]:
         }
     engine.dispose()
     return found
-
-
-class TestRemoveUrlModelNumbers:
-    """Offers recorded under a model number made from their page's address."""
-
-    @pytest.fixture
-    def faulty(self, database: str) -> str:
-        engine = create_engine(database)
-        with engine.begin() as db:
-            # Alone under its made-up number: offer, price, drive and alias all go.
-            offer(
-                db,
-                "serverorbit",
-                "DELL-0HNHWC-16TB-SAS",
-                f"{BASE}dell-0hnhwc-16tb-sas/",
-                [100],
-                alias="0HNHWC",
-            )
-            # Another store has an offer of the drive made for it: the drive stays.
-            offer(db, "serverorbit", "HPE-P1-16TB", f"{BASE}hpe-p1-16tb/", [200])
-            offer(db, "elsewhere", "HPE-P1-16TB", f"{BASE}hpe-p1-16tb/", [300])
-            # A real model number, though its address ends otherwise: left alone.
-            offer(db, "serverorbit", "HUH721010ALN600", f"{BASE}wd-huh721010aln600-10tb/", [400])
-            queued(db, f"{BASE}emc-1-16tb/", "EMC-1-16TB", 500)
-            queued(db, f"{BASE}real-queued/", "ST16000NM001G", 600)
-        engine.dispose()
-        return database
-
-    def test_it_counts_and_changes_nothing_unless_told_to_apply(self, faulty: str) -> None:
-        before = left(faulty)
-
-        said = run("remove-url-model-numbers.py", faulty)
-
-        counted = (
-            "serverorbit: would remove 2 offers, 2 prices, 1 drives, 1 queued for review;"
-            " 1 offers would remain."
-        )
-        assert said.splitlines() == [counted, UNCHANGED]
-        assert left(faulty) == before
-
-    def test_applied_it_removes_them_and_what_only_they_needed(self, faulty: str) -> None:
-        said = run("remove-url-model-numbers.py", faulty, APPLY="1")
-
-        assert said.strip() == (
-            "serverorbit: removed 2 offers, 2 prices, 1 drives, 1 queued for review;"
-            " 1 offers remain."
-        )
-        assert left(faulty) == {
-            "offers": [("elsewhere", "HPE-P1-16TB"), ("serverorbit", "HUH721010ALN600")],
-            "drives": ["HPE-P1-16TB", "HUH721010ALN600"],
-            "prices": [300, 400],
-            "queued": [f"{BASE}real-queued/"],
-            "aliases": [],
-        }
-
-
-class TestRemoveZeroPrices:
-    """Prices of $0.00, recorded for drives a store sells only by quote."""
-
-    @pytest.fixture
-    def faulty(self, database: str) -> str:
-        engine = create_engine(database)
-        with engine.begin() as db:
-            # Never priced above nothing: offer and drive go with the price.
-            offer(db, "serverorbit", "ZERO-ONLY", f"{BASE}a/", [0], alias="Z0")
-            # The drive is another store's too: it stays.
-            offer(db, "serverorbit", "ZERO-SHARED", f"{BASE}b/", [0])
-            offer(db, "elsewhere", "ZERO-SHARED", f"{BASE}b/", [500])
-            # Priced since: the offer keeps its real price.
-            offer(db, "serverorbit", "ZERO-THEN-PRICED", f"{BASE}c/", [0, 900])
-            # Another store's price of nothing is not this run's to remove.
-            offer(db, "elsewhere", "ZERO-ELSEWHERE", f"{BASE}d/", [0])
-            queued(db, f"{BASE}queued-at-nothing/", None, 0)
-            queued(db, f"{BASE}queued-at-a-price/", None, 700)
-        engine.dispose()
-        return database
-
-    def test_it_counts_and_changes_nothing_unless_told_to_apply(self, faulty: str) -> None:
-        before = left(faulty)
-
-        said = run("remove-zero-prices.py", faulty)
-
-        counted = (
-            "serverorbit: would remove 3 prices of $0.00, 2 offers left with no price,"
-            " 1 drives left with no offer, 1 queued for review at $0.00; 1 offers would remain."
-        )
-        assert said.splitlines() == [counted, UNCHANGED]
-        assert left(faulty) == before
-
-    def test_applied_it_removes_them_and_what_only_they_needed(self, faulty: str) -> None:
-        said = run("remove-zero-prices.py", faulty, APPLY="1")
-
-        assert said.strip() == (
-            "serverorbit: removed 3 prices of $0.00, 2 offers left with no price,"
-            " 1 drives left with no offer, 1 queued for review at $0.00; 1 offers remain."
-        )
-        assert left(faulty) == {
-            "offers": [
-                ("elsewhere", "ZERO-ELSEWHERE"),
-                ("elsewhere", "ZERO-SHARED"),
-                ("serverorbit", "ZERO-THEN-PRICED"),
-            ],
-            "drives": ["ZERO-ELSEWHERE", "ZERO-SHARED", "ZERO-THEN-PRICED"],
-            "prices": [0, 500, 900],
-            "queued": [f"{BASE}queued-at-a-price/"],
-            "aliases": [],
-        }
-
-
-class TestRemoveRecordedFromReview:
-    """Offers left waiting in Review though a later run recorded them."""
-
-    @pytest.fixture
-    def faulty(self, database: str) -> str:
-        engine = create_engine(database)
-        with engine.begin() as db:
-            # Recorded since it was queued: no longer waiting for anybody.
-            offer(db, "serverorbit", "MZ7L31T9HBLT", f"{BASE}recorded/", [100])
-            queued(db, f"{BASE}recorded/", None, 100)
-            # Never recorded: still to be reviewed.
-            queued(db, f"{BASE}waiting/", None, 200)
-            # Recorded by another store only, at the same address: still to be reviewed.
-            offer(db, "elsewhere", "ST16000NM001G", f"{BASE}elsewhere/", [300])
-            queued(db, f"{BASE}elsewhere/", None, 300)
-        engine.dispose()
-        return database
-
-    def test_it_counts_and_changes_nothing_unless_told_to_apply(self, faulty: str) -> None:
-        before = left(faulty)
-
-        said = run("remove-recorded-from-review.py", faulty)
-
-        counted = "serverorbit: would remove 1 queued for review; 2 would remain queued."
-        assert said.splitlines() == [counted, UNCHANGED]
-        assert left(faulty) == before
-
-    def test_applied_it_removes_them_and_leaves_the_offers(self, faulty: str) -> None:
-        before = left(faulty)
-
-        said = run("remove-recorded-from-review.py", faulty, APPLY="1")
-
-        assert said.strip() == "serverorbit: removed 1 queued for review; 2 remain queued."
-        assert left(faulty) == {
-            **before,
-            "queued": [f"{BASE}elsewhere/", f"{BASE}waiting/"],
-        }
 
 
 # What the script says of the offers TestHoldDoubtedOffers records, before it is told to apply.
