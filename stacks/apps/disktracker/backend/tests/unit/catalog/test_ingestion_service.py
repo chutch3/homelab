@@ -1,7 +1,7 @@
 """How taking in a page goes once it is judged (catalog.verdict, tested on its own): what the
 service asks of its repositories for each verdict, the drive held before anything of it is read,
-and a page foreseen without holding or keeping anything. Its repositories and session factories
-are stood in for; locks and atomicity are tests/integration's."""
+and a page foreseen without holding or keeping anything. Its repositories and transactions are
+stood in for; locks and atomicity are tests/integration's."""
 
 from datetime import UTC, datetime
 from typing import Any, cast
@@ -14,7 +14,7 @@ from disktracker.catalog.ingestion_service import CollectedPage, IngestionServic
 from disktracker.catalog.offer_repository import OfferRepository
 from disktracker.catalog.review_repository import ReviewRepository
 from disktracker.catalog.schemas import IngestionInput
-from disktracker.database import SessionFactory
+from disktracker.database import Transactions
 from tests.unit.catalog.fakes import (
     MADE_DRIVE,
     MADE_OFFER,
@@ -23,9 +23,8 @@ from tests.unit.catalog.fakes import (
     FakeDrives,
     FakeOffers,
     FakeReviews,
-    FakeSessions,
 )
-from tests.unit.fakes import FixedClock
+from tests.unit.fakes import FakeTransactions, FixedClock
 
 NOW = datetime(2026, 10, 22, 12, tzinfo=UTC)
 DRIVE, OTHER, KEY = UUID(int=1), UUID(int=2), UUID(int=3)
@@ -43,8 +42,8 @@ def page(**fields: Any) -> IngestionInput:
 
 
 @pytest.fixture
-def sessions() -> FakeSessions:
-    return FakeSessions()
+def transactions() -> FakeTransactions:
+    return FakeTransactions()
 
 
 @pytest.fixture
@@ -67,10 +66,10 @@ def reviews() -> FakeReviews:
 
 @pytest.fixture
 def subject(
-    sessions: FakeSessions, drives: FakeDrives, offers: FakeOffers, reviews: FakeReviews
+    transactions: FakeTransactions, drives: FakeDrives, offers: FakeOffers, reviews: FakeReviews
 ) -> IngestionService:
     return IngestionService(
-        cast(SessionFactory, sessions), cast(SessionFactory, sessions),
+        cast(Transactions, transactions),
         cast(DriveRepository, drives), cast(OfferRepository, offers),
         cast(ReviewRepository, reviews), FixedClock(NOW),
     )  # fmt: skip
@@ -78,7 +77,7 @@ def subject(
 
 def test_a_page_taken_as_it_reads_is_recorded_its_drive_held_before_it_is_read(
     subject: IngestionService, drives: FakeDrives, offers: FakeOffers, reviews: FakeReviews,
-    sessions: FakeSessions,
+    transactions: FakeTransactions,
 ) -> None:  # fmt: skip
     answered = subject.ingest(page(aliases=["0FRESH"], brand="Seagate"), KEY)
 
@@ -95,7 +94,7 @@ def test_a_page_taken_as_it_reads_is_recorded_its_drive_held_before_it_is_read(
     assert answered == {
         "status": "recorded", "offer_id": str(MADE_OFFER), "price_id": str(MADE_PRICE),
     }  # fmt: skip
-    assert sessions.committed
+    assert transactions.committed
 
 
 def test_a_new_drive_is_registered_under_the_capacity_its_page_gives(
@@ -137,13 +136,16 @@ def test_a_page_naming_another_drives_mpn_waits_whole_naming_that_drive(
 
 
 def test_a_listing_a_reviewer_said_is_nothing_is_ignored_and_nothing_is_held(
-    subject: IngestionService, drives: FakeDrives, reviews: FakeReviews, sessions: FakeSessions
+    subject: IngestionService,
+    drives: FakeDrives,
+    reviews: FakeReviews,
+    transactions: FakeTransactions,
 ) -> None:
     reviews.decided = {"ignored": True, "reviewed_title": "x", "mpn": None, "condition": None}
 
     assert subject.ingest(page(), KEY) == {"status": "ignored"}
     assert drives.names() == []
-    assert sessions.committed
+    assert transactions.committed
 
 
 def test_a_save_key_used_before_is_answered_as_it_was_and_nothing_is_taken_in(
@@ -157,7 +159,7 @@ def test_a_save_key_used_before_is_answered_as_it_was_and_nothing_is_taken_in(
 
 def test_a_page_is_foreseen_as_it_would_be_taken_in_holding_and_keeping_nothing(
     subject: IngestionService, drives: FakeDrives, offers: FakeOffers, reviews: FakeReviews,
-    sessions: FakeSessions,
+    transactions: FakeTransactions,
 ) -> None:  # fmt: skip
     foreseen = subject.foresee("serverpartdeals", CollectedPage(
         url=URL, mpn="st18000nm000j", condition="new", title="Exos X18", capacity_gb=20000,
@@ -166,4 +168,4 @@ def test_a_page_is_foreseen_as_it_would_be_taken_in_holding_and_keeping_nothing(
 
     assert (foreseen.outcome, foreseen.reason) == ("queued", "capacity_conflict")
     assert (drives.names(), offers.names(), reviews.names()) == ([], [], [])
-    assert not sessions.committed
+    assert not transactions.committed

@@ -11,7 +11,7 @@ import pytest
 from disktracker.collector.repository import CollectionRepository, Sourced
 from disktracker.collector.schemas import ShopifySourceInput
 from disktracker.collector.service import CollectionService, due_at, source_key
-from tests.unit.fakes import FixedClock
+from tests.unit.fakes import FakeTransactions, FixedClock
 
 NOW = datetime(2026, 9, 22, 12, tzinfo=UTC)
 
@@ -96,7 +96,9 @@ class FakeRepository:
 
 
 def service(repository: FakeRepository) -> CollectionService:
-    return CollectionService(cast(CollectionRepository, repository), clock=FixedClock(NOW))
+    return CollectionService(
+        FakeTransactions(), cast(CollectionRepository, repository), clock=FixedClock(NOW)
+    )
 
 
 class TestDue:

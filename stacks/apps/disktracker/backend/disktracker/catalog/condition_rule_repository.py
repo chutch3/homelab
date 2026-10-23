@@ -1,21 +1,22 @@
-"""The rules that read a condition from listing text, in order. Each method works on the session
-of the operation that calls it and never commits."""
+"""The rules that read a condition from listing text, in order."""
 
 from typing import Any
 
 from sqlalchemy import delete, select
-from sqlalchemy.orm import Session
 
 from disktracker.catalog.models import ConditionRule
+from disktracker.database import Repository
 
 
-class ConditionRuleRepository:
-    def all(self, session: Session) -> list[dict[str, Any]]:
+class ConditionRuleRepository(Repository):
+    def all(self) -> list[dict[str, Any]]:
         """Every rule, in the order they are tried."""
-        rules = session.scalars(select(ConditionRule).order_by(ConditionRule.position))
+        rules = self.session.scalars(select(ConditionRule).order_by(ConditionRule.position))
         return [{"pattern": rule.pattern, "condition": rule.condition} for rule in rules]
 
-    def replace(self, session: Session, rules: list[dict[str, Any]]) -> None:
+    def replace(self, rules: list[dict[str, Any]]) -> None:
         """These rules, in this order, in place of the ones kept before."""
-        session.execute(delete(ConditionRule))
-        session.add_all(ConditionRule(position=index, **rule) for index, rule in enumerate(rules))
+        self.session.execute(delete(ConditionRule))
+        self.session.add_all(
+            ConditionRule(position=index, **rule) for index, rule in enumerate(rules)
+        )

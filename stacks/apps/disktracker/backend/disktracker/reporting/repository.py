@@ -1,7 +1,6 @@
 """What reporting reads and keeps: the market as the Prices page lists it, every change of every
-price, to work trends out from, and each trend once worked out. Every operation opens its own
-session; the reads run in a snapshot, so what a report is worked out from (and the revision a
-trend is kept under) describe one moment. Offers are read through catalog.offer_repository."""
+price, to work trends out from, and each trend once worked out. Offers are read through
+catalog.offer_repository."""
 
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
@@ -18,7 +17,7 @@ from disktracker.catalog.models import Drive, MpnAlias, Offer, Price
 from disktracker.catalog.offer_repository import OfferRepository
 from disktracker.catalog.rules import SCALAR_SPECIFICATIONS, UNKNOWN
 from disktracker.catalog.schemas import DriveScope
-from disktracker.database import SessionFactory
+from disktracker.database import Repository
 from disktracker.facts import (
     COUNTED,
     escaped,
@@ -69,15 +68,8 @@ class MarketRead:
     page: dict[str, Any]
 
 
-class ReportingRepository:
-    def __init__(
-        self,
-        session_factory: SessionFactory,
-        snapshot_factory: SessionFactory,
-        offers: OfferRepository,
-        drives: DriveRepository,
-    ) -> None:
-        self.session_factory, self.snapshot_factory = session_factory, snapshot_factory
+class ReportingRepository(Repository):
+    def __init__(self, offers: OfferRepository, drives: DriveRepository) -> None:
         self.offers, self.drives = offers, drives
 
     def range_inputs(
@@ -87,14 +79,13 @@ class ReportingRepository:
         (offer_facts), by condition, with its prices in effect from a moment on and when it was
         last checked."""
         facts = offer_facts().subquery()
-        with self.snapshot_factory() as session:
-            offers = session.execute(
-                select(facts.c.id, facts.c.condition, facts.c.checked)
-                .where(facts.c.drive_id == drive_id)
-                .order_by(facts.c.title, facts.c.id)
-            ).all()
-            windows = self.offers.prices_since(session, [offer.id for offer in offers], since)
-            return [(offer.condition, windows[offer.id], offer.checked) for offer in offers]
+        offers = self.session.execute(
+            select(facts.c.id, facts.c.condition, facts.c.checked)
+            .where(facts.c.drive_id == drive_id)
+            .order_by(facts.c.title, facts.c.id)
+        ).all()
+        windows = self.offers.prices_since([offer.id for offer in offers], since)
+        return [(offer.condition, windows[offer.id], offer.checked) for offer in offers]
 
     def drive_inventory(self, query: InventoryQuery, now: datetime) -> dict[str, Any]:
         """Every drive, those with no offer and those with held offers too, that the words match
@@ -167,51 +158,50 @@ class ReportingRepository:
             else []
         )
         wanted = [shown.c.named, need[query.issue] if query.issue else true()]
-        with self.snapshot_factory() as session:
-            rows = session.execute(
-                select(shown, unknown.label("unknown"))
-                .where(*wanted)
-                .order_by(
-                    *first,
-                    shown.c.in_stock.desc(),
-                    shown.c.per_tb.asc().nulls_last(),
-                    shown.c.mpn,
-                    shown.c.drive_id,
-                )
-                .limit(query.limit)
-                .offset(query.offset)
-            ).all()
-            counted = session.execute(
-                select(
-                    func.count().filter(and_(*wanted)),
-                    func.count(),
-                    *(func.count().filter(value) for value in need.values()),
-                ).select_from(shown)
-            ).one()
-            views = self.drives.views(session, [row.drive_id for row in rows])
-            return {
-                "items": [
-                    {
-                        "drive": views[row.drive_id],
-                        "title": row.title,
-                        "offers": row.offers,
-                        "issues": [
-                            name
-                            for name, needed in (
-                                ("unknown_specifications", row.unknown),
-                                ("stale", row.stale),
-                            )
-                            if needed
-                        ],
-                    }
-                    for row in rows
-                ],
-                "total": counted[0],
-                "all": counted[1],
-                "issues": dict(zip(need, counted[2:], strict=True)),
-                "limit": query.limit,
-                "offset": query.offset,
-            }
+        rows = self.session.execute(
+            select(shown, unknown.label("unknown"))
+            .where(*wanted)
+            .order_by(
+                *first,
+                shown.c.in_stock.desc(),
+                shown.c.per_tb.asc().nulls_last(),
+                shown.c.mpn,
+                shown.c.drive_id,
+            )
+            .limit(query.limit)
+            .offset(query.offset)
+        ).all()
+        counted = self.session.execute(
+            select(
+                func.count().filter(and_(*wanted)),
+                func.count(),
+                *(func.count().filter(value) for value in need.values()),
+            ).select_from(shown)
+        ).one()
+        views = self.drives.views([row.drive_id for row in rows])
+        return {
+            "items": [
+                {
+                    "drive": views[row.drive_id],
+                    "title": row.title,
+                    "offers": row.offers,
+                    "issues": [
+                        name
+                        for name, needed in (
+                            ("unknown_specifications", row.unknown),
+                            ("stale", row.stale),
+                        )
+                        if needed
+                    ],
+                }
+                for row in rows
+            ],
+            "total": counted[0],
+            "all": counted[1],
+            "issues": dict(zip(need, counted[2:], strict=True)),
+            "limit": query.limit,
+            "offset": query.offset,
+        }
 
     def rechecks(self, now: datetime, recent_days: int) -> list[dict[str, Any]]:
         """Offers entered by hand and not checked within recent_days, longest unchecked first:
@@ -225,13 +215,12 @@ class ReportingRepository:
             )
             .order_by(facts.c.checked, facts.c.id)
         )
-        with self.snapshot_factory() as session:
-            ids = list(session.scalars(overdue))
-            found = {
-                offer["id"]: offer
-                for offer in self.offers.summaries(session, select(Offer).where(Offer.id.in_(ids)))
-            }
-            return [found[offer_id] for offer_id in ids]
+        ids = list(self.session.scalars(overdue))
+        found = {
+            offer["id"]: offer
+            for offer in self.offers.summaries(select(Offer).where(Offer.id.in_(ids)))
+        }
+        return [found[offer_id] for offer_id in ids]
 
     def market(self, query: MarketQuery, now: datetime) -> MarketRead:
         """The drives with an offer that matches, a page of them, each shown by its cheapest
@@ -256,178 +245,173 @@ class ReportingRepository:
             "checked": shown.c.checked,
         }[query.sort.split("-")[0]]
         ordering = sort_by.desc() if query.sort.endswith("-desc") else sort_by.asc()
-        with self.snapshot_factory() as session:
-            page = session.execute(
-                select(shown.c.drive_id, shown.c.id, shown.c.condition)
-                .order_by(shown.c.in_stock.desc(), ordering, shown.c.id)
-                .limit(query.limit)
-                .offset(query.offset)
-            ).all()
-            total = session.scalar(select(func.count()).select_from(shown)) or 0
-            offers = session.scalar(select(func.count()).select_from(matching)) or 0
-            catalogued = session.scalar(select(func.count(func.distinct(facts.c.drive_id)))) or 0
-            sold_out = 0
-            if query.in_stock:
-                any_stock = query.model_copy(update={"in_stock": False})
-                everything = select(facts.c.drive_id).where(*_filters(facts, any_stock, now))
-                drives = session.scalar(
-                    select(func.count(func.distinct(everything.subquery().c.drive_id)))
-                )
-                sold_out = (drives or 0) - total
-            on_page = [row.drive_id for row in page]
-            shown_offers = {
-                offer["id"]: offer
-                for offer in self.offers.summaries(
-                    session, select(Offer).where(Offer.id.in_([row.id for row in page]))
-                )
-            }
-            stores = dict(
-                session.execute(
-                    select(matching.c.drive_id, func.count(func.distinct(matching.c.sold_by)))
-                    .where(matching.c.drive_id.in_(on_page))
-                    .group_by(matching.c.drive_id)
-                )
-                .tuples()
-                .all()
+        page = self.session.execute(
+            select(shown.c.drive_id, shown.c.id, shown.c.condition)
+            .order_by(shown.c.in_stock.desc(), ordering, shown.c.id)
+            .limit(query.limit)
+            .offset(query.offset)
+        ).all()
+        total = self.session.scalar(select(func.count()).select_from(shown)) or 0
+        offers = self.session.scalar(select(func.count()).select_from(matching)) or 0
+        catalogued = self.session.scalar(select(func.count(func.distinct(facts.c.drive_id)))) or 0
+        sold_out = 0
+        if query.in_stock:
+            any_stock = query.model_copy(update={"in_stock": False})
+            everything = select(facts.c.drive_id).where(*_filters(facts, any_stock, now))
+            drives = self.session.scalar(
+                select(func.count(func.distinct(everything.subquery().c.drive_id)))
             )
-            in_stock = matching.c.in_stock.is_(True)
-            conditions: dict[UUID, dict[str, dict[str, Any]]] = {}
-            for drive_id, condition, count, stocked, lowest in session.execute(
-                select(
-                    matching.c.drive_id,
-                    matching.c.condition,
-                    func.count(),
-                    func.count().filter(in_stock),
-                    func.min(matching.c.total).filter(in_stock),
-                )
+            sold_out = (drives or 0) - total
+        on_page = [row.drive_id for row in page]
+        shown_offers = {
+            offer["id"]: offer
+            for offer in self.offers.summaries(
+                select(Offer).where(Offer.id.in_([row.id for row in page]))
+            )
+        }
+        stores = dict(
+            self.session.execute(
+                select(matching.c.drive_id, func.count(func.distinct(matching.c.sold_by)))
                 .where(matching.c.drive_id.in_(on_page))
-                .group_by(matching.c.drive_id, matching.c.condition)
-            ).tuples():
-                conditions.setdefault(drive_id, {})[condition] = {
-                    "condition": condition, "offers": count, "in_stock": stocked,
-                    "lowest_total_cents": lowest,
-                }  # fmt: skip
-            # Every offer of each drive on the page in the condition it is shown in, of those that
-            # count (offer_facts): a held offer's price is no price of its drive's.
-            kin = (
-                session.execute(
-                    select(facts.c.id, facts.c.drive_id, facts.c.condition, facts.c.checked)
-                    .where(
-                        func.row(facts.c.drive_id, facts.c.condition).in_(
-                            [func.row(row.drive_id, row.condition) for row in page]
-                        )
-                    )
-                    .order_by(facts.c.title, facts.c.id)
-                ).all()
-                if page
-                else []
+                .group_by(matching.c.drive_id)
             )
-            windows = self.offers.prices_since(
-                session, [offer.id for offer in kin], now - timedelta(days=query.range_days)
+            .tuples()
+            .all()
+        )
+        in_stock = matching.c.in_stock.is_(True)
+        conditions: dict[UUID, dict[str, dict[str, Any]]] = {}
+        for drive_id, condition, count, stocked, lowest in self.session.execute(
+            select(
+                matching.c.drive_id,
+                matching.c.condition,
+                func.count(),
+                func.count().filter(in_stock),
+                func.min(matching.c.total).filter(in_stock),
             )
-            listed = []
-            for row in page:
-                offer = shown_offers[row.id]
-                drawn_from = [
-                    (windows[kin_offer.id], kin_offer.checked)
-                    for kin_offer in kin
-                    if (kin_offer.drive_id, kin_offer.condition) == (row.drive_id, row.condition)
-                ]
-                listed.append(
-                    Listed(
-                        {
-                            "drive": offer["drive"],
-                            "offer": offer,
-                            "stores": stores[row.drive_id],
-                            "conditions": [
-                                conditions[row.drive_id][condition]
-                                for condition in CONDITIONS
-                                if condition in conditions[row.drive_id]
-                            ],
-                        },
-                        drawn_from,
+            .where(matching.c.drive_id.in_(on_page))
+            .group_by(matching.c.drive_id, matching.c.condition)
+        ).tuples():
+            conditions.setdefault(drive_id, {})[condition] = {
+                "condition": condition, "offers": count, "in_stock": stocked,
+                "lowest_total_cents": lowest,
+            }  # fmt: skip
+        # Every offer of each drive on the page in the condition it is shown in, of those that
+        # count (offer_facts): a held offer's price is no price of its drive's.
+        kin = (
+            self.session.execute(
+                select(facts.c.id, facts.c.drive_id, facts.c.condition, facts.c.checked)
+                .where(
+                    func.row(facts.c.drive_id, facts.c.condition).in_(
+                        [func.row(row.drive_id, row.condition) for row in page]
                     )
                 )
-            return MarketRead(
-                listed,
-                {
-                    "total": total,
-                    "offers": offers,
-                    "sold_out": sold_out,
-                    "catalogued": catalogued,
-                    "limit": query.limit,
-                    "offset": query.offset,
-                    "as_of": now,
-                    "lowest": _lowest(session, matching, now, query.recent_days),
-                    "filter_options": _filter_options(session, facts, query, now),
-                },
+                .order_by(facts.c.title, facts.c.id)
+            ).all()
+            if page
+            else []
+        )
+        windows = self.offers.prices_since(
+            [offer.id for offer in kin], now - timedelta(days=query.range_days)
+        )
+        listed = []
+        for row in page:
+            offer = shown_offers[row.id]
+            drawn_from = [
+                (windows[kin_offer.id], kin_offer.checked)
+                for kin_offer in kin
+                if (kin_offer.drive_id, kin_offer.condition) == (row.drive_id, row.condition)
+            ]
+            listed.append(
+                Listed(
+                    {
+                        "drive": offer["drive"],
+                        "offer": offer,
+                        "stores": stores[row.drive_id],
+                        "conditions": [
+                            conditions[row.drive_id][condition]
+                            for condition in CONDITIONS
+                            if condition in conditions[row.drive_id]
+                        ],
+                    },
+                    drawn_from,
+                )
             )
+        return MarketRead(
+            listed,
+            {
+                "total": total,
+                "offers": offers,
+                "sold_out": sold_out,
+                "catalogued": catalogued,
+                "limit": query.limit,
+                "offset": query.offset,
+                "as_of": now,
+                "lowest": _lowest(self.session, matching, now, query.recent_days),
+                "filter_options": _filter_options(self.session, facts, query, now),
+            },
+        )
 
     def kept_trend(self, days: int, by: str | None, recent_days: int, scope: str) -> Kept:
         """The trend kept for a period, split, allowance and scope (None when none has been), and
         where the prices stand now."""
-        with self.snapshot_factory() as session:
-            trend = session.get(Trend, (days, by or "", recent_days, scope))
-            kept = None if trend is None else {
-                "as_of": trend.as_of, "revision": trend.revision, "body": trend.body,
-            }  # fmt: skip
-            return Kept(kept, _revision(session))
+        trend = self.session.get(Trend, (days, by or "", recent_days, scope))
+        kept = None if trend is None else {
+            "as_of": trend.as_of, "revision": trend.revision, "body": trend.body,
+        }  # fmt: skip
+        return Kept(kept, _revision(self.session))
 
     def price_changes(self, scope: DriveScope) -> Changes:
         """Every offer of the drives in scope with every change of its price, oldest first: what
         trends are read from; with the revision of that very moment."""
-        with self.snapshot_factory() as session:
-            return Changes(_price_changes(session, scope), _revision(session))
+        return Changes(_price_changes(self.session, scope), _revision(self.session))
 
     def latest_offers(self, scope: DriveScope) -> list[dict[str, Any]]:
         """Every offer that counts (disktracker.facts.COUNTED) of the drives in scope with its latest
         price and its drive's capacity: what today's prices are read from. An offer is checked whenever a price is recorded for
         it."""
         latest = latest_prices()
-        with self.snapshot_factory() as session:
-            rows = session.execute(
-                select(
-                    Offer,
-                    Drive.capacity_gb,
-                    latest.c.item_price_cents,
-                    latest.c.in_stock,
-                    latest.c.observed_at,
-                )
-                .join(Drive, Drive.id == Offer.drive_id)
-                .join(latest, latest.c.listing_id == Offer.id)
-                .where(COUNTED, *_in_scope(scope))
-            ).tuples()
-            return [
-                {
-                    "id": offer.id,
-                    "drive_id": offer.drive_id,
-                    "condition": offer.condition,
-                    "title": offer.title,
-                    "capacity_gb": capacity_gb,
-                    "item_price_cents": item_price_cents,
-                    "in_stock": in_stock,
-                    "last_checked_at": max(observed_at, offer.last_checked_at or observed_at),
-                }
-                for offer, capacity_gb, item_price_cents, in_stock, observed_at in rows
-            ]
+        rows = self.session.execute(
+            select(
+                Offer,
+                Drive.capacity_gb,
+                latest.c.item_price_cents,
+                latest.c.in_stock,
+                latest.c.observed_at,
+            )
+            .join(Drive, Drive.id == Offer.drive_id)
+            .join(latest, latest.c.listing_id == Offer.id)
+            .where(COUNTED, *_in_scope(scope))
+        ).tuples()
+        return [
+            {
+                "id": offer.id,
+                "drive_id": offer.drive_id,
+                "condition": offer.condition,
+                "title": offer.title,
+                "capacity_gb": capacity_gb,
+                "item_price_cents": item_price_cents,
+                "in_stock": in_stock,
+                "last_checked_at": max(observed_at, offer.last_checked_at or observed_at),
+            }
+            for offer, capacity_gb, item_price_cents, in_stock, observed_at in rows
+        ]
 
     def store_freshness(self) -> list[dict[str, Any]]:
         """Each store with offers, by key: how many it has, held ones and all, and when the
         latest and the middle of them were checked."""
         facts = every_offer_facts().subquery()
         middle = func.percentile_cont(0.5).within_group(extract("epoch", facts.c.checked))
-        with self.snapshot_factory() as session:
-            rows = session.execute(
-                select(
-                    facts.c.store,
-                    func.count().label("offers"),
-                    func.max(facts.c.checked).label("latest_checked_at"),
-                    func.to_timestamp(middle).label("median_checked_at"),
-                )
-                .group_by(facts.c.store)
-                .order_by(facts.c.store)
-            ).mappings()
-            return [dict(row) for row in rows]
+        rows = self.session.execute(
+            select(
+                facts.c.store,
+                func.count().label("offers"),
+                func.max(facts.c.checked).label("latest_checked_at"),
+                func.to_timestamp(middle).label("median_checked_at"),
+            )
+            .group_by(facts.c.store)
+            .order_by(facts.c.store)
+        ).mappings()
+        return [dict(row) for row in rows]
 
     def keep_trend(
         self,
@@ -444,16 +428,14 @@ class ReportingRepository:
         as_of: when all of it was last worked out. revision: that of what it was worked out
         from."""
         kept = {"as_of": as_of, "revision": revision, "body": body}
-        with self.session_factory() as session:
-            session.execute(
-                pg_insert(Trend)
-                .values(days=days, by=by or "", recent_days=recent_days, scope=scope, **kept)
-                .on_conflict_do_update(
-                    index_elements=[Trend.days, Trend.by, Trend.recent_days, Trend.scope],
-                    set_=kept,
-                )
+        self.session.execute(
+            pg_insert(Trend)
+            .values(days=days, by=by or "", recent_days=recent_days, scope=scope, **kept)
+            .on_conflict_do_update(
+                index_elements=[Trend.days, Trend.by, Trend.recent_days, Trend.scope],
+                set_=kept,
             )
-            session.commit()
+        )
 
 
 def _in_scope(scope: DriveScope) -> list[Any]:

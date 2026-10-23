@@ -5,19 +5,18 @@ from collections.abc import Iterator
 from uuid import UUID
 
 import pytest
-from sqlalchemy import create_engine
-from sqlalchemy.orm import Session
 
 from disktracker.catalog.drive_repository import DriveRepository
+from disktracker.database import Database, Transactions
 from disktracker.errors import CapacityConflict, CapacityRequired
 
 
 @pytest.fixture
-def session(database_url: str) -> Iterator[Session]:
-    engine = create_engine(database_url)
-    with Session(engine) as opened:
-        yield opened
-    engine.dispose()
+def transaction(database_url: str) -> Iterator[None]:
+    database = Database(database_url)
+    with Transactions(database).begin():
+        yield
+    database.dispose()
 
 
 @pytest.fixture
@@ -26,19 +25,19 @@ def drives() -> DriveRepository:
 
 
 def test_a_drive_is_registered_once_under_its_own_capacity(
-    session: Session, drives: DriveRepository
+    transaction: None, drives: DriveRepository
 ) -> None:
-    made = drives.register(session, "ST18000NM000J", 18000)
+    made = drives.register("ST18000NM000J", 18000)
 
     assert isinstance(made, UUID)
-    assert drives.register(session, "ST18000NM000J", None) == made
-    assert drives.register(session, "ST18000NM000J", 18000) == made
+    assert drives.register("ST18000NM000J", None) == made
+    assert drives.register("ST18000NM000J", 18000) == made
     with pytest.raises(CapacityConflict, match="recorded as 18 TB"):
-        drives.register(session, "ST18000NM000J", 20000)
+        drives.register("ST18000NM000J", 20000)
 
 
 def test_a_drive_not_yet_known_is_not_registered_without_a_capacity(
-    session: Session, drives: DriveRepository
+    transaction: None, drives: DriveRepository
 ) -> None:
     with pytest.raises(CapacityRequired):
-        drives.register(session, "ST20000NM007D", None)
+        drives.register("ST20000NM007D", None)

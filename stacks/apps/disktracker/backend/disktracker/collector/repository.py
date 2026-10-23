@@ -1,6 +1,5 @@
-"""Collection's persistence, exercised with real-database integration tests. Every operation
-opens its own session, does all of its work there and commits once; what it returns is plain
-data, complete before its session closes. Reads that take several queries run in a snapshot."""
+"""The sources offers are collected from, their runs, and when the collector was last heard
+from."""
 
 from datetime import datetime
 from typing import Any
@@ -19,7 +18,7 @@ from disktracker.collector.models import (
     CollectorRun,
     Source,
 )
-from disktracker.database import SessionFactory, columns
+from disktracker.database import Repository, columns
 from disktracker.errors import (
     RunNotFound,
     SourceExists,
@@ -43,42 +42,34 @@ def run_view(run: dict[str, Any], stop_requested_at: datetime | None) -> dict[st
     return {**run, "id": str(run["id"]), "stop_requested": asked}
 
 
-class CollectionRepository:
-    def __init__(self, session_factory: SessionFactory, snapshot_factory: SessionFactory) -> None:
-        self.session_factory, self.snapshot_factory = session_factory, snapshot_factory
-
+class CollectionRepository(Repository):
     # Sources.
 
     def sources(self, by_name: bool = False) -> list[Sourced]:
         """Every source, by name when asked, each with when its last run started."""
         chosen = select(Source).order_by(Source.name) if by_name else select(Source)
-        with self.snapshot_factory() as session:
-            return _with_last_start(session, chosen)
+        return _with_last_start(self.session, chosen)
 
     def add_source(self, values: dict[str, Any]) -> Sourced:
         try:
-            with self.session_factory() as session:
-                source = Source(**values)
-                session.add(source)
-                session.flush()
-                [added] = _with_last_start(session, select(Source).where(Source.id == source.id))
-                session.commit()
-                return added
+            source = Source(**values)
+            self.session.add(source)
+            self.session.flush()
+            [added] = _with_last_start(self.session, select(Source).where(Source.id == source.id))
+            return added
         except IntegrityError as error:
             raise SourceExists(values["name"]) from error
 
     def update_source(self, source_id: UUID, values: dict[str, Any]) -> Sourced:
         """Change a source, by what is given; SourceNotFound when there is no such source."""
         try:
-            with self.session_factory() as session:
-                changed = session.execute(
-                    update(Source).where(Source.id == source_id).values(**values)
-                ).rowcount
-                if not changed:
-                    raise SourceNotFound()
-                [updated] = _with_last_start(session, select(Source).where(Source.id == source_id))
-                session.commit()
-                return updated
+            changed = self.session.execute(
+                update(Source).where(Source.id == source_id).values(**values)
+            ).rowcount
+            if not changed:
+                raise SourceNotFound()
+            [updated] = _with_last_start(self.session, select(Source).where(Source.id == source_id))
+            return updated
         except IntegrityError as error:
             raise SourceExists(values.get("name", "")) from error
 
@@ -86,19 +77,17 @@ class CollectionRepository:
         """Delete a source nothing is recorded under; its runs and what was decided about its
         listings go with it. One with offers or listings waiting for review is kept, and so is
         Other."""
-        with self.session_factory() as session:
-            key = session.scalar(select(Source.key).where(Source.id == source_id))
-            if key is None:
-                raise SourceNotFound()
-            if key == "other":
-                raise SourceKept("Other is always kept, for one-off stores.")
-            try:
-                session.execute(delete(Source).where(Source.id == source_id))
-            except IntegrityError as error:
-                raise SourceKept(
-                    "Offers are recorded under this source. Switch it off instead."
-                ) from error
-            session.commit()
+        key = self.session.scalar(select(Source.key).where(Source.id == source_id))
+        if key is None:
+            raise SourceNotFound()
+        if key == "other":
+            raise SourceKept("Other is always kept, for one-off stores.")
+        try:
+            self.session.execute(delete(Source).where(Source.id == source_id))
+        except IntegrityError as error:
+            raise SourceKept(
+                "Offers are recorded under this source. Switch it off instead."
+            ) from error
 
     # Runs, and the collector's word on them.
 
@@ -106,64 +95,60 @@ class CollectionRepository:
         """Register a run as it starts, and whether it is new: the same start sent again is
         the run already registered; another under its id is refused. A run of the source still
         marked running is abandoned, since its collector no longer has it."""
-        with self.session_factory() as session:
-            source = session.scalars(
-                select(Source).where(Source.key == values["source"]).with_for_update()
-            ).first()
-            if source is None:
-                raise UnknownSource()
-            created = session.scalar(
-                pg_insert(CollectorRun)
-                .values(**values, status="running", updated_at=now, **ZERO)
-                .on_conflict_do_nothing(index_elements=[CollectorRun.id])
-                .returning(CollectorRun.id)
+        source = self.session.scalars(
+            select(Source).where(Source.key == values["source"]).with_for_update()
+        ).first()
+        if source is None:
+            raise UnknownSource()
+        created = self.session.scalar(
+            pg_insert(CollectorRun)
+            .values(**values, status="running", updated_at=now, **ZERO)
+            .on_conflict_do_nothing(index_elements=[CollectorRun.id])
+            .returning(CollectorRun.id)
+        )
+        run = self.session.get_one(CollectorRun, values["id"])
+        if created is None:
+            same_start(columns(run), values)
+            return run_view(columns(run), source.stop_requested_at), False
+        self.session.execute(
+            update(CollectorRun)
+            .where(
+                CollectorRun.source == run.source,
+                CollectorRun.status == "running",
+                CollectorRun.id != run.id,
             )
-            run = session.get_one(CollectorRun, values["id"])
-            if created is None:
-                same_start(columns(run), values)
-                return run_view(columns(run), source.stop_requested_at), False
-            session.execute(
-                update(CollectorRun)
-                .where(
-                    CollectorRun.source == run.source,
-                    CollectorRun.status == "running",
-                    CollectorRun.id != run.id,
-                )
-                .values(**abandoned(SUPERSEDED, now))
-            )
-            session.commit()
-            return run_view(columns(run), source.stop_requested_at), True
+            .values(**abandoned(SUPERSEDED, now))
+        )
+        return run_view(columns(run), source.stop_requested_at), True
 
     def update_run(self, run_id: UUID, values: dict[str, Any], now: datetime) -> dict[str, Any]:
         """Keep how far a running run has got, or how it ended. A run that has ended stays as
         it ended: the same end sent again changes nothing, and anything else is refused."""
-        with self.session_factory() as session:
-            run = session.scalars(
-                select(CollectorRun).where(CollectorRun.id == run_id).with_for_update()
-            ).first()
-            if run is None:
-                raise RunNotFound()
-            kept = {key: getattr(run, key) for key in values}
-            if applies(run.status, kept, values):
-                for key, value in values.items():
-                    setattr(run, key, value)
-                run.updated_at = now
-                session.flush()
-            asked = session.scalar(select(Source.stop_requested_at).where(Source.key == run.source))
-            session.commit()
-            return run_view(columns(run), asked)
+        run = self.session.scalars(
+            select(CollectorRun).where(CollectorRun.id == run_id).with_for_update()
+        ).first()
+        if run is None:
+            raise RunNotFound()
+        kept = {key: getattr(run, key) for key in values}
+        if applies(run.status, kept, values):
+            for key, value in values.items():
+                setattr(run, key, value)
+            run.updated_at = now
+            self.session.flush()
+        asked = self.session.scalar(
+            select(Source.stop_requested_at).where(Source.key == run.source)
+        )
+        return run_view(columns(run), asked)
 
     def heartbeat(self, runs: list[UUID], now: datetime) -> None:
         """The collector is alive, with these runs: any other still marked running is
         abandoned."""
-        with self.session_factory() as session:
-            _heard(session, now)
-            session.execute(
-                update(CollectorRun)
-                .where(CollectorRun.status == "running", CollectorRun.id.not_in(runs))
-                .values(**abandoned(RESTARTED, now))
-            )
-            session.commit()
+        _heard(self.session, now)
+        self.session.execute(
+            update(CollectorRun)
+            .where(CollectorRun.status == "running", CollectorRun.id.not_in(runs))
+            .values(**abandoned(RESTARTED, now))
+        )
 
     def runs(
         self,
@@ -189,26 +174,24 @@ class CollectionRepository:
             )
         else:
             chosen = chosen.order_by(CollectorRun.started_at, CollectorRun.id)
-        with self.snapshot_factory() as session:
-            return [
-                run_view(columns(run), asked) for run, asked in session.execute(chosen).tuples()
-            ]
+        return [
+            run_view(columns(run), asked) for run, asked in self.session.execute(chosen).tuples()
+        ]
 
     def collector_status(self) -> tuple[datetime | None, list[dict[str, Any]], list[Sourced]]:
         """When a collector was last heard from, the runs in progress, and every source with
         when its last run started: one moment of all three."""
-        with self.snapshot_factory() as session:
-            seen = session.scalar(select(CollectorContact.seen_at))
-            running = [
-                run_view(columns(run), asked)
-                for run, asked in session.execute(
-                    select(CollectorRun, Source.stop_requested_at)
-                    .outerjoin(Source, Source.key == CollectorRun.source)
-                    .where(CollectorRun.status == "running")
-                    .order_by(CollectorRun.started_at)
-                ).tuples()
-            ]
-            return seen, running, _with_last_start(session, select(Source))
+        seen = self.session.scalar(select(CollectorContact.seen_at))
+        running = [
+            run_view(columns(run), asked)
+            for run, asked in self.session.execute(
+                select(CollectorRun, Source.stop_requested_at)
+                .outerjoin(Source, Source.key == CollectorRun.source)
+                .where(CollectorRun.status == "running")
+                .order_by(CollectorRun.started_at)
+            ).tuples()
+        ]
+        return seen, running, _with_last_start(self.session, select(Source))
 
 
 def _with_last_start(session: Session, chosen: Select[Any]) -> list[Sourced]:

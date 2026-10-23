@@ -1,6 +1,6 @@
 """What a price submission is taken to say, what binds its save key to it, and how recording
 one goes: the save key, the offer held, the one price writer, the answer kept. Its repositories
-and session factory are stood in for; what they do to a database is tests/integration's."""
+and transactions are stood in for; what they do to a database is tests/integration's."""
 
 from typing import Any, cast
 from uuid import UUID
@@ -11,9 +11,10 @@ from disktracker.catalog.drive_repository import DriveRepository
 from disktracker.catalog.offer_repository import OfferRepository
 from disktracker.catalog.price_service import PriceService, fingerprint, observation
 from disktracker.catalog.schemas import PriceInput
-from disktracker.database import SessionFactory
+from disktracker.database import Transactions
 from disktracker.errors import DriveNotFound
-from tests.unit.catalog.fakes import MADE_PRICE, FakeDrives, FakeOffers, FakeSessions
+from tests.unit.catalog.fakes import MADE_PRICE, FakeDrives, FakeOffers
+from tests.unit.fakes import FakeTransactions
 
 
 def a_price(**fields: Any) -> PriceInput:
@@ -79,8 +80,8 @@ DRIVE, OFFER, KEY = UUID(int=1), UUID(int=2), UUID(int=3)
 
 
 @pytest.fixture
-def sessions() -> FakeSessions:
-    return FakeSessions()
+def transactions() -> FakeTransactions:
+    return FakeTransactions()
 
 
 @pytest.fixture
@@ -94,24 +95,25 @@ def offers() -> FakeOffers:
 
 
 @pytest.fixture
-def subject(sessions: FakeSessions, drives: FakeDrives, offers: FakeOffers) -> PriceService:
+def subject(transactions: FakeTransactions, drives: FakeDrives, offers: FakeOffers) -> PriceService:
     return PriceService(
-        cast(SessionFactory, sessions), cast(DriveRepository, drives), cast(OfferRepository, offers)
+        cast(Transactions, transactions),
+        cast(DriveRepository, drives),
+        cast(OfferRepository, offers),
     )
 
 
 class TestRecord:
     def test_a_save_key_used_before_is_answered_as_it_was_and_nothing_is_recorded(
-        self, subject: PriceService, offers: FakeOffers, sessions: FakeSessions
+        self, subject: PriceService, offers: FakeOffers, transactions: FakeTransactions
     ) -> None:
         offers.replay = {"status": "recorded", "offer_id": str(OFFER), "price_id": None}
 
         assert subject.record(a_recheck(offer_id=str(OFFER)), KEY) == offers.replay
         assert offers.names() == ["claim"]
-        assert not sessions.committed
 
     def test_a_price_of_an_offer_named_is_recorded_under_it_held_and_answered(
-        self, subject: PriceService, offers: FakeOffers, sessions: FakeSessions
+        self, subject: PriceService, offers: FakeOffers, transactions: FakeTransactions
     ) -> None:
         answered = subject.record(a_recheck(offer_id=str(OFFER), in_stock=False), KEY)
 
@@ -125,7 +127,7 @@ class TestRecord:
             "price_id": str(MADE_PRICE),
         }
         assert offers.of("answer") == [(KEY, answered)]
-        assert sessions.committed
+        assert transactions.committed
 
     def test_a_price_of_a_drive_is_of_its_offer_at_that_store_from_that_seller(
         self, subject: PriceService, offers: FakeOffers, drives: FakeDrives
@@ -139,10 +141,9 @@ class TestRecord:
         })]  # fmt: skip
 
     def test_a_price_of_a_drive_not_there_is_refused_and_nothing_is_recorded(
-        self, subject: PriceService, offers: FakeOffers, sessions: FakeSessions
+        self, subject: PriceService, offers: FakeOffers, transactions: FakeTransactions
     ) -> None:
         with pytest.raises(DriveNotFound):
             subject.record(a_price(drive_id=str(UUID(int=99))), KEY)
 
         assert offers.names() == ["claim"]
-        assert not sessions.committed

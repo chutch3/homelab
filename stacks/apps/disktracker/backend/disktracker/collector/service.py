@@ -1,6 +1,6 @@
 """Collection's workflows: the stores offers are collected from, when each is due, the runs
-collecting them, and trying a store before it is collected. It applies what each request means
-and asks the repositories for whole operations; it never opens a session or commits."""
+collecting them, and trying a store before it is collected. It applies what each request means,
+each in one transaction, and asks its repository for what is kept."""
 
 import re
 from datetime import datetime
@@ -19,6 +19,7 @@ from disktracker.collector.schemas import (
     SourceBase,
 )
 from disktracker.collector.settings import KINDS
+from disktracker.database import Transactions, transactional
 
 
 def due_at(source: dict[str, Any], last_started: datetime | None, now: datetime) -> datetime | None:
@@ -46,10 +47,11 @@ def source_key(name: str) -> str:
 class CollectionService:
     def __init__(
         self,
+        transactions: Transactions,
         repository: CollectionRepository,
         clock: Clock,
     ) -> None:
-        self.repository, self.clock = repository, clock
+        self.transactions, self.repository, self.clock = transactions, repository, clock
 
     # Sources, and when each is due.
 
@@ -78,31 +80,38 @@ class CollectionService:
         ]
         return [source for *_, source in sorted(due, key=lambda entry: entry[:2])]
 
+    @transactional(read_only=True)
     def list_sources(self) -> list[dict[str, Any]]:
         now = self.clock.now()
         return [self._view(sourced, now)[0] for sourced in self.repository.sources(by_name=True)]
 
+    @transactional(read_only=True)
     def due_sources(self) -> list[dict[str, Any]]:
         return self._due(self.repository.sources())
 
+    @transactional
     def add_source(self, entry: SourceBase) -> dict[str, Any]:
         values = {"key": source_key(entry.name), **entry.model_dump()}
         return self._view(self.repository.add_source(values), self.clock.now())[0]
 
+    @transactional
     def update_source(self, source_id: UUID, entry: SourceBase) -> dict[str, Any]:
         updated = self.repository.update_source(source_id, entry.model_dump())
         return self._view(updated, self.clock.now())[0]
 
+    @transactional
     def request_run(self, source_id: UUID) -> dict[str, Any]:
         updated = self.repository.update_source(source_id, {"run_requested_at": self.clock.now()})
         return self._view(updated, self.clock.now())[0]
 
+    @transactional
     def request_stop(self, source_id: UUID) -> dict[str, Any]:
         """Ask the source's run in progress to stop; it is told the next time it says how far
         it has got. A run that starts later is not stopped by it."""
         updated = self.repository.update_source(source_id, {"stop_requested_at": self.clock.now()})
         return self._view(updated, self.clock.now())[0]
 
+    @transactional
     def delete_source(self, source_id: UUID) -> None:
         """Delete a source nothing is recorded under, with its runs and what it was told about
         scraped offers. One with offers, or queued offers, is kept, and so is Other."""
@@ -110,22 +119,27 @@ class CollectionService:
 
     # Runs, and the collector's word on them.
 
+    @transactional
     def start_run(self, start: RunStart) -> tuple[dict[str, Any], bool]:
         return self.repository.start_run(start.model_dump(), self.clock.now())
 
+    @transactional
     def update_run(self, run_id: UUID, update: RunUpdate) -> dict[str, Any]:
         return self.repository.update_run(run_id, update.model_dump(), self.clock.now())
 
+    @transactional
     def heartbeat(self, beat: Heartbeat) -> dict[str, Any]:
         now = self.clock.now()
         self.repository.heartbeat(beat.runs, now)
         return {"seen_at": now}
 
+    @transactional(read_only=True)
     def runs(self, query: RunQuery) -> list[dict[str, Any]]:
         return self.repository.runs(
             query.source, query.status, query.finished_since, query.latest_per_source
         )
 
+    @transactional(read_only=True)
     def collector_status(self) -> dict[str, Any]:
         """When a collector was last heard from, the runs in progress, and the sources waiting
         to run, in the order they will."""

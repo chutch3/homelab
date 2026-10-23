@@ -11,7 +11,7 @@ import pytest
 from disktracker.catalog.schemas import DriveScope
 from disktracker.reporting.repository import Changes, Kept, ReportingRepository
 from disktracker.reporting.service import ReportingService
-from tests.unit.fakes import FixedClock
+from tests.unit.fakes import FakeTransactions, FixedClock
 
 NOW = datetime(2026, 9, 22, 12, tzinfo=UTC)
 KEPT_BODY: dict[str, Any] = {"days": 30, "by": None, "market": {"counted": 99}, "parts": []}
@@ -39,16 +39,23 @@ class FakeRepository:
         self.kept.append(kept)
 
 
-def answered(repository: FakeRepository, scope: DriveScope | None = None) -> dict[str, Any]:
-    service = ReportingService(cast(ReportingRepository, repository), clock=FixedClock(NOW))
+def answered(
+    repository: FakeRepository,
+    scope: DriveScope | None = None,
+    transactions: FakeTransactions | None = None,
+) -> dict[str, Any]:
+    service = ReportingService(
+        transactions or FakeTransactions(), cast(ReportingRepository, repository), FixedClock(NOW)
+    )
     return service.trends(30, None, 7, scope or DriveScope())
 
 
 def test_a_trend_kept_today_from_the_prices_as_they_stand_is_answered_as_it_was_kept() -> None:
-    repository = FakeRepository()
+    repository, transactions = FakeRepository(), FakeTransactions()
 
-    assert answered(repository) is KEPT_BODY
+    assert answered(repository, transactions=transactions) is KEPT_BODY
     assert repository.kept == []
+    assert transactions.ended == ["read"]
 
 
 def test_a_trend_kept_in_another_zones_today_is_still_todays() -> None:
@@ -78,12 +85,14 @@ def test_otherwise_it_is_worked_out_again_and_kept_under_what_it_was_worked_out_
 
 
 def test_with_none_kept_it_is_worked_out_and_kept() -> None:
-    repository = FakeRepository()
+    repository, transactions = FakeRepository(), FakeTransactions()
     repository.trend = None
 
-    body = answered(repository)
+    body = answered(repository, transactions=transactions)
 
     assert repository.kept == [(30, None, 7, "", body, NOW, 1)]
+    # Read as of one moment, then kept apart from the read.
+    assert transactions.ended == ["read", "kept"]
 
 
 def test_a_trend_of_some_drives_is_read_for_them_and_kept_apart_under_what_narrows_them() -> None:

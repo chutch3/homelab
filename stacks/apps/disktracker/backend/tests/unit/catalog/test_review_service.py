@@ -1,6 +1,6 @@
 """How deciding a review item goes: what is held before the item is taken, what a match records
 and remembers (the page's other MPNs attached, or settled when another drive goes by them), and
-the queue read with the drives its items name. Its repositories and session factories are stood
+the queue read with the drives its items name. Its repositories and transactions are stood
 in for; locks and atomicity are tests/integration's."""
 
 from datetime import UTC, datetime
@@ -16,9 +16,10 @@ from disktracker.catalog.offer_repository import OfferRepository
 from disktracker.catalog.review_repository import ReviewRepository
 from disktracker.catalog.review_service import ReviewService
 from disktracker.catalog.schemas import ReviewDecision
-from disktracker.database import SessionFactory
+from disktracker.database import Transactions
 from disktracker.errors import DriveNotFound
-from tests.unit.catalog.fakes import MADE_OFFER, FakeDrives, FakeOffers, FakeReviews, FakeSessions
+from tests.unit.catalog.fakes import MADE_OFFER, FakeDrives, FakeOffers, FakeReviews
+from tests.unit.fakes import FakeTransactions
 
 SEEN = datetime(2026, 10, 1, 12, tzinfo=UTC)
 DRIVE, OTHER, ITEM = UUID(int=1), UUID(int=2), UUID(int=3)
@@ -36,8 +37,8 @@ def decision(**fields: Any) -> Any:
 
 
 @pytest.fixture
-def sessions() -> FakeSessions:
-    return FakeSessions()
+def transactions() -> FakeTransactions:
+    return FakeTransactions()
 
 
 @pytest.fixture
@@ -61,10 +62,10 @@ def reviews() -> FakeReviews:
 
 @pytest.fixture
 def subject(
-    sessions: FakeSessions, drives: FakeDrives, offers: FakeOffers, reviews: FakeReviews
+    transactions: FakeTransactions, drives: FakeDrives, offers: FakeOffers, reviews: FakeReviews
 ) -> ReviewService:
     return ReviewService(
-        cast(SessionFactory, sessions), cast(SessionFactory, sessions),
+        cast(Transactions, transactions),
         cast(DriveRepository, drives), cast(OfferRepository, offers),
         cast(ReviewRepository, reviews),
     )  # fmt: skip
@@ -72,7 +73,7 @@ def subject(
 
 def test_a_match_records_the_page_as_its_drive_and_remembers_what_it_settled(
     subject: ReviewService, drives: FakeDrives, offers: FakeOffers, reviews: FakeReviews,
-    sessions: FakeSessions,
+    transactions: FakeTransactions,
 ) -> None:  # fmt: skip
     answered = subject.decide(
         ITEM, decision(decision="match", drive_id=str(DRIVE), condition="new")
@@ -88,7 +89,7 @@ def test_a_match_records_the_page_as_its_drive_and_remembers_what_it_settled(
     [(_, remembered)] = reviews.of("remember")
     assert (remembered["drive_id"], remembered["settled_aliases"]) == (DRIVE, ["0HNHWC"])
     assert answered == {"status": "matched", "offer_id": str(MADE_OFFER)}
-    assert sessions.committed
+    assert transactions.committed
 
 
 def test_an_ignored_item_is_remembered_as_nothing_to_track_and_holds_nothing(
@@ -104,7 +105,7 @@ def test_an_ignored_item_is_remembered_as_nothing_to_track_and_holds_nothing(
 
 
 def test_a_match_with_a_drive_merged_away_is_refused_before_the_item_is_taken(
-    subject: ReviewService, drives: FakeDrives, reviews: FakeReviews, sessions: FakeSessions
+    subject: ReviewService, drives: FakeDrives, reviews: FakeReviews, transactions: FakeTransactions
 ) -> None:
     # It went by its MPNs as they were read; held, the drive is gone.
     drives.drives.clear()
@@ -113,7 +114,7 @@ def test_a_match_with_a_drive_merged_away_is_refused_before_the_item_is_taken(
         subject.decide(ITEM, decision(decision="match", drive_id=str(DRIVE), condition="new"))
 
     assert "take" not in reviews.names()
-    assert not sessions.committed
+    assert not transactions.committed
 
 
 def test_a_decision_sent_again_is_answered_as_it_was_and_decides_nothing(

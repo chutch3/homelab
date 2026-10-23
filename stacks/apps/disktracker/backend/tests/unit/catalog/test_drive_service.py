@@ -1,6 +1,6 @@
 """How the drive service goes about finding, correcting and merging drives: what it asks of its
 repositories, in what order, and what it refuses before changing anything. Its repositories and
-session factories are stood in for; locks and atomicity are tests/integration's."""
+transactions are stood in for; locks and atomicity are tests/integration's."""
 
 from typing import Any, cast
 from uuid import UUID
@@ -12,9 +12,10 @@ from disktracker.catalog.drive_service import DriveService
 from disktracker.catalog.offer_repository import OfferRepository
 from disktracker.catalog.review_repository import ReviewRepository
 from disktracker.catalog.schemas import DriveEdit, DriveLookup, MergeInput
-from disktracker.database import SessionFactory
+from disktracker.database import Transactions
 from disktracker.errors import DriveNotFound, MergeConflict, SameDrive
-from tests.unit.catalog.fakes import FakeDrives, FakeOffers, FakeReviews, FakeSessions
+from tests.unit.catalog.fakes import FakeDrives, FakeOffers, FakeReviews
+from tests.unit.fakes import FakeTransactions
 
 SOURCE, TARGET, KEY = UUID(int=1), UUID(int=2), UUID(int=3)
 COLUMNS = {
@@ -25,8 +26,8 @@ COLUMNS = {
 
 
 @pytest.fixture
-def sessions() -> FakeSessions:
-    return FakeSessions()
+def transactions() -> FakeTransactions:
+    return FakeTransactions()
 
 
 @pytest.fixture
@@ -53,10 +54,10 @@ def reviews() -> FakeReviews:
 
 @pytest.fixture
 def subject(
-    sessions: FakeSessions, drives: FakeDrives, offers: FakeOffers, reviews: FakeReviews
+    transactions: FakeTransactions, drives: FakeDrives, offers: FakeOffers, reviews: FakeReviews
 ) -> DriveService:
     return DriveService(
-        cast(SessionFactory, sessions), cast(SessionFactory, sessions),
+        cast(Transactions, transactions),
         cast(DriveRepository, drives), cast(OfferRepository, offers),
         cast(ReviewRepository, reviews),
     )  # fmt: skip
@@ -104,7 +105,7 @@ class TestMerge:
         assert drives.names() == []
 
     def test_what_the_drives_go_by_changing_as_they_are_held_refuses_the_merge(
-        self, subject: DriveService, drives: FakeDrives, sessions: FakeSessions
+        self, subject: DriveService, drives: FakeDrives, transactions: FakeTransactions
     ) -> None:
         # Read, then read again once held: another MPN was given the source meanwhile.
         drives.goes_by[SOURCE] = [{"BBB1"}, {"BBB1", "BBB1-X"}]
@@ -113,7 +114,7 @@ class TestMerge:
             merge(subject)
 
         assert "absorb" not in drives.names()
-        assert not sessions.committed
+        assert not transactions.committed
 
 
 class TestFind:
@@ -145,7 +146,7 @@ class TestFind:
 
 class TestEdit:
     def test_a_correction_passes_on_only_what_it_gives(
-        self, subject: DriveService, drives: FakeDrives, sessions: FakeSessions
+        self, subject: DriveService, drives: FakeDrives, transactions: FakeTransactions
     ) -> None:
         subject.edit(TARGET, DriveEdit.model_validate({"brand": "Seagate"}))
         subject.edit(TARGET, DriveEdit.model_validate({"specifications": {"interface": "sata"}}))
@@ -154,7 +155,7 @@ class TestEdit:
             (TARGET, {"brand": "Seagate"}, None),
             (TARGET, {}, {"interface": "sata"}),
         ]
-        assert sessions.committed
+        assert transactions.committed
 
     def test_a_drive_not_there_is_not_corrected(
         self, subject: DriveService, drives: FakeDrives

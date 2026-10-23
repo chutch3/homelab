@@ -1,6 +1,4 @@
-"""Listings waiting for review, and what reviewers decided listings are. Each method works on the
-session of the operation that calls it and never commits: the operation decides what is kept
-together."""
+"""Listings waiting for review, and what reviewers decided listings are."""
 
 from datetime import datetime
 from typing import Any, NamedTuple, Self
@@ -8,11 +6,10 @@ from uuid import UUID
 
 from sqlalchemy import delete, func, literal_column, select, update
 from sqlalchemy.dialects.postgresql import insert as pg_insert
-from sqlalchemy.orm import Session
 
 from disktracker.catalog.models import Drive, ReviewDecision, ReviewItem, ScrapedMatch
 from disktracker.catalog.rules import decided_again
-from disktracker.database import by_column, columns
+from disktracker.database import Repository, by_column, columns
 from disktracker.errors import ReviewItemNotFound
 
 
@@ -42,10 +39,9 @@ def listing_of(item: dict[str, Any]) -> Listing:
     return Listing.of(item["store"], item["url"], item["seller"], item["mpn"], item["condition"])
 
 
-class ReviewRepository:
+class ReviewRepository(Repository):
     def waiting(
         self,
-        session: Session,
         store: str | None,
         reason: str | None,
         limit: int | None,
@@ -59,8 +55,8 @@ class ReviewRepository:
             for column, value in ((ReviewItem.store, store), (ReviewItem.reason, reason))
             if value is not None
         ]
-        total = session.scalar(select(func.count()).select_from(ReviewItem).where(*wanted))
-        items = session.scalars(
+        total = self.session.scalar(select(func.count()).select_from(ReviewItem).where(*wanted))
+        items = self.session.scalars(
             select(ReviewItem)
             .where(*wanted)
             .order_by(ReviewItem.last_seen_at.desc(), ReviewItem.id)
@@ -69,23 +65,21 @@ class ReviewRepository:
         )
         return list(items), total or 0
 
-    def decision_for(self, session: Session, listing: Listing) -> dict[str, Any] | None:
+    def decision_for(self, listing: Listing) -> dict[str, Any] | None:
         """What a reviewer decided this listing is, if one has; no other listing's decision,
         though it shares the page."""
-        decided = session.get(ScrapedMatch, tuple(listing))
+        decided = self.session.get(ScrapedMatch, tuple(listing))
         if decided is None:
             return None
         # With the MPN its drive goes by now, which is what identifies what is collected.
-        mpn = session.scalar(select(Drive.mpn).where(Drive.id == decided.drive_id))
+        mpn = self.session.scalar(select(Drive.mpn).where(Drive.id == decided.drive_id))
         return columns(decided) | {"mpn": mpn}
 
-    def queue(
-        self, session: Session, listing: Listing, fields: dict[str, Any], seen_at: datetime
-    ) -> UUID:
+    def queue(self, listing: Listing, fields: dict[str, Any], seen_at: datetime) -> UUID:
         """Keep a listing waiting for review, in place of what was kept of the same listing
         before, and of no other: the item's id."""
         table = ReviewItem.__table__
-        item_id: UUID = session.scalars(
+        item_id: UUID = self.session.scalars(
             pg_insert(table)
             .values(
                 by_column(
@@ -104,10 +98,10 @@ class ReviewRepository:
         ).one()  # fmt: skip
         return item_id
 
-    def clear(self, session: Session, listing: Listing) -> None:
+    def clear(self, listing: Listing) -> None:
         """This listing no longer waits for review. What waits of another listing of its page
         still does: saying less is no evidence of being the same product."""
-        session.execute(
+        self.session.execute(
             delete(ReviewItem).where(
                 ReviewItem.store == listing.store,
                 ReviewItem.url == listing.url,
@@ -119,7 +113,6 @@ class ReviewRepository:
 
     def remember(
         self,
-        session: Session,
         listing: Listing,
         *,
         drive_id: UUID | None,
@@ -139,7 +132,7 @@ class ReviewRepository:
             zip(("store", "url", "seller", "read_mpn", "read_condition"), listing, strict=True)
         )
         table = ScrapedMatch.__table__
-        session.execute(
+        self.session.execute(
             pg_insert(table)
             .values(by_column(ScrapedMatch, {**key, **decision}))
             .on_conflict_do_update(
@@ -151,12 +144,10 @@ class ReviewRepository:
             )
         )  # fmt: skip
 
-    def claim_decision(
-        self, session: Session, item_id: UUID, decision: dict[str, Any]
-    ) -> dict[str, Any] | None:
+    def claim_decision(self, item_id: UUID, decision: dict[str, Any]) -> dict[str, Any] | None:
         """Take the decision of an item, held until the operation ends: None when it is the
         first, or what the same decision was answered before (refused when it differs)."""
-        claimed = session.scalar(
+        claimed = self.session.scalar(
             pg_insert(ReviewDecision)
             .values(id=item_id, decision=decision)
             .on_conflict_do_nothing(index_elements=[ReviewDecision.id])
@@ -164,41 +155,41 @@ class ReviewRepository:
         )
         if claimed is not None:
             return None
-        earlier = session.get_one(ReviewDecision, item_id)
+        earlier = self.session.get_one(ReviewDecision, item_id)
         return decided_again(earlier.decision, earlier.result, decision)
 
-    def answer_decision(self, session: Session, item_id: UUID, result: dict[str, Any]) -> None:
+    def answer_decision(self, item_id: UUID, result: dict[str, Any]) -> None:
         """Keep what an item's decision was answered, to answer it again."""
-        session.execute(
+        self.session.execute(
             update(ReviewDecision).where(ReviewDecision.id == item_id).values(result=result)
         )
 
-    def peek(self, session: Session, item_id: UUID) -> dict[str, Any]:
+    def peek(self, item_id: UUID) -> dict[str, Any]:
         """An item waiting for review, as it is now, without taking it."""
-        item = session.get(ReviewItem, item_id)
+        item = self.session.get(ReviewItem, item_id)
         if item is None:
             raise ReviewItemNotFound()
         return columns(item)
 
-    def take(self, session: Session, item_id: UUID) -> dict[str, Any]:
+    def take(self, item_id: UUID) -> dict[str, Any]:
         """An item waiting for review, out of the queue: what its page said."""
-        item = session.get(ReviewItem, item_id)
+        item = self.session.get(ReviewItem, item_id)
         if item is None:
             raise ReviewItemNotFound()
         taken = columns(item)
-        session.execute(delete(ReviewItem).where(ReviewItem.id == item_id))
+        self.session.execute(delete(ReviewItem).where(ReviewItem.id == item_id))
         return taken
 
-    def repoint(self, session: Session, from_drive: UUID, to_drive: UUID) -> None:
+    def repoint(self, from_drive: UUID, to_drive: UUID) -> None:
         """What waits for review as conflicting with one drive conflicts with another now (the one
         it was merged into), and listings decided to be the one are the other; what was submitted
         is left as it was."""
-        session.execute(
+        self.session.execute(
             update(ReviewItem)
             .where(ReviewItem.conflict_drive_id == from_drive)
             .values(conflict_drive_id=to_drive)
         )
-        session.execute(
+        self.session.execute(
             update(ScrapedMatch)
             .where(ScrapedMatch.drive_id == from_drive)
             .values(drive_id=to_drive)

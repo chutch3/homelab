@@ -9,7 +9,6 @@ from typing import Any
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, field_validator
-from sqlalchemy.orm import Session
 
 from disktracker.catalog.drive_repository import DriveRepository
 from disktracker.catalog.offer_repository import OfferRepository
@@ -19,7 +18,7 @@ from disktracker.catalog.rules import as_decided, normalize_mpn, queued_fields
 from disktracker.catalog.schemas import IngestionInput
 from disktracker.catalog.verdict import Known, Seen, Verdict, judged
 from disktracker.clock import Clock
-from disktracker.database import SessionFactory
+from disktracker.database import Transactions, transactional
 
 
 class CollectedPage(BaseModel):
@@ -44,29 +43,28 @@ class CollectedPage(BaseModel):
 class IngestionService:
     def __init__(
         self,
-        session_factory: SessionFactory,
-        snapshot_factory: SessionFactory,
+        transactions: Transactions,
         drives: DriveRepository,
         offers: OfferRepository,
         reviews: ReviewRepository,
         clock: Clock,
     ) -> None:
-        self.session_factory, self.snapshot_factory = session_factory, snapshot_factory
+        self.transactions = transactions
         self.clock = clock
         self.drives, self.offers, self.reviews = drives, offers, reviews
 
+    @transactional
     def ingest(self, entry: IngestionInput, request_id: UUID) -> dict[str, Any]:
         """Record, queue or ignore one observation of a store page as collected. A save key used
         before is answered as it was, and refused for another submission."""
-        with self.session_factory() as session:
-            replay = self.offers.claim(session, request_id, fingerprint("ingestion", entry))
-            if replay is not None:
-                return replay
-            result = self._take(session, entry, observation(entry, collected=True))
-            self.offers.answer(session, request_id, result)
-            session.commit()
-            return result
+        replay = self.offers.claim(request_id, fingerprint("ingestion", entry))
+        if replay is not None:
+            return replay
+        result = self._take(entry, observation(entry, collected=True))
+        self.offers.answer(request_id, result)
+        return result
 
+    @transactional(read_only=True)
     def foresee(self, store: str, page: CollectedPage) -> Verdict:
         """What taking in a page as collected would make of it now, as ingest would; nothing is
         kept."""
@@ -74,15 +72,13 @@ class IngestionService:
         aliases = [normalize_mpn(alias) for alias in page.aliases]
         listing = Listing.of(store, page.url, page.seller, mpn, page.condition)
         seen = Seen(page.title, page.capacity_gb, tuple(aliases), page.in_stock)
-        with self.snapshot_factory() as session:
-            decided = self.reviews.decision_for(session, listing)
-            identity = as_decided(_said(listing), decided)
-            known = self._known(session, identity, aliases, hold=False)
-            return judged(seen, identity, decided, known)
+        decided = self.reviews.decision_for(listing)
+        identity = as_decided(_said(listing), decided)
+        known = self._known(identity, aliases, hold=False)
+        return judged(seen, identity, decided, known)
 
     def _known(
         self,
-        session: Session,
         identity: dict[str, Any] | None,
         aliases: list[str],
         *,
@@ -92,32 +88,30 @@ class IngestionService:
         judgement of it reads (catalog.verdict.Known). Held, the drive is held against other
         changes before anything of it is read, so what is judged is what is written to."""
         mpn = None if identity is None else identity["mpn"]
-        drive = None if mpn is None else self.drives.owner_of(session, mpn)
+        drive = None if mpn is None else self.drives.owner_of(mpn)
         if hold and drive is not None:
-            self.drives.lock_drives(session, [drive])
+            self.drives.lock_drives([drive])
         owners = {
             alias: owner
             for alias in dict.fromkeys(aliases)
-            if (owner := self.drives.owner_of(session, alias)) is not None
+            if (owner := self.drives.owner_of(alias)) is not None
         }
         priced = identity is not None and drive is not None and self.offers.priced(
-            session, drive_id=drive, store=identity["store"], seller=identity["seller"],
+            drive_id=drive, store=identity["store"], seller=identity["seller"],
             condition=identity["condition"],
         )  # fmt: skip
-        capacity = None if mpn is None else self.drives.capacity_of(session, mpn)
+        capacity = None if mpn is None else self.drives.capacity_of(mpn)
         return Known(drive, capacity, owners, priced)
 
-    def _take(
-        self, session: Session, entry: IngestionInput, price: dict[str, Any]
-    ) -> dict[str, Any]:
+    def _take(self, entry: IngestionInput, price: dict[str, Any]) -> dict[str, Any]:
         listing = Listing.of(entry.store, str(entry.url), entry.seller, entry.mpn, entry.condition)
-        decided = self.reviews.decision_for(session, listing)
+        decided = self.reviews.decision_for(listing)
         identity = as_decided(_said(listing), decided)
         if identity is None:
             return {"status": "ignored"}
         # Every MPN this may touch, before any row: the drive's, and the others its page gives.
-        self.drives.hold(session, [identity["mpn"], *entry.aliases])
-        known = self._known(session, identity, entry.aliases, hold=True)
+        self.drives.hold([identity["mpn"], *entry.aliases])
+        known = self._known(identity, entry.aliases, hold=True)
         seen = Seen(entry.title, entry.capacity_gb, tuple(entry.aliases), entry.in_stock)
         verdict = judged(seen, identity, decided, known)
         if verdict.outcome == "ignored":
@@ -129,7 +123,7 @@ class IngestionService:
                 # person settles it; other offers of its page are no more in doubt than before.
                 assert known.drive is not None
                 self.offers.hold(
-                    session, drive_id=known.drive, store=identity["store"],
+                    drive_id=known.drive, store=identity["store"],
                     seller=identity["seller"], condition=identity["condition"],
                     reason=verdict.reason,
                 )  # fmt: skip
@@ -138,30 +132,29 @@ class IngestionService:
                 if verdict.conflict is None
                 else {"conflict_mpn": verdict.conflict[0], "conflict_drive_id": verdict.conflict[1]}
             )
-            return self._queue(session, entry, listing, identity, price, verdict.reason, conflict)
-        drive_id = self.drives.register(session, identity["mpn"], verdict.capacity)
+            return self._queue(entry, listing, identity, price, verdict.reason, conflict)
+        drive_id = self.drives.register(identity["mpn"], verdict.capacity)
         offer_id = self.offers.offer_for(
-            session, drive_id=drive_id, store=identity["store"], seller=identity["seller"],
+            drive_id=drive_id, store=identity["store"], seller=identity["seller"],
             condition=identity["condition"], title=entry.title, url=listing.url,
         )  # fmt: skip
-        price_id = self.offers.record(session, offer_id, price, "collected")
+        price_id = self.offers.record(offer_id, price, "collected")
         # Collected afresh and taken as it reads: no longer in doubt.
-        self.offers.release(session, offer_id)
+        self.offers.release(offer_id)
         specifications = entry.specifications
         self.drives.describe(
-            session, drive_id,
+            drive_id,
             None if specifications is None else specifications.model_dump(mode="json"),
             entry.brand,
         )  # fmt: skip
         for alias in verdict.fresh:
-            self.drives.attach_alias(session, drive_id, alias)
+            self.drives.attach_alias(drive_id, alias)
         # This listing no longer waits for review; any other of its page still does.
-        self.reviews.clear(session, listing)
+        self.reviews.clear(listing)
         return recorded(offer_id, price_id)
 
     def _queue(
         self,
-        session: Session,
         entry: IngestionInput,
         listing: Listing,
         identity: dict[str, Any],
@@ -171,9 +164,7 @@ class IngestionService:
     ) -> dict[str, Any]:
         submitted = entry.model_dump(mode="json") | {"provenance": "collected"}
         fields = queued_fields(submitted, identity, price, reason) | conflict
-        item_id = self.reviews.queue(
-            session, listing, fields, entry.observed_at or self.clock.now()
-        )
+        item_id = self.reviews.queue(listing, fields, entry.observed_at or self.clock.now())
         return {"status": "queued", "review_item_id": str(item_id)}
 
 

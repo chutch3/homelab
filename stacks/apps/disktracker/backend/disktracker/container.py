@@ -1,6 +1,6 @@
 """The composition root: the database, every repository and service the API runs with, made by
 providers and handed to whatever depends on them. The routes are wired to the services, which
-are given their repositories; the repositories are given the database's session factories."""
+are given their repositories and the transactions their methods run in."""
 
 from dependency_injector import containers, providers
 
@@ -19,7 +19,7 @@ from disktracker.collector.client import CollectorClient
 from disktracker.collector.preview_service import PreviewService
 from disktracker.collector.repository import CollectionRepository
 from disktracker.collector.service import CollectionService
-from disktracker.database import Database
+from disktracker.database import Database, Transactions
 from disktracker.reporting.repository import ReportingRepository
 from disktracker.reporting.service import ReportingService
 
@@ -41,25 +41,18 @@ class Container(containers.DeclarativeContainer):
     config = providers.Configuration()
     clock = providers.Singleton(Clock)
 
-    # One for the application: the engine, its pool and the session factories. Repositories and
-    # services are made for each request and hold no session.
-    # Disposed as the application stops; thread safe, as synchronous routes run on several
-    # threads.
+    # One for the application: the engine and its pool. Disposed as the application stops;
+    # thread safe, as synchronous routes run on several threads.
     database = providers.ThreadSafeSingleton(Database, url=config.database_url)
+    transactions = providers.Factory(Transactions, database=database)
 
     drive_repository = providers.Factory(DriveRepository)
     offer_repository = providers.Factory(OfferRepository, clock=clock)
     review_repository = providers.Factory(ReviewRepository)
     condition_rule_repository = providers.Factory(ConditionRuleRepository)
-    collection_repository = providers.Factory(
-        CollectionRepository,
-        session_factory=database.provided.session,
-        snapshot_factory=database.provided.snapshot,
-    )
+    collection_repository = providers.Factory(CollectionRepository)
     reporting_repository = providers.Factory(
         ReportingRepository,
-        session_factory=database.provided.session,
-        snapshot_factory=database.provided.snapshot,
         offers=offer_repository,
         drives=drive_repository,
     )
@@ -68,14 +61,13 @@ class Container(containers.DeclarativeContainer):
 
     price_service = providers.Factory(
         PriceService,
-        session_factory=database.provided.session,
+        transactions=transactions,
         drives=drive_repository,
         offers=offer_repository,
     )
     ingestion_service = providers.Factory(
         IngestionService,
-        session_factory=database.provided.session,
-        snapshot_factory=database.provided.snapshot,
+        transactions=transactions,
         drives=drive_repository,
         offers=offer_repository,
         reviews=review_repository,
@@ -83,34 +75,31 @@ class Container(containers.DeclarativeContainer):
     )
     review_service = providers.Factory(
         ReviewService,
-        session_factory=database.provided.session,
-        snapshot_factory=database.provided.snapshot,
+        transactions=transactions,
         drives=drive_repository,
         offers=offer_repository,
         reviews=review_repository,
     )
     drive_service = providers.Factory(
         DriveService,
-        session_factory=database.provided.session,
-        snapshot_factory=database.provided.snapshot,
+        transactions=transactions,
         drives=drive_repository,
         offers=offer_repository,
         reviews=review_repository,
     )
     offer_service = providers.Factory(
         OfferService,
-        session_factory=database.provided.session,
-        snapshot_factory=database.provided.snapshot,
+        transactions=transactions,
         offers=offer_repository,
     )
     condition_rule_service = providers.Factory(
         ConditionRuleService,
-        session_factory=database.provided.session,
-        snapshot_factory=database.provided.snapshot,
+        transactions=transactions,
         rules=condition_rule_repository,
     )
     collection_service = providers.Factory(
         CollectionService,
+        transactions=transactions,
         repository=collection_repository,
         clock=clock,
     )
@@ -121,5 +110,5 @@ class Container(containers.DeclarativeContainer):
         collector=collector_client,
     )
     reporting_service = providers.Factory(
-        ReportingService, repository=reporting_repository, clock=clock
+        ReportingService, transactions=transactions, repository=reporting_repository, clock=clock
     )
