@@ -15,9 +15,12 @@ route:
   repeat_interval: 6h
 
   routes:
-    # Bypass Postal: its DB is on app-data.
-    - matchers: ['component=~"storage|alerting"']
+    # Off-cluster via smtp2go: these fire when the cluster or Postal itself may
+    # be down, so they must not depend on Postal (DB on app-data) or cluster DNS.
+    - matchers: ['component=~"storage|alerting|monitoring"']
       receiver: storage-email
+    - matchers: ['severity="critical"']
+      receiver: critical-email
 
 receivers:
   - name: house-email
@@ -35,3 +38,13 @@ receivers:
         require_tls: true
         # Kernel-log alerts come in bursts; a "resolved" mail per burst is noise.
         send_resolved: false
+  # Same smtp2go path as storage-email, but keeps "resolved" mails: a critical
+  # alert clearing is worth knowing, unlike the bursty storage ones above.
+  - name: critical-email
+    email_configs:
+      - to: 'ALERT_TO_PLACEHOLDER'
+        smarthost: 'mail.smtp2go.com:587'
+        auth_username: 'SMTP2GO_USERNAME_PLACEHOLDER'
+        auth_password: 'SMTP2GO_PASSWORD_PLACEHOLDER'
+        require_tls: true
+        send_resolved: true
