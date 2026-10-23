@@ -59,9 +59,10 @@ class CollectionRepository:
     def add_source(self, values: dict[str, Any]) -> Sourced:
         try:
             with self.session_factory() as session:
-                session.add(Source(**values))
+                source = Source(**values)
+                session.add(source)
                 session.flush()
-                [added] = _with_last_start(session, select(Source).where(Source.id == values["id"]))
+                [added] = _with_last_start(session, select(Source).where(Source.id == source.id))
                 session.commit()
                 return added
         except IntegrityError as error:

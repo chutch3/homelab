@@ -2,7 +2,7 @@
 is never registered under a capacity that is not its own, nor made without one."""
 
 from collections.abc import Iterator
-from uuid import UUID, uuid4
+from uuid import UUID
 
 import pytest
 from sqlalchemy import create_engine
@@ -22,7 +22,7 @@ def session(database_url: str) -> Iterator[Session]:
 
 @pytest.fixture
 def drives() -> DriveRepository:
-    return DriveRepository(next_id=uuid4)
+    return DriveRepository()
 
 
 def test_a_drive_is_registered_once_under_its_own_capacity(

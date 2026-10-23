@@ -2,9 +2,6 @@
 providers and handed to whatever depends on them. The routes are wired to the services, which
 are given their repositories; the repositories are given the database's session factories."""
 
-from datetime import UTC, datetime
-from uuid import uuid4
-
 from dependency_injector import containers, providers
 
 from disktracker.catalog.condition_rule_repository import ConditionRuleRepository
@@ -17,6 +14,7 @@ from disktracker.catalog.offer_service import OfferService
 from disktracker.catalog.price_service import PriceService
 from disktracker.catalog.review_repository import ReviewRepository
 from disktracker.catalog.review_service import ReviewService
+from disktracker.clock import Clock
 from disktracker.collection.client import CollectorClient
 from disktracker.collection.preview_service import PreviewService
 from disktracker.collection.repository import CollectionRepository
@@ -24,10 +22,6 @@ from disktracker.collection.service import CollectionService
 from disktracker.database import Database
 from disktracker.reporting.repository import ReportingRepository
 from disktracker.reporting.service import ReportingService
-
-
-def now() -> datetime:
-    return datetime.now(UTC)
 
 
 class Container(containers.DeclarativeContainer):
@@ -45,8 +39,7 @@ class Container(containers.DeclarativeContainer):
     # database_url; collector_url, where the collector's API is (None: no collector to ask);
     # static_dir, the built frontend to serve (None: the API alone). Read by create_app.
     config = providers.Configuration()
-    clock = providers.Object(now)
-    next_id = providers.Object(uuid4)
+    clock = providers.Singleton(Clock)
 
     # One for the application: the engine, its pool and the session factories. Repositories and
     # services are made for each request and hold no session.
@@ -54,9 +47,9 @@ class Container(containers.DeclarativeContainer):
     # threads.
     database = providers.ThreadSafeSingleton(Database, url=config.database_url)
 
-    drive_repository = providers.Factory(DriveRepository, next_id=next_id)
-    offer_repository = providers.Factory(OfferRepository, now=clock, next_id=next_id)
-    review_repository = providers.Factory(ReviewRepository, next_id=next_id)
+    drive_repository = providers.Factory(DriveRepository)
+    offer_repository = providers.Factory(OfferRepository, clock=clock)
+    review_repository = providers.Factory(ReviewRepository)
     condition_rule_repository = providers.Factory(ConditionRuleRepository)
     collection_repository = providers.Factory(
         CollectionRepository,
@@ -86,7 +79,7 @@ class Container(containers.DeclarativeContainer):
         drives=drive_repository,
         offers=offer_repository,
         reviews=review_repository,
-        now=clock,
+        clock=clock,
     )
     review_service = providers.Factory(
         ReviewService,
@@ -119,8 +112,7 @@ class Container(containers.DeclarativeContainer):
     collection_service = providers.Factory(
         CollectionService,
         repository=collection_repository,
-        now=clock,
-        next_id=next_id,
+        clock=clock,
     )
     preview_service = providers.Factory(
         PreviewService,
@@ -129,5 +121,5 @@ class Container(containers.DeclarativeContainer):
         collector=collector_client,
     )
     reporting_service = providers.Factory(
-        ReportingService, repository=reporting_repository, now=clock
+        ReportingService, repository=reporting_repository, clock=clock
     )

@@ -2,7 +2,6 @@
 session of the operation that calls it and never commits: the operation decides what is kept
 together."""
 
-from collections.abc import Callable
 from datetime import datetime
 from typing import Any, NamedTuple, Self
 from uuid import UUID
@@ -44,9 +43,6 @@ def listing_of(item: dict[str, Any]) -> Listing:
 
 
 class ReviewRepository:
-    def __init__(self, next_id: Callable[[], UUID]) -> None:
-        self.next_id = next_id
-
     def waiting(
         self,
         session: Session,
@@ -94,7 +90,7 @@ class ReviewRepository:
             .values(
                 by_column(
                     ReviewItem,
-                    {"id": self.next_id(), "first_seen_at": seen_at, "last_seen_at": seen_at, **fields},
+                    {"first_seen_at": seen_at, "last_seen_at": seen_at, **fields},
                 )
             )
             .on_conflict_do_update(

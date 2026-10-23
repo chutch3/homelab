@@ -16,7 +16,7 @@ from disktracker.database import Base
 
 class Drive(Base):
     __tablename__ = "drives"
-    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True)
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
     mpn: Mapped[str] = mapped_column(String(100), unique=True)
     capacity_gb: Mapped[int] = mapped_column(Integer)
     specifications: Mapped[dict[str, Any]] = mapped_column(JSONB, server_default="{}")
@@ -30,7 +30,7 @@ class Offer(Base):
     __table_args__ = (
         Index("uq_listings_drive_offer", "drive_id", "store", "seller", "condition", unique=True),
     )
-    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True)
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
     title: Mapped[str] = mapped_column(String(160))
     store: Mapped[str] = mapped_column(String(20))
     seller: Mapped[str] = mapped_column(String(120))
@@ -45,7 +45,7 @@ class Offer(Base):
 
 class Price(Base):
     __tablename__ = "observations"
-    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True)
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
     offer_id: Mapped[uuid.UUID] = mapped_column("listing_id", Uuid, ForeignKey("listings.id"))
     item_price_cents: Mapped[int] = mapped_column(Integer)
     shipping_cents: Mapped[int | None] = mapped_column(Integer)
@@ -71,7 +71,7 @@ class ReviewItem(Base):
     the page."""
 
     __tablename__ = "unmatched"
-    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True)
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
     store: Mapped[str] = mapped_column("source", String(40))
     url: Mapped[str] = mapped_column(Text)
     title: Mapped[str] = mapped_column(String(160))

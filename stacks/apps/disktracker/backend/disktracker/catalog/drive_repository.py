@@ -1,7 +1,7 @@
 """Drives and the MPNs that identify them. Each method works on the session of the operation that
 calls it and never commits: the operation decides what is kept together."""
 
-from collections.abc import Callable, Iterable
+from collections.abc import Iterable
 from typing import Any
 from uuid import UUID
 
@@ -25,9 +25,6 @@ def hold_mpn(session: Session, mpn: str) -> None:
 
 
 class DriveRepository:
-    def __init__(self, next_id: Callable[[], UUID]) -> None:
-        self.next_id = next_id
-
     def create(
         self,
         session: Session,
@@ -43,7 +40,6 @@ class DriveRepository:
         made = session.scalar(
             pg_insert(Drive)
             .values(
-                id=self.next_id(),
                 mpn=mpn,
                 capacity_gb=capacity_gb,
                 brand=brand,

@@ -3,13 +3,13 @@ collecting them, and trying a store before it is collected. It applies what each
 and asks the repositories for whole operations; it never opens a session or commits."""
 
 import re
-from collections.abc import Callable
 from datetime import datetime
 from typing import Any, cast
 from uuid import UUID
 
 from croniter import croniter
 
+from disktracker.clock import Clock
 from disktracker.collection.repository import CollectionRepository, Sourced
 from disktracker.collection.schemas import (
     Heartbeat,
@@ -47,11 +47,9 @@ class CollectionService:
     def __init__(
         self,
         repository: CollectionRepository,
-        now: Callable[[], datetime],
-        next_id: Callable[[], UUID],
+        clock: Clock,
     ) -> None:
-        self.repository = repository
-        self.now, self.next_id = now, next_id
+        self.repository, self.clock = repository, clock
 
     # Sources, and when each is due.
 
@@ -72,7 +70,7 @@ class CollectionService:
     def _due(self, sources: list[Sourced]) -> list[dict[str, Any]]:
         """The sources due to run now, in the order to run them: those asked to run, in the
         order they were asked, ahead of those whose schedule has fired, most overdue first."""
-        now = self.now()
+        now = self.clock.now()
         due = [
             (not asked, source["next_run_at"], source)
             for source, asked in (self._view(sourced, now) for sourced in sources)
@@ -81,29 +79,29 @@ class CollectionService:
         return [source for *_, source in sorted(due, key=lambda entry: entry[:2])]
 
     def list_sources(self) -> list[dict[str, Any]]:
-        now = self.now()
+        now = self.clock.now()
         return [self._view(sourced, now)[0] for sourced in self.repository.sources(by_name=True)]
 
     def due_sources(self) -> list[dict[str, Any]]:
         return self._due(self.repository.sources())
 
     def add_source(self, entry: SourceBase) -> dict[str, Any]:
-        values = {"id": self.next_id(), "key": source_key(entry.name), **entry.model_dump()}
-        return self._view(self.repository.add_source(values), self.now())[0]
+        values = {"key": source_key(entry.name), **entry.model_dump()}
+        return self._view(self.repository.add_source(values), self.clock.now())[0]
 
     def update_source(self, source_id: UUID, entry: SourceBase) -> dict[str, Any]:
         updated = self.repository.update_source(source_id, entry.model_dump())
-        return self._view(updated, self.now())[0]
+        return self._view(updated, self.clock.now())[0]
 
     def request_run(self, source_id: UUID) -> dict[str, Any]:
-        updated = self.repository.update_source(source_id, {"run_requested_at": self.now()})
-        return self._view(updated, self.now())[0]
+        updated = self.repository.update_source(source_id, {"run_requested_at": self.clock.now()})
+        return self._view(updated, self.clock.now())[0]
 
     def request_stop(self, source_id: UUID) -> dict[str, Any]:
         """Ask the source's run in progress to stop; it is told the next time it says how far
         it has got. A run that starts later is not stopped by it."""
-        updated = self.repository.update_source(source_id, {"stop_requested_at": self.now()})
-        return self._view(updated, self.now())[0]
+        updated = self.repository.update_source(source_id, {"stop_requested_at": self.clock.now()})
+        return self._view(updated, self.clock.now())[0]
 
     def delete_source(self, source_id: UUID) -> None:
         """Delete a source nothing is recorded under, with its runs and what it was told about
@@ -113,13 +111,13 @@ class CollectionService:
     # Runs, and the collector's word on them.
 
     def start_run(self, start: RunStart) -> tuple[dict[str, Any], bool]:
-        return self.repository.start_run(start.model_dump(), self.now())
+        return self.repository.start_run(start.model_dump(), self.clock.now())
 
     def update_run(self, run_id: UUID, update: RunUpdate) -> dict[str, Any]:
-        return self.repository.update_run(run_id, update.model_dump(), self.now())
+        return self.repository.update_run(run_id, update.model_dump(), self.clock.now())
 
     def heartbeat(self, beat: Heartbeat) -> dict[str, Any]:
-        now = self.now()
+        now = self.clock.now()
         self.repository.heartbeat(beat.runs, now)
         return {"seen_at": now}
 

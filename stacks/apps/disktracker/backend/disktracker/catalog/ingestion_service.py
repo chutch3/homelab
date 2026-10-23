@@ -5,8 +5,6 @@ through the one price writer and what its page says of the drive kept; or it wai
 or is ignored. One piece of work with its save key: all of it is kept, or none. What would become
 of a page is foreseen the same way, keeping nothing."""
 
-from collections.abc import Callable
-from datetime import datetime
 from typing import Any
 from uuid import UUID
 
@@ -20,6 +18,7 @@ from disktracker.catalog.review_repository import Listing, ReviewRepository
 from disktracker.catalog.rules import as_decided, normalize_mpn, queued_fields
 from disktracker.catalog.schemas import IngestionInput
 from disktracker.catalog.verdict import Known, Seen, Verdict, judged
+from disktracker.clock import Clock
 from disktracker.database import SessionFactory
 
 
@@ -50,13 +49,10 @@ class IngestionService:
         drives: DriveRepository,
         offers: OfferRepository,
         reviews: ReviewRepository,
-        now: Callable[[], datetime],
+        clock: Clock,
     ) -> None:
-        self.session_factory, self.snapshot_factory, self.now = (
-            session_factory,
-            snapshot_factory,
-            now,
-        )
+        self.session_factory, self.snapshot_factory = session_factory, snapshot_factory
+        self.clock = clock
         self.drives, self.offers, self.reviews = drives, offers, reviews
 
     def ingest(self, entry: IngestionInput, request_id: UUID) -> dict[str, Any]:
@@ -175,7 +171,7 @@ class IngestionService:
     ) -> dict[str, Any]:
         submitted = entry.model_dump(mode="json") | {"provenance": "collected"}
         fields = queued_fields(submitted, identity, price, reason) | conflict
-        item_id = self.reviews.queue(session, listing, fields, entry.observed_at or self.now())
+        item_id = self.reviews.queue(session, listing, fields, entry.observed_at or self.clock.now())
         return {"status": "queued", "review_item_id": str(item_id)}
 
 

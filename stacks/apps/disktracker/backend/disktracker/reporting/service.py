@@ -2,11 +2,11 @@
 today's prices and how fresh each store's prices are."""
 
 import json
-from collections.abc import Callable
 from datetime import UTC, datetime, timedelta
 from typing import Any, cast
 
 from disktracker.catalog.schemas import DriveScope
+from disktracker.clock import Clock
 from disktracker.reporting.ranges import price_range
 from disktracker.reporting.repository import ReportingRepository
 from disktracker.reporting.schemas import InventoryQuery, MarketQuery, PriceRangeQuery
@@ -36,8 +36,8 @@ def still_stands(kept: dict[str, Any], revision: int, now: datetime) -> bool:
 
 
 class ReportingService:
-    def __init__(self, repository: ReportingRepository, now: Callable[[], datetime]) -> None:
-        self.repository, self.now = repository, now
+    def __init__(self, repository: ReportingRepository, clock: Clock) -> None:
+        self.repository, self.clock = repository, clock
 
     def trends(
         self, days: int, by: By | None, recent_days: int, scope: DriveScope
@@ -46,12 +46,12 @@ class ReportingService:
         and over each condition, capacity or store when asked. A trend of each scope is kept
         apart, once worked out, while it still stands."""
         found = self.repository.kept_trend(days, by, recent_days, kept_as(scope))
-        if found.trend and still_stands(found.trend, found.revision, self.now()):
+        if found.trend and still_stands(found.trend, found.revision, self.clock.now()):
             return cast(dict[str, Any], found.trend["body"])
         # The prices are read with the revision they are at, so the trend is kept under exactly
         # what it was worked out from; and worked out as of after they were read.
         changes = self.repository.price_changes(scope)
-        now = self.now()
+        now = self.clock.now()
         body = trends(changes.offers, now, days, recent_days, by)
         self.repository.keep_trend(
             days, by, recent_days, kept_as(scope), body, now, changes.revision
@@ -61,7 +61,7 @@ class ReportingService:
     def market(self, query: MarketQuery) -> dict[str, Any]:
         """A part of the market, each drive with the range of its price over the days asked for,
         in the condition it is shown in."""
-        now = self.now()
+        now = self.clock.now()
         read = self.repository.market(query, now)
         items = [
             listed.row
@@ -73,7 +73,7 @@ class ReportingService:
     def price_ranges(self, query: PriceRangeQuery) -> dict[str, Any]:
         """The range of a drive's lowest item price in each condition it is offered in over the
         days asked for: null in one no offer of it was in stock in."""
-        now = self.now()
+        now = self.clock.now()
         since = now - timedelta(days=query.range_days)
         by_condition: dict[str, list[Any]] = {}
         for condition, prices, checked in self.repository.range_inputs(query.drive_id, since):
@@ -85,16 +85,16 @@ class ReportingService:
 
     def drive_inventory(self, query: InventoryQuery) -> dict[str, Any]:
         """A part of every drive to manage, each with how many offers it has and what it needs."""
-        return self.repository.drive_inventory(query, self.now())
+        return self.repository.drive_inventory(query, self.clock.now())
 
     def rechecks(self, recent_days: int) -> list[dict[str, Any]]:
         """The offers entered by hand due a check, longest unchecked first."""
-        return self.repository.rechecks(self.now(), recent_days)
+        return self.repository.rechecks(self.clock.now(), recent_days)
 
     def prices_today(self, recent_days: int, scope: DriveScope) -> list[dict[str, Any]]:
         """What each drive in scope costs today in each condition it is in stock in, by the
         terabyte, cheapest first."""
-        return marks(self.repository.latest_offers(scope), self.now(), recent_days)
+        return marks(self.repository.latest_offers(scope), self.clock.now(), recent_days)
 
     def store_freshness(self) -> list[dict[str, Any]]:
         """How fresh each store's prices are."""

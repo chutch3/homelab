@@ -11,9 +11,9 @@ import pytest
 from disktracker.collection.repository import CollectionRepository, Sourced
 from disktracker.collection.schemas import ShopifySourceInput
 from disktracker.collection.service import CollectionService, due_at, source_key
+from tests.unit.fakes import FixedClock
 
 NOW = datetime(2026, 9, 22, 12, tzinfo=UTC)
-NEW_ID = UUID(int=7)
 
 
 def kept(name: str, **fields: Any) -> dict[str, Any]:
@@ -84,18 +84,14 @@ class FakeRepository:
 
     def add_source(self, values: dict[str, Any]) -> Sourced:
         self.added.append(values)
-        return {**values, "run_requested_at": None, "stop_requested_at": None}, None
+        return {"id": UUID(int=7), **values, "run_requested_at": None, "stop_requested_at": None}, None
 
     def collector_status(self) -> tuple[datetime | None, list[dict[str, Any]], list[Sourced]]:
         return None, self.running, self.kept
 
 
 def service(repository: FakeRepository) -> CollectionService:
-    return CollectionService(
-        cast(CollectionRepository, repository),
-        now=lambda: NOW,
-        next_id=lambda: NEW_ID,
-    )
+    return CollectionService(cast(CollectionRepository, repository), clock=FixedClock(NOW))
 
 
 class TestDue:
@@ -169,7 +165,7 @@ class TestSourcesShown:
         added = service(repository).add_source(entry)
 
         [values] = repository.added
-        assert (values["id"], values["key"]) == (NEW_ID, "serverorbit")
+        assert values["key"] == "serverorbit"
         assert added["next_run_at"] == NOW
 
 

@@ -7,7 +7,7 @@ Recording a price is only that: for a drive that already exists, an offer is fou
 the price kept or counted as a check. It never makes a drive, changes one, names its other MPNs,
 holds or releases an offer, or decides what a store page is; those are the callers'."""
 
-from collections.abc import Callable, Sequence
+from collections.abc import Sequence
 from datetime import datetime
 from typing import Any
 from uuid import UUID
@@ -20,6 +20,7 @@ from sqlalchemy.sql import Select
 from disktracker.catalog.models import Drive, MpnAlias, Offer, Price, Receipt
 from disktracker.catalog.rules import combined_offer, replayed, unchanged, with_carried_price
 from disktracker.catalog.views import price_view, summary_view
+from disktracker.clock import Clock
 from disktracker.collection.models import Source
 from disktracker.database import columns
 from disktracker.errors import OfferNotFound, UnknownStore
@@ -29,8 +30,8 @@ OFFER_IDENTITY = (Offer.drive_id, Offer.store, Offer.seller, Offer.condition)
 
 
 class OfferRepository:
-    def __init__(self, now: Callable[[], datetime], next_id: Callable[[], UUID]) -> None:
-        self.now, self.next_id = now, next_id
+    def __init__(self, clock: Clock) -> None:
+        self.clock = clock
 
     def offer_for(
         self,
@@ -52,7 +53,7 @@ class OfferRepository:
         identity = {"drive_id": drive_id, "store": store, "seller": seller, "condition": condition}
         session.execute(
             pg_insert(Offer)
-            .values(id=self.next_id(), **identity, title=title or mpn, url=url)
+            .values(**identity, title=title or mpn, url=url)
             .on_conflict_do_nothing(index_elements=[column.key for column in OFFER_IDENTITY])
         )
         offer_id: UUID = session.scalars(
@@ -69,7 +70,7 @@ class OfferRepository:
         offer's latest, and so only counted as a check. A price sold out carries the latest
         price on (catalog.rules.with_carried_price), so an offer never priced cannot record
         one."""
-        entered_at = self.now()
+        entered_at = self.clock.now()
         observed_at = price["observed_at"] or entered_at
         latest = session.scalars(
             select(Price).where(Price.offer_id == offer_id).order_by(*LATEST_FIRST).limit(1)
@@ -85,19 +86,16 @@ class OfferRepository:
                 .values(last_checked_at=func.greatest(Offer.last_checked_at, observed_at))
             )
             return None
-        price_id = self.next_id()
-        session.add(
-            Price(
-                **values,
-                id=price_id,
-                offer_id=offer_id,
-                observed_at=observed_at,
-                entered_at=entered_at,
-                provenance=provenance,
-            )
+        made = Price(
+            **values,
+            offer_id=offer_id,
+            observed_at=observed_at,
+            entered_at=entered_at,
+            provenance=provenance,
         )
+        session.add(made)
         session.flush()
-        return price_id
+        return made.id
 
     def claim(self, session: Session, request_id: UUID, fingerprint: str) -> dict[str, Any] | None:
         """Take a save key for this submission, held until the operation ends: None when it is

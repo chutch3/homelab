@@ -14,7 +14,7 @@ from disktracker.database import Base
 
 class Source(Base):
     __tablename__ = "sources"
-    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True)
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
     key: Mapped[str] = mapped_column(String(40), unique=True)
     name: Mapped[str] = mapped_column(String(80), unique=True)
     kind: Mapped[str] = mapped_column(String(20))

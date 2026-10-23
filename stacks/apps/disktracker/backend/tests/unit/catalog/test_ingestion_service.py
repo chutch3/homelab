@@ -25,6 +25,7 @@ from tests.unit.catalog.fakes import (
     FakeReviews,
     FakeSessions,
 )
+from tests.unit.fakes import FixedClock
 
 NOW = datetime(2026, 10, 22, 12, tzinfo=UTC)
 DRIVE, OTHER, KEY = UUID(int=1), UUID(int=2), UUID(int=3)
@@ -71,7 +72,7 @@ def subject(
     return IngestionService(
         cast(SessionFactory, sessions), cast(SessionFactory, sessions),
         cast(DriveRepository, drives), cast(OfferRepository, offers),
-        cast(ReviewRepository, reviews), now=lambda: NOW,
+        cast(ReviewRepository, reviews), FixedClock(NOW),
     )  # fmt: skip
 
 

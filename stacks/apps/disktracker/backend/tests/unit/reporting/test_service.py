@@ -11,6 +11,7 @@ import pytest
 from disktracker.catalog.schemas import DriveScope
 from disktracker.reporting.repository import Changes, Kept, ReportingRepository
 from disktracker.reporting.service import ReportingService
+from tests.unit.fakes import FixedClock
 
 NOW = datetime(2026, 9, 22, 12, tzinfo=UTC)
 KEPT_BODY: dict[str, Any] = {"days": 30, "by": None, "market": {"counted": 99}, "parts": []}
@@ -39,7 +40,7 @@ class FakeRepository:
 
 
 def answered(repository: FakeRepository, scope: DriveScope | None = None) -> dict[str, Any]:
-    service = ReportingService(cast(ReportingRepository, repository), now=lambda: NOW)
+    service = ReportingService(cast(ReportingRepository, repository), clock=FixedClock(NOW))
     return service.trends(30, None, 7, scope or DriveScope())
 
 
