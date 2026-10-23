@@ -1,0 +1,66 @@
+# Unit tests for the deploy registration-selection logic — no cluster required.
+# Run with: uv run ansible-playbook --check -i ansible/tests/unit/inventory/ \
+#   ansible/tests/unit/test-select-registrations.yml
+---
+
+- name: "TEST 1: a stack this run converged is registered, however it got here"
+  hosts: managers
+  gather_facts: false
+  vars:
+    register_dns: "auto"
+    register_uptime: "auto"
+    # projectmonitor's case: already present and converging again, not absent
+    # first — the old 'new' gate dropped exactly this and left it unregistered.
+    deployed_stacks:
+      - { stack: projectmonitor, compose: /x/projectmonitor/docker-compose.yml }
+  tasks:
+    - name: Select registrations
+      ansible.builtin.include_tasks: "{{ playbook_dir }}/../../playbooks/deploy/tasks/select-registrations.yml"
+    - name: The converged stack is registered for DNS and uptime
+      ansible.builtin.assert:
+        that:
+          - "'projectmonitor' in (dns_registrations | map(attribute='stack') | list)"
+          - "'projectmonitor' in (uptime_registrations | map(attribute='stack') | list)"
+        success_msg: "✓ a converged stack is registered for DNS and uptime"
+        fail_msg: "✗ a converged stack was dropped from registration"
+
+- name: "TEST 2: register_dns=false opts the run out of DNS, uptime still registers"
+  hosts: managers
+  gather_facts: false
+  vars:
+    register_dns: false
+    register_uptime: "auto"
+    deployed_stacks:
+      - { stack: projectmonitor, compose: /x/pm.yml }
+  tasks:
+    - name: Select registrations
+      ansible.builtin.include_tasks: "{{ playbook_dir }}/../../playbooks/deploy/tasks/select-registrations.yml"
+    - name: DNS is skipped while uptime still registers
+      ansible.builtin.assert:
+        that:
+          - dns_registrations | length == 0
+          - "'projectmonitor' in (uptime_registrations | map(attribute='stack') | list)"
+        success_msg: "✓ register_dns=false skips DNS; uptime unaffected"
+        fail_msg: "✗ register_dns=false did not behave as an opt-out"
+
+- name: "TEST 3: uptime never monitors what routes/resolves/is itself"
+  hosts: managers
+  gather_facts: false
+  vars:
+    register_dns: "auto"
+    register_uptime: "auto"
+    deployed_stacks:
+      - { stack: reverse-proxy, compose: /x/rp.yml }
+      - { stack: dns, compose: /x/dns.yml }
+      - { stack: uptime-kuma, compose: /x/uk.yml }
+      - { stack: paperless, compose: /x/pl.yml }
+  tasks:
+    - name: Select registrations
+      ansible.builtin.include_tasks: "{{ playbook_dir }}/../../playbooks/deploy/tasks/select-registrations.yml"
+    - name: Uptime excludes reverse-proxy/dns/uptime-kuma; DNS keeps all four
+      ansible.builtin.assert:
+        that:
+          - "(uptime_registrations | map(attribute='stack') | list) == ['paperless']"
+          - "(dns_registrations | map(attribute='stack') | list | length) == 4"
+        success_msg: "✓ uptime excludes infra stacks; DNS registers all deployed"
+        fail_msg: "✗ uptime exclusion or DNS coverage is wrong"
