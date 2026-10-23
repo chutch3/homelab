@@ -63,5 +63,4 @@
       {{ deployed_stacks | default([]) + [{
            'stack': deploy_stack,
            'compose': deploy_compose,
-           'new': deploy_is_new | bool,
          }] }}

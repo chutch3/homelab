@@ -9,7 +9,7 @@
     # Overridden by the e2e suite to point at its fixtures.
     stacks_root: "{{ repo_root }}"
     prune: true
-    # `auto` registers records for new stacks only.
+    # Registers records for every stack this run converged; false opts out.
     register_dns: "auto"
     register_uptime: "auto"
     converge_retries: 60
@@ -73,24 +73,12 @@
       ansible.builtin.include_tasks: tasks/stack.yml
       vars:
         deploy_stack: "{{ item.stack }}"
-        deploy_is_new: "{{ item.state == 'absent' }}"
       loop: "{{ deploy_rows | selectattr('action', 'equalto', 'deploy') | list }}"
       loop_control:
         label: "{{ item.stack }}"
 
     - name: Decide which stacks get their records registered
-      ansible.builtin.set_fact:
-        dns_registrations: >-
-          {{ deployed | selectattr('new') | list if register_dns == 'auto'
-             else (deployed if register_dns | bool else []) }}
-        uptime_registrations: >-
-          {{ (deployed | selectattr('new') | list if register_uptime == 'auto'
-              else (deployed if register_uptime | bool else []))
-             | rejectattr('stack', 'in', uptime_kuma_unmonitored) | list }}
-      vars:
-        deployed: "{{ deployed_stacks | default([]) }}"
-        # Kuma cannot usefully watch what routes to it, resolves for it, or is it.
-        uptime_kuma_unmonitored: [reverse-proxy, dns, uptime-kuma]
+      ansible.builtin.include_tasks: tasks/select-registrations.yml
 
     - name: Wait for the DNS API to become available
       ansible.builtin.uri:

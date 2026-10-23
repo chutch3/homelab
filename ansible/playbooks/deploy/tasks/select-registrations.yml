@@ -1,0 +1,16 @@
+---
+# Every stack this run converged is registered, not only those absent before it.
+# Gating on "new" dropped any stack whose first deploy created services but failed
+# to converge: it was no longer absent on the retry, so it was never registered.
+# Both roles create-or-update, so re-registering an existing record is a no-op.
+- name: Decide which stacks get their records registered
+  ansible.builtin.set_fact:
+    dns_registrations: >-
+      {{ deployed if (register_dns == 'auto' or register_dns | bool) else [] }}
+    uptime_registrations: >-
+      {{ (deployed if (register_uptime == 'auto' or register_uptime | bool) else [])
+         | rejectattr('stack', 'in', uptime_kuma_unmonitored) | list }}
+  vars:
+    deployed: "{{ deployed_stacks | default([]) }}"
+    # Kuma cannot usefully watch what routes to it, resolves for it, or is it.
+    uptime_kuma_unmonitored: [reverse-proxy, dns, uptime-kuma]
