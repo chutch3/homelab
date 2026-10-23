@@ -67,6 +67,7 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
         build-essential \
         docker-ce-cli \
         docker-compose-plugin \
+        docker-buildx-plugin \
         dumb-init \
         fzf \
         gh \
