@@ -4,9 +4,9 @@ own, though several share a page."""
 
 from typing import Any
 
+from api_calls import match as decided_as
+from api_calls import post, scraped_payload
 from fastapi.testclient import TestClient
-from test_api import match as decided_as
-from test_api import post, scraped_payload
 
 from disktracker.main import create_app
 

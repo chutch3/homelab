@@ -10,8 +10,8 @@ from typing import Any
 from uuid import uuid4
 
 import pytest
+from api_calls import entered
 from fastapi.testclient import TestClient
-from test_api import entered
 
 from disktracker.main import create_app
 

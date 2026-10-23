@@ -7,8 +7,8 @@ from datetime import UTC, datetime, timedelta
 from typing import Any
 from uuid import uuid4
 
+from api_calls import source_input
 from fastapi.testclient import TestClient
-from test_api import source_input
 from test_persistence import run_sql
 
 from disktracker.main import create_app

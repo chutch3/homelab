@@ -10,9 +10,9 @@ from pathlib import Path
 from uuid import uuid4
 
 import pytest
+from api_calls import match
 from fastapi.testclient import TestClient
 from sqlalchemy import Connection, create_engine, insert, select
-from test_api import match
 
 from disktracker.catalog.models import Drive, MpnAlias, Offer, Price, ReviewItem, ScrapedMatch
 from disktracker.main import create_app

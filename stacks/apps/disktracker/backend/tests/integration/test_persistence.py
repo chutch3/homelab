@@ -11,10 +11,7 @@ from datetime import UTC, datetime
 from typing import Any
 from uuid import uuid4
 
-from fastapi.testclient import TestClient
-from sqlalchemy import Engine, create_engine, event, text
-from sqlalchemy.exc import OperationalError
-from test_api import (
+from api_calls import (
     entered,
     followed_drives,
     match,
@@ -23,6 +20,9 @@ from test_api import (
     scraped_payload,
     source_input,
 )
+from fastapi.testclient import TestClient
+from sqlalchemy import Engine, create_engine, event, text
+from sqlalchemy.exc import OperationalError
 
 from disktracker.main import create_app
 

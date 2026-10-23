@@ -6,10 +6,10 @@ from concurrent.futures import ThreadPoolExecutor
 from typing import Any
 from uuid import uuid4
 
+from api_calls import entered, post, price_payload, scraped_payload
 from fastapi.testclient import TestClient
 from httpx import Response
 from sqlalchemy import create_engine, text
-from test_api import entered, post, price_payload, scraped_payload
 from test_persistence import LOCK, crossing, meanwhile
 
 from disktracker.main import create_app

@@ -6,9 +6,9 @@ from datetime import UTC, datetime, timedelta
 from typing import Any
 from uuid import uuid4
 
+from api_calls import entered, post, price_payload, scraped_payload
 from fastapi.testclient import TestClient
 from sqlalchemy import Engine, event
-from test_api import entered, post, price_payload, scraped_payload
 
 from disktracker.main import create_app
 
