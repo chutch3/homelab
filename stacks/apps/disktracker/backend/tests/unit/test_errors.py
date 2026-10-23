@@ -6,7 +6,7 @@ from pathlib import Path
 
 import disktracker.errors
 
-ANSWERING = ("fastapi", "starlette", "disktracker.http_errors", "disktracker.collection")
+ANSWERING = ("fastapi", "starlette", "disktracker.http_errors", "disktracker.collector")
 
 
 def test_the_errors_a_workflow_raises_import_nothing_of_the_web_or_settings_presentation() -> None:

@@ -21,7 +21,7 @@ from disktracker.catalog.models import Drive, MpnAlias, Offer, Price, Receipt
 from disktracker.catalog.rules import combined_offer, replayed, unchanged, with_carried_price
 from disktracker.catalog.views import price_view, summary_view
 from disktracker.clock import Clock
-from disktracker.collection.models import Source
+from disktracker.collector.models import Source
 from disktracker.database import columns
 from disktracker.errors import OfferNotFound, UnknownStore
 from disktracker.facts import LATEST_FIRST

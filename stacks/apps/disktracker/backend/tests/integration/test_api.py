@@ -1554,7 +1554,7 @@ def test_a_switched_off_source_is_due_only_when_asked_to_run_now(database_url: s
 def test_a_refused_source_is_refused_on_its_field_and_nothing_is_saved(
     database_url: str,
 ) -> None:
-    """Every refusal is the schema's (tests/unit/collection/test_schemas.py); this is where the
+    """Every refusal is the schema's (tests/unit/collector/test_schemas.py); this is where the
     form is told it is, without the kind a source is checked as."""
     with TestClient(create_app()) as client:
         refused = client.post("/api/sources", json=source_input(schedule="nightly"))
@@ -1640,7 +1640,7 @@ def test_a_setting_that_does_not_fit_is_refused_where_the_form_shows_it(
 def test_permission_taken_away_while_robots_txt_is_ignored_is_refused_not_undone(
     database_url: str,
 ) -> None:
-    """Who may ignore robots.txt is the schema's (tests/unit/collection/test_schemas.py)."""
+    """Who may ignore robots.txt is the schema's (tests/unit/collector/test_schemas.py)."""
     permitted = source_input(name="DirectMacro", basis="permission", obey_robots=False)
     with TestClient(create_app()) as client:
         source_id = client.post("/api/sources", json=permitted).json()["id"]
@@ -1699,7 +1699,7 @@ def test_a_source_keeps_the_key_it_was_created_with_when_renamed(database_url: s
 
 def test_the_kinds_of_store_are_given_as_their_settings_describe_them(database_url: str) -> None:
     """The Admin form is drawn from this; how each kind is described is its settings model's
-    (tests/unit/collection/test_schemas.py)."""
+    (tests/unit/collector/test_schemas.py)."""
     with TestClient(create_app()) as client:
         kinds = {kind["kind"]: kind for kind in client.get("/api/source-kinds").json()}
 

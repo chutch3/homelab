@@ -24,7 +24,7 @@ T = TypeVar("T", bound="SettingView")
 @_attrs_define
 class SettingView:
     """ One thing a kind of store needs to know, as the form asks for it. Its rules are checked
-    when a source is entered (disktracker.collection.settings).
+    when a source is entered (disktracker.collector.settings).
 
         Attributes:
             description (str):

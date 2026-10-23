@@ -42,4 +42,4 @@ line-length = 100
 # The contract's models are pydantic models through disktracker.contract.Contract, which ruff does
 # not follow: pydantic copies a list default for each instance, so it is not shared.
 "disktracker/*/schemas.py" = ["RUF012"]
-"disktracker/collection/settings.py" = ["RUF012"]
+"disktracker/collector/settings.py" = ["RUF012"]

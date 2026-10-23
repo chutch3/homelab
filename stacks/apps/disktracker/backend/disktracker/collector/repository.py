@@ -12,8 +12,8 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 from sqlalchemy.sql import Select
 
-from disktracker.collection.lifecycle import RESTARTED, SUPERSEDED, abandoned, applies, same_start
-from disktracker.collection.models import (
+from disktracker.collector.lifecycle import RESTARTED, SUPERSEDED, abandoned, applies, same_start
+from disktracker.collector.models import (
     CONTACT,
     CollectorContact,
     CollectorRun,

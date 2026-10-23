@@ -10,8 +10,8 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from pydantic import Field
 
-from disktracker.collection.client import CollectorUnavailable
-from disktracker.collection.settings import KINDS
+from disktracker.collector.client import CollectorUnavailable
+from disktracker.collector.settings import KINDS
 from disktracker.contract import Contract
 from disktracker.errors import (
     DecisionConflict,

@@ -8,9 +8,9 @@ from uuid import UUID
 
 import pytest
 
-from disktracker.collection.repository import CollectionRepository, Sourced
-from disktracker.collection.schemas import ShopifySourceInput
-from disktracker.collection.service import CollectionService, due_at, source_key
+from disktracker.collector.repository import CollectionRepository, Sourced
+from disktracker.collector.schemas import ShopifySourceInput
+from disktracker.collector.service import CollectionService, due_at, source_key
 from tests.unit.fakes import FixedClock
 
 NOW = datetime(2026, 9, 22, 12, tzinfo=UTC)
@@ -84,7 +84,12 @@ class FakeRepository:
 
     def add_source(self, values: dict[str, Any]) -> Sourced:
         self.added.append(values)
-        return {"id": UUID(int=7), **values, "run_requested_at": None, "stop_requested_at": None}, None
+        return {
+            "id": UUID(int=7),
+            **values,
+            "run_requested_at": None,
+            "stop_requested_at": None,
+        }, None
 
     def collector_status(self) -> tuple[datetime | None, list[dict[str, Any]], list[Sourced]]:
         return None, self.running, self.kept

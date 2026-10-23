@@ -7,9 +7,9 @@ from typing import Any
 from disktracker.catalog.condition_rule_service import ConditionRuleService
 from disktracker.catalog.ingestion_service import CollectedPage, IngestionService
 from disktracker.catalog.verdict import Verdict
-from disktracker.collection.client import CollectorClient
-from disktracker.collection.schemas import PagePreview, SourceInspectionInput
-from disktracker.collection.service import source_key
+from disktracker.collector.client import CollectorClient
+from disktracker.collector.schemas import PagePreview, SourceInspectionInput
+from disktracker.collector.service import source_key
 
 # What a verdict's outcome is called where a preview shows it.
 OUTCOMES = {"recorded": "recorded", "queued": "review", "ignored": "ignored"}

@@ -165,7 +165,7 @@ def test_the_verdict_weighs_the_offer_against_the_drive_disktracker_knows(
 def test_a_preview_without_an_offer_is_passed_on_as_the_collector_gave_it(
     database_url: str, collector: FakeCollector
 ) -> None:
-    """Without an offer there is no verdict (tests/unit/collection/test_service.py)."""
+    """Without an offer there is no verdict (tests/unit/collector/test_preview_service.py)."""
     collector.answer = {
         "status": "nothing",
         "reason": None,

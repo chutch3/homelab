@@ -6,7 +6,7 @@ from typing import Any
 
 import pytest
 
-from disktracker.collection.lifecycle import RESTARTED, SUPERSEDED, abandoned, applies, same_start
+from disktracker.collector.lifecycle import RESTARTED, SUPERSEDED, abandoned, applies, same_start
 from disktracker.errors import RunConflict
 
 NOW = datetime(2026, 10, 22, 12, tzinfo=UTC)

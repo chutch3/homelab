@@ -7,13 +7,13 @@ from typing import Any
 import pytest
 from pydantic import TypeAdapter, ValidationError
 
-from disktracker.collection.schemas import (
+from disktracker.collector.schemas import (
     RunStart,
     RunUpdate,
     SourceInput,
     SourcePreviewInput,
 )
-from disktracker.collection.settings import KINDS, ShopifySettings
+from disktracker.collector.settings import KINDS, ShopifySettings
 
 COUNTS = dict.fromkeys(("seen", "recorded", "queued", "ignored", "failed"), 0)
 

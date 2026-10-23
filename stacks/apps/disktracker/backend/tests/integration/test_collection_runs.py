@@ -90,7 +90,7 @@ def test_starting_or_ending_a_run_again_is_answered_as_the_first_time(database_u
 def test_a_run_report_is_refused_before_it_is_kept_and_only_of_a_known_source_or_run(
     database_url: str,
 ) -> None:
-    """What a run may say of itself is the schema's (tests/unit/collection/test_schemas.py)."""
+    """What a run may say of itself is the schema's (tests/unit/collector/test_schemas.py)."""
     started = datetime.now(UTC)
     with TestClient(create_app()) as client:
         run_id = start(client, "goharddrive", started).json()["id"]

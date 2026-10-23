@@ -10,15 +10,15 @@ from uuid import UUID
 from croniter import croniter
 
 from disktracker.clock import Clock
-from disktracker.collection.repository import CollectionRepository, Sourced
-from disktracker.collection.schemas import (
+from disktracker.collector.repository import CollectionRepository, Sourced
+from disktracker.collector.schemas import (
     Heartbeat,
     RunQuery,
     RunStart,
     RunUpdate,
     SourceBase,
 )
-from disktracker.collection.settings import KINDS
+from disktracker.collector.settings import KINDS
 
 
 def due_at(source: dict[str, Any], last_started: datetime | None, now: datetime) -> datetime | None:

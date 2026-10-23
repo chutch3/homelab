@@ -15,10 +15,10 @@ from disktracker.catalog.price_service import PriceService
 from disktracker.catalog.review_repository import ReviewRepository
 from disktracker.catalog.review_service import ReviewService
 from disktracker.clock import Clock
-from disktracker.collection.client import CollectorClient
-from disktracker.collection.preview_service import PreviewService
-from disktracker.collection.repository import CollectionRepository
-from disktracker.collection.service import CollectionService
+from disktracker.collector.client import CollectorClient
+from disktracker.collector.preview_service import PreviewService
+from disktracker.collector.repository import CollectionRepository
+from disktracker.collector.service import CollectionService
 from disktracker.database import Database
 from disktracker.reporting.repository import ReportingRepository
 from disktracker.reporting.service import ReportingService
@@ -30,7 +30,7 @@ class Container(containers.DeclarativeContainer):
     wiring_config = containers.WiringConfiguration(
         modules=[
             "disktracker.catalog.routes",
-            "disktracker.collection.routes",
+            "disktracker.collector.routes",
             "disktracker.reporting.routes",
         ],
         auto_wire=False,

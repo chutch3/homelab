@@ -2197,7 +2197,7 @@ export interface components {
         /**
          * SettingView
          * @description One thing a kind of store needs to know, as the form asks for it. Its rules are checked
-         *     when a source is entered (disktracker.collection.settings).
+         *     when a source is entered (disktracker.collector.settings).
          */
         SettingView: {
             /** Description */

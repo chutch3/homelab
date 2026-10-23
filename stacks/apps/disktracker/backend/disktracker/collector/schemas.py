@@ -16,7 +16,7 @@ from pydantic import (
     model_validator,
 )
 
-from disktracker.collection.settings import (
+from disktracker.collector.settings import (
     KINDS,
     Kind,
     ManualSettings,
@@ -352,7 +352,7 @@ class SourcePreview(Contract):
 
 class SettingView(Contract):
     """One thing a kind of store needs to know, as the form asks for it. Its rules are checked
-    when a source is entered (disktracker.collection.settings)."""
+    when a source is entered (disktracker.collector.settings)."""
 
     name: str
     label: str

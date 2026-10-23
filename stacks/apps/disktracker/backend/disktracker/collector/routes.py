@@ -7,8 +7,8 @@ from uuid import UUID
 from dependency_injector.wiring import Provide, inject
 from fastapi import APIRouter, Depends, Query, Response
 
-from disktracker.collection.preview_service import PreviewService
-from disktracker.collection.schemas import (
+from disktracker.collector.preview_service import PreviewService
+from disktracker.collector.schemas import (
     CollectorStatus,
     Heartbeat,
     HeartbeatAnswer,
@@ -25,8 +25,8 @@ from disktracker.collection.schemas import (
     SourceQuery,
     SourceView,
 )
-from disktracker.collection.service import CollectionService
-from disktracker.collection.settings import KINDS
+from disktracker.collector.service import CollectionService
+from disktracker.collector.settings import KINDS
 from disktracker.container import Container
 from disktracker.http_errors import ErrorResponse
 

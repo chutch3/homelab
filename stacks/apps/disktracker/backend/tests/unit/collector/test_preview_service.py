@@ -8,9 +8,9 @@ from pydantic import TypeAdapter
 from disktracker.catalog.condition_rule_service import ConditionRuleService
 from disktracker.catalog.ingestion_service import CollectedPage, IngestionService
 from disktracker.catalog.verdict import Verdict
-from disktracker.collection.client import CollectorClient
-from disktracker.collection.preview_service import PreviewService
-from disktracker.collection.schemas import PagePreview, SourcePreviewInput
+from disktracker.collector.client import CollectorClient
+from disktracker.collector.preview_service import PreviewService
+from disktracker.collector.schemas import PagePreview, SourcePreviewInput
 
 
 class FakeRules:
