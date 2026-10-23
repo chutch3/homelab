@@ -32,7 +32,7 @@ class Offer(Base):
     )
     id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
     title: Mapped[str] = mapped_column(String(160))
-    store: Mapped[str] = mapped_column(String(20))
+    store: Mapped[str] = mapped_column(String(20), ForeignKey("sources.key"))
     seller: Mapped[str] = mapped_column(String(120))
     url: Mapped[str | None] = mapped_column(Text)
     condition: Mapped[str] = mapped_column(String(40))
@@ -72,7 +72,7 @@ class ReviewItem(Base):
 
     __tablename__ = "unmatched"
     id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
-    store: Mapped[str] = mapped_column("source", String(40))
+    store: Mapped[str] = mapped_column("source", String(40), ForeignKey("sources.key"))
     url: Mapped[str] = mapped_column(Text)
     title: Mapped[str] = mapped_column(String(160))
     seller: Mapped[str] = mapped_column(String(120))
@@ -104,7 +104,9 @@ class ScrapedMatch(Base):
     was decided on, so that a page that reads otherwise is judged again."""
 
     __tablename__ = "scraped_matches"
-    store: Mapped[str] = mapped_column("source", String(40), primary_key=True)
+    store: Mapped[str] = mapped_column(
+        "source", String(40), ForeignKey("sources.key", ondelete="CASCADE"), primary_key=True
+    )
     url: Mapped[str] = mapped_column(Text, primary_key=True)
     seller: Mapped[str] = mapped_column(String(120), primary_key=True, server_default="")
     # The listing's MPN and condition as read: "" where the page gave none.

@@ -5,7 +5,7 @@ import uuid
 from datetime import datetime
 from typing import Any
 
-from sqlalchemy import Boolean, DateTime, Integer, String, Text, Uuid
+from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, Text, Uuid
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -37,7 +37,7 @@ class CollectorRun(Base):
 
     __tablename__ = "collector_runs"
     id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True)
-    source: Mapped[str] = mapped_column(String(40))
+    source: Mapped[str] = mapped_column(String(40), ForeignKey("sources.key", ondelete="CASCADE"))
     status: Mapped[str] = mapped_column(String(20))
     started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))

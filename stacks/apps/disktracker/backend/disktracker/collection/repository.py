@@ -12,7 +12,6 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 from sqlalchemy.sql import Select
 
-from disktracker.catalog.models import Offer, ReviewItem, ScrapedMatch
 from disktracker.collection.lifecycle import RESTARTED, SUPERSEDED, abandoned, applies, same_start
 from disktracker.collection.models import (
     CONTACT,
@@ -84,22 +83,21 @@ class CollectionRepository:
             raise SourceExists(values.get("name", "")) from error
 
     def delete_source(self, source_id: UUID) -> None:
-        """Delete a source nothing is recorded under, with its runs and what was decided about
-        its scraped offers, all together. One with offers or queued offers is kept, and so is
+        """Delete a source nothing is recorded under; its runs and what was decided about its
+        listings go with it. One with offers or listings waiting for review is kept, and so is
         Other."""
         with self.session_factory() as session:
-            key = session.scalar(select(Source.key).where(Source.id == source_id).with_for_update())
+            key = session.scalar(select(Source.key).where(Source.id == source_id))
             if key is None:
                 raise SourceNotFound()
             if key == "other":
                 raise SourceKept("Other is always kept, for one-off stores.")
-            recorded = session.scalar(select(Offer.id).where(Offer.store == key).limit(1))
-            waiting = session.scalar(select(ReviewItem.id).where(ReviewItem.store == key).limit(1))
-            if recorded or waiting:
-                raise SourceKept("Offers are recorded under this source. Switch it off instead.")
-            session.execute(delete(ScrapedMatch).where(ScrapedMatch.store == key))
-            session.execute(delete(CollectorRun).where(CollectorRun.source == key))
-            session.execute(delete(Source).where(Source.id == source_id))
+            try:
+                session.execute(delete(Source).where(Source.id == source_id))
+            except IntegrityError as error:
+                raise SourceKept(
+                    "Offers are recorded under this source. Switch it off instead."
+                ) from error
             session.commit()
 
     # Runs, and the collector's word on them.
