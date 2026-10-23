@@ -18,7 +18,21 @@ case "${1:-web}" in
     web|worker|poller|housekeeping)
         bundle exec ruby docker/wait-for-database.rb
         if [ "${1:-web}" = web ]; then
-            bundle exec rake db:prepare
+            # The legacy migrations predate Rails 5 and cannot run under Rails
+            # 8.1, so db/schema.rb is the only viable way to build the schema.
+            # db:prepare only loads the schema when schema_migrations is absent;
+            # a half-initialized database (an empty schema_migrations left by a
+            # failed boot) makes it migrate from scratch and die. So load the
+            # schema whenever the database is uninitialised -- schema.rb uses
+            # force: :cascade, so this also repairs a half-built database -- and
+            # only ever run forward migrations once it is initialised.
+            initialised=$(bundle exec rails runner "c = ActiveRecord::Base.connection; puts(c.table_exists?(:schema_migrations) && c.select_value('SELECT COUNT(*) FROM schema_migrations').to_i.positive?)")
+            if [ "$initialised" = true ]; then
+                bundle exec rake db:migrate
+            else
+                DISABLE_DATABASE_ENVIRONMENT_CHECK=1 bundle exec rake db:schema:load
+                bundle exec rake db:seed
+            fi
         else
             attempts=0
             until bundle exec rake db:abort_if_pending_migrations; do
