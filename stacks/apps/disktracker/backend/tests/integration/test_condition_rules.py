@@ -2,8 +2,6 @@
 
 from fastapi.testclient import TestClient
 
-from disktracker.main import create_app
-
 SEEDED_CONDITION_RULES = [
     {"pattern": r"\bmanufacturer recertified\b", "condition": "manufacturer_recertified"},
     {"pattern": r"\bseller refurbished\b", "condition": "refurbished"},
@@ -17,16 +15,15 @@ SEEDED_CONDITION_RULES = [
 
 
 def test_condition_rules_are_seeded_replaced_in_order_and_read_pasted_text(
-    database_url: str,
+    subject: TestClient,
 ) -> None:
     pasted = {"text": "Seagate Exos X18 ST18000NM000J 18TB Pre-Owned, like new\n$199.99"}
     pre_owned = {"pattern": r"\bpre-?owned\b", "condition": "used"}
-    with TestClient(create_app()) as client:
-        seeded = client.get("/api/condition-rules").json()
-        before = client.post("/api/listing-text", json=pasted).json()["condition"]
-        replaced = client.put("/api/condition-rules", json=[pre_owned, *seeded])
-        after = client.post("/api/listing-text", json=pasted).json()["condition"]
-        listed = client.get("/api/condition-rules").json()
+    seeded = subject.get("/api/condition-rules").json()
+    before = subject.post("/api/listing-text", json=pasted).json()["condition"]
+    replaced = subject.put("/api/condition-rules", json=[pre_owned, *seeded])
+    after = subject.post("/api/listing-text", json=pasted).json()["condition"]
+    listed = subject.get("/api/condition-rules").json()
 
     assert seeded == SEEDED_CONDITION_RULES
     assert before == "new"
@@ -36,27 +33,25 @@ def test_condition_rules_are_seeded_replaced_in_order_and_read_pasted_text(
 
 
 def test_a_condition_rule_that_cannot_work_is_refused_where_it_is_and_nothing_is_replaced(
-    database_url: str,
+    subject: TestClient,
 ) -> None:
     """Which rules cannot work is the schema's (tests/unit/catalog/test_schemas.py)."""
     rule = {"pattern": "(unclosed", "condition": "used"}
-    with TestClient(create_app()) as client:
-        refused = client.put("/api/condition-rules", json=[SEEDED_CONDITION_RULES[0], rule])
-        kept = client.get("/api/condition-rules").json()
+    refused = subject.put("/api/condition-rules", json=[SEEDED_CONDITION_RULES[0], rule])
+    kept = subject.get("/api/condition-rules").json()
 
     assert refused.status_code == 422
     assert [issue["loc"] for issue in refused.json()["detail"]] == [["body", 1, "pattern"]]
     assert kept == SEEDED_CONDITION_RULES
 
 
-def test_pasted_listing_text_is_read_into_the_fields_of_an_offer(database_url: str) -> None:
+def test_pasted_listing_text_is_read_into_the_fields_of_an_offer(subject: TestClient) -> None:
     pasted = (
         "\n  Seagate Exos X18 ST18000NM000J 18TB 7200RPM SATA Recertified Hard Drive  \n"
         "Was $299.99\n$1,219.99\nIn stock\n"
     )
-    with TestClient(create_app()) as client:
-        read = client.post("/api/listing-text", json={"text": pasted})
-        nothing = client.post("/api/listing-text", json={"text": "hello"})
+    read = subject.post("/api/listing-text", json={"text": pasted})
+    nothing = subject.post("/api/listing-text", json={"text": "hello"})
 
     assert read.status_code == 200, read.text
     assert read.json() == {

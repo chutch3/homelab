@@ -193,10 +193,9 @@ def test_a_sitemap_source_can_be_tested_on_one_of_its_pages(
 
 
 def test_a_source_that_could_not_be_saved_is_refused_before_the_collector_is_asked(
-    database_url: str, collector: FakeCollector
+    subject: TestClient, collector: FakeCollector
 ) -> None:
-    with TestClient(create_app()) as client:
-        refused = client.post("/api/source-previews", json={**SOURCE, "settings": {}})
+    refused = subject.post("/api/source-previews", json={**SOURCE, "settings": {}})
 
     assert refused.status_code == 422
     assert refused.json()["detail"][0]["loc"] == ["body", "settings", "collections"]

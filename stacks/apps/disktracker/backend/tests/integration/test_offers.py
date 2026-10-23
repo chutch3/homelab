@@ -8,35 +8,33 @@ from fastapi.testclient import TestClient
 from disktracker.main import create_app
 
 
-def test_missing_offer_returns_404(database_url: str) -> None:
-    with TestClient(create_app()) as client:
-        assert client.get(f"/api/offers/{uuid4()}").status_code == 404
+def test_missing_offer_returns_404(subject: TestClient) -> None:
+    assert subject.get(f"/api/offers/{uuid4()}").status_code == 404
 
 
 def test_deleting_a_wrong_price_removes_it_and_deleting_the_last_price_removes_the_offer(
-    database_url: str,
+    subject: TestClient,
 ) -> None:
-    with TestClient(create_app()) as client:
-        post(client, "/api/prices", entered(client, price_payload()))
-        typo = saved_offer(
-            client,
-            post(
-                client,
-                "/api/prices",
-                entered(
-                    client, price_payload(item_price_cents=1890, observed_at="2026-09-22T12:00:00Z")
-                ),
+    post(subject, "/api/prices", entered(subject, price_payload()))
+    typo = saved_offer(
+        subject,
+        post(
+            subject,
+            "/api/prices",
+            entered(
+                subject, price_payload(item_price_cents=1890, observed_at="2026-09-22T12:00:00Z")
             ),
-        )
-        wrong, right = typo["observations"][1]["id"], typo["observations"][0]["id"]
-        deleted = client.delete(f"/api/prices/{wrong}")
-        kept = client.get(f"/api/offers/{typo['id']}").json()
-        # A price already gone is gone: deleting it again, or one never kept, is no error.
-        again = client.delete(f"/api/prices/{wrong}")
-        never = client.delete(f"/api/prices/{uuid4()}")
-        malformed = client.delete("/api/prices/not-a-price")
-        last = client.delete(f"/api/prices/{right}")
-        offers = client.get("/api/offers").json()
+        ),
+    )
+    wrong, right = typo["observations"][1]["id"], typo["observations"][0]["id"]
+    deleted = subject.delete(f"/api/prices/{wrong}")
+    kept = subject.get(f"/api/offers/{typo['id']}").json()
+    # A price already gone is gone: deleting it again, or one never kept, is no error.
+    again = subject.delete(f"/api/prices/{wrong}")
+    never = subject.delete(f"/api/prices/{uuid4()}")
+    malformed = subject.delete("/api/prices/not-a-price")
+    last = subject.delete(f"/api/prices/{right}")
+    offers = subject.get("/api/offers").json()
     assert (deleted.status_code, deleted.content) == (204, b"")
     assert [o["item_price_cents"] for o in kept["observations"]] == [18900]
     assert kept["latest"]["item_price_cents"] == 18900
@@ -45,32 +43,30 @@ def test_deleting_a_wrong_price_removes_it_and_deleting_the_last_price_removes_t
     assert (last.status_code, offers) == (204, [])
 
 
-def test_deleting_an_offer_removes_it_and_its_prices(database_url: str) -> None:
-    with TestClient(create_app()) as client:
-        offer = saved_offer(client, post(client, "/api/prices", entered(client, price_payload())))
-        kept = saved_offer(
-            client,
-            post(client, "/api/prices", entered(client, price_payload(seller="Other seller"))),
-        )
-        assert client.delete(f"/api/offers/{offer['id']}").status_code == 204
-        assert [o["id"] for o in client.get("/api/offers").json()] == [kept["id"]]
-        assert client.delete(f"/api/offers/{offer['id']}").status_code == 404
+def test_deleting_an_offer_removes_it_and_its_prices(subject: TestClient) -> None:
+    offer = saved_offer(subject, post(subject, "/api/prices", entered(subject, price_payload())))
+    kept = saved_offer(
+        subject,
+        post(subject, "/api/prices", entered(subject, price_payload(seller="Other seller"))),
+    )
+    assert subject.delete(f"/api/offers/{offer['id']}").status_code == 204
+    assert [o["id"] for o in subject.get("/api/offers").json()] == [kept["id"]]
+    assert subject.delete(f"/api/offers/{offer['id']}").status_code == 404
 
 
-def test_editing_an_offer_updates_its_details_in_place(database_url: str) -> None:
-    with TestClient(create_app()) as client:
-        offer = saved_offer(client, post(client, "/api/prices", entered(client, price_payload())))
-        path = f"/api/offers/{offer['id']}"
-        edited = client.patch(path, json={"title": "Exos X18 18TB", "url": None})
-        assert edited.status_code == 200, edited.text
-        assert edited.json()["title"] == "Exos X18 18TB"
-        assert edited.json()["url"] is None
-        assert client.get(path).json() == edited.json()
-        addressed = client.patch(path, json={"url": "https://store.test/p/1"})
-        assert (addressed.status_code, addressed.json()["url"]) == (200, "https://store.test/p/1")
-        assert client.patch(path, json={"seller": "Someone else"}).status_code == 422
-        assert client.patch(path, json={"capacity_gb": 20000}).status_code == 422
-        assert client.patch(f"/api/offers/{uuid4()}", json={"title": "x"}).status_code == 404
+def test_editing_an_offer_updates_its_details_in_place(subject: TestClient) -> None:
+    offer = saved_offer(subject, post(subject, "/api/prices", entered(subject, price_payload())))
+    path = f"/api/offers/{offer['id']}"
+    edited = subject.patch(path, json={"title": "Exos X18 18TB", "url": None})
+    assert edited.status_code == 200, edited.text
+    assert edited.json()["title"] == "Exos X18 18TB"
+    assert edited.json()["url"] is None
+    assert subject.get(path).json() == edited.json()
+    addressed = subject.patch(path, json={"url": "https://store.test/p/1"})
+    assert (addressed.status_code, addressed.json()["url"]) == (200, "https://store.test/p/1")
+    assert subject.patch(path, json={"seller": "Someone else"}).status_code == 422
+    assert subject.patch(path, json={"capacity_gb": 20000}).status_code == 422
+    assert subject.patch(f"/api/offers/{uuid4()}", json={"title": "x"}).status_code == 404
 
 
 def test_later_prices_never_overwrite_the_title_or_url_an_offer_was_created_with(
@@ -98,29 +94,28 @@ def test_later_prices_never_overwrite_the_title_or_url_an_offer_was_created_with
 
 
 def test_listings_carry_each_offers_latest_price_and_history_is_fetched_per_offer(
-    database_url: str,
+    subject: TestClient,
 ) -> None:
-    with TestClient(create_app()) as client:
-        first = saved_offer(
-            client, post(client, "/api/prices", entered(client, price_payload(seller="Shop A")))
-        )
-        post(
-            client,
-            "/api/prices",
-            entered(
-                client,
-                price_payload(
-                    seller="Shop A", item_price_cents=17900, observed_at="2026-09-22T12:00:00Z"
-                ),
+    first = saved_offer(
+        subject, post(subject, "/api/prices", entered(subject, price_payload(seller="Shop A")))
+    )
+    post(
+        subject,
+        "/api/prices",
+        entered(
+            subject,
+            price_payload(
+                seller="Shop A", item_price_cents=17900, observed_at="2026-09-22T12:00:00Z"
             ),
-        )
-        other = saved_offer(
-            client, post(client, "/api/prices", entered(client, price_payload(seller="Shop B")))
-        )
-        post(client, "/api/prices", entered(client, price_payload(seller="Shop C")))
+        ),
+    )
+    other = saved_offer(
+        subject, post(subject, "/api/prices", entered(subject, price_payload(seller="Shop B")))
+    )
+    post(subject, "/api/prices", entered(subject, price_payload(seller="Shop C")))
 
-        summaries = client.get("/api/offers").json()
-        histories = [client.get(f"/api/offers/{offer['id']}").json() for offer in (first, other)]
+    summaries = subject.get("/api/offers").json()
+    histories = [subject.get(f"/api/offers/{offer['id']}").json() for offer in (first, other)]
 
     assert all("observations" not in summary for summary in summaries)
     latest = {summary["seller"]: summary["latest"]["item_price_cents"] for summary in summaries}
@@ -131,18 +126,17 @@ def test_listings_carry_each_offers_latest_price_and_history_is_fetched_per_offe
     } == {"Shop A": [18900, 17900], "Shop B": [18900]}
 
 
-def test_listings_can_be_narrowed_to_one_store(database_url: str) -> None:
-    with TestClient(create_app()) as client:
-        post(
-            client,
-            "/api/prices",
-            entered(client, price_payload(store="serverpartdeals", seller="")),
-        )
-        post(client, "/api/prices", entered(client, price_payload(store="other", seller="Shop")))
+def test_listings_can_be_narrowed_to_one_store(subject: TestClient) -> None:
+    post(
+        subject,
+        "/api/prices",
+        entered(subject, price_payload(store="serverpartdeals", seller="")),
+    )
+    post(subject, "/api/prices", entered(subject, price_payload(store="other", seller="Shop")))
 
-        narrowed = client.get("/api/offers", params={"store": "serverpartdeals"}).json()
-        everything = client.get("/api/offers").json()
-        unknown = client.get("/api/offers", params={"store": "frys"})
+    narrowed = subject.get("/api/offers", params={"store": "serverpartdeals"}).json()
+    everything = subject.get("/api/offers").json()
+    unknown = subject.get("/api/offers", params={"store": "frys"})
 
     assert [listing["store"] for listing in narrowed] == ["serverpartdeals"]
     assert sorted(listing["store"] for listing in everything) == ["other", "serverpartdeals"]

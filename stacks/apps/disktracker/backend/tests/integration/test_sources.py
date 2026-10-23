@@ -16,34 +16,30 @@ from api_calls import (
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine, text
 
-from disktracker.main import create_app
 
-
-def test_the_western_digital_store_is_a_store(database_url: str) -> None:
-    with TestClient(create_app()) as client:
-        saved = post(
-            client, "/api/prices", entered(client, price_payload(store="westerndigital", seller=""))
-        )
-        [offer] = client.get("/api/offers").json()
+def test_the_western_digital_store_is_a_store(subject: TestClient) -> None:
+    saved = post(
+        subject, "/api/prices", entered(subject, price_payload(store="westerndigital", seller=""))
+    )
+    [offer] = subject.get("/api/offers").json()
 
     assert saved.status_code == 201, saved.text
     assert offer["store"] == "westerndigital"
 
 
 def test_every_store_is_a_source_and_offers_are_recorded_under_and_named_by_one(
-    database_url: str,
+    subject: TestClient,
 ) -> None:
-    with TestClient(create_app()) as client:
-        by_hand = client.post("/api/sources", json={"name": "Server Orbit!", "kind": "manual"})
-        unknown = post(
-            client, "/api/prices", entered(client, price_payload(store="nowhere", seller=""))
-        )
-        recorded = post(
-            client, "/api/prices", entered(client, price_payload(store="serverorbit", seller=""))
-        )
-        offer = saved_offer(client, recorded)
-        due_now = client.get("/api/sources", params={"due": True}).json()
-        no_stores = client.get("/api/stores")
+    by_hand = subject.post("/api/sources", json={"name": "Server Orbit!", "kind": "manual"})
+    unknown = post(
+        subject, "/api/prices", entered(subject, price_payload(store="nowhere", seller=""))
+    )
+    recorded = post(
+        subject, "/api/prices", entered(subject, price_payload(store="serverorbit", seller=""))
+    )
+    offer = saved_offer(subject, recorded)
+    due_now = subject.get("/api/sources", params={"due": True}).json()
+    no_stores = subject.get("/api/stores")
 
     assert by_hand.status_code == 201, by_hand.text
     assert {name: by_hand.json()[name] for name in ("key", "kind", "base_url", "settings",
@@ -74,21 +70,20 @@ def names(sources: list[dict[str, Any]]) -> set[str]:
 
 
 def test_sources_are_added_listed_and_edited_with_their_next_scheduled_run(
-    database_url: str,
+    subject: TestClient,
 ) -> None:
     before = datetime.now(UTC)
-    with TestClient(create_app()) as client:
-        assert names(client.get("/api/sources").json()) == set(SEEDED_SOURCES)
-        added = client.post("/api/sources", json=source_input())
-        assert added.status_code == 201, added.text
-        source = added.json()
-        edited = client.put(
-            f"/api/sources/{source['id']}",
-            json=source_input(
-                schedule="30 */6 * * *", enabled=False, transport="browser", basis="permission"
-            ),
-        )
-        listed = client.get("/api/sources").json()
+    assert names(subject.get("/api/sources").json()) == set(SEEDED_SOURCES)
+    added = subject.post("/api/sources", json=source_input())
+    assert added.status_code == 201, added.text
+    source = added.json()
+    edited = subject.put(
+        f"/api/sources/{source['id']}",
+        json=source_input(
+            schedule="30 */6 * * *", enabled=False, transport="browser", basis="permission"
+        ),
+    )
+    listed = subject.get("/api/sources").json()
 
     assert {
         key: value for key, value in source.items() if key not in ("id", "key", "next_run_at")
@@ -126,19 +121,18 @@ def report_run_of(client: TestClient, key: str, started_at: datetime) -> None:
 
 
 def test_a_source_is_due_until_it_runs_and_again_once_its_schedule_fires_after_that_run(
-    database_url: str,
+    subject: TestClient,
 ) -> None:
     now = datetime.now(UTC)
-    with TestClient(create_app()) as client:
-        source = client.post("/api/sources", json=source_input()).json()
-        client.post("/api/sources", json=source_input(name="Old Run"))
-        never_run = due(client)
-        report_run_of(client, "serverorbit", now)
-        report_run_of(client, "oldrun", now - timedelta(days=2))
-        # An older run of a source that has run since does not make it due.
-        report_run_of(client, "serverorbit", now - timedelta(days=2))
-        after_runs = due(client)
-        listed = {entry["name"]: entry for entry in client.get("/api/sources").json()}
+    source = subject.post("/api/sources", json=source_input()).json()
+    subject.post("/api/sources", json=source_input(name="Old Run"))
+    never_run = due(subject)
+    report_run_of(subject, "serverorbit", now)
+    report_run_of(subject, "oldrun", now - timedelta(days=2))
+    # An older run of a source that has run since does not make it due.
+    report_run_of(subject, "serverorbit", now - timedelta(days=2))
+    after_runs = due(subject)
+    listed = {entry["name"]: entry for entry in subject.get("/api/sources").json()}
 
     assert never_run == {*COLLECTED_SOURCES, "Server Orbit", "Old Run"}
     assert after_runs == {*COLLECTED_SOURCES, "Old Run"}
@@ -152,17 +146,16 @@ def test_a_source_is_due_until_it_runs_and_again_once_its_schedule_fires_after_t
     assert source["id"] == listed["Server Orbit"]["id"]
 
 
-def test_a_switched_off_source_is_due_only_when_asked_to_run_now(database_url: str) -> None:
-    with TestClient(create_app()) as client:
-        source = client.post("/api/sources", json=source_input(enabled=False)).json()
-        idle = due(client)
-        asked = client.post(f"/api/sources/{source['id']}/run")
-        queued = due(client)
-        report_run_of(client, "serverorbit", datetime.now(UTC) - timedelta(hours=1))
-        before_the_request = due(client)
-        report_run_of(client, "serverorbit", datetime.now(UTC))
-        after_the_request = due(client)
-        missing = client.post(f"/api/sources/{uuid4()}/run")
+def test_a_switched_off_source_is_due_only_when_asked_to_run_now(subject: TestClient) -> None:
+    source = subject.post("/api/sources", json=source_input(enabled=False)).json()
+    idle = due(subject)
+    asked = subject.post(f"/api/sources/{source['id']}/run")
+    queued = due(subject)
+    report_run_of(subject, "serverorbit", datetime.now(UTC) - timedelta(hours=1))
+    before_the_request = due(subject)
+    report_run_of(subject, "serverorbit", datetime.now(UTC))
+    after_the_request = due(subject)
+    missing = subject.post(f"/api/sources/{uuid4()}/run")
 
     assert "Server Orbit" not in idle
     assert source["next_run_at"] is None
@@ -177,13 +170,12 @@ def test_a_switched_off_source_is_due_only_when_asked_to_run_now(database_url: s
 
 
 def test_a_refused_source_is_refused_on_its_field_and_nothing_is_saved(
-    database_url: str,
+    subject: TestClient,
 ) -> None:
     """Every refusal is the schema's (tests/unit/collector/test_schemas.py); this is where the
     form is told it is, without the kind a source is checked as."""
-    with TestClient(create_app()) as client:
-        refused = client.post("/api/sources", json=source_input(schedule="nightly"))
-        listed = client.get("/api/sources").json()
+    refused = subject.post("/api/sources", json=source_input(schedule="nightly"))
+    listed = subject.get("/api/sources").json()
 
     assert refused.status_code == 422
     assert [issue["loc"] for issue in refused.json()["detail"]] == [["body", "schedule"]]
@@ -191,36 +183,36 @@ def test_a_refused_source_is_refused_on_its_field_and_nothing_is_saved(
 
 
 def test_source_names_and_keys_are_unique_and_only_existing_sources_can_be_edited(
-    database_url: str,
+    subject: TestClient,
 ) -> None:
-    with TestClient(create_app()) as client:
-        client.post("/api/sources", json=source_input())
-        other = client.post("/api/sources", json=source_input(name="Elsewhere")).json()
-        duplicate = client.post("/api/sources", json=source_input(schedule="0 4 * * *"))
-        same_key = client.post("/api/sources", json=source_input(name="Server-Orbit"))
-        renamed_onto = client.put(f"/api/sources/{other['id']}", json=source_input())
-        missing = client.put(f"/api/sources/{uuid4()}", json=source_input(name="Nowhere"))
+    subject.post("/api/sources", json=source_input())
+    other = subject.post("/api/sources", json=source_input(name="Elsewhere")).json()
+    duplicate = subject.post("/api/sources", json=source_input(schedule="0 4 * * *"))
+    same_key = subject.post("/api/sources", json=source_input(name="Server-Orbit"))
+    renamed_onto = subject.put(f"/api/sources/{other['id']}", json=source_input())
+    missing = subject.put(f"/api/sources/{uuid4()}", json=source_input(name="Nowhere"))
 
     assert [response.status_code for response in (duplicate, same_key, renamed_onto, missing)] == [
         409, 409, 409, 404,
     ]  # fmt: skip
 
 
-def test_a_source_is_always_given_with_the_settings_its_kind_has_now(database_url: str) -> None:
+def test_a_source_is_always_given_with_the_settings_its_kind_has_now(
+    subject: TestClient, database_url: str
+) -> None:
     """A source saved before a setting existed, or with one since dropped, reads as if saved
     today, so the collector never has to guess a default."""
     saved_long_ago = {"product_path_pattern": "-p/", "title_prefix": "Old Store - "}
-    with TestClient(create_app()) as client:
-        source = client.post("/api/sources", json=source_input(kind="sitemap", settings={})).json()
-        engine = create_engine(database_url)
-        with engine.begin() as connection:
-            connection.execute(
-                text("UPDATE sources SET settings = CAST(:settings AS jsonb) WHERE id = :id"),
-                {"settings": json.dumps(saved_long_ago), "id": source["id"]},
-            )
-        engine.dispose()
-        listed = client.get("/api/sources").json()
-        due_now = client.get("/api/sources", params={"due": True}).json()
+    source = subject.post("/api/sources", json=source_input(kind="sitemap", settings={})).json()
+    engine = create_engine(database_url)
+    with engine.begin() as connection:
+        connection.execute(
+            text("UPDATE sources SET settings = CAST(:settings AS jsonb) WHERE id = :id"),
+            {"settings": json.dumps(saved_long_ago), "id": source["id"]},
+        )
+    engine.dispose()
+    listed = subject.get("/api/sources").json()
+    due_now = subject.get("/api/sources", params={"due": True}).json()
 
     expected = {
         "sitemap_path": "",
@@ -237,18 +229,17 @@ def test_a_source_is_always_given_with_the_settings_its_kind_has_now(database_ur
 
 
 def test_a_setting_that_does_not_fit_is_refused_where_the_form_shows_it(
-    database_url: str,
+    subject: TestClient,
 ) -> None:
     """In the form's words, not the validator's."""
-    with TestClient(create_app()) as client:
-        refused = client.post("/api/sources", json=source_input(settings={"collections": []}))
-        unrooted = client.post(
-            "/api/sources",
-            json=source_input(kind="sitemap", settings={"sitemap_path": "sitemap.xml"}),
-        )
-        api_url = client.post(
-            "/api/sources", json=source_input(kind="sap_commerce", settings={"site": "us"})
-        )
+    refused = subject.post("/api/sources", json=source_input(settings={"collections": []}))
+    unrooted = subject.post(
+        "/api/sources",
+        json=source_input(kind="sitemap", settings={"sitemap_path": "sitemap.xml"}),
+    )
+    api_url = subject.post(
+        "/api/sources", json=source_input(kind="sap_commerce", settings={"site": "us"})
+    )
 
     assert [response.status_code for response in (refused, unrooted, api_url)] == [422] * 3
     assert [
@@ -263,20 +254,17 @@ def test_a_setting_that_does_not_fit_is_refused_where_the_form_shows_it(
 
 
 def test_permission_taken_away_while_robots_txt_is_ignored_is_refused_not_undone(
-    database_url: str,
+    subject: TestClient,
 ) -> None:
     """Who may ignore robots.txt is the schema's (tests/unit/collector/test_schemas.py)."""
     permitted = source_input(name="DirectMacro", basis="permission", obey_robots=False)
-    with TestClient(create_app()) as client:
-        source_id = client.post("/api/sources", json=permitted).json()["id"]
-        withdrawn = client.put(
-            f"/api/sources/{source_id}", json={**permitted, "basis": "terms_allow"}
-        )
-        kept = [s for s in client.get("/api/sources").json() if s["id"] == source_id]
-        restored = client.put(
-            f"/api/sources/{source_id}",
-            json={**permitted, "basis": "terms_allow", "obey_robots": True},
-        )
+    source_id = subject.post("/api/sources", json=permitted).json()["id"]
+    withdrawn = subject.put(f"/api/sources/{source_id}", json={**permitted, "basis": "terms_allow"})
+    kept = [s for s in subject.get("/api/sources").json() if s["id"] == source_id]
+    restored = subject.put(
+        f"/api/sources/{source_id}",
+        json={**permitted, "basis": "terms_allow", "obey_robots": True},
+    )
 
     assert withdrawn.status_code == 422
     assert [issue["loc"] for issue in withdrawn.json()["detail"]] == [["body", "obey_robots"]]
@@ -285,20 +273,19 @@ def test_permission_taken_away_while_robots_txt_is_ignored_is_refused_not_undone
     assert (restored.json()["basis"], restored.json()["obey_robots"]) == ("terms_allow", True)
 
 
-def test_a_source_with_offers_or_queued_offers_is_kept_and_so_is_other(database_url: str) -> None:
-    with TestClient(create_app()) as client:
-        sources = {source["key"]: source["id"] for source in client.get("/api/sources").json()}
-        post(
-            client,
-            "/api/prices",
-            entered(client, price_payload(store="serverpartdeals", seller="")),
-        )
-        post(client, "/api/ingestions", scraped_payload(store="goharddrive", mpn=None))
-        refused = {
-            key: client.delete(f"/api/sources/{sources[key]}")
-            for key in ("serverpartdeals", "goharddrive", "other")
-        }
-        listed = client.get("/api/sources").json()
+def test_a_source_with_offers_or_queued_offers_is_kept_and_so_is_other(subject: TestClient) -> None:
+    sources = {source["key"]: source["id"] for source in subject.get("/api/sources").json()}
+    post(
+        subject,
+        "/api/prices",
+        entered(subject, price_payload(store="serverpartdeals", seller="")),
+    )
+    post(subject, "/api/ingestions", scraped_payload(store="goharddrive", mpn=None))
+    refused = {
+        key: subject.delete(f"/api/sources/{sources[key]}")
+        for key in ("serverpartdeals", "goharddrive", "other")
+    }
+    listed = subject.get("/api/sources").json()
 
     assert {key: answer.status_code for key, answer in refused.items()} == {
         "serverpartdeals": 409,
@@ -312,21 +299,19 @@ def test_a_source_with_offers_or_queued_offers_is_kept_and_so_is_other(database_
     assert names(listed) == set(SEEDED_SOURCES)
 
 
-def test_a_source_keeps_the_key_it_was_created_with_when_renamed(database_url: str) -> None:
-    with TestClient(create_app()) as client:
-        source = client.post("/api/sources", json=source_input()).json()
-        renamed = client.put(
-            f"/api/sources/{source['id']}", json=source_input(name="Orbit Refurbished")
-        ).json()
+def test_a_source_keeps_the_key_it_was_created_with_when_renamed(subject: TestClient) -> None:
+    source = subject.post("/api/sources", json=source_input()).json()
+    renamed = subject.put(
+        f"/api/sources/{source['id']}", json=source_input(name="Orbit Refurbished")
+    ).json()
 
     assert (renamed["name"], renamed["key"]) == ("Orbit Refurbished", "serverorbit")
 
 
-def test_the_kinds_of_store_are_given_as_their_settings_describe_them(database_url: str) -> None:
+def test_the_kinds_of_store_are_given_as_their_settings_describe_them(subject: TestClient) -> None:
     """The Admin form is drawn from this; how each kind is described is its settings model's
     (tests/unit/collector/test_schemas.py)."""
-    with TestClient(create_app()) as client:
-        kinds = {kind["kind"]: kind for kind in client.get("/api/source-kinds").json()}
+    kinds = {kind["kind"]: kind for kind in subject.get("/api/source-kinds").json()}
 
     assert sorted(kinds) == ["manual", "sap_commerce", "shopify", "sitemap"]
     assert kinds["manual"] == {
@@ -343,9 +328,8 @@ def test_the_kinds_of_store_are_given_as_their_settings_describe_them(database_u
     ]
 
 
-def test_a_kind_of_store_nobody_reads_is_refused(database_url: str) -> None:
-    with TestClient(create_app()) as client:
-        refused = client.post("/api/sources", json=source_input(kind="magento"))
+def test_a_kind_of_store_nobody_reads_is_refused(subject: TestClient) -> None:
+    refused = subject.post("/api/sources", json=source_input(kind="magento"))
 
     assert refused.status_code == 422
     assert refused.json()["detail"][0]["loc"] == ["body", "kind"]

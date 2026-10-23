@@ -42,6 +42,5 @@ def test_the_built_frontend_is_served_beside_the_api(
     assert (missing_file.status_code, outside.status_code) == (404, 404)
 
 
-def test_without_a_built_frontend_only_the_api_is_served(database_url: str) -> None:
-    with TestClient(create_app()) as client:
-        assert (client.get("/").status_code, client.get("/api/sources").status_code) == (404, 200)
+def test_without_a_built_frontend_only_the_api_is_served(subject: TestClient) -> None:
+    assert (subject.get("/").status_code, subject.get("/api/sources").status_code) == (404, 200)

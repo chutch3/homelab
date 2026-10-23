@@ -8,29 +8,26 @@ from api_calls import followed_drives, priced_days_ago, with_history
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine, text
 
-from disktracker.main import create_app
-
 
 def test_trends_follow_the_typical_item_price_per_terabyte_of_drives_priced_all_period(
-    database_url: str,
+    subject: TestClient,
 ) -> None:
     now = datetime.now(UTC)
-    with TestClient(create_app()) as client:
-        record = priced_days_ago(client, now)
-        record("ST10000NM001G", 10000, 40.5)
-        record("ST10000NM002G", 20000, 40.5)
-        record("ST10000NM003G", 30000, 40.5)
-        # Ten days ago the middle drive drops from $20 to $16 a terabyte.
-        record("ST10000NM002G", 16000, 10.5)
-        # A drive first priced five days ago is not counted: it would move the line by arriving.
-        record("ST10000NM004G", 1000, 5.5)
-        # Every offer was checked just now, so each price still stands.
-        for mpn, item in [("ST10000NM001G", 10000), ("ST10000NM002G", 16000)]:
-            record(mpn, item, 0.001)
-        record("ST10000NM003G", 30000, 0.001)
-        record("ST10000NM004G", 1000, 0.001)
+    record = priced_days_ago(subject, now)
+    record("ST10000NM001G", 10000, 40.5)
+    record("ST10000NM002G", 20000, 40.5)
+    record("ST10000NM003G", 30000, 40.5)
+    # Ten days ago the middle drive drops from $20 to $16 a terabyte.
+    record("ST10000NM002G", 16000, 10.5)
+    # A drive first priced five days ago is not counted: it would move the line by arriving.
+    record("ST10000NM004G", 1000, 5.5)
+    # Every offer was checked just now, so each price still stands.
+    for mpn, item in [("ST10000NM001G", 10000), ("ST10000NM002G", 16000)]:
+        record(mpn, item, 0.001)
+    record("ST10000NM003G", 30000, 0.001)
+    record("ST10000NM004G", 1000, 0.001)
 
-        response = client.get("/api/trends", params={"days": 30})
+    response = subject.get("/api/trends", params={"days": 30})
 
     assert response.status_code == 200, response.text
     trends = response.json()
@@ -47,25 +44,24 @@ def test_trends_follow_the_typical_item_price_per_terabyte_of_drives_priced_all_
 
 
 def test_trends_split_the_market_when_asked_and_refuse_a_period_or_split_there_is_not(
-    database_url: str,
+    subject: TestClient,
 ) -> None:
     now = datetime.now(UTC)
-    with TestClient(create_app()) as client:
-        record = priced_days_ago(client, now)
-        record("ST10000NM001G", 10000, 40.5)
-        record("ST18000NM000J", 36000, 40.5, capacity_gb=18000)
-        # Last checked ten days ago: within the fortnight asked for below, not within a week.
-        record("ST10000NM001G", 10000, 10.5)
-        record("ST18000NM000J", 36000, 0.001, capacity_gb=18000)
+    record = priced_days_ago(subject, now)
+    record("ST10000NM001G", 10000, 40.5)
+    record("ST18000NM000J", 36000, 40.5, capacity_gb=18000)
+    # Last checked ten days ago: within the fortnight asked for below, not within a week.
+    record("ST10000NM001G", 10000, 10.5)
+    record("ST18000NM000J", 36000, 0.001, capacity_gb=18000)
 
-        split = {"days": 30, "by": "capacity"}
-        by_capacity = client.get("/api/trends", params={**split, "recent_days": 14})
-        strict = client.get("/api/trends", params=split)
-        # Ninety days unless told otherwise.
-        assert client.get("/api/trends").json()["days"] == 90
-        assert client.get("/api/trends", params={"days": 45}).status_code == 422
-        assert client.get("/api/trends", params={"by": "brand"}).status_code == 422
-        assert client.get("/api/trends", params={"recent_days": 0}).status_code == 422
+    split = {"days": 30, "by": "capacity"}
+    by_capacity = subject.get("/api/trends", params={**split, "recent_days": 14})
+    strict = subject.get("/api/trends", params=split)
+    # Ninety days unless told otherwise.
+    assert subject.get("/api/trends").json()["days"] == 90
+    assert subject.get("/api/trends", params={"days": 45}).status_code == 422
+    assert subject.get("/api/trends", params={"by": "brand"}).status_code == 422
+    assert subject.get("/api/trends", params={"recent_days": 0}).status_code == 422
 
     assert by_capacity.status_code == 200, by_capacity.text
     trends = by_capacity.json()
@@ -81,18 +77,17 @@ def test_trends_split_the_market_when_asked_and_refuse_a_period_or_split_there_i
 
 
 def test_a_trend_can_look_back_a_week_or_a_fortnight_and_says_how_far_back_prices_go(
-    database_url: str,
+    subject: TestClient,
 ) -> None:
     """Prices have been collected for ten days: a fortnight is too long to follow any drive
     over, a week is not."""
     now = datetime.now(UTC)
-    with TestClient(create_app()) as client:
-        record = priced_days_ago(client, now)
-        first = now - timedelta(days=10)
-        record("ST10000NM001G", 10000, 10)
-        record("ST10000NM001G", 10000, 0.001)
-        week = client.get("/api/trends", params={"days": 7}).json()
-        fortnight = client.get("/api/trends", params={"days": 14}).json()
+    record = priced_days_ago(subject, now)
+    first = now - timedelta(days=10)
+    record("ST10000NM001G", 10000, 10)
+    record("ST10000NM001G", 10000, 0.001)
+    week = subject.get("/api/trends", params={"days": 7}).json()
+    fortnight = subject.get("/api/trends", params={"days": 14}).json()
 
     assert (week["days"], week["market"]["counted"]) == (7, 1)
     assert (fortnight["days"], fortnight["market"]["counted"]) == (14, 0)
@@ -102,20 +97,19 @@ def test_a_trend_can_look_back_a_week_or_a_fortnight_and_says_how_far_back_price
 
 
 def test_a_trend_and_todays_prices_follow_only_the_drives_the_prices_page_would_show(
-    database_url: str,
+    subject: TestClient,
 ) -> None:
     """Narrowed by the same filters as the drives listed, each narrowing kept apart from the
     rest, so are the drives being considered getting cheaper is answered for them alone."""
-    with TestClient(create_app()) as client:
-        record = followed_drives(client, datetime.now(UTC))
-        for days in (40.5, 0.001):
-            record("ST18000NM000J", 36000, days, capacity_gb=18000)
-        every = client.get("/api/trends", params={"days": 30}).json()
-        large = client.get("/api/trends", params={"days": 30, "capacity": 18000}).json()
-        searched = client.get("/api/trends", params={"days": 30, "q": "ST10000NM00"}).json()
-        again = client.get("/api/trends", params={"days": 30}).json()
-        today = client.get("/api/reports/prices-today", params={"capacity": 18000}).json()
-        refused = client.get("/api/trends", params={"days": 30, "limit": 5})
+    record = followed_drives(subject, datetime.now(UTC))
+    for days in (40.5, 0.001):
+        record("ST18000NM000J", 36000, days, capacity_gb=18000)
+    every = subject.get("/api/trends", params={"days": 30}).json()
+    large = subject.get("/api/trends", params={"days": 30, "capacity": 18000}).json()
+    searched = subject.get("/api/trends", params={"days": 30, "q": "ST10000NM00"}).json()
+    again = subject.get("/api/trends", params={"days": 30}).json()
+    today = subject.get("/api/reports/prices-today", params={"capacity": 18000}).json()
+    refused = subject.get("/api/trends", params={"days": 30, "limit": 5})
 
     assert (every["market"]["counted"], large["market"]["counted"]) == (4, 1)
     assert large["market"]["points"][-1]["median"] == 2000
@@ -126,23 +120,24 @@ def test_a_trend_and_todays_prices_follow_only_the_drives_the_prices_page_would_
     assert refused.status_code == 422
 
 
-def test_trends_are_kept_once_worked_out_and_answered_from_what_was_kept(database_url: str) -> None:
+def test_trends_are_kept_once_worked_out_and_answered_from_what_was_kept(
+    subject: TestClient, database_url: str
+) -> None:
     engine = create_engine(database_url)
-    with TestClient(create_app()) as client:
-        followed_drives(client, datetime.now(UTC))
-        first = client.get("/api/trends", params={"days": 30}).json()
-        assert first["market"]["counted"] == 3
-        with engine.begin() as connection:
-            kept = connection.execute(text("SELECT days, by, recent_days FROM trends")).all()
-            # Nothing but the kept answer says 99, so answering 99 is answering from it.
-            connection.execute(
-                text("UPDATE trends SET body = jsonb_set(body, '{market,counted}', '99')")
-            )
-        again = client.get("/api/trends", params={"days": 30}).json()
-        client.get("/api/trends", params={"days": 30, "by": "capacity"})
-        client.get("/api/trends", params={"days": 30, "recent_days": 14})
-        with engine.connect() as connection:
-            answers = connection.execute(text("SELECT count(*) FROM trends")).scalar_one()
+    followed_drives(subject, datetime.now(UTC))
+    first = subject.get("/api/trends", params={"days": 30}).json()
+    assert first["market"]["counted"] == 3
+    with engine.begin() as connection:
+        kept = connection.execute(text("SELECT days, by, recent_days FROM trends")).all()
+        # Nothing but the kept answer says 99, so answering 99 is answering from it.
+        connection.execute(
+            text("UPDATE trends SET body = jsonb_set(body, '{market,counted}', '99')")
+        )
+    again = subject.get("/api/trends", params={"days": 30}).json()
+    subject.get("/api/trends", params={"days": 30, "by": "capacity"})
+    subject.get("/api/trends", params={"days": 30, "recent_days": 14})
+    with engine.connect() as connection:
+        answers = connection.execute(text("SELECT count(*) FROM trends")).scalar_one()
     engine.dispose()
 
     assert kept == [(30, "", 7)]
@@ -152,20 +147,20 @@ def test_trends_are_kept_once_worked_out_and_answered_from_what_was_kept(databas
 
 
 def test_a_price_recorded_for_an_earlier_day_changes_that_day_of_a_kept_trend(
+    subject: TestClient,
     database_url: str,
 ) -> None:
     """Prices can be entered backdated: one recorded now for ten days ago changes the trend from
     ten days ago on, though it was kept before."""
     engine = create_engine(database_url)
-    with TestClient(create_app()) as client:
-        record = followed_drives(client, datetime.now(UTC))
-        client.get("/api/trends", params={"days": 30})
-        # The cheapest drive, at half its price ten days ago.
-        record("ST10000NM001G", 5000, 10)
-        kept = client.get("/api/trends", params={"days": 30}).json()
-        with engine.begin() as connection:
-            connection.execute(text("DELETE FROM trends"))
-        afresh = client.get("/api/trends", params={"days": 30}).json()
+    record = followed_drives(subject, datetime.now(UTC))
+    subject.get("/api/trends", params={"days": 30})
+    # The cheapest drive, at half its price ten days ago.
+    record("ST10000NM001G", 5000, 10)
+    kept = subject.get("/api/trends", params={"days": 30}).json()
+    with engine.begin() as connection:
+        connection.execute(text("DELETE FROM trends"))
+    afresh = subject.get("/api/trends", params={"days": 30}).json()
     engine.dispose()
 
     assert kept == afresh
@@ -175,20 +170,20 @@ def test_a_price_recorded_for_an_earlier_day_changes_that_day_of_a_kept_trend(
 
 
 def test_a_price_recorded_since_a_trend_was_kept_has_it_worked_out_again(
+    subject: TestClient,
     database_url: str,
 ) -> None:
     engine = create_engine(database_url)
-    with TestClient(create_app()) as client:
-        record = followed_drives(client, datetime.now(UTC))
-        first = client.get("/api/trends", params={"days": 30}).json()
-        with engine.begin() as connection:
-            connection.execute(
-                text("UPDATE trends SET body = jsonb_set(body, '{market,counted}', '99')")
-            )
-        # The middle drive drops from $20 to $16 a terabyte, and a drive is priced for the first time.
-        record("ST10000NM002G", 16000, 0)
-        record("ST10000NM004G", 1000, 0)
-        after = client.get("/api/trends", params={"days": 30}).json()
+    record = followed_drives(subject, datetime.now(UTC))
+    first = subject.get("/api/trends", params={"days": 30}).json()
+    with engine.begin() as connection:
+        connection.execute(
+            text("UPDATE trends SET body = jsonb_set(body, '{market,counted}', '99')")
+        )
+    # The middle drive drops from $20 to $16 a terabyte, and a drive is priced for the first time.
+    record("ST10000NM002G", 16000, 0)
+    record("ST10000NM004G", 1000, 0)
+    after = subject.get("/api/trends", params={"days": 30}).json()
     engine.dispose()
 
     assert first["market"]["points"][-1] == {
@@ -211,25 +206,25 @@ def test_a_price_recorded_since_a_trend_was_kept_has_it_worked_out_again(
 
 
 def test_a_trend_kept_on_an_earlier_day_is_worked_out_afresh_and_kept_again(
+    subject: TestClient,
     database_url: str,
 ) -> None:
     """When a kept trend is answered is the service's (tests/unit/reporting/test_service.py);
     this is the day it was kept on, as the database has it."""
     engine = create_engine(database_url)
-    with TestClient(create_app()) as client:
-        followed_drives(client, datetime.now(UTC))
-        first = client.get("/api/trends", params={"days": 30}).json()
-        with engine.begin() as connection:
-            # As if it had been worked out yesterday; 99 is what only the kept answer says.
-            connection.execute(
-                text(
-                    "UPDATE trends SET as_of = as_of - interval '1 day', "
-                    "body = jsonb_set(body, '{market,counted}', '99')"
-                )
+    followed_drives(subject, datetime.now(UTC))
+    first = subject.get("/api/trends", params={"days": 30}).json()
+    with engine.begin() as connection:
+        # As if it had been worked out yesterday; 99 is what only the kept answer says.
+        connection.execute(
+            text(
+                "UPDATE trends SET as_of = as_of - interval '1 day', "
+                "body = jsonb_set(body, '{market,counted}', '99')"
             )
-        after = client.get("/api/trends", params={"days": 30}).json()
-        with engine.connect() as connection:
-            kept_on = connection.execute(text("SELECT as_of::date FROM trends")).scalar_one()
+        )
+    after = subject.get("/api/trends", params={"days": 30}).json()
+    with engine.connect() as connection:
+        kept_on = connection.execute(text("SELECT as_of::date FROM trends")).scalar_one()
     engine.dispose()
 
     assert after == first
@@ -245,90 +240,90 @@ def kept_trend_poisoned(engine: Any) -> None:
 
 
 def test_a_kept_trend_of_some_drives_is_worked_out_again_once_what_narrows_them_changes(
+    subject: TestClient,
     database_url: str,
 ) -> None:
     """A trend of the drives a page narrows to reads what narrows them: a drive's brand and
     specifications, and the names search reads, an offer's title, its drive's other MPNs and the
     store's name. Changing any of them changes which drives it is of, though no price changed."""
     engine = create_engine(database_url)
-    with TestClient(create_app()) as client:
-        followed_drives(client, datetime.now(UTC))
-        offers = {o["mpn"]: o for o in client.get("/api/offers").json()}
-        drive = offers["ST10000NM001G"]["drive"]["id"]
-        [store] = [s for s in client.get("/api/sources").json() if s["key"] == "serverpartdeals"]
-        entered = {k: v for k, v in store.items() if k not in ("id", "key", "next_run_at")}
+    followed_drives(subject, datetime.now(UTC))
+    offers = {o["mpn"]: o for o in subject.get("/api/offers").json()}
+    drive = offers["ST10000NM001G"]["drive"]["id"]
+    [store] = [s for s in subject.get("/api/sources").json() if s["key"] == "serverpartdeals"]
+    entered = {k: v for k, v in store.items() if k not in ("id", "key", "next_run_at")}
 
-        def counted_after(change: Any, **scope: Any) -> int:
-            client.get("/api/trends", params={"days": 30, **scope})
-            kept_trend_poisoned(engine)
-            assert change().status_code in (200, 201)
-            answer = client.get("/api/trends", params={"days": 30, **scope}).json()
-            return int(answer["market"]["counted"])
+    def counted_after(change: Any, **scope: Any) -> int:
+        subject.get("/api/trends", params={"days": 30, **scope})
+        kept_trend_poisoned(engine)
+        assert change().status_code in (200, 201)
+        answer = subject.get("/api/trends", params={"days": 30, **scope}).json()
+        return int(answer["market"]["counted"])
 
-        counts = {
-            "brand": counted_after(
-                lambda: client.patch(f"/api/drives/{drive}", json={"brand": "Exabyte"}),
-                brand="Exabyte",
+    counts = {
+        "brand": counted_after(
+            lambda: subject.patch(f"/api/drives/{drive}", json={"brand": "Exabyte"}),
+            brand="Exabyte",
+        ),
+        "specification": counted_after(
+            lambda: subject.patch(
+                f"/api/drives/{drive}", json={"specifications": {"interface": "usb"}}
             ),
-            "specification": counted_after(
-                lambda: client.patch(
-                    f"/api/drives/{drive}", json={"specifications": {"interface": "usb"}}
-                ),
-                interface="usb",
+            interface="usb",
+        ),
+        "alias": counted_after(
+            lambda: subject.post(f"/api/drives/{drive}/aliases", json={"mpn": "XYZALIAS1"}),
+            q="XYZALIAS1",
+        ),
+        "title": counted_after(
+            lambda: subject.patch(
+                f"/api/offers/{offers['ST10000NM002G']['id']}", json={"title": "Quillfeather"}
             ),
-            "alias": counted_after(
-                lambda: client.post(f"/api/drives/{drive}/aliases", json={"mpn": "XYZALIAS1"}),
-                q="XYZALIAS1",
+            q="Quillfeather",
+        ),
+        "store name": counted_after(
+            lambda: subject.put(
+                f"/api/sources/{store['id']}", json={**entered, "name": "Partorama"}
             ),
-            "title": counted_after(
-                lambda: client.patch(
-                    f"/api/offers/{offers['ST10000NM002G']['id']}", json={"title": "Quillfeather"}
-                ),
-                q="Quillfeather",
-            ),
-            "store name": counted_after(
-                lambda: client.put(
-                    f"/api/sources/{store['id']}", json={**entered, "name": "Partorama"}
-                ),
-                q="Partorama",
-            ),
-        }
+            q="Partorama",
+        ),
+    }
     engine.dispose()
 
     assert counts == {"brand": 1, "specification": 1, "alias": 1, "title": 1, "store name": 3}
 
 
 def test_a_kept_trend_is_worked_out_again_once_a_drive_or_what_it_is_changes(
+    subject: TestClient,
     database_url: str,
 ) -> None:
     """Trends group offers by drive and divide by its capacity, so correcting either changes
     them, though no price changed."""
     engine = create_engine(database_url)
-    with TestClient(create_app()) as client:
-        record = followed_drives(client, datetime.now(UTC))
-        for days in (40.5, 0.001):
-            record("ST10000NM004G", 40000, days, store="goharddrive")
-        first = client.get("/api/trends", params={"days": 30}).json()
-        drives = {o["mpn"]: o["drive"]["id"] for o in client.get("/api/offers").json()}
+    record = followed_drives(subject, datetime.now(UTC))
+    for days in (40.5, 0.001):
+        record("ST10000NM004G", 40000, days, store="goharddrive")
+    first = subject.get("/api/trends", params={"days": 30}).json()
+    drives = {o["mpn"]: o["drive"]["id"] for o in subject.get("/api/offers").json()}
 
-        kept_trend_poisoned(engine)
-        resized = client.patch(f"/api/drives/{drives['ST10000NM001G']}", json={"capacity_gb": 5000})
-        after_capacity = client.get("/api/trends", params={"days": 30}).json()
+    kept_trend_poisoned(engine)
+    resized = subject.patch(f"/api/drives/{drives['ST10000NM001G']}", json={"capacity_gb": 5000})
+    after_capacity = subject.get("/api/trends", params={"days": 30}).json()
 
-        kept_trend_poisoned(engine)
-        # Its only offer is at a store the drive it joins has none at, so the offer moves whole.
-        merged = client.post(
-            f"/api/drives/{drives['ST10000NM004G']}/merge",
-            json={"target_drive_id": drives["ST10000NM003G"]},
-            headers={"Idempotency-Key": str(uuid4())},
-        )
-        after_merge = client.get("/api/trends", params={"days": 30}).json()
+    kept_trend_poisoned(engine)
+    # Its only offer is at a store the drive it joins has none at, so the offer moves whole.
+    merged = subject.post(
+        f"/api/drives/{drives['ST10000NM004G']}/merge",
+        json={"target_drive_id": drives["ST10000NM003G"]},
+        headers={"Idempotency-Key": str(uuid4())},
+    )
+    after_merge = subject.get("/api/trends", params={"days": 30}).json()
 
-        kept_trend_poisoned(engine)
-        # Without its price from before the period opened, a drive was not priced all period.
-        offer = next(o for o in with_history(client) if o["mpn"] == "ST10000NM002G")
-        deleted = client.delete(f"/api/prices/{offer['observations'][0]['id']}")
-        after_deletion = client.get("/api/trends", params={"days": 30}).json()
+    kept_trend_poisoned(engine)
+    # Without its price from before the period opened, a drive was not priced all period.
+    offer = next(o for o in with_history(subject) if o["mpn"] == "ST10000NM002G")
+    deleted = subject.delete(f"/api/prices/{offer['observations'][0]['id']}")
+    after_deletion = subject.get("/api/trends", params={"days": 30}).json()
     engine.dispose()
     assert (resized.status_code, merged.status_code) == (200, 200)
     assert first["market"]["counted"] == 4

@@ -43,20 +43,19 @@ def merge(client: TestClient, source: str, target: str, key: str | None = None) 
 
 
 def test_a_drive_merged_into_another_gives_it_every_mpn_it_went_by_and_its_offers(
-    database_url: str,
+    subject: TestClient,
 ) -> None:
-    with TestClient(create_app()) as client:
-        target = drive(client, "WUH721816AL5205")
-        source = drive(client, "0HNHWC")
-        client.post(f"/api/drives/{source['id']}/aliases", json={"mpn": "0HNHWC-G14"})
-        kept = offer(
-            client, "WUH721816AL5205", store="goharddrive", seller="", condition="refurbished"
-        )
-        moved = offer(client, "0HNHWC", store="serverpartdeals", seller="", condition="new")
-        merged = merge(client, source["id"], target["id"])
-        after = client.get(f"/api/drives/{target['id']}").json()
-        offers = client.get("/api/offers", params={"drive_id": target["id"]}).json()
-        gone = client.get(f"/api/drives/{source['id']}")
+    target = drive(subject, "WUH721816AL5205")
+    source = drive(subject, "0HNHWC")
+    subject.post(f"/api/drives/{source['id']}/aliases", json={"mpn": "0HNHWC-G14"})
+    kept = offer(
+        subject, "WUH721816AL5205", store="goharddrive", seller="", condition="refurbished"
+    )
+    moved = offer(subject, "0HNHWC", store="serverpartdeals", seller="", condition="new")
+    merged = merge(subject, source["id"], target["id"])
+    after = subject.get(f"/api/drives/{target['id']}").json()
+    offers = subject.get("/api/offers", params={"drive_id": target["id"]}).json()
+    gone = subject.get(f"/api/drives/{source['id']}")
 
     assert merged.status_code == 200, merged.text
     assert merged.json() == {
@@ -70,31 +69,30 @@ def test_a_drive_merged_into_another_gives_it_every_mpn_it_went_by_and_its_offer
 
 
 def test_offers_of_the_same_store_seller_and_condition_are_one_with_both_their_prices(
-    database_url: str,
+    subject: TestClient,
 ) -> None:
     """The target's offer survives with every price of both, held if either was, last checked
     when either was; its page is the one kept. What a save answered before is answered again
     unchanged, naming the offer as it was."""
     page = scraped_payload(store="serverpartdeals", seller="", condition="new", capacity_gb=16000)
-    with TestClient(create_app()) as client:
-        target = drive(client, "WUH721816AL5205")
-        source = drive(client, "0HNHWC")
-        survivor = post(client, "/api/ingestions", {**page, "mpn": "WUH721816AL5205", "url": "https://spd.test/wd",
-                        "title": "WD 16TB", "item_price_cents": 17500, "observed_at": "2026-10-02T12:00:00Z"}).json()  # fmt: skip
-        key = str(uuid4())
-        dell = {**page, "mpn": "0HNHWC", "url": "https://spd.test/dell", "title": "Dell 16TB",
-                "item_price_cents": 18000, "observed_at": "2026-10-01T12:00:00Z"}  # fmt: skip
-        absorbed = post(client, "/api/ingestions", dell, key).json()
-        # Its page then reads as several drives: held.
-        post(
-            client,
-            "/api/ingestions",
-            {**dell, "title": "Dell 16TB 4-pack", "observed_at": "2026-10-03T12:00:00Z"},
-        )
-        merged = merge(client, source["id"], target["id"])
-        kept = client.get(f"/api/offers/{survivor['offer_id']}").json()
-        again = post(client, "/api/ingestions", dell, key)
-        gone = client.get(f"/api/offers/{absorbed['offer_id']}")
+    target = drive(subject, "WUH721816AL5205")
+    source = drive(subject, "0HNHWC")
+    survivor = post(subject, "/api/ingestions", {**page, "mpn": "WUH721816AL5205", "url": "https://spd.test/wd",
+                    "title": "WD 16TB", "item_price_cents": 17500, "observed_at": "2026-10-02T12:00:00Z"}).json()  # fmt: skip
+    key = str(uuid4())
+    dell = {**page, "mpn": "0HNHWC", "url": "https://spd.test/dell", "title": "Dell 16TB",
+            "item_price_cents": 18000, "observed_at": "2026-10-01T12:00:00Z"}  # fmt: skip
+    absorbed = post(subject, "/api/ingestions", dell, key).json()
+    # Its page then reads as several drives: held.
+    post(
+        subject,
+        "/api/ingestions",
+        {**dell, "title": "Dell 16TB 4-pack", "observed_at": "2026-10-03T12:00:00Z"},
+    )
+    merged = merge(subject, source["id"], target["id"])
+    kept = subject.get(f"/api/offers/{survivor['offer_id']}").json()
+    again = post(subject, "/api/ingestions", dell, key)
+    gone = subject.get(f"/api/offers/{absorbed['offer_id']}")
 
     assert merged.json()["combined_offers"] == [
         {"absorbed_offer_id": absorbed["offer_id"], "offer_id": survivor["offer_id"]}
@@ -110,15 +108,14 @@ def test_offers_of_the_same_store_seller_and_condition_are_one_with_both_their_p
 
 
 def test_drives_that_differ_on_what_both_know_are_not_merged_and_nothing_changes(
-    database_url: str,
+    subject: TestClient,
 ) -> None:
-    with TestClient(create_app()) as client:
-        target = drive(client, "ST16000NM001G", specifications={"interface": "sas"})
-        source = drive(
-            client, "ST16000NM000J", capacity_gb=18000, specifications={"interface": "sata"}
-        )
-        refused = merge(client, source["id"], target["id"])
-        both = [client.get(f"/api/drives/{d['id']}").json() for d in (target, source)]
+    target = drive(subject, "ST16000NM001G", specifications={"interface": "sas"})
+    source = drive(
+        subject, "ST16000NM000J", capacity_gb=18000, specifications={"interface": "sata"}
+    )
+    refused = merge(subject, source["id"], target["id"])
+    both = [subject.get(f"/api/drives/{d['id']}").json() for d in (target, source)]
 
     assert refused.status_code == 409
     assert (
@@ -129,33 +126,29 @@ def test_drives_that_differ_on_what_both_know_are_not_merged_and_nothing_changes
 
 
 def test_the_targets_brand_stands_and_what_it_lacks_comes_from_the_source(
-    database_url: str,
+    subject: TestClient,
 ) -> None:
-    with TestClient(create_app()) as client:
-        target = drive(client, "ST16000NM001G", brand="Seagate")
-        source = drive(
-            client, "ST16000NM000J", brand="SEAGATE", specifications={"interface": "sas"}
-        )
-        merge(client, source["id"], target["id"])
-        merged = client.get(f"/api/drives/{target['id']}").json()
+    target = drive(subject, "ST16000NM001G", brand="Seagate")
+    source = drive(subject, "ST16000NM000J", brand="SEAGATE", specifications={"interface": "sas"})
+    merge(subject, source["id"], target["id"])
+    merged = subject.get(f"/api/drives/{target['id']}").json()
 
     assert (merged["brand"], merged["specifications"]["interface"]) == ("Seagate", "sas")
 
 
 def test_a_merge_sent_again_is_answered_as_it_was_and_its_key_cannot_merge_another(
-    database_url: str,
+    subject: TestClient,
 ) -> None:
-    with TestClient(create_app()) as client:
-        target, source, other = (drive(client, mpn) for mpn in ("AAA1", "BBB1", "CCC1"))
-        key = str(uuid4())
-        first = merge(client, source["id"], target["id"], key)
-        again = merge(client, source["id"], target["id"], key)
-        reused = merge(client, other["id"], target["id"], key)
-        keyless = client.post(
-            f"/api/drives/{other['id']}/merge", json={"target_drive_id": target["id"]}
-        )
-        itself = merge(client, target["id"], target["id"])
-        unknown = merge(client, str(uuid4()), target["id"])
+    target, source, other = (drive(subject, mpn) for mpn in ("AAA1", "BBB1", "CCC1"))
+    key = str(uuid4())
+    first = merge(subject, source["id"], target["id"], key)
+    again = merge(subject, source["id"], target["id"], key)
+    reused = merge(subject, other["id"], target["id"], key)
+    keyless = subject.post(
+        f"/api/drives/{other['id']}/merge", json={"target_drive_id": target["id"]}
+    )
+    itself = merge(subject, target["id"], target["id"])
+    unknown = merge(subject, str(uuid4()), target["id"])
 
     assert (first.status_code, again.status_code, again.json()) == (200, 200, first.json())
     assert reused.status_code == 409
@@ -164,46 +157,44 @@ def test_a_merge_sent_again_is_answered_as_it_was_and_its_key_cannot_merge_anoth
 
 
 def test_what_was_found_to_be_the_absorbed_drive_waiting_for_review_is_the_target_after(
-    database_url: str,
+    subject: TestClient,
 ) -> None:
     """Its submitted evidence is left as it was."""
-    with TestClient(create_app()) as client:
-        target = drive(client, "AAA1")
-        source = drive(client, "BBB1")
-        client.post(f"/api/drives/{source['id']}/aliases", json={"mpn": "0XYZ"})
-        post(client, "/api/ingestions", scraped_payload(url="https://spd.test/c", mpn="CCC1", title="Drive 16TB",
-                                                    capacity_gb=16000, aliases=["0XYZ"]))  # fmt: skip
-        merge(client, source["id"], target["id"])
-        [item] = client.get("/api/review-items").json()
+    target = drive(subject, "AAA1")
+    source = drive(subject, "BBB1")
+    subject.post(f"/api/drives/{source['id']}/aliases", json={"mpn": "0XYZ"})
+    post(subject, "/api/ingestions", scraped_payload(url="https://spd.test/c", mpn="CCC1", title="Drive 16TB",
+                                                capacity_gb=16000, aliases=["0XYZ"]))  # fmt: skip
+    merge(subject, source["id"], target["id"])
+    [item] = subject.get("/api/review-items").json()
 
     assert (item["conflict_drive_id"], item["aliases"]) == (target["id"], ["0XYZ"])
 
 
-def test_a_page_of_the_absorbed_mpn_is_of_the_target_after(database_url: str) -> None:
-    with TestClient(create_app()) as client:
-        target = drive(client, "AAA1")
-        source = drive(client, "BBB1")
-        merge(client, source["id"], target["id"])
-        later = offer(client, "BBB1", seller="Shop")
-        recorded = client.get(f"/api/offers/{later}").json()["drive"]["id"]
+def test_a_page_of_the_absorbed_mpn_is_of_the_target_after(subject: TestClient) -> None:
+    target = drive(subject, "AAA1")
+    source = drive(subject, "BBB1")
+    merge(subject, source["id"], target["id"])
+    later = offer(subject, "BBB1", seller="Shop")
+    recorded = subject.get(f"/api/offers/{later}").json()["drive"]["id"]
 
     assert recorded == target["id"]
 
 
 def test_a_merge_is_refused_if_what_the_source_goes_by_changes_as_it_starts(
+    subject: TestClient,
     database_url: str,
 ) -> None:
     """Another MPN given to the source the moment before the merge takes hold of what it goes by
     is not taken silently: nothing is merged."""
-    with TestClient(create_app()) as client:
-        target = drive(client, "AAA1")
-        source = drive(client, "BBB1")
-        with meanwhile(
-            database_url, LOCK,
-            "INSERT INTO mpn_aliases (alias, drive_id) VALUES ('BBB1-X', :source)", source=source["id"],
-        ) as changed:  # fmt: skip
-            refused = merge(client, source["id"], target["id"])
-        both = [client.get(f"/api/drives/{d['id']}").status_code for d in (target, source)]
+    target = drive(subject, "AAA1")
+    source = drive(subject, "BBB1")
+    with meanwhile(
+        database_url, LOCK,
+        "INSERT INTO mpn_aliases (alias, drive_id) VALUES ('BBB1-X', :source)", source=source["id"],
+    ) as changed:  # fmt: skip
+        refused = merge(subject, source["id"], target["id"])
+    both = [subject.get(f"/api/drives/{d['id']}").status_code for d in (target, source)]
 
     assert changed
     assert refused.status_code == 409
@@ -251,21 +242,20 @@ def test_a_merge_and_a_review_decision_at_once_both_finish(database_url: str) ->
 
 
 def test_a_decision_naming_a_drive_merged_away_is_refused_and_its_item_still_waits(
-    database_url: str,
+    subject: TestClient,
 ) -> None:
     """A drive absorbed is gone: the reviewer chooses the drive it became."""
-    with TestClient(create_app()) as client:
-        target = drive(client, "AAA1")
-        source = drive(client, "BBB1")
-        item = post(client, "/api/ingestions", scraped_payload(
-            url="https://spd.test/c", mpn=None, title="Drive 16TB", capacity_gb=16000,
-        )).json()["review_item_id"]  # fmt: skip
-        merge(client, source["id"], target["id"])
-        refused = client.put(
-            f"/api/review-items/{item}/decision",
-            json={"decision": "match", "drive_id": source["id"], "condition": "new"},
-        )
-        waiting = [i["id"] for i in client.get("/api/review-items").json()]
+    target = drive(subject, "AAA1")
+    source = drive(subject, "BBB1")
+    item = post(subject, "/api/ingestions", scraped_payload(
+        url="https://spd.test/c", mpn=None, title="Drive 16TB", capacity_gb=16000,
+    )).json()["review_item_id"]  # fmt: skip
+    merge(subject, source["id"], target["id"])
+    refused = subject.put(
+        f"/api/review-items/{item}/decision",
+        json={"decision": "match", "drive_id": source["id"], "condition": "new"},
+    )
+    waiting = [i["id"] for i in subject.get("/api/review-items").json()]
 
     assert refused.status_code == 404
     assert waiting == [item]
@@ -304,23 +294,22 @@ def test_a_decision_on_a_drive_merged_away_as_it_waits_is_refused_and_its_item_s
     assert waiting == [item]
 
 
-def test_what_a_reviewer_decided_a_page_was_is_the_target_once_merged(database_url: str) -> None:
+def test_what_a_reviewer_decided_a_page_was_is_the_target_once_merged(subject: TestClient) -> None:
     """A page decided to be the absorbed drive, read again after the merge, is recorded as the
     drive it became, without waiting for review again."""
     page = scraped_payload(
         url="https://spd.test/c", mpn=None, title="Drive 16TB", capacity_gb=16000
     )
-    with TestClient(create_app()) as client:
-        target = drive(client, "AAA1")
-        source = drive(client, "BBB1")
-        item = post(client, "/api/ingestions", page).json()["review_item_id"]
-        client.put(
-            f"/api/review-items/{item}/decision",
-            json={"decision": "match", "drive_id": source["id"], "condition": "new"},
-        )
-        merge(client, source["id"], target["id"])
-        later = post(client, "/api/ingestions", {**page, "observed_at": "2026-10-03T12:00:00Z"})
-        recorded = client.get(f"/api/offers/{later.json()['offer_id']}").json()["drive"]["id"]
+    target = drive(subject, "AAA1")
+    source = drive(subject, "BBB1")
+    item = post(subject, "/api/ingestions", page).json()["review_item_id"]
+    subject.put(
+        f"/api/review-items/{item}/decision",
+        json={"decision": "match", "drive_id": source["id"], "condition": "new"},
+    )
+    merge(subject, source["id"], target["id"])
+    later = post(subject, "/api/ingestions", {**page, "observed_at": "2026-10-03T12:00:00Z"})
+    recorded = subject.get(f"/api/offers/{later.json()['offer_id']}").json()["drive"]["id"]
 
     assert later.status_code == 201, later.text
     assert recorded == target["id"]

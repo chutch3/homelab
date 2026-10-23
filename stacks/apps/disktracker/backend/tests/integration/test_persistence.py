@@ -87,72 +87,72 @@ def test_offers_listed_while_one_is_deleted_are_listed_as_they_all_were(
 
 
 def test_a_drives_history_read_while_a_price_is_added_has_the_prices_its_offers_had(
+    subject: TestClient,
     database_url: str,
 ) -> None:
-    with TestClient(create_app()) as client:
-        offer = post(client, "/api/prices", entered(client, price_payload())).json()["offer_id"]
-        # Added after the offers' latest prices are read, before their histories are.
-        with meanwhile(
-            database_url,
-            "ORDER BY observations.observed_at, observations.entered_at, observations.id",
-            "INSERT INTO observations (id, listing_id, item_price_cents, shipping_cents, in_stock,"
-            " observed_at, entered_at, notes, acquisition_method)"
-            " VALUES (:price, :offer, 100, 0, true, now(), now(), '', 'manual')",
-            price=uuid4(),
-            offer=offer,
-        ) as interrupted:
-            history = client.get(f"/api/offers/{offer}").json()
+    offer = post(subject, "/api/prices", entered(subject, price_payload())).json()["offer_id"]
+    # Added after the offers' latest prices are read, before their histories are.
+    with meanwhile(
+        database_url,
+        "ORDER BY observations.observed_at, observations.entered_at, observations.id",
+        "INSERT INTO observations (id, listing_id, item_price_cents, shipping_cents, in_stock,"
+        " observed_at, entered_at, notes, acquisition_method)"
+        " VALUES (:price, :offer, 100, 0, true, now(), now(), '', 'manual')",
+        price=uuid4(),
+        offer=offer,
+    ) as interrupted:
+        history = subject.get(f"/api/offers/{offer}").json()
     assert interrupted
     # Its latest price is the last of its history, as when it was read.
     assert [price["id"] for price in history["observations"]] == [history["latest"]["id"]]
 
 
 def test_a_page_of_review_items_is_counted_with_the_items_it_was_read_from(
+    subject: TestClient,
     database_url: str,
 ) -> None:
-    with TestClient(create_app()) as client:
-        for number in range(2):
-            post(
-                client,
-                "/api/ingestions",
-                scraped_payload(mpn=None, url=f"https://store.test/drive-{number}"),
-            )
-        # Queued after the queue is counted, before its items are read.
-        with meanwhile(
-            database_url,
-            "LIMIT",
-            "INSERT INTO unmatched (id, source, url, title, seller, in_stock, reason, provenance,"
-            " first_seen_at, last_seen_at) VALUES (:id, 'serverpartdeals', 'https://store.test/x',"
-            " 'X', '', true, 'missing_mpn', 'collected', now(), now())",
-            id=uuid4(),
-        ) as interrupted:
-            page = client.get("/api/review-items", params={"limit": 50})
+    for number in range(2):
+        post(
+            subject,
+            "/api/ingestions",
+            scraped_payload(mpn=None, url=f"https://store.test/drive-{number}"),
+        )
+    # Queued after the queue is counted, before its items are read.
+    with meanwhile(
+        database_url,
+        "LIMIT",
+        "INSERT INTO unmatched (id, source, url, title, seller, in_stock, reason, provenance,"
+        " first_seen_at, last_seen_at) VALUES (:id, 'serverpartdeals', 'https://store.test/x',"
+        " 'X', '', true, 'missing_mpn', 'collected', now(), now())",
+        id=uuid4(),
+    ) as interrupted:
+        page = subject.get("/api/review-items", params={"limit": 50})
     assert interrupted
     assert page.headers["X-Total-Count"] == str(len(page.json())) == "2"
 
 
 def test_a_trend_kept_while_a_price_is_recorded_is_what_working_it_out_afresh_gives(
+    subject: TestClient,
     database_url: str,
 ) -> None:
     """A trend is kept under the revision of the very prices it was worked out from, so a price
     recorded while it is worked out is never taken for one it already has."""
-    with TestClient(create_app()) as client:
-        followed_drives(client, datetime.now(UTC))
-        [offer] = [o["id"] for o in client.get("/api/offers").json() if o["mpn"] == "ST10000NM001G"]
-        # Recorded while the trend's prices are being read.
-        with meanwhile(
-            database_url,
-            "SELECT observations.listing_id, observations.observed_at",
-            "INSERT INTO observations (id, listing_id, item_price_cents, shipping_cents, in_stock,"
-            " observed_at, entered_at, notes, acquisition_method)"
-            " VALUES (:price, :offer, 90000, 500, true, now(), now(), '', 'manual')",
-            price=uuid4(),
-            offer=offer,
-        ) as interrupted:
-            client.get("/api/trends", params={"days": 30})
-        kept = client.get("/api/trends", params={"days": 30}).json()
-        run_sql(database_url, "DELETE FROM trends")
-        afresh = client.get("/api/trends", params={"days": 30}).json()
+    followed_drives(subject, datetime.now(UTC))
+    [offer] = [o["id"] for o in subject.get("/api/offers").json() if o["mpn"] == "ST10000NM001G"]
+    # Recorded while the trend's prices are being read.
+    with meanwhile(
+        database_url,
+        "SELECT observations.listing_id, observations.observed_at",
+        "INSERT INTO observations (id, listing_id, item_price_cents, shipping_cents, in_stock,"
+        " observed_at, entered_at, notes, acquisition_method)"
+        " VALUES (:price, :offer, 90000, 500, true, now(), now(), '', 'manual')",
+        price=uuid4(),
+        offer=offer,
+    ) as interrupted:
+        subject.get("/api/trends", params={"days": 30})
+    kept = subject.get("/api/trends", params={"days": 30}).json()
+    run_sql(database_url, "DELETE FROM trends")
+    afresh = subject.get("/api/trends", params={"days": 30}).json()
     assert interrupted
     assert kept == afresh
 
@@ -186,14 +186,13 @@ def test_deleting_a_source_is_undone_in_every_area_when_any_part_of_it_fails(
     assert later.json()["status"] == "ignored"
 
 
-def test_the_same_review_decision_sent_twice_at_once_records_one_price(database_url: str) -> None:
-    with TestClient(create_app()) as client:
-        decision = match(client, "ST18000NM000J", "manufacturer_recertified", 18000)
-        queued = post(client, "/api/ingestions", scraped_payload(mpn=None, condition=None))
-        path = f"/api/review-items/{queued.json()['review_item_id']}/decision"
-        with ThreadPoolExecutor(max_workers=2) as executor:
-            answers = list(executor.map(lambda _: client.put(path, json=decision), range(2)))
-        offer = client.get(f"/api/offers/{answers[0].json()['offer_id']}").json()
+def test_the_same_review_decision_sent_twice_at_once_records_one_price(subject: TestClient) -> None:
+    decision = match(subject, "ST18000NM000J", "manufacturer_recertified", 18000)
+    queued = post(subject, "/api/ingestions", scraped_payload(mpn=None, condition=None))
+    path = f"/api/review-items/{queued.json()['review_item_id']}/decision"
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        answers = list(executor.map(lambda _: subject.put(path, json=decision), range(2)))
+    offer = subject.get(f"/api/offers/{answers[0].json()['offer_id']}").json()
     assert [answer.status_code for answer in answers] == [200, 200]
     assert answers[0].json() == answers[1].json()
     assert len(offer["observations"]) == 1
@@ -324,7 +323,7 @@ def test_two_pages_naming_each_others_mpns_at_once_are_both_taken(database_url: 
 
 
 def test_a_review_decision_and_a_page_collected_again_at_once_both_finish(
-    database_url: str,
+    subject: TestClient,
 ) -> None:
     """The reviewer decides a listing as its page is collected again, read as doubtfully as
     before: one waits for the other, and neither forever."""
@@ -335,23 +334,20 @@ def test_a_review_decision_and_a_page_collected_again_at_once_both_finish(
         # The collector, once it holds the drive's MPN, as it keeps the item again.
         "collect": lambda statement, locks: statement.startswith("INSERT INTO unmatched"),
     }
-    with TestClient(create_app()) as client:
-        decision = match(client, "ST18000NM000J", "manufacturer_recertified", 18000)
-        item = post(client, "/api/ingestions", page).json()["review_item_id"]
-        decide = lambda: client.put(f"/api/review-items/{item}/decision", json=decision)
-        collect = lambda: post(
-            client, "/api/ingestions", {**page, "observed_at": "2026-09-22T12:00:00Z"}
-        )
-        roles = {"INSERT INTO review_decisions": "review", "INSERT INTO save_receipts": "collect"}
+    decision = match(subject, "ST18000NM000J", "manufacturer_recertified", 18000)
+    item = post(subject, "/api/ingestions", page).json()["review_item_id"]
+    decide = lambda: subject.put(f"/api/review-items/{item}/decision", json=decision)
+    collect = lambda: post(
+        subject, "/api/ingestions", {**page, "observed_at": "2026-09-22T12:00:00Z"}
+    )
+    roles = {"INSERT INTO review_decisions": "review", "INSERT INTO save_receipts": "collect"}
 
-        def assign(statement: str, parameters: Any) -> str | None:
-            return next(
-                (role for start, role in roles.items() if statement.startswith(start)), None
-            )
+    def assign(statement: str, parameters: Any) -> str | None:
+        return next((role for start, role in roles.items() if statement.startswith(start)), None)
 
-        with crossing(assign, pauses), ThreadPoolExecutor(max_workers=2) as executor:
-            answers = [executor.submit(decide), executor.submit(collect)]
-            results = [answer.result() for answer in answers]
+    with crossing(assign, pauses), ThreadPoolExecutor(max_workers=2) as executor:
+        answers = [executor.submit(decide), executor.submit(collect)]
+        results = [answer.result() for answer in answers]
 
     assert [result.status_code for result in results] == [200, 202], [r.text for r in results]
 

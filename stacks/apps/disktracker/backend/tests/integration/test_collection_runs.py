@@ -33,18 +33,17 @@ def finish(
     return client.patch(f"/api/collection-runs/{run_id}", json=body)
 
 
-def test_a_run_is_registered_as_it_starts_reports_progress_and_ends(database_url: str) -> None:
+def test_a_run_is_registered_as_it_starts_reports_progress_and_ends(subject: TestClient) -> None:
     started = datetime.now(UTC).replace(microsecond=0)
     run_id = str(uuid4())
-    with TestClient(create_app()) as client:
-        begun = start(client, "goharddrive", started, run_id)
-        progress = client.patch(
-            f"/api/collection-runs/{run_id}", json={**COUNTS, "seen": 120, "recorded": 110}
-        )
-        running = client.get("/api/collection-runs", params={"status": "running"}).json()
-        ended = finish(client, run_id, "completed", started + timedelta(minutes=5), seen=130,
-                       recorded=118, queued=8, ignored=4, rechecked=3)  # fmt: skip
-        after = client.get("/api/collection-runs", params={"source": "goharddrive"}).json()
+    begun = start(subject, "goharddrive", started, run_id)
+    progress = subject.patch(
+        f"/api/collection-runs/{run_id}", json={**COUNTS, "seen": 120, "recorded": 110}
+    )
+    running = subject.get("/api/collection-runs", params={"status": "running"}).json()
+    ended = finish(subject, run_id, "completed", started + timedelta(minutes=5), seen=130,
+                   recorded=118, queued=8, ignored=4, rechecked=3)  # fmt: skip
+    after = subject.get("/api/collection-runs", params={"source": "goharddrive"}).json()
 
     assert begun.status_code == 201, begun.text
     assert begun.json() == {
@@ -63,20 +62,19 @@ def test_a_run_is_registered_as_it_starts_reports_progress_and_ends(database_url
     ]
 
 
-def test_starting_or_ending_a_run_again_is_answered_as_the_first_time(database_url: str) -> None:
+def test_starting_or_ending_a_run_again_is_answered_as_the_first_time(subject: TestClient) -> None:
     """A collector that lost the answer asks again under the same run id: the same request
     changes nothing, and a different one is refused."""
     started = datetime.now(UTC).replace(microsecond=0)
     run_id = str(uuid4())
-    with TestClient(create_app()) as client:
-        first = start(client, "goharddrive", started, run_id)
-        again = start(client, "goharddrive", started, run_id)
-        other = start(client, "serverpartdeals", started, run_id)
-        ended = finish(client, run_id, "failed", started + timedelta(minutes=1), seen=4)
-        ended_again = finish(client, run_id, "failed", started + timedelta(minutes=1), seen=4)
-        changed = finish(client, run_id, "completed", started + timedelta(minutes=1), seen=4)
-        more = client.patch(f"/api/collection-runs/{run_id}", json={**COUNTS, "seen": 9})
-        runs = client.get("/api/collection-runs").json()
+    first = start(subject, "goharddrive", started, run_id)
+    again = start(subject, "goharddrive", started, run_id)
+    other = start(subject, "serverpartdeals", started, run_id)
+    ended = finish(subject, run_id, "failed", started + timedelta(minutes=1), seen=4)
+    ended_again = finish(subject, run_id, "failed", started + timedelta(minutes=1), seen=4)
+    changed = finish(subject, run_id, "completed", started + timedelta(minutes=1), seen=4)
+    more = subject.patch(f"/api/collection-runs/{run_id}", json={**COUNTS, "seen": 9})
+    runs = subject.get("/api/collection-runs").json()
 
     assert (first.status_code, again.status_code) == (201, 200)
     assert again.json() == first.json()
@@ -88,16 +86,15 @@ def test_starting_or_ending_a_run_again_is_answered_as_the_first_time(database_u
 
 
 def test_a_run_report_is_refused_before_it_is_kept_and_only_of_a_known_source_or_run(
-    database_url: str,
+    subject: TestClient,
 ) -> None:
     """What a run may say of itself is the schema's (tests/unit/collector/test_schemas.py)."""
     started = datetime.now(UTC)
-    with TestClient(create_app()) as client:
-        run_id = start(client, "goharddrive", started).json()["id"]
-        refused = client.patch(f"/api/collection-runs/{run_id}", json={**COUNTS, "seen": -1})
-        unknown_source = start(client, "nowhere", started)
-        unknown_run = client.patch(f"/api/collection-runs/{uuid4()}", json=COUNTS)
-        [run] = client.get("/api/collection-runs").json()
+    run_id = start(subject, "goharddrive", started).json()["id"]
+    refused = subject.patch(f"/api/collection-runs/{run_id}", json={**COUNTS, "seen": -1})
+    unknown_source = start(subject, "nowhere", started)
+    unknown_run = subject.patch(f"/api/collection-runs/{uuid4()}", json=COUNTS)
+    [run] = subject.get("/api/collection-runs").json()
 
     assert refused.status_code == 422
     assert [issue["loc"] for issue in refused.json()["detail"]] == [["body", "seen"]]
@@ -108,18 +105,17 @@ def test_a_run_report_is_refused_before_it_is_kept_and_only_of_a_known_source_or
 
 
 def test_a_run_is_told_to_stop_once_its_source_is_asked_and_a_later_run_is_not(
-    database_url: str,
+    subject: TestClient,
 ) -> None:
     started = datetime.now(UTC)
-    with TestClient(create_app()) as client:
-        source = next(s for s in client.get("/api/sources").json() if s["key"] == "goharddrive")
-        run_id = start(client, "goharddrive", started).json()["id"]
-        before = client.patch(f"/api/collection-runs/{run_id}", json=COUNTS).json()
-        asked = client.post(f"/api/sources/{source['id']}/stop")
-        after = client.patch(f"/api/collection-runs/{run_id}", json=COUNTS).json()
-        stopped = finish(client, run_id, "stopped", started + timedelta(minutes=2)).json()
-        later = start(client, "goharddrive", started + timedelta(hours=8)).json()
-        missing = client.post(f"/api/sources/{uuid4()}/stop")
+    source = next(s for s in subject.get("/api/sources").json() if s["key"] == "goharddrive")
+    run_id = start(subject, "goharddrive", started).json()["id"]
+    before = subject.patch(f"/api/collection-runs/{run_id}", json=COUNTS).json()
+    asked = subject.post(f"/api/sources/{source['id']}/stop")
+    after = subject.patch(f"/api/collection-runs/{run_id}", json=COUNTS).json()
+    stopped = finish(subject, run_id, "stopped", started + timedelta(minutes=2)).json()
+    later = start(subject, "goharddrive", started + timedelta(hours=8)).json()
+    missing = subject.post(f"/api/sources/{uuid4()}/stop")
 
     assert before["stop_requested"] is False
     assert (asked.status_code, asked.json()["id"]) == (202, source["id"])
@@ -130,22 +126,21 @@ def test_a_run_is_told_to_stop_once_its_source_is_asked_and_a_later_run_is_not(
 
 
 def test_a_heartbeat_says_the_collector_is_alive_and_which_runs_it_still_has(
-    database_url: str,
+    subject: TestClient,
 ) -> None:
     """A collector restarted partway through a run never ends it: its heartbeat names the runs
     it has, and any other still marked running is abandoned."""
     started = datetime.now(UTC)
-    with TestClient(create_app()) as client:
-        unheard = client.get("/api/collector-status").json()
-        kept = start(client, "goharddrive", started).json()["id"]
-        lost = start(client, "serverpartdeals", started).json()["id"]
-        beat = client.put("/api/collector-heartbeat", json={"runs": [kept]})
-        during = client.get("/api/collector-status").json()
-        lost_run = client.patch(f"/api/collection-runs/{lost}", json=COUNTS)
-        finish(client, kept, "completed", started + timedelta(minutes=1))
-        idle = client.put("/api/collector-heartbeat", json={"runs": []})
-        after = client.get("/api/collector-status").json()
-        statuses = {run["id"]: run["status"] for run in client.get("/api/collection-runs").json()}
+    unheard = subject.get("/api/collector-status").json()
+    kept = start(subject, "goharddrive", started).json()["id"]
+    lost = start(subject, "serverpartdeals", started).json()["id"]
+    beat = subject.put("/api/collector-heartbeat", json={"runs": [kept]})
+    during = subject.get("/api/collector-status").json()
+    lost_run = subject.patch(f"/api/collection-runs/{lost}", json=COUNTS)
+    finish(subject, kept, "completed", started + timedelta(minutes=1))
+    idle = subject.put("/api/collector-heartbeat", json={"runs": []})
+    after = subject.get("/api/collector-status").json()
+    statuses = {run["id"]: run["status"] for run in subject.get("/api/collection-runs").json()}
 
     assert unheard["seen_at"] is None and unheard["running"] == []
     assert sorted(unheard["waiting"]) == ["goharddrive", "serverpartdeals", "westerndigital"]
@@ -159,21 +154,19 @@ def test_a_heartbeat_says_the_collector_is_alive_and_which_runs_it_still_has(
     assert after["running"] == [] and after["seen_at"] >= during["seen_at"]
 
 
-def test_a_new_run_of_a_source_abandons_one_still_marked_running(database_url: str) -> None:
+def test_a_new_run_of_a_source_abandons_one_still_marked_running(subject: TestClient) -> None:
     started = datetime.now(UTC)
-    with TestClient(create_app()) as client:
-        old = start(client, "goharddrive", started - timedelta(hours=8)).json()["id"]
-        new = start(client, "goharddrive", started).json()["id"]
-        statuses = {run["id"]: run["status"] for run in client.get("/api/collection-runs").json()}
+    old = start(subject, "goharddrive", started - timedelta(hours=8)).json()["id"]
+    new = start(subject, "goharddrive", started).json()["id"]
+    statuses = {run["id"]: run["status"] for run in subject.get("/api/collection-runs").json()}
     assert statuses == {old: "abandoned", new: "running"}
 
 
-def test_reading_what_is_due_changes_nothing(database_url: str) -> None:
+def test_reading_what_is_due_changes_nothing(subject: TestClient) -> None:
     started = datetime.now(UTC)
-    with TestClient(create_app()) as client:
-        run_id = start(client, "goharddrive", started).json()["id"]
-        due = client.get("/api/sources", params={"due": True})
-        status = client.get("/api/collector-status").json()
+    run_id = start(subject, "goharddrive", started).json()["id"]
+    due = subject.get("/api/sources", params={"due": True})
+    status = subject.get("/api/collector-status").json()
 
     # A source whose run has just started is not due; the run goes on, and nobody was heard.
     assert due.status_code == 200, due.text
@@ -219,13 +212,12 @@ def test_runs_are_read_by_source_by_when_they_ended_or_the_latest_of_each_source
     assert refused == 422
 
 
-def test_a_source_nothing_is_recorded_under_is_deleted_with_its_runs(database_url: str) -> None:
-    with TestClient(create_app()) as client:
-        source = client.post("/api/sources", json=source_input()).json()
-        start(client, source["key"], datetime.now(UTC))
-        deleted = client.delete(f"/api/sources/{source['id']}")
-        again = client.delete(f"/api/sources/{source['id']}")
-        runs = client.get("/api/collection-runs").json()
+def test_a_source_nothing_is_recorded_under_is_deleted_with_its_runs(subject: TestClient) -> None:
+    source = subject.post("/api/sources", json=source_input()).json()
+    start(subject, source["key"], datetime.now(UTC))
+    deleted = subject.delete(f"/api/sources/{source['id']}")
+    again = subject.delete(f"/api/sources/{source['id']}")
+    runs = subject.get("/api/collection-runs").json()
     assert (deleted.status_code, again.status_code, runs) == (204, 404, [])
 
 
@@ -248,25 +240,24 @@ def test_a_run_is_answered_in_utc_the_same_however_the_database_keeps_its_time(
     assert ended["started_at"] == "2026-09-27T08:00:00Z"
 
 
-def test_a_run_that_did_not_complete_says_why(database_url: str) -> None:
+def test_a_run_that_did_not_complete_says_why(subject: TestClient) -> None:
     """A failed run as its collector said; an interrupted one as disktracker found it."""
     started = datetime.now(UTC).replace(microsecond=0)
     cause = "HTTP 503 from https://www.goharddrive.com/sitemap.xml"
-    with TestClient(create_app()) as client:
-        failed = start(client, "goharddrive", started).json()["id"]
-        told = client.patch(
-            f"/api/collection-runs/{failed}",
-            json={**COUNTS, "status": "failed", "finished_at": stamp(started), "reason": cause},
-        )
-        # Its collector restarted, so its heartbeat no longer names the run.
-        lost = start(client, "serverpartdeals", started).json()["id"]
-        client.put("/api/collector-heartbeat", json={"runs": []})
-        superseded = start(client, "westerndigital", started - timedelta(hours=1)).json()["id"]
-        start(client, "westerndigital", started)
-        refused = client.patch(
-            f"/api/collection-runs/{superseded}", json={**COUNTS, "reason": "still going"}
-        )
-        runs = {run["id"]: run for run in client.get("/api/collection-runs").json()}
+    failed = start(subject, "goharddrive", started).json()["id"]
+    told = subject.patch(
+        f"/api/collection-runs/{failed}",
+        json={**COUNTS, "status": "failed", "finished_at": stamp(started), "reason": cause},
+    )
+    # Its collector restarted, so its heartbeat no longer names the run.
+    lost = start(subject, "serverpartdeals", started).json()["id"]
+    subject.put("/api/collector-heartbeat", json={"runs": []})
+    superseded = start(subject, "westerndigital", started - timedelta(hours=1)).json()["id"]
+    start(subject, "westerndigital", started)
+    refused = subject.patch(
+        f"/api/collection-runs/{superseded}", json={**COUNTS, "reason": "still going"}
+    )
+    runs = {run["id"]: run for run in subject.get("/api/collection-runs").json()}
 
     assert told.status_code == 200, told.text
     assert (runs[failed]["status"], runs[failed]["reason"]) == ("failed", cause)
