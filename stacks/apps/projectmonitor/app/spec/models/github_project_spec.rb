@@ -47,6 +47,10 @@ describe GithubProject, :type => :model do
       it { expect(subject.accept_mime_types).to eq('application/vnd.github+json') }
     end
 
+    describe '#requires_branch_name?' do
+      it { expect(subject.requires_branch_name?).to be true }
+    end
+
     describe '#additional_headers' do
       it 'sends the token as an Authorization header and a User-Agent' do
         expect(subject.additional_headers).to eq({
