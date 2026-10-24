@@ -14,6 +14,8 @@ ARG PYTHON_VERSION=3.12
 ARG GO_TASK_VERSION=""
 ARG RUST_VERSION=stable
 ARG DOTNET_CHANNEL=LTS
+ARG RUBY_VERSION=3.4.11
+ARG BUNDLER_VERSION=2.6.9
 ARG CLAUDE_CODE_VERSION=latest
 ARG GEMINI_CLI_VERSION=latest
 ARG CLOUDCLI_VERSION=1.37.4
@@ -64,6 +66,8 @@ RUN mkdir -p /etc/apt/keyrings && \
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     --mount=type=cache,target=/var/lib/apt/lists,sharing=locked \
     apt-get update && apt-get install -y --no-install-recommends \
+        autoconf \
+        bison \
         build-essential \
         docker-ce-cli \
         docker-compose-plugin \
@@ -75,10 +79,16 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
         git-lfs \
         htop \
         jq \
+        libffi-dev \
+        libgdbm-dev \
+        libmariadb-dev \
+        libncurses-dev \
+        libreadline-dev \
         libssl-dev \
         libuv1-dev \
         libxml2-dev \
         libxmlsec1-dev \
+        libyaml-dev \
         locales \
         lsb-release \
         openssh-client \
@@ -197,6 +207,22 @@ ENV PATH="$HOME/.dotnet:$HOME/.dotnet/tools:$PATH"
 ENV DOTNET_ROOT="$HOME/.dotnet"
 ENV DOTNET_CLI_TELEMETRY_OPTOUT=1
 
+# Ruby via rbenv (+ ruby-build), plus Bundler. ruby-build compiles the interpreter
+# from source, so the apt pass above installs its build deps (autoconf, bison,
+# libyaml/libffi/libgdbm/libncurses/libreadline/libssl-dev) and libmariadb-dev for
+# the mysql2 gem.
+ARG RUBY_VERSION
+ARG BUNDLER_VERSION
+ENV RBENV_ROOT="$HOME/.rbenv"
+ENV PATH="$RBENV_ROOT/shims:$RBENV_ROOT/bin:$PATH"
+RUN git clone --depth 1 https://github.com/rbenv/rbenv.git "$RBENV_ROOT" && \
+    git clone --depth 1 https://github.com/rbenv/ruby-build.git "$RBENV_ROOT/plugins/ruby-build" && \
+    RUBY_CONFIGURE_OPTS="--disable-install-doc" rbenv install "${RUBY_VERSION}" && \
+    rbenv global "${RUBY_VERSION}" && \
+    gem install bundler -v "${BUNDLER_VERSION}" && \
+    rbenv rehash && \
+    ruby --version && bundler --version
+
 # npm global tools (version defaults are at the top of this file).
 ARG GEMINI_CLI_VERSION
 ARG CLOUDCLI_VERSION
@@ -222,10 +248,11 @@ COPY --chmod=0755 devbox-entrypoint.sh /usr/local/bin/devbox-entrypoint.sh
 
 # Shell configuration — done last so all tools are present
 # hadolint ignore=SC2016
-RUN echo 'export PATH="$HOME/.local/share/fnm/aliases/default/bin:$HOME/.local/share/fnm:$HOME/.local/bin:$HOME/.cargo/bin:$HOME/.dotnet:$HOME/.dotnet/tools:$PATH"' >> ~/.bashrc && \
+RUN echo 'export PATH="$HOME/.local/share/fnm/aliases/default/bin:$HOME/.local/share/fnm:$HOME/.local/bin:$HOME/.cargo/bin:$HOME/.dotnet:$HOME/.dotnet/tools:$HOME/.rbenv/shims:$HOME/.rbenv/bin:$PATH"' >> ~/.bashrc && \
     echo 'export DOTNET_ROOT="$HOME/.dotnet"'                                                                                                    >> ~/.bashrc && \
     echo 'export DOTNET_CLI_TELEMETRY_OPTOUT=1'                                                                                                  >> ~/.bashrc && \
     echo 'eval "$(fnm env --use-on-cd)"'                                                                                                         >> ~/.bashrc && \
+    echo 'eval "$(rbenv init - bash)"'                                                                                                           >> ~/.bashrc && \
     echo '[ -f /usr/share/doc/fzf/examples/key-bindings.bash ] && source /usr/share/doc/fzf/examples/key-bindings.bash'                         >> ~/.bashrc
 
 # Pre-create volume mount points with correct ownership
