@@ -171,6 +171,10 @@ class Project < ActiveRecord::Base
     nil
   end
 
+  def additional_headers
+    {}
+  end
+
   def state
     State.new(online: online, success: latest_status.try(:success?))
   end

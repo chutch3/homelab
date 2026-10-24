@@ -33,3 +33,4 @@ en:
     concourse_v1_project: "Concourse Project (version 1.x)"
     concourse_project: "Concourse Project"
     codeship_project: "Codeship Project"
+    github_project: "GitHub Actions Project"

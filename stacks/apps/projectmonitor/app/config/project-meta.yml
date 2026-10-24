@@ -11,6 +11,7 @@ types: [
   'ConcourseV1Project',
   'ConcourseProject',
   'CodeshipProject',
+  'GithubProject',
 ]
 
 labels:
@@ -21,8 +22,10 @@ labels:
     concourse_v1_project: "Job Name"
     concourse_project: "Job Name"
     codeship_project: "Project ID"
+    github_project: "Repository (owner/repo)"
   ci_auth_token:
     tddium_project: "Tddium Authentication Token"
+    github_project: "Personal Access Token"
   concourse_pipeline_name:
     concourse_v1_project: "Pipeline Name"
     concourse_project: "Pipeline Name"
@@ -30,6 +33,8 @@ labels:
 tooltips:
   ci_auth_token:
     travis_pro_project: "Find this on your Travis-CI.com profile"
+    github_project: "A GitHub personal access token with 'actions:read' (repo) scope"
   ci_build_identifier:
     tddium_project: "Project name format: 'repo_name (branch_name)'"
     codeship_project: "Found in the URL when viewing your Codeship project: 'https://www.codeship.io/projects/%your-project-ID%'"
+    github_project: "The repository to monitor, in 'owner/repo' form, e.g. 'rails/rails'"

@@ -26,6 +26,11 @@ class CIPollingStrategy
       request_options[:head] = headers.merge('Accept' => project.accept_mime_types)
     end
 
+    if project.additional_headers.present?
+      headers = request_options[:head] || {}
+      request_options[:head] = headers.merge(project.additional_headers)
+    end
+
     request = @requester.initiate_request(url, request_options)
 
     request.callback do |client|

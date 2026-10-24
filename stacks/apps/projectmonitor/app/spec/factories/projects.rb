@@ -88,4 +88,10 @@ FactoryBot.define do
     ci_build_identifier { '1234' }
     ci_auth_token { 'projectmonitor-test-token-2' }
   end
+
+  factory :github_project do
+    name
+    ci_build_identifier { 'octo-org/octo-repo' }
+    ci_auth_token { 'projectmonitor-test-token-2' }
+  end
 end

@@ -56,6 +56,19 @@ describe CIPollingStrategy do
       subject.fetch_status(project, url)
     end
 
+    it 'should pass along additional headers, when present' do
+      project = build(:github_project)
+
+      expect(requester).to receive(:initiate_request).with(project.feed_url, {:head => {
+          'Accept' => 'application/vnd.github+json',
+          'Authorization' => 'token projectmonitor-test-token-2',
+          'User-Agent' => 'ProjectMonitor',
+          'X-GitHub-Api-Version' => '2022-11-28'
+      }})
+
+      subject.fetch_status(project, project.feed_url)
+    end
+
     it 'yields a success message when the request is made successfully' do
       expect(request).to receive(:callback).and_yield(client)
       flag = false
