@@ -56,7 +56,7 @@ RSpec.describe 'Container startup' do
         expect(commands.first).to eq('exec ruby docker/wait-for-database.rb')
         expect(commands.last).to eq("exec #{process}")
         if role == 'web'
-          expect(commands).to include('exec rake db:prepare')
+          expect(commands).to include('exec rake db:schema:load')
         else
           expect(commands).to include('exec rake db:abort_if_pending_migrations')
           expect(commands).not_to include('exec rake db:prepare')
