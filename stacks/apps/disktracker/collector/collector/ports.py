@@ -4,12 +4,13 @@ from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any, Protocol, runtime_checkable
+from uuid import UUID
 
 from listing_text.readers import ConditionRules
 
-from collector.models import Posted, RunSummary, ScrapedOffer, Store
+from collector.models import Posted, RunSummary, ScrapedOffer, SourceView, Store
 from collector.polite import Pages
-from disktracker_api.models import ListingSummary, SourceView
+from disktracker_api.models import OfferSummary
 
 # Told, in sentences for whoever is setting a source up, what was read of a store and why a
 # page gave no offer.
@@ -31,54 +32,11 @@ class Site[S]:
 
 
 @dataclass(frozen=True)
-class Setting:
-    """One thing a kind of source needs to know about a store: how the Admin form asks for it
-    and how disktracker checks it. A text setting left blank is "", a list is empty, a flag is
-    off; required means it cannot be left so."""
-
-    name: str
-    label: str
-    # text, list (of texts) or flag
-    type: str = "text"
-    required: bool = False
-    description: str = ""
-    placeholder: str = ""
-    # The group of settings it is asked for among; "" for none.
-    group: str = ""
-    # What a text must look like, and what to say when it does not.
-    pattern: str = ""
-    pattern_message: str = ""
-    # The text is itself a regular expression; capturing, one with a group.
-    regex: bool = False
-    capturing: bool = False
-    # Another setting that, once given, makes this one required.
-    needs: str = ""
-
-
-@dataclass(frozen=True)
-class Group:
-    """Settings asked for together, apart from the rest, with what they are for."""
-
-    name: str
-    label: str
-    help: str
-
-
-@dataclass(frozen=True)
-class Description:
-    """A kind of source as disktracker presents it: its name and its settings."""
-
-    label: str
-    settings: tuple[Setting, ...]
-    groups: tuple[Group, ...] = ()
-
-
-@dataclass(frozen=True)
 class Rechecked:
     """A known offer checked again on its product page: the offer as the page shows it now, or,
     when the page could not be fetched, why."""
 
-    listing: ListingSummary
+    known: OfferSummary
     offer: ScrapedOffer | None
     error: str = ""
 
@@ -123,12 +81,9 @@ class Reader[S](Protocol):
     reader's: how its settings are read, how its offers are, and how a store of its kind is
     told from one of its pages."""
 
-    # What this kind of source is called and the settings it has. disktracker checks a
-    # store's settings against it and draws its form from it; settings() reads exactly these.
-    description: Description
-
     def settings(self, saved: Mapping[str, Any]) -> S:
-        """A source's settings as saved on disktracker, read for this kind of store."""
+        """A source's settings as disktracker gives them (every one its kind has, checked),
+        read for this kind of store."""
         ...
 
     def offers(self, site: Site[S]) -> Iterable[ScrapedOffer]:
@@ -139,7 +94,7 @@ class Reader[S](Protocol):
         """The offers of just enough of the store to show one, for trying its settings."""
         ...
 
-    def recheck(self, listings: Sequence[ListingSummary], site: Site[S]) -> Iterable[Rechecked]:
+    def recheck(self, known: Sequence[OfferSummary], site: Site[S]) -> Iterable[Rechecked]:
         """Each of these known offers that is on one of this store's product pages, as that
         page shows it now, in the order given; an offer whose URL is no product page of the
         store is passed over. A page several of them share is fetched once."""
@@ -172,15 +127,22 @@ class Disktracker(Protocol):
         """Which text names which condition, in order: the first rule that matches wins."""
         ...
 
-    def listings(self, store: str) -> list[ListingSummary]: ...
+    def known_offers(self, store: str) -> list[OfferSummary]: ...
 
     def post_scraped(self, offer: ScrapedOffer, observed_at: datetime) -> Posted: ...
 
-    def report_progress(self, source: str, started_at: datetime, counts: dict[str, int]) -> bool:
-        """Say how far the run of a source that started then has got. Whether the run has been
-        asked to stop."""
+    def heartbeat(self, runs: Sequence[UUID]) -> None:
+        """Say the collector is alive, with the runs it has: none between runs."""
         ...
 
-    def report_run(
-        self, summary: RunSummary, started_at: datetime, finished_at: datetime
-    ) -> None: ...
+    def start_run(self, run_id: UUID, source: str, started_at: datetime) -> None:
+        """Register a run of a source as it starts, under an id the collector chose."""
+        ...
+
+    def report_progress(self, run_id: UUID, counts: dict[str, int]) -> bool:
+        """Say how far a run has got. Whether the run has been asked to stop."""
+        ...
+
+    def finish_run(self, run_id: UUID, summary: RunSummary, finished_at: datetime) -> None:
+        """Say how a run ended."""
+        ...

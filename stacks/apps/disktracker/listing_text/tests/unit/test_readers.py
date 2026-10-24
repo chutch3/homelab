@@ -82,10 +82,34 @@ def test_mpn_from_title(title: str, expected: str | None) -> None:
         ("960GB", 960),
         ("18 TB", 18000),
         ("USB 3.0 Enclosure with 128MB buffer", None),
+        # A capacity is a word of its own: not the end of a part number.
+        ("Samsung MZ-WL615TB 15.36TB PM9D3a PCI-E U.2 SFF", 15360),
+        ("Samsung MZ-ILT30TB 30.72TB SAS 12GBPS Read Intensive", 30720),
+        # A rate is not a capacity, however it is written.
+        ("Mellanox MCS7520 43TB/S 216 Ports QSFP28", None),
+        ("SAS 12Gb/s 4TB", 4000),
     ],
 )
 def test_capacity_in_text_is_whole_gigabytes(text: str, expected: int | None) -> None:
     assert capacity_in(text) == expected
+
+
+@pytest.mark.parametrize(
+    ("text", "mpn", "expected"),
+    [
+        # Some stores run the part number into the capacity.
+        ("Dell 9YX611.92TB SATA 6GBPS Mixed Use", "9YX61", 1920),
+        ("HPE P09094-H213.2TB SAS 12GBPS Smart Carrier", "P09094-H21", 3200),
+        ("Cisco UCS-HD10T7KL4K10TB 7.2K RPM SAS", "ucs-hd10t7kl4k", 10000),
+        ("Dell 9YX611.92TB SATA 6GBPS Mixed Use", None, None),
+        # Only where the part number starts a word: a short one is no part of other words.
+        ("Exos 4TB", "B", 4000),
+    ],
+)
+def test_the_part_number_is_no_part_of_the_capacity(
+    text: str, mpn: str | None, expected: int | None
+) -> None:
+    assert capacity_in(text, mpn) == expected
 
 
 @pytest.mark.parametrize(

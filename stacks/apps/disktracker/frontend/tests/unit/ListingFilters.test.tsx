@@ -33,10 +33,10 @@ it('ListingFilters emits selections, shows active filters, and clears every cons
   expect(screen.queryByLabelText('Availability')).not.toBeInTheDocument();
   await user.click(screen.getByLabelText('Checked in the last 7 days'));
   await user.click(screen.getByLabelText('In stock only'));
-  expect(changed).toMatchObject({ search: 'Exos', capacities: ['18000'], conditions: ['new', 'used'], stores: ['goharddrive'], recentOnly: true, inStockOnly: true });
+  expect(changed).toMatchObject({ search: 'Exos', capacities: ['18000'], conditions: ['new', 'used'], stores: ['goharddrive'], recentOnly: true, inStockOnly: false });
   expect(screen.getByLabelText('Active filters')).toHaveTextContent('GoHardDrive');
   expect(screen.getByLabelText('Active filters')).toHaveTextContent('18 TB');
-  expect(screen.getByLabelText('Active filters')).toHaveTextContent('In stock only');
+  expect(screen.getByLabelText('Active filters')).toHaveTextContent('Including out of stock');
   expect(screen.getByLabelText('Active filters')).not.toHaveTextContent('Used');
   await user.click(conditions.getByRole('button', { name: 'Used (1)' }));
   expect(changed.conditions).toEqual(['new']);
@@ -83,4 +83,63 @@ it('filters by plain specification values, with no SMR management filter', async
   await user.selectOptions(screen.getByLabelText('Intended use'), 'nas');
   expect(changed).toMatchObject({ recording_type: 'smr', intended_use: 'nas' });
   expect(screen.queryByText(/verified/i)).not.toBeInTheDocument();
+});
+
+it('keeps the interface in view beside the media type, apart from the filters counted on More filters', async () => {
+  const onChange = vi.fn();
+  const { rerender } = render(<MantineProvider env="test"><ListingFilters query={defaultQuery()} recentDays={7} stores={knownStores} capacities={[]} brands={[]} conditions={[]} onChange={onChange} /></MantineProvider>);
+  expect(screen.getByRole('button', { name: 'More filters' })).toHaveAttribute('aria-expanded', 'false');
+  const labels = () => screen.getAllByRole('combobox').map(field => (field as HTMLSelectElement).labels?.[0]?.textContent);
+  expect(labels()).toEqual(['Media type', 'Interface']);
+  await userEvent.selectOptions(screen.getByLabelText('Interface'), 'sas');
+  expect(onChange).toHaveBeenCalledExactlyOnceWith({ ...defaultQuery(), interface: 'sas' });
+  rerender(<MantineProvider env="test"><ListingFilters query={{ ...defaultQuery(), interface: 'sas' }} recentDays={7} stores={knownStores} capacities={[]} brands={[]} conditions={[]} onChange={onChange} /></MantineProvider>);
+  expect(screen.getByLabelText('Active filters')).toHaveTextContent('Interface: SAS');
+  expect(screen.getByRole('button', { name: 'More filters' })).toBeVisible();
+  await userEvent.click(screen.getByRole('button', { name: 'More filters' }));
+  expect(labels()).toEqual(['Media type', 'Interface', 'Form factor', 'Recording type', 'Intended use']);
+});
+
+it('keeps In stock only in view beside the conditions, on unless turned off, without opening More filters', async () => {
+  const onChange = vi.fn();
+  render(<MantineProvider env="test"><ListingFilters query={defaultQuery()} recentDays={7} stores={knownStores} capacities={[]} brands={[]} conditions={[]} onChange={onChange} /></MantineProvider>);
+  expect(screen.getByRole('button', { name: 'More filters' })).toHaveAttribute('aria-expanded', 'false');
+  const inStock = within(screen.getByRole('group', { name: 'Condition' })).getByRole('checkbox', { name: 'In stock only' });
+  expect(inStock).toBeChecked();
+  await userEvent.click(inStock);
+  expect(onChange).toHaveBeenCalledExactlyOnceWith({ ...defaultQuery(), inStockOnly: false });
+});
+
+it('on a phone, keeps the search in view and gathers every other filter behind one button that counts those in force', async () => {
+  const matchMedia = (query: string) => ({ matches: query === '(max-width: 700px)', media: query, addEventListener: () => {}, removeEventListener: () => {} });
+  Object.defineProperty(window, 'matchMedia', { configurable: true, value: matchMedia });
+  try {
+    function Harness() {
+      const [query, setQuery] = useState<ListingQuery>({ ...defaultQuery(), conditions: ['new'], capacities: ['18000'], media_type: 'hdd' });
+      return <ListingFilters query={query} recentDays={7} stores={knownStores} capacities={[{ capacity_gb: 18000, drives: 3 }]} brands={[]}
+        conditions={[{ condition: 'new', drives: 3 }, { condition: 'used', drives: 1 }]} onChange={setQuery} />;
+    }
+    render(<MantineProvider env="test"><Harness /></MantineProvider>);
+    const user = userEvent.setup();
+    expect(screen.getByLabelText('Search drives')).toBeVisible();
+    expect(screen.queryByRole('group', { name: 'Condition' })).not.toBeInTheDocument();
+    // A condition, a capacity and a media type.
+    const open = screen.getByRole('button', { name: 'Filters (3)' });
+    expect(open).toHaveAttribute('aria-expanded', 'false');
+    await user.click(open);
+    const sheet = within(screen.getByRole('dialog', { name: 'Filters' }));
+    // Every filter is in the sheet, those once under More filters too.
+    expect(sheet.getByRole('textbox', { name: 'Brand' })).toBeVisible();
+    await user.click(within(sheet.getByRole('group', { name: 'Condition' })).getByRole('button', { name: 'Used (1)' }));
+    await user.click(sheet.getByRole('button', { name: 'Show drives' }));
+    expect(screen.queryByRole('dialog', { name: 'Filters' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Filters (4)' })).toBeVisible();
+  } finally { delete (window as Partial<Window>).matchMedia; }
+});
+
+it('marks each filter that is set, so it reads apart from those left at Any', () => {
+  render(<MantineProvider env="test"><ListingFilters query={{ ...defaultQuery(), media_type: 'hdd' }} recentDays={7} stores={knownStores}
+    capacities={[]} brands={[]} conditions={[]} onChange={() => {}} /></MantineProvider>);
+  expect(screen.getByLabelText('Media type').closest('.filter-set')).not.toBeNull();
+  expect(screen.getByLabelText('Interface').closest('.filter-set')).toBeNull();
 });

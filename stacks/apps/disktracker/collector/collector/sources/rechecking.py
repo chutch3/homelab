@@ -6,21 +6,21 @@ from collections.abc import Callable, Iterator, Sequence
 from collector.errors import SourceUnavailable
 from collector.models import ScrapedOffer
 from collector.ports import Rechecked
-from disktracker_api.models import ListingSummary
+from disktracker_api.models import OfferSummary
 
 
 def rechecked[K, P](
-    listings: Sequence[ListingSummary],
+    known: Sequence[OfferSummary],
     key_of: Callable[[str], K | None],
     fetch: Callable[[K], P],
-    read: Callable[[ListingSummary, P], ScrapedOffer],
+    read: Callable[[OfferSummary, P], ScrapedOffer],
 ) -> Iterator[Rechecked]:
-    """Each listing whose URL key_of knows for a product page of the store, read from what
+    """Each known offer whose URL key_of knows for a product page of the store, read from what
     fetch gets for that key; one whose page cannot be fetched is given with why. Whatever
-    several listings share a key for is fetched once, the failure to fetch it included."""
+    several offers share a key for is fetched once, the failure to fetch it included."""
     fetched: dict[K, P | SourceUnavailable] = {}
-    for listing in listings:
-        key = key_of(listing.url or "")
+    for offer in known:
+        key = key_of(offer.url or "")
         if key is None:
             continue
         if key not in fetched:
@@ -30,6 +30,6 @@ def rechecked[K, P](
                 fetched[key] = error
         page = fetched[key]
         if isinstance(page, SourceUnavailable):
-            yield Rechecked(listing, None, str(page))
+            yield Rechecked(offer, None, str(page))
         else:
-            yield Rechecked(listing, read(listing, page))
+            yield Rechecked(offer, read(offer, page))

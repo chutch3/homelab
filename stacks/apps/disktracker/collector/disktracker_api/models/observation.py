@@ -8,6 +8,8 @@ from attrs import field as _attrs_field
 
 from ..types import UNSET, Unset
 
+from ..models.observation_provenance import check_observation_provenance
+from ..models.observation_provenance import ObservationProvenance
 from typing import cast
 from uuid import UUID
 import datetime
@@ -25,20 +27,19 @@ T = TypeVar("T", bound="Observation")
 class Observation:
     """
         Attributes:
-            acquisition_method (str):
             entered_at (datetime.datetime):
             id (UUID):
             in_stock (bool):
             item_price_cents (int):
             notes (str):
             observed_at (datetime.datetime):
-            price_per_tb (str):
+            price_per_tb (str): Total including known shipping per decimal TB, as a dollar string; e.g. 11.06.
+            provenance (ObservationProvenance):
             shipping_cents (int | None):
             shipping_known (bool):
             total_cents (int):
      """
 
-    acquisition_method: str
     entered_at: datetime.datetime
     id: UUID
     in_stock: bool
@@ -46,6 +47,7 @@ class Observation:
     notes: str
     observed_at: datetime.datetime
     price_per_tb: str
+    provenance: ObservationProvenance
     shipping_cents: int | None
     shipping_known: bool
     total_cents: int
@@ -56,8 +58,6 @@ class Observation:
 
 
     def to_dict(self) -> dict[str, Any]:
-        acquisition_method = self.acquisition_method
-
         entered_at = self.entered_at.isoformat()
 
         id = str(self.id)
@@ -72,6 +72,8 @@ class Observation:
 
         price_per_tb = self.price_per_tb
 
+        provenance: str = self.provenance
+
         shipping_cents: int | None
         shipping_cents = self.shipping_cents
 
@@ -83,7 +85,6 @@ class Observation:
         field_dict: dict[str, Any] = {}
         field_dict.update(self.additional_properties)
         field_dict.update({
-            "acquisition_method": acquisition_method,
             "entered_at": entered_at,
             "id": id,
             "in_stock": in_stock,
@@ -91,6 +92,7 @@ class Observation:
             "notes": notes,
             "observed_at": observed_at,
             "price_per_tb": price_per_tb,
+            "provenance": provenance,
             "shipping_cents": shipping_cents,
             "shipping_known": shipping_known,
             "total_cents": total_cents,
@@ -103,8 +105,6 @@ class Observation:
     @classmethod
     def from_dict(cls: type[T], src_dict: Mapping[str, Any]) -> T:
         d = dict(src_dict)
-        acquisition_method = d.pop("acquisition_method")
-
         entered_at = datetime.datetime.fromisoformat(d.pop("entered_at"))
 
 
@@ -128,6 +128,11 @@ class Observation:
 
         price_per_tb = d.pop("price_per_tb")
 
+        provenance = check_observation_provenance(d.pop("provenance"))
+
+
+
+
         def _parse_shipping_cents(data: object) -> int | None:
             if data is None:
                 return data
@@ -141,7 +146,6 @@ class Observation:
         total_cents = d.pop("total_cents")
 
         observation = cls(
-            acquisition_method=acquisition_method,
             entered_at=entered_at,
             id=id,
             in_stock=in_stock,
@@ -149,6 +153,7 @@ class Observation:
             notes=notes,
             observed_at=observed_at,
             price_per_tb=price_per_tb,
+            provenance=provenance,
             shipping_cents=shipping_cents,
             shipping_known=shipping_known,
             total_cents=total_cents,

@@ -1,8 +1,8 @@
 import { useState } from 'react';
 import { Alert, Button, Group, Modal, Stack, Text } from '@mantine/core';
-import type { ListingsApi, Source } from './api';
+import type { DisktrackerApi, Source } from './api';
 
-type Props = { source: Source; api: ListingsApi; onClose: () => void; onDeleted: () => Promise<void> };
+type Props = { source: Source; api: DisktrackerApi; onClose: () => void; onDeleted: () => Promise<void> };
 
 /** Confirms deleting a store. One that offers are recorded under is kept, and the dialog says so. */
 export function DeleteSourceDialog({ source, api, onClose, onDeleted }: Props) {

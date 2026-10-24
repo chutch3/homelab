@@ -1,0 +1,41 @@
+{
+  "about": "The lowest item price at any of a drive's offers in one condition, step by step, over 90 days up to now; an offer unchecked for longer than 7 days ends at its last check. Times are days ago. The backend's price ranges and the frontend's chart both read these steps, and both are tested against these cases.",
+  "days": 90,
+  "quiet_days": 7,
+  "cases": [
+    {
+      "name": "follows whichever store is cheapest, one step for as long as the lowest stays the same",
+      "offers": [
+        {"checked_days_ago": 0, "prices": [{"days_ago": 60, "item": 20000}, {"days_ago": 20, "item": 18000}]},
+        {"checked_days_ago": 0, "prices": [{"days_ago": 100, "item": 19000}, {"days_ago": 40, "item": 17000}, {"days_ago": 10, "item": 18500}]}
+      ],
+      "lowest": [[90, 40, 19000], [40, 10, 17000], [10, 0, 18000]],
+      "today": [18000, 18500]
+    },
+    {
+      "name": "leaves a gap while nothing is in stock, and an offer unchecked too long ends at its last check",
+      "offers": [
+        {"checked_days_ago": 0, "prices": [{"days_ago": 40, "item": 20000}, {"days_ago": 30, "item": 10000, "in_stock": false}, {"days_ago": 10, "item": 19000}]},
+        {"checked_days_ago": 20, "prices": [{"days_ago": 35, "item": 25000}]}
+      ],
+      "lowest": [[40, 30, 20000], [30, 20, 25000], [10, 0, 19000]],
+      "today": [19000]
+    },
+    {
+      "name": "ends on a price recorded this instant as a step of no length",
+      "offers": [
+        {"checked_days_ago": 0, "prices": [{"days_ago": 10, "item": 20000}, {"days_ago": 0, "item": 18000}]}
+      ],
+      "lowest": [[10, 0, 20000], [0, 0, 18000]],
+      "today": [18000]
+    },
+    {
+      "name": "has nothing when nothing was in stock",
+      "offers": [
+        {"checked_days_ago": 0, "prices": [{"days_ago": 20, "item": 20000, "in_stock": false}]}
+      ],
+      "lowest": [],
+      "today": []
+    }
+  ]
+}

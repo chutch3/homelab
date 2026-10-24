@@ -3,10 +3,12 @@
 Wraps the client generated from disktracker's OpenAPI spec (disktracker_api), adding retries
 with a stable idempotency key and turning every failure into the collector's own errors."""
 
+import json
 import logging
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from dataclasses import asdict
 from datetime import datetime
+from http import HTTPStatus
 from typing import Any, TypeVar, cast
 from uuid import NAMESPACE_URL, UUID, uuid5
 
@@ -15,31 +17,45 @@ from listing_text.readers import ConditionRules, condition_rules
 
 from collector.clock import Clock
 from collector.errors import DisktrackerUnavailable
-from collector.models import Posted, RunSummary, ScrapedOffer
+from collector.models import Posted, RunSummary, ScrapedOffer, SourceView
 from disktracker_api import Client
-from disktracker_api.api.default import (
-    list_condition_rules,
-    list_due_sources,
-    list_listings,
-    record_collector_run,
-    record_scraped,
-    report_collector_activity,
-)
+from disktracker_api.api.collection import heartbeat, start_run, update_run
+from disktracker_api.api.listing_tools import list_condition_rules
+from disktracker_api.api.offers import list_offers
+from disktracker_api.api.prices import ingest, record_price
 from disktracker_api.models import (
-    Activity,
-    ActivityAnswer,
-    CollectorRun,
     ConditionRule,
+    Heartbeat,
+    HeartbeatAnswer,
     HTTPValidationError,
-    ListingSummary,
-    ScrapedInput,
-    ScrapedResult,
-    SourceView,
+    IngestionInput,
+    ManualSourceView,
+    OfferSummary,
+    PriceInput,
+    PriceResult,
+    Run,
+    RunStart,
+    RunUpdate,
+    SapCommerceSourceView,
+    ShopifySourceView,
+    SitemapSourceView,
 )
 from disktracker_api.types import Response
 
+# Each kind of source, as disktracker describes it.
+VIEWS: dict[str, type[SourceView]] = {
+    "manual": ManualSourceView,
+    "shopify": ShopifySourceView,
+    "sitemap": SitemapSourceView,
+    "sap_commerce": SapCommerceSourceView,
+}
+
 log = logging.getLogger(__name__)
 ATTEMPTS = 3
+# What a run summary says that is not a count.
+NOT_COUNTS = ("source", "completed", "stopped", "reason")
+# The longest reason disktracker keeps for a run.
+REASON_LIMIT = 500
 T = TypeVar("T")
 
 
@@ -57,12 +73,27 @@ def _read_list(what: str, call: Callable[[], Response[Any]]) -> list[T]:
     return cast(list[T], response.parsed)
 
 
+def source_of(item: dict[str, Any]) -> SourceView:
+    view = VIEWS.get(item["kind"])
+    if view is None:
+        raise ValueError(f"sources: a {item['kind']} source is of no kind this collector reads")
+    return view.from_dict(item)
+
+
 class DisktrackerClient:
     def __init__(self, api: Client, retry_delay: float, clock: Clock) -> None:
         self.api, self.retry_delay, self.clock = api, retry_delay, clock
 
     def due_sources(self) -> list[SourceView]:
-        return _read_list("sources", lambda: list_due_sources.sync_detailed(client=self.api))
+        return _read_list("sources", self._due)
+
+    def _due(self) -> Response[Any]:
+        """The due sources, each read as its own kind. The generated client tries every kind
+        in turn and says only what the last one found wrong; read by kind, what is wrong with
+        a source (a field it lacks) is said by name."""
+        answer = self.api.get_httpx_client().get("/api/sources", params={"due": True})
+        parsed = [source_of(item) for item in answer.json()] if answer.is_success else None
+        return Response(HTTPStatus(answer.status_code), answer.content, answer.headers, parsed)
 
     def condition_rules(self) -> ConditionRules:
         rules: list[ConditionRule] = _read_list(
@@ -70,33 +101,45 @@ class DisktrackerClient:
         )
         return condition_rules((rule.pattern, rule.condition) for rule in rules)
 
-    def listings(self, store: str) -> list[ListingSummary]:
-        return _read_list(
-            "listings", lambda: list_listings.sync_detailed(client=self.api, store=store)
-        )
+    def known_offers(self, store: str) -> list[OfferSummary]:
+        return _read_list("offers", lambda: list_offers.sync_detailed(client=self.api, store=store))
 
     def post_scraped(self, offer: ScrapedOffer, observed_at: datetime) -> Posted:
-        # The same key on every attempt lets disktracker replay a save whose response was lost.
-        key = uuid5(NAMESPACE_URL, f"{offer.source}|{offer.url}|{observed_at.isoformat()}")
+        payload = offer.payload(observed_at)
+        # The same key on every attempt lets disktracker replay a save whose response was lost;
+        # each submission its own: what it is (taken in, or a recheck of its offer) and all it
+        # says, so listings of one page seen at one moment are never taken for one another.
+        operation = "ingestion" if offer.offer_id is None else "recheck"
+        key = uuid5(NAMESPACE_URL, f"{operation}|{json.dumps(payload, sort_keys=True)}")
         # openapi-python-client 0.29.1 puts header values into the request unconverted, and
         # httpx only accepts str headers, so the key goes in as its string form.
         header_key = cast(UUID, str(key))
-        body = ScrapedInput.from_dict(offer.payload(observed_at))
+
+        def send() -> Response[Any]:
+            # A page read afresh is taken in; a recheck of an offer disktracker knows is only a
+            # price of it, and gives no new evidence of what the page is.
+            if offer.offer_id is None:
+                return ingest.sync_detailed(
+                    client=self.api, body=IngestionInput.from_dict(payload),
+                    idempotency_key=header_key,
+                )  # fmt: skip
+            return record_price.sync_detailed(
+                client=self.api, body=PriceInput.from_dict(payload), idempotency_key=header_key
+            )
+
         for attempt in range(1, ATTEMPTS + 1):
             try:
-                response = record_scraped.sync_detailed(
-                    client=self.api, body=body, idempotency_key=header_key
-                )
+                response = send()
             except (httpx.HTTPError, ValueError) as error:
                 failure: dict[str, object] = {"status": None, "detail": str(error)}
             else:
-                if isinstance(response.parsed, ScrapedResult):
-                    listing_id = response.parsed.listing_id
+                if isinstance(response.parsed, PriceResult):
+                    offer_id = response.parsed.offer_id
                     log.debug(
                         "offer_posted", extra={"url": offer.url, "status": response.parsed.status}
                     )
                     return Posted(
-                        response.parsed.status, listing_id if isinstance(listing_id, UUID) else None
+                        response.parsed.status, offer_id if isinstance(offer_id, UUID) else None
                     )
                 failure = {
                     "status": int(response.status_code),
@@ -109,35 +152,69 @@ class DisktrackerClient:
         log.warning("post_failed", extra={"url": offer.url, **failure})
         return Posted("failed")
 
-    def report_progress(self, source: str, started_at: datetime, counts: dict[str, int]) -> bool:
-        """Tell disktracker how far a run has got, once: the next report says it again."""
-        body = Activity.from_dict(
-            {"source": source, "started_at": started_at.isoformat(), **counts}
-        )
+    def heartbeat(self, runs: Sequence[UUID]) -> None:
+        """Say the collector is alive, with the runs it has (none between runs), once."""
         try:
-            response = report_collector_activity.sync_detailed(client=self.api, body=body)
-        except (httpx.HTTPError, ValueError, KeyError) as error:
-            raise DisktrackerUnavailable(str(error)) from error
-        if not isinstance(response.parsed, ActivityAnswer):
-            raise DisktrackerUnavailable(f"progress: HTTP {response.status_code}")
-        return response.parsed.stop
-
-    def report_run(self, summary: RunSummary, started_at: datetime, finished_at: datetime) -> None:
-        """Tell disktracker how a run went, once: a lost report only leaves the admin
-        overview a run behind."""
-        body = CollectorRun.from_dict(
-            {
-                **asdict(summary),
-                "started_at": started_at.isoformat(),
-                "finished_at": finished_at.isoformat(),
-            }
-        )
-        try:
-            response = record_collector_run.sync_detailed(client=self.api, body=body)
+            response = heartbeat.sync_detailed(
+                client=self.api,
+                body=Heartbeat(runs=list(runs)),
+            )
         except (httpx.HTTPError, ValueError) as error:
             raise DisktrackerUnavailable(str(error)) from error
-        if not isinstance(response.parsed, CollectorRun):
-            raise DisktrackerUnavailable(f"runs: HTTP {response.status_code}")
+        if not isinstance(response.parsed, HeartbeatAnswer):
+            raise DisktrackerUnavailable(f"heartbeat: HTTP {response.status_code}")
+
+    def start_run(self, run_id: UUID, source: str, started_at: datetime) -> None:
+        """Register a run as it starts. The run's id makes it safe to ask again: a start whose
+        answer was lost is answered the same the next time."""
+        body = RunStart(id=run_id, source=source, started_at=started_at)
+        self._run_call(lambda: start_run.sync_detailed(client=self.api, body=body))
+
+    def report_progress(self, run_id: UUID, counts: dict[str, int]) -> bool:
+        """Tell disktracker how far a run has got, once: the next report says it again.
+        Whether the run has been asked to stop."""
+        body = RunUpdate.from_dict(counts)
+        try:
+            response = update_run.sync_detailed(run_id, client=self.api, body=body)
+        except (httpx.HTTPError, ValueError, KeyError) as error:
+            raise DisktrackerUnavailable(str(error)) from error
+        if not isinstance(response.parsed, Run):
+            raise DisktrackerUnavailable(f"progress: HTTP {response.status_code}")
+        return response.parsed.stop_requested
+
+    def finish_run(self, run_id: UUID, summary: RunSummary, finished_at: datetime) -> None:
+        """Tell disktracker how a run ended: completed, stopped, or failed. The same end may be
+        sent again until it is taken."""
+        counts = {key: value for key, value in asdict(summary).items() if key not in NOT_COUNTS}
+        status = "completed" if summary.completed else "stopped" if summary.stopped else "failed"
+        # Only a failed run says why, in as much as disktracker keeps.
+        why = (
+            {"reason": summary.reason[:REASON_LIMIT]}
+            if status == "failed" and summary.reason
+            else {}
+        )
+        body = RunUpdate.from_dict(
+            {**counts, "status": status, "finished_at": finished_at.isoformat(), **why}
+        )
+        self._run_call(lambda: update_run.sync_detailed(run_id, client=self.api, body=body))
+
+    def _run_call(self, call: Callable[[], Response[Any]]) -> None:
+        """A call about a run, tried again on a failure that may pass (no answer, or a server
+        error): the run's id makes each attempt the same request."""
+        for attempt in range(1, ATTEMPTS + 1):
+            try:
+                response = call()
+            except (httpx.HTTPError, ValueError) as error:
+                failure = str(error)
+            else:
+                if isinstance(response.parsed, Run):
+                    return
+                failure = f"runs: HTTP {response.status_code}"
+                if response.status_code < 500:
+                    break
+            if attempt < ATTEMPTS:
+                self.clock.sleep(self.retry_delay * attempt)
+        raise DisktrackerUnavailable(failure)
 
 
 def detail(parsed: object, content: bytes) -> object:

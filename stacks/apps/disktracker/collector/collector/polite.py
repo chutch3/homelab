@@ -1,7 +1,10 @@
 """Every request a source makes to a store goes through here: it identifies the collector,
 fetches only what the site's robots.txt allows, and waits the site's Crawl-delay between
-requests. Each site's rules are read at the start of a run or a preview, and kept for it."""
+requests. Each site's rules are read at the start of a run or a preview, and kept for it. A
+source the store has given permission to may be read past robots.txt; it is still identified
+and spaced the same way, and each page robots.txt would have refused is logged."""
 
+import logging
 from typing import Any, Protocol
 from urllib.parse import urlsplit
 from urllib.robotparser import RobotFileParser
@@ -15,6 +18,8 @@ from collector.pacer import Pacer
 AGENT = "disktracker-collector"
 USER_AGENT = f"{AGENT}/0.1 (personal drive price tracker)"
 RULES_LIFETIME_SECONDS = 24 * 3600
+
+log = logging.getLogger(__name__)
 
 
 class Disallowed(SourceUnavailable):
@@ -59,8 +64,20 @@ class Pages(Protocol):
 
 
 class PoliteHttp:
-    def __init__(self, http: Fetcher, pacer: Pacer, clock: Clock) -> None:
-        self.http, self.pacer, self.clock = http, pacer, clock
+    def __init__(
+        self,
+        http: Fetcher,
+        pacer: Pacer,
+        clock: Clock,
+        *,
+        permitted: str | None = None,
+    ) -> None:
+        """One run's or preview's way of fetching a store's pages: what it learns of robots.txt
+        is kept only while it lasts, to save asking again before each page; nothing, a refusal
+        least of all, should outlast the run or the preview that learnt it. permitted: the
+        source this reads for when the store has given it permission to read what robots.txt
+        disallows; None for every other source."""
+        self.http, self.pacer, self.clock, self.permitted = http, pacer, clock, permitted
         self.rules: dict[str, tuple[float, RobotFileParser]] = {}
 
     def get(
@@ -81,7 +98,9 @@ class PoliteHttp:
         origin = origin_of(full)
         rules = self._rules(origin)
         if not rules.can_fetch(AGENT, full):
-            raise Disallowed(f"robots.txt disallows {full}")
+            if self.permitted is None:
+                raise Disallowed(f"robots.txt disallows {full}")
+            log.info("robots_txt_overridden", extra={"source": self.permitted, "url": full})
         delay = max(float(rules.crawl_delay(AGENT) or 0), min_delay)
         self.pacer.wait_turn(origin, delay or None)
         try:
@@ -91,12 +110,6 @@ class PoliteHttp:
             return response.raise_for_status()
         except httpx.HTTPError as error:
             raise SourceUnavailable(str(error)) from error
-
-    def forget_rules(self) -> None:
-        """Read every site's robots.txt again when it is next needed. Rules are kept only to
-        save asking again before each page of one run; nothing, a refusal least of all, should
-        outlast the run or the preview that learnt it."""
-        self.rules.clear()
 
     def sitemaps(self, url: str) -> list[str]:
         """The sitemaps the site's robots.txt names."""

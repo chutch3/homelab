@@ -12,7 +12,7 @@ from typing import cast
 import datetime
 
 if TYPE_CHECKING:
-  from ..models.running_activity import RunningActivity
+  from ..models.run import Run
 
 
 
@@ -28,12 +28,12 @@ class CollectorStatus:
     progress, and the keys of the sources waiting to run, in the order they will.
 
         Attributes:
-            running (list[RunningActivity]):
+            running (list[Run]):
             seen_at (datetime.datetime | None):
             waiting (list[str]):
      """
 
-    running: list[RunningActivity]
+    running: list[Run]
     seen_at: datetime.datetime | None
     waiting: list[str]
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
@@ -43,7 +43,7 @@ class CollectorStatus:
 
 
     def to_dict(self) -> dict[str, Any]:
-        from ..models.running_activity import RunningActivity # noqa: PLC0415
+        from ..models.run import Run # noqa: PLC0415
         running = []
         for running_item_data in self.running:
             running_item = running_item_data.to_dict()
@@ -76,12 +76,12 @@ class CollectorStatus:
 
     @classmethod
     def from_dict(cls: type[T], src_dict: Mapping[str, Any]) -> T:
-        from ..models.running_activity import RunningActivity # noqa: PLC0415
+        from ..models.run import Run # noqa: PLC0415
         d = dict(src_dict)
         running = []
         _running = d.pop("running")
         for running_item_data in (_running):
-            running_item = RunningActivity.from_dict(running_item_data)
+            running_item = Run.from_dict(running_item_data)
 
 
 

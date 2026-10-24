@@ -1,5 +1,5 @@
 
-""" A client library for accessing FastAPI """
+""" A client library for accessing DiskTracker API """
 from .client import AuthenticatedClient, Client
 
 __all__ = (
