@@ -235,6 +235,7 @@ describe("project edit", function () {
         '  <option value="SemaphoreProject">SemaphoreProject</option>' +
         '  <option value="TddiumProject">TddiumProject</option>' +
         '  <option value="CircleCiProject">CircleCiProject</option>' +
+        '  <option value="GithubProject">GithubProject</option>' +
         '</select>' +
         '<div id="field_container" class="hide">' +
         '  <div class="project-attributes provider-specific CruiseControlProject" id="CruiseControlProject">' +
@@ -383,6 +384,18 @@ describe("project edit", function () {
 
       it("shows the field_container when a CircleCI is selected", function () {
         $('#project_type').val('CircleCiProject').change();
+        expect($('#field_container')).toExist();
+        expect($('#field_container').hasClass('hide')).toBeFalsy();
+      });
+
+      it("shows the branch field when a Github Project is selected", function () {
+        $('#project_type').val('GithubProject').change();
+        expect($('#branch_name')).toExist();
+        expect($('#branch_name').hasClass('hide')).toBeFalsy();
+      });
+
+      it("shows the field_container when a Github Project is selected", function () {
+        $('#project_type').val('GithubProject').change();
         expect($('#field_container')).toExist();
         expect($('#field_container').hasClass('hide')).toBeFalsy();
       });
