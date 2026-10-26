@@ -2,6 +2,82 @@
 
 <!-- version list -->
 
+## v3.35.0 (2026-10-26)
+
+### Bug Fixes
+
+- Load projectmonitor schema on an uninitialised database instead of running legacy migrations
+  ([`295faab`](https://github.com/chutch3/homelab/commit/295faabe2b2b2f04eb2bbf05ce0f07c07a1be3f7))
+
+- Pin takeout-manager images to 3.34.1 so the worker gets a writable HOME
+  ([`b03d753`](https://github.com/chutch3/homelab/commit/b03d753dbcb92b35cfb40cdf70ec412810d66e8a))
+
+- Point immich at its own valkey instead of the shared alias
+  ([`a3479f7`](https://github.com/chutch3/homelab/commit/a3479f76a4c97c3d51bd3cea24a3c4828321d193))
+
+- Register dns and uptime for every converged stack, not only new ones
+  ([#132](https://github.com/chutch3/homelab/pull/132),
+  [`b9659ea`](https://github.com/chutch3/homelab/commit/b9659ea45e42b3e976d2762fc960005dc8594aa6))
+
+- Reveal github project fields and branch input in the project form
+  ([`226e196`](https://github.com/chutch3/homelab/commit/226e196d53b1e4565eae02d8c68cb7c0deaccebd))
+
+### Build System
+
+- Bump cloudcli to 1.37.4 and track latest claude code in devbox
+  ([`bb42960`](https://github.com/chutch3/homelab/commit/bb429609287bfba16e4125c4ca4d123c206d288e))
+
+### Chores
+
+- Add ruby, rbenv and bundler to the devbox image
+  ([`0d55490`](https://github.com/chutch3/homelab/commit/0d554908cb486a0c0f469c298291718491426b41))
+
+- Bump claudecodeui devbox image to 3.34.1
+  ([`13b8dbe`](https://github.com/chutch3/homelab/commit/13b8dbe266d8a217322a7d7850aa2ace0806e00e))
+
+- Bump technitium dns-server to 15.6.1
+  ([`ec3e3d5`](https://github.com/chutch3/homelab/commit/ec3e3d5307fd655ce558973417a879fd7bdb5e95))
+
+### Features
+
+- Add authenticated browser freecad service ([#130](https://github.com/chutch3/homelab/pull/130),
+  [`51fd679`](https://github.com/chutch3/homelab/commit/51fd679db034eb47e2ac385f48ad75347c63fcd8))
+
+- Add github actions project type to project monitor
+  ([`3708c38`](https://github.com/chutch3/homelab/commit/3708c3868726bd0eaf930735bb9accfe0677ae7d))
+
+- Add task dev to run an app locally via its own Taskfile
+  ([`046ecf4`](https://github.com/chutch3/homelab/commit/046ecf418aff1e733dae874d28af2de41bd89ff9))
+
+- Add task logs and logs:follow for deployed stacks
+  ([`d2cbf22`](https://github.com/chutch3/homelab/commit/d2cbf2204e07d0c2c67d95ff897711fbf4d3a263))
+
+- Added buildx plugin to devbox image
+  ([`d5b8fa5`](https://github.com/chutch3/homelab/commit/d5b8fa50d887b371ee1506c87f54743545624a4a))
+
+- Give fiber the disktracker db password so it can dump disktracker
+  ([`22e97f3`](https://github.com/chutch3/homelab/commit/22e97f3a8f04a3b6c2400e167f0bc91a2614701d))
+
+- Revive pivotal monitor with modern runtime and Swarm deployment
+  ([#129](https://github.com/chutch3/homelab/pull/129),
+  [`26b294f`](https://github.com/chutch3/homelab/commit/26b294f713bced81678c31c94b80df7323875ab2))
+
+- Send critical and infra alerts straight to smtp2go, bypassing postal
+  ([#133](https://github.com/chutch3/homelab/pull/133),
+  [`7a65137`](https://github.com/chutch3/homelab/commit/7a6513753e0ff2f4d76330e7e7b593ff9978430f))
+
+### Testing
+
+- Add github actions to the project types spec
+  ([`f817a10`](https://github.com/chutch3/homelab/commit/f817a10d6b46a1444d9a009e97d7dbbc3b4d330d))
+
+- Cover github branch requirement and update compatibility coverage manifest
+  ([`b4648aa`](https://github.com/chutch3/homelab/commit/b4648aae62a06789598c1cd03d1c499d3ac3db39))
+
+- Match deployment spec to the schema-load entrypoint
+  ([`8188247`](https://github.com/chutch3/homelab/commit/81882475689fc1f994fd2aa4d1d00b152b4749bd))
+
+
 ## v3.34.1 (2026-10-10)
 
 ### Bug Fixes
