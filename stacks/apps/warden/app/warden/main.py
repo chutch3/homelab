@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import os
 import signal
 
 import uvicorn
@@ -11,6 +12,7 @@ from warden import __version__
 from warden.container import Container
 from warden.logger import get_logger
 from warden.loop import _hunt_loop
+from warden.profiles.loop import run_profiles
 from warden.routes import health
 
 _logger = get_logger("warden.main")
@@ -47,7 +49,10 @@ async def _amain() -> None:
 
     app = create_app(container)
     server = uvicorn.Server(uvicorn.Config(app, host="0.0.0.0", port=cfg.metrics_port, log_level="info"))
-    await asyncio.gather(server.serve(), _hunt_loop(stop))
+    await asyncio.gather(
+        server.serve(), _hunt_loop(stop),
+        run_profiles(stop, container.clients(), container.metrics(), container.clock(), dict(os.environ)),
+    )
 
 
 def main() -> None:

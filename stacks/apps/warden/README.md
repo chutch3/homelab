@@ -83,6 +83,14 @@ SQLite at `/state/warden.db` (survives restarts):
 | `search_attempt`     | searches awaiting hit/miss reconciliation |
 | `search_backoff`     | miss streaks + cooldown expiries          |
 
+## Profile bootstrap utility (in development)
+
+Profile management provides standalone, read-only Arr export, local catalog
+validation, semantic comparison, and optional Git or read-only directory observation in a separate
+loop. See [profile catalog usage and format](PROFILES.md), including runtime Git
+requirements. Profile work does not use the hunter's SQLite database.
+Legacy import and synchronization are not yet implemented.
+
 ## Configuration
 
 All via `WARDEN_*` env vars. Instances are discovered from `WARDEN_RADARR_URL` /
