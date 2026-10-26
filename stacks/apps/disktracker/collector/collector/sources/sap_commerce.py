@@ -21,13 +21,12 @@ are not offers. Shipping is not in the API, so it is recorded as unknown."""
 import logging
 import re
 from collections.abc import Iterator, Mapping, Sequence
-from dataclasses import dataclass
 from decimal import Decimal
 from functools import cached_property
 from typing import Any
 from urllib.parse import parse_qs, urlsplit
 
-from listing_text.readers import (
+from listing_facts.readers import (
     capacity_in,
     condition_in,
     intended_use_named,
@@ -40,53 +39,24 @@ from listing_text.readers import (
 from collector.models import TITLE_LIMIT, ScrapedOffer, Store
 from collector.polite import json_of, same_site
 from collector.ports import Inspection, Rechecked, Site, Tell
-from collector.settings import described, setting, settings_from
 from collector.sources.rechecking import rechecked
 from collector.sources.sitemaps import SAMPLE_PAGES, each_fetched, page_urls
-from disktracker_api.models import ListingSummary
+from disktracker_api.models import OfferSummary, SapCommerceSettingsOutput
 
 log = logging.getLogger(__name__)
 MEDIA_TYPES = {"cc_hdd": "hdd", "cc_ssd": "ssd"}
 IN_STOCK = ("inStock", "lowStock")
 
 
-@dataclass(frozen=True)
-class SapCommerceSettings:
-    api_url: str = setting(
-        "API URL",
-        required=True,
-        placeholder="https://api.example.com/occ/v2",
-        pattern=r"^https?://[^\s/]+\S*$",
-        pattern_message="Enter the API's address, starting http:// or https://.",
-    )
-    site: str = setting("Site", required=True, placeholder="us")
-    sitemap_path: str = setting(
-        "Sitemap path",
-        placeholder="/sitemap.xml",
-        description="Blank: the sitemap robots.txt names, or /sitemap.xml",
-        pattern=r"^(/\S*)?$",
-        pattern_message="Start it with /.",
-    )
-    product_path_pattern: str = setting(
-        "Product path pattern",
-        placeholder="^/products/",
-        description="A regular expression the product pages to read match; blank reads every page",
-        regex=True,
-    )
-    # Put before a recertified product's SKU; dropped to find its model or part number.
-    recertified_sku_prefix: str = setting(
-        "Recertified SKU prefix",
-        placeholder="R",
-        description="Put before a recertified product's SKU",
-    )
-
-    def __post_init__(self) -> None:
-        # A pattern that is no regular expression is refused when the settings are read.
-        _ = self.product_path
+class SapCommerceSettings(SapCommerceSettingsOutput):
+    """An SAP Commerce store's settings, as disktracker gives them (every one, checked)."""
 
     @classmethod
     def of(cls, saved: Mapping[str, Any]) -> "SapCommerceSettings":
-        return settings_from(cls, saved)
+        read = cls.from_dict(saved)
+        # A pattern that is no regular expression is refused when the settings are read.
+        _ = read.product_path
+        return read
 
     @property
     def products_url(self) -> str:
@@ -193,11 +163,11 @@ def offer_from_product(
 
 
 def recheck_offer(
-    listing: ListingSummary, product: dict[str, Any] | None, store: Store
+    known: OfferSummary, product: dict[str, Any] | None, store: Store
 ) -> ScrapedOffer:
     """A known offer as the API shows it now (None when the SKU is gone)."""
     return ScrapedOffer.recheck(
-        listing,
+        known,
         source=store.key,
         item_price_cents=price_cents(product) if product else None,
         in_stock=bool(product and in_stock(product)),
@@ -206,8 +176,6 @@ def recheck_offer(
 
 
 class SapCommerce:
-    description = described("SAP Commerce", SapCommerceSettings)
-
     def settings(self, saved: Mapping[str, Any]) -> SapCommerceSettings:
         return SapCommerceSettings.of(saved)
 
@@ -239,7 +207,7 @@ class SapCommerce:
                 yield offer
 
     def recheck(
-        self, listings: Sequence[ListingSummary], site: Site[SapCommerceSettings]
+        self, known: Sequence[OfferSummary], site: Site[SapCommerceSettings]
     ) -> Iterator[Rechecked]:
         """Each from the API, by the SKU its page names."""
 
@@ -250,10 +218,10 @@ class SapCommerce:
             return json_of(response) if response is not None else None
 
         return rechecked(
-            listings,
+            known,
             lambda url: sku_of(url, site.store.base_url),
             fetch,
-            lambda listing, product: recheck_offer(listing, product, site.store),
+            lambda offer, product: recheck_offer(offer, product, site.store),
         )
 
     def inspect(self, url: str, page: str, site: Site[None]) -> Inspection:

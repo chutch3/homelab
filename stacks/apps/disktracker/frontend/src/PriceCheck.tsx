@@ -1,13 +1,14 @@
 import { useState, type ReactNode } from 'react';
 import { Button, Text, TextInput } from '@mantine/core';
-import type { ListingsApi, ListingSummary, PriceInput } from './api';
+import type { DisktrackerApi, OfferSummary, PriceInput, RecordedPrice } from './api';
 import { dollars } from './listing-display';
 import { parseDollars } from './money';
 
 type Props = {
-  listing: ListingSummary; api: ListingsApi; nextId: () => string;
-  /** Told what was recorded, in a sentence, once it is saved. */
-  onRecorded: (message: string) => Promise<void>;
+  listing: OfferSummary; api: DisktrackerApi; nextId: () => string;
+  /** Told what was recorded, in a sentence, once it is saved; and which price, when the answer made a
+   * new one (an unchanged price only moves when the offer was last checked). */
+  onRecorded: (message: string, recorded?: RecordedPrice) => Promise<void>;
   /** Whether to link to the store's page; left out where the row it sits under already does. */
   link?: boolean;
   /** Shown after the answers: a way to the full form, where there is one. */
@@ -24,13 +25,12 @@ export function PriceCheck({ listing, api, nextId, onRecorded, link = true, more
   const record = async (answer: Answer, change: Pick<PriceInput, 'item_price_cents' | 'in_stock'>, message: string) => {
     setError(''); setSaving(answer);
     try {
-      await api.recordPrice({
-        mpn: listing.mpn ?? '', store: listing.store, seller: listing.seller, condition: listing.condition,
-        title: listing.title, url: listing.url, capacity_gb: null,
-        shipping_cents: listing.latest.shipping_cents ?? 0, observed_at: null, notes: '', ...change,
+      const saved = await api.recordPrice({
+        offer_id: listing.id, shipping_cents: listing.latest.shipping_cents ?? 0, observed_at: null, notes: '', ...change,
       }, nextId());
       setPrice('');
-      await onRecorded(message);
+      if (saved.price_id === null) await onRecorded(message);
+      else await onRecorded(message, { priceId: saved.price_id });
     } catch (err) { setError(err instanceof Error ? err.message : 'The price could not be saved.'); }
     finally { setSaving(null); }
   };
@@ -45,7 +45,7 @@ export function PriceCheck({ listing, api, nextId, onRecorded, link = true, more
   const { latest } = listing;
   return <div className="price-check">
     <div className="price-check-answers">
-      {link && listing.url && <a className="seller-link" href={listing.url} target="_blank" rel="noopener noreferrer">Open store page ↗</a>}
+      {link && listing.url && <a className="seller-link" href={listing.url} target="_blank" rel="noopener noreferrer">Open store ↗</a>}
       <Button variant="default" disabled={busy} loading={saving === 'same'}
         onClick={() => record('same', { item_price_cents: latest.item_price_cents, in_stock: latest.in_stock }, `Checked ${listing.title}: no change.`)}>No change</Button>
       <span className="price-check-new">

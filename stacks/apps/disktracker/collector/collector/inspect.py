@@ -7,15 +7,14 @@ one kind or another, and how its settings are worked out, is each reader's own."
 
 import logging
 import re
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from dataclasses import asdict, replace
 from typing import Any
 
-from listing_text.readers import condition_rules
+from listing_facts.readers import condition_rules
 
-from collector.clock import Clock
 from collector.errors import OutOfTime, SourceUnavailable
-from collector.polite import TimedPages, origin_of
+from collector.polite import Pages, origin_of
 from collector.ports import Fact
 from collector.sites import Sites
 
@@ -42,11 +41,10 @@ def run_time(requests: int, seconds_apart: float) -> str:
 
 
 class Inspector:
-    def __init__(self, sites: Sites, clock: Clock, time_limit: float, run_delay: float) -> None:
-        """time_limit: the seconds an inspection may read a store for before it gives up.
+    def __init__(self, sites: Sites, timed: Callable[[Pages], Pages], run_delay: float) -> None:
+        """timed: a store's pages, fetched only while an inspection has time to read them.
         run_delay: the least time a run leaves between two requests to a store."""
-        self.sites, self.clock, self.time_limit = sites, clock, time_limit
-        self.run_delay = run_delay
+        self.sites, self.timed, self.run_delay = sites, timed, run_delay
 
     def inspect(self, request: Mapping[str, Any]) -> dict[str, Any]:
         """The sources that would read the page at request["url"], those that read the page's
@@ -70,7 +68,7 @@ class Inspector:
                 transport=request.get("transport", "direct"),
                 conditions=conditions,
             )
-            site = replace(visited, http=TimedPages(visited.http, self.clock, self.time_limit))
+            site = replace(visited, http=self.timed(visited.http))
             page = site.http.get(url, min_delay=site.store.min_delay).text
             # A run waits what the store asks between requests, and never less than its own floor.
             apart = max(site.http.crawl_delay(base), self.run_delay)

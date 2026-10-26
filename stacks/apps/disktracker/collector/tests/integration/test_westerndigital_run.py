@@ -6,13 +6,13 @@ from typing import Any
 from pytest_httpserver import HTTPServer
 from werkzeug import Request, Response
 
-from tests.builders import listing_json
+from tests.builders import offer_json
 from tests.integration.harness import (
     ROOT,
     base_of,
     environment,
     events,
-    know_listings,
+    know_offers,
     posts,
     rechecks,
     record_everything,
@@ -91,7 +91,7 @@ def run_collector(store: HTTPServer, disktracker: HTTPServer, delay: str = "0") 
 
 def offer(url: str, **fields: Any) -> dict[str, Any]:
     return {
-        "source": "westerndigital",
+        "store": "westerndigital",
         "seller": "",
         "url": url,
         "shipping_cents": None,
@@ -106,7 +106,7 @@ def test_one_run_posts_every_internal_drive_on_sale_new_ones_before_recertified(
 ) -> None:
     serve_store(westerndigital, [RECERTIFIED, RED, UNPRICED, ULTRASTAR])
     record_everything(disktracker)
-    know_listings(disktracker, [], store="westerndigital")
+    know_offers(disktracker, [], store="westerndigital")
 
     result = run_collector(westerndigital, disktracker)
 
@@ -189,7 +189,7 @@ def test_requests_are_spaced_even_though_the_site_asks_for_no_crawl_delay(
     requested_at: list[float] = []
     serve_store(westerndigital, [RED, ULTRASTAR], requested_at=requested_at)
     record_everything(disktracker)
-    know_listings(disktracker, [], store="westerndigital")
+    know_offers(disktracker, [], store="westerndigital")
 
     result = run_collector(westerndigital, disktracker, delay="0.5")
 
@@ -204,7 +204,7 @@ def test_a_product_the_api_fails_on_is_reported_and_the_run_carries_on(
 ) -> None:
     serve_store(westerndigital, [RED, ULTRASTAR], failing=("WD120EFBX",))
     record_everything(disktracker)
-    know_listings(disktracker, [], store="westerndigital")
+    know_offers(disktracker, [], store="westerndigital")
 
     result = run_collector(westerndigital, disktracker)
 
@@ -227,7 +227,7 @@ def test_offers_that_left_the_sitemap_are_rechecked_through_the_api(
     westerndigital.expect_request(f"{API}/WD2005FBYZ").respond_with_data("", status=404)
     base = base_of(westerndigital)
     known = [
-        listing_json(
+        offer_json(
             f"{base}{path}",
             store="westerndigital",
             title=f"Known {mpn}",
@@ -237,7 +237,7 @@ def test_offers_that_left_the_sitemap_are_rechecked_through_the_api(
         )
         for path, mpn in [(RECERTIFIED, "0F29590"), (gone, "WD2005FBYZ")]
     ]
-    know_listings(disktracker, known, store="westerndigital")
+    know_offers(disktracker, known, store="westerndigital")
     record_everything(disktracker)
 
     result = run_collector(westerndigital, disktracker)
@@ -247,20 +247,17 @@ def test_offers_that_left_the_sitemap_are_rechecked_through_the_api(
     for posting in reposted:
         posting.pop("observed_at")
 
-    def repost(path: str, mpn: str, price: int | None, in_stock: bool) -> dict[str, Any]:
-        return offer(
-            f"{base}{path}",
-            title=f"Known {mpn}",
-            mpn=mpn,
-            condition="manufacturer_recertified",
-            capacity_gb=12000,
-            item_price_cents=price,
-            in_stock=in_stock,
-            specifications=None,
-        )
+    named = {offer["url"]: offer["id"] for offer in known}
 
-    assert reposted == [
-        repost(RECERTIFIED, "0F29590", 65499, True),
-        repost(gone, "WD2005FBYZ", None, False),
-    ]
+    def repost(path: str, price: int | None, in_stock: bool) -> dict[str, Any]:
+        # Named as the offer it is: only its price and stock are read again.
+        return {
+            "offer_id": named[f"{base}{path}"],
+            "provenance": "collected",
+            "item_price_cents": price,
+            "shipping_cents": None,
+            "in_stock": in_stock,
+        }
+
+    assert reposted == [repost(RECERTIFIED, 65499, True), repost(gone, None, False)]
     assert events(result.stdout)[-1]["rechecked"] == 2

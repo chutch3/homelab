@@ -5,13 +5,21 @@ from datetime import datetime
 from typing import Any, NamedTuple
 from uuid import UUID
 
-from listing_text.readers import ConditionRules, Specifications
+from listing_facts.readers import ConditionRules, Specifications
 
-from disktracker_api.models import ListingSummary
+from disktracker_api.models import (
+    ManualSourceView,
+    OfferSummary,
+    SapCommerceSourceView,
+    ShopifySourceView,
+    SitemapSourceView,
+)
 
 # disktracker accepts titles up to this many characters.
 TITLE_LIMIT = 160
 FREE_SHIPPING = 0
+# A source as disktracker gives it: the fields of its kind, its settings among them.
+SourceView = ManualSourceView | ShopifySourceView | SitemapSourceView | SapCommerceSourceView
 
 
 @dataclass(frozen=True)
@@ -44,37 +52,61 @@ class ScrapedOffer:
     specifications: Specifications | None = None
     # The drive's maker, as named by titles.maker_named.
     brand: str | None = None
+    # The offer disktracker already has that this re-reads the price of: a recheck, which says
+    # nothing new of what the offer is. None for an offer read from the store's listing.
+    offer_id: UUID | None = None
 
     @classmethod
     def recheck(
         cls,
-        listing: ListingSummary,
+        known: OfferSummary,
         *,
         source: str,
         item_price_cents: int | None,
         in_stock: bool,
         shipping_cents: int | None,
     ) -> "ScrapedOffer":
-        """Re-post an offer disktracker already knows, under the identity it has for it, with
-        what its product page says now."""
+        """Re-post an offer disktracker already knows, named by its id, with the price its product
+        page shows now."""
         return cls(
+            offer_id=known.id,
             source=source,
-            url=listing.url or "",
-            title=listing.title,
-            mpn=listing.mpn,
-            condition=listing.condition,
-            capacity_gb=listing.drive.capacity_gb,
+            url=known.url or "",
+            title=known.title,
+            mpn=known.mpn,
+            condition=known.condition,
+            capacity_gb=known.drive.capacity_gb,
             item_price_cents=item_price_cents,
             in_stock=in_stock,
             shipping_cents=shipping_cents,
         )
 
     def fields(self) -> dict[str, Any]:
-        """The offer as plain data."""
-        return {**asdict(self), "aliases": list(self.aliases)}
+        """The offer as plain data, as it was read."""
+        fields = {**asdict(self), "aliases": list(self.aliases)}
+        del fields["offer_id"]
+        return fields
 
     def payload(self, observed_at: datetime) -> dict[str, Any]:
-        return {**self.fields(), "observed_at": observed_at.isoformat()}
+        """The offer as submitted to disktracker: a page read afresh, under the store it was read
+        from, is taken in (and waits for review when disktracker cannot match it to a drive); a
+        recheck is a collected price of the offer it names, giving only what its page shows of
+        the price."""
+        if self.offer_id is not None:
+            return {
+                "offer_id": str(self.offer_id),
+                "provenance": "collected",
+                "item_price_cents": self.item_price_cents,
+                "shipping_cents": self.shipping_cents,
+                "in_stock": self.in_stock,
+                "observed_at": observed_at.isoformat(),
+            }
+        fields = self.fields()
+        return {
+            **{name: value for name, value in fields.items() if name != "source"},
+            "store": fields["source"],
+            "observed_at": observed_at.isoformat(),
+        }
 
 
 @dataclass(frozen=True)
@@ -93,10 +125,12 @@ class RunSummary:
     recheck_failed: int = 0
     # The run ended early because disktracker asked it to stop, rather than failing.
     stopped: bool = False
+    # Why it failed, for whoever looks at the store; None when it did not, or nothing says.
+    reason: str | None = None
 
 
 class Posted(NamedTuple):
-    """What disktracker did with a posted offer, and the listing it recorded it on."""
+    """What disktracker did with a posted offer, and the offer it recorded it on."""
 
     status: str
-    listing_id: UUID | None = None
+    offer_id: UUID | None = None

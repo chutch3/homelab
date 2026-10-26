@@ -8,14 +8,14 @@ from typing import Any
 from pytest_httpserver import HTTPServer
 from werkzeug import Request, Response
 
-from tests.builders import listing_json, sitemap_settings
+from tests.builders import offer_json, sitemap_settings
 from tests.integration.harness import (
     ALLOW_ALL,
     ROOT,
     base_of,
     environment,
     events,
-    know_listings,
+    know_offers,
     posts,
     rechecks,
     record_everything,
@@ -114,7 +114,7 @@ def ghd_source(goharddrive: HTTPServer) -> dict[str, Any]:
 
 def offer(url: str, **fields: Any) -> dict[str, Any]:
     return {
-        "source": "goharddrive",
+        "store": "goharddrive",
         "seller": "",
         "url": url,
         "aliases": [],
@@ -128,7 +128,7 @@ def test_one_run_posts_every_drive_in_the_sitemap_and_fetches_nothing_else(
 ) -> None:
     serve_store(goharddrive, [AVOLUSION, SEAGATE, HGST, MAXDIGITAL])
     record_everything(disktracker)
-    know_listings(disktracker, [], store="goharddrive")
+    know_offers(disktracker, [], store="goharddrive")
 
     result = run_collector(goharddrive, disktracker)
 
@@ -240,7 +240,7 @@ def test_requests_wait_the_crawl_delay_robots_txt_asks_for(
         requested_at=requested_at,
     )
     record_everything(disktracker)
-    know_listings(disktracker, [], store="goharddrive")
+    know_offers(disktracker, [], store="goharddrive")
 
     result = run_collector(goharddrive, disktracker)
 
@@ -261,7 +261,7 @@ def test_offers_that_left_the_sitemap_are_rechecked_on_their_own_page(
     goharddrive.expect_request(gone).respond_with_data("", status=404)
     base = base_of(goharddrive)
     known = {
-        path: listing_json(
+        path: offer_json(
             f"{base}{path}",
             store="goharddrive",
             title=f"Known {path}",
@@ -271,7 +271,7 @@ def test_offers_that_left_the_sitemap_are_rechecked_on_their_own_page(
         )
         for index, path in enumerate([HGST, gone])
     }
-    know_listings(disktracker, list(known.values()), store="goharddrive")
+    know_offers(disktracker, list(known.values()), store="goharddrive")
     record_everything(disktracker)
 
     result = run_collector(goharddrive, disktracker)
@@ -281,20 +281,17 @@ def test_offers_that_left_the_sitemap_are_rechecked_on_their_own_page(
     for posting in reposted:
         posting.pop("observed_at")
 
-    def repost(path: str, index: int, price: int | None) -> dict[str, Any]:
-        return offer(
-            f"{base}{path}",
-            title=f"Known {path}",
-            mpn=f"MPN{index}",
-            condition="refurbished",
-            capacity_gb=4000,
-            item_price_cents=price,
-            shipping_cents=None,
-            in_stock=False,
-            specifications=None,
-        )
+    def repost(path: str, price: int | None) -> dict[str, Any]:
+        # Named as the offer it is: only its price and stock are read again.
+        return {
+            "offer_id": known[path]["id"],
+            "provenance": "collected",
+            "item_price_cents": price,
+            "shipping_cents": None,
+            "in_stock": False,
+        }
 
-    assert reposted == [repost(HGST, 0, 7999), repost(gone, 1, None)]
+    assert reposted == [repost(HGST, 7999), repost(gone, None)]
     assert events(result.stdout)[-1]["rechecked"] == 2
 
 
@@ -303,7 +300,7 @@ def test_product_pages_that_fail_or_are_gone_are_reported_and_the_run_carries_on
 ) -> None:
     serve_store(goharddrive, [SEAGATE, HGST, MAXDIGITAL], failing=(SEAGATE,), missing=(HGST,))
     record_everything(disktracker)
-    know_listings(disktracker, [], store="goharddrive")
+    know_offers(disktracker, [], store="goharddrive")
 
     result = run_collector(goharddrive, disktracker)
 
@@ -339,13 +336,15 @@ def test_a_run_announces_itself_and_posts_each_drive_as_soon_as_its_page_is_read
     def record(_request: Request) -> Response:
         posted_at.append(time.monotonic())
         return Response(
-            json.dumps({"status": "recorded", "listing_id": None, "unmatched_id": None}),
+            json.dumps(
+                {"status": "recorded", "offer_id": None, "price_id": None, "review_item_id": None}
+            ),
             status=201,
             content_type="application/json",
         )
 
-    disktracker.expect_request("/api/scraped", method="POST").respond_with_handler(record)
-    know_listings(disktracker, [], store="goharddrive")
+    disktracker.expect_request("/api/ingestions", method="POST").respond_with_handler(record)
+    know_offers(disktracker, [], store="goharddrive")
 
     result = run_collector(goharddrive, disktracker)
 
@@ -380,7 +379,7 @@ def test_drives_are_named_by_their_makers_mpn_so_they_match_other_stores(
     }
     serve_store(goharddrive, [*retitled, MAXDIGITAL], retitled=retitled)
     record_everything(disktracker)
-    know_listings(disktracker, [], store="goharddrive")
+    know_offers(disktracker, [], store="goharddrive")
 
     result = run_collector(goharddrive, disktracker)
 
@@ -412,7 +411,7 @@ def test_the_sitemap_robots_txt_names_is_read_through_its_index(
         content_type="text/xml",
     )
     record_everything(disktracker)
-    know_listings(disktracker, [], store="goharddrive")
+    know_offers(disktracker, [], store="goharddrive")
 
     result = run_collector(goharddrive, disktracker)
 
@@ -437,7 +436,7 @@ def test_a_sitemap_its_index_lists_twice_is_read_once(
         f"<sitemapindex>{listed}{listed}</sitemapindex>", content_type="text/xml"
     )
     record_everything(disktracker)
-    know_listings(disktracker, [], store="goharddrive")
+    know_offers(disktracker, [], store="goharddrive")
 
     result = run_collector(goharddrive, disktracker)
 

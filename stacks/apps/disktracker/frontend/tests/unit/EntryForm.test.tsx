@@ -2,28 +2,29 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MantineProvider } from '@mantine/core';
-import { knownStores, unusedWrites } from '../fixtures/listings';
+import { findsNone, knownStores, makeDrive, makeOffer, recordedOn, unusedWrites } from '../fixtures/listings';
+import { foundPage, rowsOf } from '../fixtures/responses';
 import { EntryForm } from '../../src/EntryForm';
-import { ApiValidationError, type Listing, type ListingsApi } from '../../src/api';
+import { ApiValidationError, type Offer, type DisktrackerApi } from '../../src/api';
 
 afterEach(cleanup);
 
 const observation = {
   id: 'observation', item_price_cents: 18000, shipping_cents: 0, shipping_known: true, in_stock: true,
   observed_at: '2026-09-21T12:00:00Z', notes: '',
-  entered_at: '2026-09-21T12:00:00Z', acquisition_method: 'manual' as const,
+  entered_at: '2026-09-21T12:00:00Z', provenance: 'manual' as const,
   total_cents: 18000, price_per_tb: '10.00',
 };
-const listing: Listing = {
-  drive: null,
+const listing: Offer = {
+  drive: makeDrive('ST18000NM000J'),
   id: 'listing', title: 'Example drive', mpn: 'ST18000NM000J', store: 'other', store_name: 'Other', seller: 'Example seller', url: 'https://example.com/d',
   capacity_gb: 18000, condition: 'refurbished', last_checked_at: observation.observed_at, latest: observation, observations: [observation],
+  doubt: null,
 };
 
 function renderForm(failure: Error) {
-  const api: ListingsApi = {
+  const api: DisktrackerApi = {
     ...unusedWrites,
-    list: async () => [listing],
     recordPrice: async () => { throw failure; },
   };
   render(<MantineProvider env="test"><EntryForm stores={knownStores} api={api} listing={listing}
@@ -33,16 +34,17 @@ function renderForm(failure: Error) {
 }
 
 describe('EntryForm', () => {
-  it('records the first price for a new offer, requiring its MPN, store, condition, and item price', async () => {
+  it('records the first price for a new offer, making its drive first, requiring its MPN, store, condition, and item price', async () => {
     const user = userEvent.setup();
-    const recordPrice = vi.fn<ListingsApi['recordPrice']>(async () => listing);
+    const createDrive = vi.fn<DisktrackerApi['createDrive']>(async () => makeDrive('ST20000NM007D', { id: 'new-drive', capacity_gb: 20000 }));
+    const recordPrice = vi.fn<DisktrackerApi['recordPrice']>(async () => recordedOn(listing));
     const onSaved = vi.fn(async () => {});
-    render(<MantineProvider env="test"><EntryForm stores={knownStores} api={{ ...unusedWrites, recordPrice }} listing={null}
+    render(<MantineProvider env="test"><EntryForm stores={knownStores} api={{ ...unusedWrites, findDrives: findsNone, createDrive, recordPrice }} listing={null}
       now={() => new Date('2026-09-21T12:00:00Z')} nextId={() => 'save-key'}
       onClose={() => {}} onSaved={onSaved} /></MantineProvider>);
-    const form = within(screen.getByRole('dialog', { name: 'Add offer' }));
+    const form = within(screen.getByRole('dialog', { name: 'Record price' }));
     await user.selectOptions(form.getByLabelText('Capacity', { exact: true }), '20000');
-    await user.click(form.getByRole('button', { name: 'Save offer' }));
+    await user.click(form.getByRole('button', { name: 'Save price' }));
     expect(form.getByLabelText('Item price (USD)', { exact: true })).toHaveAccessibleDescription(expect.stringContaining('Enter the item price.'));
     await user.type(form.getByLabelText('Item price (USD)', { exact: true }), '299.99');
     expect(form.getByRole('textbox', { name: 'MPN' })).toHaveAccessibleDescription(expect.stringContaining('Enter the MPN.'));
@@ -52,22 +54,24 @@ describe('EntryForm', () => {
     await user.selectOptions(form.getByLabelText('Store', { exact: true }), 'serverpartdeals');
     await user.type(form.getByRole('textbox', { name: 'MPN' }), 'ST20000NM007D');
     await user.selectOptions(form.getByLabelText('Condition', { exact: true }), 'manufacturer_recertified');
-    await user.click(form.getByRole('button', { name: 'Save offer' }));
+    await user.click(form.getByRole('button', { name: 'Save price' }));
+    expect(createDrive).toHaveBeenCalledWith({ mpn: 'ST20000NM007D', capacity_gb: 20000 });
     expect(recordPrice).toHaveBeenCalledWith({
-      mpn: 'ST20000NM007D', store: 'serverpartdeals', seller: '', condition: 'manufacturer_recertified',
-      title: null, url: null, capacity_gb: 20000, item_price_cents: 29999, shipping_cents: 0, in_stock: true,
+      drive_id: 'new-drive', store: 'serverpartdeals', seller: '', condition: 'manufacturer_recertified',
+      title: null, url: null, item_price_cents: 29999, shipping_cents: 0, in_stock: true,
       observed_at: null, notes: '',
     }, 'save-key');
-    expect(onSaved).toHaveBeenCalledWith('listing', observation.observed_at);
+    expect(onSaved).toHaveBeenCalledWith('listing');
   }, 15000);
 
   it('offers standard capacities, with Other for an unusual size', async () => {
     const user = userEvent.setup();
-    const recordPrice = vi.fn<ListingsApi['recordPrice']>(async () => listing);
-    render(<MantineProvider env="test"><EntryForm stores={knownStores} api={{ ...unusedWrites, recordPrice }} listing={null}
+    const createDrive = vi.fn<DisktrackerApi['createDrive']>(async () => makeDrive('X5', { capacity_gb: 1500 }));
+    const recordPrice = vi.fn<DisktrackerApi['recordPrice']>(async () => recordedOn(listing));
+    render(<MantineProvider env="test"><EntryForm stores={knownStores} api={{ ...unusedWrites, findDrives: findsNone, createDrive, recordPrice }} listing={null}
       now={() => new Date('2026-09-21T12:00:00Z')} nextId={() => 'save-key'}
       onClose={() => {}} onSaved={async () => {}} /></MantineProvider>);
-    const form = within(screen.getByRole('dialog', { name: 'Add offer' }));
+    const form = within(screen.getByRole('dialog', { name: 'Record price' }));
     const sizes = within(form.getByLabelText('Capacity', { exact: true })).getAllByRole('option').map(option => option.textContent);
     expect(sizes).toEqual(['Choose capacity', '32 GB', '64 GB', '128 GB', '256 GB', '512 GB', '1 TB', '2 TB', '3 TB', '4 TB',
       '6 TB', '8 TB', '10 TB', '12 TB', '14 TB', '16 TB', '18 TB', '20 TB', '22 TB', '24 TB', '26 TB', '28 TB', '30 TB', '32 TB', 'Other']);
@@ -77,24 +81,55 @@ describe('EntryForm', () => {
     await user.type(form.getByLabelText('Item price (USD)', { exact: true }), '60');
     await user.selectOptions(form.getByLabelText('Store', { exact: true }), 'goharddrive');
     await user.selectOptions(form.getByLabelText('Condition', { exact: true }), 'used');
-    await user.click(form.getByRole('button', { name: 'Save offer' }));
-    expect(recordPrice).toHaveBeenCalledWith(expect.objectContaining({ capacity_gb: 1500 }), 'save-key');
+    await user.click(form.getByRole('button', { name: 'Save price' }));
+    expect(createDrive).toHaveBeenCalledWith({ mpn: 'X5', capacity_gb: 1500 });
+    expect(recordPrice).toHaveBeenCalledWith(expect.objectContaining({ drive_id: 'drive-X5' }), 'save-key');
   }, 15000);
 
-  it("shows a known MPN's recorded capacity instead of asking for it", async () => {
+  it("shows a known MPN's recorded capacity instead of asking for it, and records the price under that drive", async () => {
     const user = userEvent.setup();
-    render(<MantineProvider env="test"><EntryForm stores={knownStores} api={unusedWrites} listing={null} knownCapacities={{ ST18000NM000J: 18000 }}
+    // The server finds the drive recorded under another of its MPNs.
+    const drive = makeDrive('ST18000NM000J', { aliases: ['0HNHWC'] });
+    const findDrives = vi.fn<DisktrackerApi['findDrives']>(async () => foundPage(rowsOf([makeOffer('Exos X18', { drive, mpn: drive.mpn })])));
+    const recordPrice = vi.fn<DisktrackerApi['recordPrice']>(async () => recordedOn(listing));
+    render(<MantineProvider env="test"><EntryForm stores={knownStores} api={{ ...unusedWrites, findDrives, recordPrice }} listing={null}
       now={() => new Date('2026-09-21T12:00:00Z')} nextId={() => 'save-key'}
       onClose={() => {}} onSaved={async () => {}} /></MantineProvider>);
-    const form = within(screen.getByRole('dialog', { name: 'Add offer' }));
-    await user.type(form.getByRole('textbox', { name: 'MPN' }), 'ST18000NM000J');
+    const form = within(screen.getByRole('dialog', { name: 'Record price' }));
+    await user.type(form.getByRole('textbox', { name: 'MPN' }), '0hnhwc');
+    expect(await form.findByText('18 TB, as recorded for this drive')).toBeVisible();
     expect(form.queryByLabelText('Capacity', { exact: true })).not.toBeInTheDocument();
-    expect(form.getByText('18 TB, as recorded for this drive')).toBeVisible();
+    await user.selectOptions(form.getByLabelText('Store', { exact: true }), 'goharddrive');
+    await user.selectOptions(form.getByLabelText('Condition', { exact: true }), 'used');
+    await user.type(form.getByLabelText('Item price (USD)', { exact: true }), '150');
+    await user.click(form.getByRole('button', { name: 'Save price' }));
+    // unusedWrites makes no drive: none is made.
+    expect(recordPrice).toHaveBeenCalledWith(expect.objectContaining({ drive_id: drive.id, store: 'goharddrive' }), 'save-key');
+  });
+
+  it('refuses a capacity typed for an MPN found, as it is saved, to be recorded at another', async () => {
+    const user = userEvent.setup();
+    const drive = makeDrive('ST18000NM000J');
+    // The drive is found only once the form is saved: typed and saved before the lookup settles.
+    const findDrives = vi.fn<DisktrackerApi['findDrives']>(async () => foundPage(rowsOf([makeOffer('Exos X18', { drive, mpn: drive.mpn })])));
+    const recordPrice = vi.fn<DisktrackerApi['recordPrice']>(async () => recordedOn(listing));
+    render(<MantineProvider env="test"><EntryForm stores={knownStores} api={{ ...unusedWrites, findDrives, recordPrice }} listing={null}
+      now={() => new Date('2026-09-21T12:00:00Z')} nextId={() => 'save-key'}
+      onClose={() => {}} onSaved={async () => {}} /></MantineProvider>);
+    const form = within(screen.getByRole('dialog', { name: 'Record price' }));
+    await user.selectOptions(form.getByLabelText('Store', { exact: true }), 'goharddrive');
+    await user.selectOptions(form.getByLabelText('Condition', { exact: true }), 'used');
+    await user.type(form.getByLabelText('Item price (USD)', { exact: true }), '150');
+    await user.selectOptions(form.getByLabelText('Capacity', { exact: true }), '20000');
+    await user.type(form.getByRole('textbox', { name: 'MPN' }), 'ST18000NM000J');
+    await user.click(form.getByRole('button', { name: 'Save price' }));
+    expect(await form.findByText('ST18000NM000J is recorded as 18 TB. Edit the drive to change its capacity.')).toBeVisible();
+    expect(recordPrice).not.toHaveBeenCalled();
   });
 
   it('records the price as observed now unless another date is chosen', async () => {
     const user = userEvent.setup();
-    const recordPrice = vi.fn<ListingsApi['recordPrice']>(async () => listing);
+    const recordPrice = vi.fn<DisktrackerApi['recordPrice']>(async () => recordedOn(listing));
     render(<MantineProvider env="test"><EntryForm stores={knownStores} api={{ ...unusedWrites, recordPrice }} listing={listing}
       now={() => new Date('2026-09-22T12:00:00Z')} nextId={() => 'save-key'}
       onClose={() => {}} onSaved={async () => {}} /></MantineProvider>);
@@ -115,7 +150,7 @@ describe('EntryForm', () => {
 
   it('lets an existing offer be marked out of stock without a new price, but not a new offer', async () => {
     const user = userEvent.setup();
-    const recordPrice = vi.fn<ListingsApi['recordPrice']>(async () => listing);
+    const recordPrice = vi.fn<DisktrackerApi['recordPrice']>(async () => recordedOn(listing));
     render(<MantineProvider env="test"><EntryForm stores={knownStores} api={{ ...unusedWrites, recordPrice }} listing={listing}
       now={() => new Date('2026-09-22T12:00:00Z')} nextId={() => 'save-key'}
       onClose={() => {}} onSaved={async () => {}} /></MantineProvider>);
@@ -128,19 +163,19 @@ describe('EntryForm', () => {
     render(<MantineProvider env="test"><EntryForm stores={knownStores} api={unusedWrites} listing={null}
       now={() => new Date('2026-09-22T12:00:00Z')} nextId={() => 'save-key'}
       onClose={() => {}} onSaved={async () => {}} /></MantineProvider>);
-    const newOffer = within(screen.getByRole('dialog', { name: 'Add offer' }));
+    const newOffer = within(screen.getByRole('dialog', { name: 'Record price' }));
     await user.click(newOffer.getByRole('radio', { name: 'Out of stock' }));
-    await user.click(newOffer.getByRole('button', { name: 'Save offer' }));
+    await user.click(newOffer.getByRole('button', { name: 'Save price' }));
     expect(newOffer.getByLabelText('Item price (USD)', { exact: true })).toHaveAccessibleDescription(expect.stringContaining('Enter the item price.'));
   });
 
   it('asks for a store name only for Other, and drops one typed before choosing a supported store', async () => {
     const user = userEvent.setup();
-    const recordPrice = vi.fn<ListingsApi['recordPrice']>(async () => listing);
-    render(<MantineProvider env="test"><EntryForm stores={knownStores} api={{ ...unusedWrites, recordPrice }} listing={null}
+    const recordPrice = vi.fn<DisktrackerApi['recordPrice']>(async () => recordedOn(listing));
+    render(<MantineProvider env="test"><EntryForm stores={knownStores} api={{ ...unusedWrites, findDrives: findsNone, createDrive: async () => makeDrive('ST20000NM007D'), recordPrice }} listing={null}
       now={() => new Date('2026-09-21T12:00:00Z')} nextId={() => 'save-key'}
       onClose={() => {}} onSaved={async () => {}} /></MantineProvider>);
-    const form = within(screen.getByRole('dialog', { name: 'Add offer' }));
+    const form = within(screen.getByRole('dialog', { name: 'Record price' }));
     expect(form.queryByRole('textbox', { name: 'Seller name' })).not.toBeInTheDocument();
     await user.selectOptions(form.getByLabelText('Store', { exact: true }), 'other');
     await user.type(form.getByRole('textbox', { name: 'Seller name' }), 'Some shop');
@@ -150,23 +185,23 @@ describe('EntryForm', () => {
     await user.selectOptions(form.getByLabelText('Capacity', { exact: true }), '20000');
     await user.selectOptions(form.getByLabelText('Condition', { exact: true }), 'refurbished');
     await user.type(form.getByLabelText('Item price (USD)', { exact: true }), '250');
-    await user.click(form.getByRole('button', { name: 'Save offer' }));
+    await user.click(form.getByRole('button', { name: 'Save price' }));
     expect(recordPrice).toHaveBeenCalledWith(expect.objectContaining({ store: 'goharddrive', seller: '' }), 'save-key');
   }, 15000);
 
   it('opens More details to show a field the server rejected there', async () => {
     const user = userEvent.setup();
-    const recordPrice = vi.fn<ListingsApi['recordPrice']>(async () => { throw new ApiValidationError({ notes: 'Notes were rejected.' }); });
-    render(<MantineProvider env="test"><EntryForm stores={knownStores} api={{ ...unusedWrites, recordPrice }} listing={null}
+    const recordPrice = vi.fn<DisktrackerApi['recordPrice']>(async () => { throw new ApiValidationError({ notes: 'Notes were rejected.' }); });
+    render(<MantineProvider env="test"><EntryForm stores={knownStores} api={{ ...unusedWrites, findDrives: findsNone, createDrive: async () => makeDrive('ST20000NM007D'), recordPrice }} listing={null}
       now={() => new Date('2026-09-21T12:00:00Z')} nextId={() => 'save-key'}
       onClose={() => {}} onSaved={async () => {}} /></MantineProvider>);
-    const form = within(screen.getByRole('dialog', { name: 'Add offer' }));
+    const form = within(screen.getByRole('dialog', { name: 'Record price' }));
     await user.type(form.getByRole('textbox', { name: 'MPN' }), 'ST20000NM007D');
     await user.selectOptions(form.getByLabelText('Capacity', { exact: true }), '20000');
     await user.selectOptions(form.getByLabelText('Store', { exact: true }), 'goharddrive');
     await user.selectOptions(form.getByLabelText('Condition', { exact: true }), 'new');
     await user.type(form.getByLabelText('Item price (USD)', { exact: true }), '250');
-    await user.click(form.getByRole('button', { name: 'Save offer' }));
+    await user.click(form.getByRole('button', { name: 'Save price' }));
     const notes = await form.findByLabelText('Notes');
     expect(notes.closest('details')).toHaveAttribute('open');
     expect(notes).toHaveFocus();
@@ -177,14 +212,14 @@ describe('EntryForm', () => {
     render(<MantineProvider env="test"><EntryForm stores={knownStores} api={unusedWrites} listing={null}
       now={() => new Date('2026-09-21T12:00:00Z')} nextId={() => 'save-key'}
       onClose={() => {}} onSaved={async () => {}} /></MantineProvider>);
-    const form = within(screen.getByRole('dialog', { name: 'Add offer' }));
+    const form = within(screen.getByRole('dialog', { name: 'Record price' }));
     await user.selectOptions(form.getByLabelText('Store', { exact: true }), 'other');
-    await user.click(form.getByRole('button', { name: 'Save offer' }));
+    await user.click(form.getByRole('button', { name: 'Save price' }));
     expect(form.getByRole('textbox', { name: 'Seller name' })).toHaveAccessibleDescription(expect.stringContaining('Name the seller when the store is Other.'));
   });
 
-  it("records a later price for an existing offer under that offer's identity", async () => {
-    const recordPrice = vi.fn<ListingsApi['recordPrice']>(async () => listing);
+  it('records a later price for an existing offer by naming it', async () => {
+    const recordPrice = vi.fn<DisktrackerApi['recordPrice']>(async () => recordedOn(listing));
     render(<MantineProvider env="test"><EntryForm stores={knownStores} api={{ ...unusedWrites, recordPrice }} listing={listing}
       now={() => new Date('2026-09-22T12:00:00Z')} nextId={() => 'save-key'}
       onClose={() => {}} onSaved={async () => {}} /></MantineProvider>);
@@ -193,9 +228,7 @@ describe('EntryForm', () => {
     await user.type(form.getByLabelText('Item price (USD)', { exact: true }), '170');
     await user.click(form.getByRole('button', { name: 'Save price' }));
     expect(recordPrice).toHaveBeenCalledWith({
-      mpn: 'ST18000NM000J', store: 'other', seller: 'Example seller', condition: 'refurbished',
-      title: 'Example drive', url: 'https://example.com/d', capacity_gb: null, item_price_cents: 17000,
-      shipping_cents: 0, in_stock: true, observed_at: null, notes: '',
+      offer_id: 'listing', item_price_cents: 17000, shipping_cents: 0, in_stock: true, observed_at: null, notes: '',
     }, 'save-key');
   });
 

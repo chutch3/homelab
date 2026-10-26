@@ -1,11 +1,11 @@
 import { useState } from 'react';
 import { Alert, Button, Group, Modal, Stack, Text, TextInput } from '@mantine/core';
 import { useForm } from '@mantine/form';
-import type { Listing, ListingsApi } from './api';
+import type { Offer, DisktrackerApi } from './api';
 import { textError, urlError } from './entry-validation';
 import { conditionLabel, sellerLabel } from './listing-display';
 
-type Props = { listing: Listing; api: ListingsApi; onClose: () => void; onSaved: () => Promise<void> };
+type Props = { listing: Offer; api: DisktrackerApi; onClose: () => void; onSaved: () => Promise<void> };
 
 export function OfferForm({ listing, api, onClose, onSaved }: Props) {
   const [saving, setSaving] = useState(false);

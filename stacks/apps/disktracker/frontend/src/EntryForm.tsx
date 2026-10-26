@@ -1,19 +1,20 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Alert, Autocomplete, Button, Group, Modal, NativeSelect, SegmentedControl, Stack, Text, TextInput, Textarea } from '@mantine/core';
+import { useDebouncedValue } from '@mantine/hooks';
 import { useForm } from '@mantine/form';
-import { ApiValidationError, type Condition, type Listing, type ListingsApi, type ObservationInput, type Store } from './api';
+import { ApiValidationError, type FoundDrive, type Condition, type Drive, type Offer, type DisktrackerApi, type ObservationInput, type Store } from './api';
 import { CapacityField } from './CapacityField';
-import type { KnownDrive } from './drive-groups';
+import { driveFor, findDrive } from './drive-lookup';
 import { parseDollars } from './money';
 import { formFieldErrors, validateEntry, type EntryDefaults, type EntryValues } from './entry-validation';
 import { asksForSeller, capacityLabel, conditions, conditionLabel, dollars, sellerLabel } from './listing-display';
 
+/** The drives the server suggests for an MPN typed, and the one recorded under it, if any is. */
+type Found = { mpn: string; drives: FoundDrive[]; recorded: Drive | undefined };
+
 const localTime = (date: Date) => new Date(date.getTime() - date.getTimezoneOffset() * 60_000).toISOString().slice(0, 19);
 type EntryProps = {
-  api: ListingsApi; now: () => Date; nextId: () => string; listing: Listing | null;
-  knownCapacities?: Record<string, number>;
-  /** Drives already recorded, suggested as the MPN is typed. */
-  knownDrives?: KnownDrive[];
+  api: DisktrackerApi; now: () => Date; nextId: () => string; listing: Offer | null;
   /** The stores a new offer can be recorded under. */
   stores?: Store[];
   /** Where a new offer starts, and a hook to remember the store and condition a new offer used. */
@@ -22,10 +23,10 @@ type EntryProps = {
   onAnother?: (savedTitle: string) => void;
   /** The title of the price just saved, when this form follows it. */
   previous?: string;
-  onClose: () => void; onSaved: (listingId: string, observedAt: string) => Promise<void>;
+  onClose: () => void; onSaved: (listingId: string) => Promise<void>;
 };
 
-export function EntryForm({ listing, knownCapacities = {}, knownDrives = [], stores = [], defaults = { store: '', condition: '' }, onEntered, onAnother, previous, api, now, nextId, onClose, onSaved }: EntryProps) {
+export function EntryForm({ listing, stores = [], defaults = { store: '', condition: '' }, onEntered, onAnother, previous, api, now, nextId, onClose, onSaved }: EntryProps) {
   const priceOnly = listing !== null;
   const [requestId] = useState(nextId);
   const [changingDate, setChangingDate] = useState(false);
@@ -43,7 +44,7 @@ export function EntryForm({ listing, knownCapacities = {}, knownDrives = [], sto
     }
   };
   const form = useForm<EntryValues>({
-    validate: values => validateEntry(values, priceOnly, values.mpn.trim() in knownCapacities),
+    validate: values => validateEntry(values, priceOnly, knownCapacity.current !== undefined),
     validateInputOnBlur: true,
     clearInputErrorOnChange: false,
     initialValues: {
@@ -51,7 +52,24 @@ export function EntryForm({ listing, knownCapacities = {}, knownDrives = [], sto
       item: '', shipping: '', inStock: true, observed: localTime(now()), notes: '',
     },
   });
-  const knownCapacity = knownCapacities[form.values.mpn.trim()];
+  // Drives already recorded, found by the MPN as it is typed, once it stops changing.
+  const lookUp = useCallback((mpn: string): Promise<Found> => Promise.all([
+    api.findDrives({ q: mpn, limit: 8, offset: 0 }), findDrive(api, mpn),
+  ]).then(([page, recorded]) => ({ mpn, drives: page.items, recorded })), [api]);
+  const [found, setFound] = useState<Found | null>(null);
+  const typedMpn = form.values.mpn.trim();
+  const [settledMpn] = useDebouncedValue(typedMpn, 250);
+  useEffect(() => {
+    if (priceOnly || !settledMpn) return;
+    let current = true;
+    // Without an answer the form still works: it asks for the capacity, and the server checks it.
+    lookUp(settledMpn).then(answer => { if (current) setFound(answer); }).catch(() => {});
+    return () => { current = false; };
+  }, [lookUp, settledMpn, priceOnly]);
+  /** The capacity of the drive recorded under the MPN as it is now, once the server has said. */
+  const recorded = found && found.mpn.toUpperCase() === typedMpn.toUpperCase() ? found.recorded : undefined;
+  const knownCapacity = useRef<number | undefined>(undefined);
+  knownCapacity.current = recorded?.capacity_gb;
   const seller = asksForSeller(form.values.store);
   const [pasted, setPasted] = useState('');
   const [fills, setFills] = useState(0);
@@ -75,7 +93,9 @@ export function EntryForm({ listing, knownCapacities = {}, knownDrives = [], sto
         ...(facts.item_price_cents !== null && { item: (facts.item_price_cents / 100).toFixed(2) }),
       });
       // A drive already recorded brings its own capacity, so none is asked of the text.
-      const capacityKnown = Boolean(facts.capacity_gb) || (facts.mpn ?? '').trim() in knownCapacities;
+      const named = facts.mpn?.trim() ? await lookUp(facts.mpn.trim()) : null;
+      if (named) setFound(named);
+      const capacityKnown = Boolean(facts.capacity_gb) || Boolean(named?.recorded);
       const read: [name: string, path: string | null, found: boolean][] = [
         ['title', null, Boolean(facts.title)], ['MPN', 'mpn', Boolean(facts.mpn)], ['capacity', 'capacity', capacityKnown],
         ['condition', 'condition', Boolean(facts.condition)], ['price', 'item', facts.item_price_cents !== null],
@@ -92,15 +112,25 @@ export function EntryForm({ listing, knownCapacities = {}, knownDrives = [], sto
         item_price_cents: parseDollars(values.item), shipping_cents: parseDollars(values.shipping) ?? 0, in_stock: values.inStock,
         observed_at: changingDate ? new Date(values.observed).toISOString() : null, notes: values.notes.trim(),
       };
-      const offer = listing
-        ? { mpn: listing.mpn ?? '', store: listing.store, seller: listing.seller, condition: listing.condition, title: listing.title,
-          url: listing.url, capacity_gb: null }
-        : { mpn: values.mpn.trim(), store: values.store, seller: seller ? values.seller.trim() : '', condition: values.condition as Condition,
-          title: values.title.trim() || null, url: values.url.trim() || null, capacity_gb: knownCapacity ? null : Number(values.capacity.trim()) };
-      const saved = await api.recordPrice({ ...offer, ...observation }, requestId);
-      if (!listing) onEntered?.({ store: values.store, condition: values.condition });
-      await onSaved(saved.id, observation.observed_at ?? saved.latest.observed_at);
-      if (another.current && onAnother) onAnother(saved.title); else onClose();
+      let saved;
+      if (listing) saved = await api.recordPrice({ offer_id: listing.id, ...observation }, requestId);
+      else {
+        const mpn = values.mpn.trim();
+        const found = await driveFor(api, mpn, recorded ? null : Number(values.capacity.trim()), recorded);
+        if ('recordedAs' in found) {
+          form.setFieldError('capacity', `${found.recordedAs.mpn} is recorded as ${capacityLabel(found.recordedAs.capacity_gb)}. Edit the drive to change its capacity.`);
+          focusFirstError({ capacity: true });
+          return;
+        }
+        saved = await api.recordPrice({
+          drive_id: found.drive.id, store: values.store, seller: seller ? values.seller.trim() : '', condition: values.condition as Condition,
+          title: values.title.trim() || null, url: values.url.trim() || null, ...observation,
+        }, requestId);
+        onEntered?.({ store: values.store, condition: values.condition });
+      }
+      // A price entered by hand is recorded or refused: it is never queued or ignored.
+      await onSaved(saved.offer_id ?? '');
+      if (another.current && onAnother) onAnother(listing ? listing.title : values.title.trim() || values.mpn.trim()); else onClose();
     } catch (err) {
       if (err instanceof ApiValidationError) {
         const errors = formFieldErrors(err.fields, priceOnly);
@@ -115,7 +145,7 @@ export function EntryForm({ listing, knownCapacities = {}, knownDrives = [], sto
     }
     finally { setSaving(false); }
   }, focusFirstError);
-  return <Modal opened onClose={() => { if (!saving) onClose(); }} title={listing ? 'Record price' : 'Add offer'} size="lg" centered>
+  return <Modal opened onClose={() => { if (!saving) onClose(); }} title="Record price" size="lg" centered>
     <form ref={formElement} onSubmit={submit} noValidate>
       <Stack gap="md">
         {previous && <Text role="status" size="sm" c="dimmed">Saved {previous}. Add the next offer.</Text>}
@@ -138,9 +168,11 @@ export function EntryForm({ listing, knownCapacities = {}, knownDrives = [], sto
           </div>
           <div className="entry-grid">
             <Autocomplete label="MPN" aria-label="MPN" required maxLength={100} placeholder="e.g. ST18000NM000J" limit={8}
-              data={knownDrives.map(drive => drive.mpn)} {...form.getInputProps('mpn')}
-              renderOption={({ option }) => `${option.value} · ${knownDrives.find(drive => drive.mpn === option.value)?.title ?? ''}`} />
-            {knownCapacity ? <Text size="sm" className="entry-known">{capacityLabel(knownCapacity)}, as recorded for this drive</Text>
+              data={(found?.drives ?? []).map(row => row.drive.mpn)} {...form.getInputProps('mpn')}
+              // The server has found them by any name they go by: each is shown as it was found.
+              filter={({ options }) => options}
+              renderOption={({ option }) => `${option.value} · ${found?.drives.find(row => row.drive.mpn === option.value)?.title ?? ''}`} />
+            {recorded ? <Text size="sm" className="entry-known">{capacityLabel(recorded.capacity_gb)}, as recorded for this drive</Text>
               : <CapacityField key={fills} value={form.values.capacity} error={form.errors.capacity}
                 onChange={capacity => form.setFieldValue('capacity', capacity)} />}
           </div>
@@ -167,7 +199,7 @@ export function EntryForm({ listing, knownCapacities = {}, knownDrives = [], sto
         {error && <Alert color="red" role="alert">{error}</Alert>}
         <Group justify="flex-end"><Button variant="default" onClick={onClose} disabled={saving}>Cancel</Button>{!listing && onAnother && <Button type="submit" variant="default" disabled={saving}
           onClick={() => { another.current = true; }}>Save and add another</Button>}
-          <Button type="submit" loading={saving} onClick={() => { another.current = false; }}>{listing ? 'Save price' : 'Save offer'}</Button></Group>
+          <Button type="submit" loading={saving} onClick={() => { another.current = false; }}>Save price</Button></Group>
       </Stack>
     </form>
   </Modal>;

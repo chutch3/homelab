@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import { conditionChoices, priceLabel, startingCondition } from '../../src/drive-conditions';
 import type { Condition } from '../../src/api';
-import { makeListing } from '../fixtures/listings';
+import { makeOffer } from '../fixtures/listings';
 
 const offer = (id: string, condition: Condition, total: number, inStock = true) =>
-  makeListing(id, { condition }, { total_cents: total, in_stock: inStock });
+  makeOffer(id, { condition }, { total_cents: total, in_stock: inStock });
 
 describe('the conditions a drive is offered in', () => {
   const listings = [

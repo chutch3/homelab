@@ -3,12 +3,11 @@ import threading
 from collections.abc import Callable
 
 import pytest
-from listing_text.readers import ConditionRules
+from listing_facts.readers import ConditionRules
 
 from collector.errors import DisktrackerUnavailable
-from collector.models import RunSummary
+from collector.models import RunSummary, SourceView
 from collector.schedule import Schedule
-from disktracker_api.models import SourceView
 from tests.builders import CONDITION_RULES, source_view
 from tests.fakes import FakeDisktracker
 
@@ -86,6 +85,34 @@ class TestSchedule:
             ["due sources"],
             ["due sources", "condition rules", "due sources"],
         )
+
+    def test_each_round_starts_with_a_heartbeat_naming_no_run_as_none_is_running(
+        self, subject: MakeSchedule
+    ) -> None:
+        """Alive and idle are told apart from alive and running: between runs, the collector
+        has no run, and any run still marked running is not its."""
+        stop = threading.Event()
+        disktracker = FakeDisktracker(due=[A])
+        collector = ScriptedCollector({"a": [True, True]}, 2, stop)
+
+        subject(disktracker, collector, run_once=False).run(stop)
+
+        assert disktracker.beats == [[], []]
+
+    def test_a_heartbeat_disktracker_cannot_take_is_a_warning_and_the_round_goes_on(
+        self, subject: MakeSchedule, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        caplog.set_level(logging.INFO, logger="collector")
+        collector = ScriptedCollector()
+        disktracker = FakeDisktracker(
+            due=[A], beating=DisktrackerUnavailable("heartbeat: HTTP 503")
+        )
+
+        code = subject(disktracker, collector).run(threading.Event())
+
+        assert (code, [key for key, _ in collector.collected]) == (0, ["a"])
+        [warning] = [record for record in caplog.records if record.message == "heartbeat_failed"]
+        assert (warning.levelname, warning.__dict__["error"]) == ("WARNING", "heartbeat: HTTP 503")
 
     def test_a_crashing_run_is_logged_with_its_traceback_and_the_next_source_still_runs(
         self, subject: MakeSchedule, caplog: pytest.LogCaptureFixture

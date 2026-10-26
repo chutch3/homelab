@@ -1,10 +1,10 @@
 import { useState } from 'react';
 import { Alert, Button, Group, Modal, Stack, Text } from '@mantine/core';
-import type { Listing, ListingsApi, Observation } from './api';
+import type { Offer, DisktrackerApi, Observation } from './api';
 import { dollars, sellerLabel } from './listing-display';
 
 type Props = {
-  listing: Listing; observation: Observation; api: ListingsApi;
+  listing: Offer; observation: Observation; api: DisktrackerApi;
   onClose: () => void; onDeleted: () => Promise<void>;
 };
 
@@ -22,7 +22,7 @@ export function DeletePriceDialog({ listing, observation, api, onClose, onDelete
         <Button color="red" loading={deleting} onClick={async () => {
           setDeleting(true); setError('');
           try {
-            await api.deletePrice(listing.id, observation.id);
+            await api.deletePrice(observation.id);
             await onDeleted(); onClose();
           } catch (err) {
             setError(err instanceof Error ? err.message : 'The price could not be deleted.');

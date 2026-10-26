@@ -3,19 +3,17 @@ import { cleanup, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MantineProvider } from '@mantine/core';
 import { PriceCheck } from '../../src/PriceCheck';
-import type { Listing, ListingsApi } from '../../src/api';
-import { makeListing, unusedWrites } from '../fixtures/listings';
+import type { DisktrackerApi, PriceResult } from '../../src/api';
+import { makeOffer, recordedOn, unusedWrites } from '../fixtures/listings';
 
 afterEach(cleanup);
 
-const listing = makeListing('WD Red Plus 12TB', { mpn: 'WD120EFBX', store: 'other', seller: 'Micro Center', url: 'https://store.test/red' },
+const listing = makeOffer('WD Red Plus 12TB', { mpn: 'WD120EFBX', store: 'other', seller: 'Micro Center', url: 'https://store.test/red' },
   { item_price_cents: 20000, shipping_cents: 500, total_cents: 20500 });
-const identity = {
-  mpn: 'WD120EFBX', store: 'other', seller: 'Micro Center', condition: 'new', title: 'WD Red Plus 12TB',
-  url: 'https://store.test/red', capacity_gb: null, observed_at: null, notes: '',
-};
+// A recheck names the offer it is of: it says nothing of what the offer is.
+const identity = { offer_id: listing.id, observed_at: null, notes: '' };
 
-function renderCheck(recordPrice: ListingsApi['recordPrice'], props: Partial<Parameters<typeof PriceCheck>[0]> = {}) {
+function renderCheck(recordPrice: DisktrackerApi['recordPrice'], props: Partial<Parameters<typeof PriceCheck>[0]> = {}) {
   const onRecorded = vi.fn(async () => {});
   let id = 0;
   render(<MantineProvider env="test"><PriceCheck listing={listing} api={{ ...unusedWrites, recordPrice }}
@@ -24,9 +22,9 @@ function renderCheck(recordPrice: ListingsApi['recordPrice'], props: Partial<Par
 }
 
 it('records no change, a new price or out of stock in one step each, keeping the shipping last recorded', async () => {
-  const recordPrice = vi.fn<ListingsApi['recordPrice']>(async () => listing);
+  const recordPrice = vi.fn<DisktrackerApi['recordPrice']>(async () => recordedOn(listing));
   const { user, onRecorded } = renderCheck(recordPrice);
-  expect(screen.getByRole('link', { name: 'Open store page ↗' })).toHaveAttribute('href', 'https://store.test/red');
+  expect(screen.getByRole('link', { name: 'Open store ↗' })).toHaveAttribute('href', 'https://store.test/red');
   await user.click(screen.getByRole('button', { name: 'No change' }));
   expect(recordPrice).toHaveBeenLastCalledWith({ ...identity, item_price_cents: 20000, shipping_cents: 500, in_stock: true }, 'key-1');
   expect(onRecorded).toHaveBeenLastCalledWith('Checked WD Red Plus 12TB: no change.');
@@ -41,7 +39,7 @@ it('records no change, a new price or out of stock in one step each, keeping the
 });
 
 it('says what is wrong with a price it cannot read or was not given, and records nothing', async () => {
-  const recordPrice = vi.fn<ListingsApi['recordPrice']>(async () => listing);
+  const recordPrice = vi.fn<DisktrackerApi['recordPrice']>(async () => recordedOn(listing));
   const { user } = renderCheck(recordPrice);
   await user.click(screen.getByRole('button', { name: 'Save' }));
   expect(screen.getByRole('alert')).toHaveTextContent('Enter the new price.');
@@ -55,7 +53,7 @@ it('says what is wrong with a price it cannot read or was not given, and records
 
 it('takes no second answer while one is being saved, and keeps a typed price when the save fails', async () => {
   let fail: (error: Error) => void = () => {};
-  const recordPrice = vi.fn<ListingsApi['recordPrice']>(() => new Promise<Listing>((_, reject) => { fail = reject; }));
+  const recordPrice = vi.fn<DisktrackerApi['recordPrice']>(() => new Promise<PriceResult>((_, reject) => { fail = reject; }));
   const { user, onRecorded } = renderCheck(recordPrice);
   const price = screen.getByRole('textbox', { name: 'New price for WD Red Plus 12TB' });
   await user.type(price, '189.99{Enter}');
@@ -70,7 +68,16 @@ it('takes no second answer while one is being saved, and keeps a typed price whe
 });
 
 it('leaves out the store page link where the row already has one, and shows what it is given beside the answers', () => {
-  renderCheck(vi.fn<ListingsApi['recordPrice']>(), { link: false, more: <button>More options</button> });
+  renderCheck(vi.fn<DisktrackerApi['recordPrice']>(), { link: false, more: <button>More options</button> });
   expect(screen.queryByRole('link')).not.toBeInTheDocument();
   expect(screen.getByRole('button', { name: 'More options' })).toBeVisible();
+});
+
+it('says which price it recorded when the answer made a new one, so that it can be taken back', async () => {
+  const recorded = { ...listing.latest, id: 'new-price', item_price_cents: 18999, total_cents: 19499 };
+  const recordPrice = vi.fn<DisktrackerApi['recordPrice']>(async () => recordedOn(listing, recorded.id));
+  const { user, onRecorded } = renderCheck(recordPrice);
+  await user.type(screen.getByRole('textbox', { name: 'New price for WD Red Plus 12TB' }), '189.99');
+  await user.click(screen.getByRole('button', { name: 'Save' }));
+  expect(onRecorded).toHaveBeenLastCalledWith('Recorded $189.99 for WD Red Plus 12TB.', { priceId: 'new-price' });
 });
