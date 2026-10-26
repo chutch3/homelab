@@ -5,7 +5,7 @@ import re
 from decimal import Decimal
 from typing import NamedTuple
 
-from listing_text.readers import (
+from listing_facts.readers import (
     ConditionRules,
     capacity_in,
     condition_in,

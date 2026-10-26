@@ -16,7 +16,7 @@ from itertools import count
 from typing import Any
 from urllib.parse import parse_qs, urlsplit
 
-from listing_text.readers import (
+from listing_facts.readers import (
     ConditionRules,
     Specifications,
     capacity_in,

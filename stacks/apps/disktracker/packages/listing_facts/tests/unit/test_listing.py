@@ -1,7 +1,7 @@
 import pytest
 
-from listing_text.listing import ListingFacts, price_in, read_listing
-from listing_text.readers import condition_rules
+from listing_facts.listing import ListingFacts, price_in, read_listing
+from listing_facts.readers import condition_rules
 
 RULES = condition_rules([(r"\bmanufacturer recertified\b", "manufacturer_recertified")])
 

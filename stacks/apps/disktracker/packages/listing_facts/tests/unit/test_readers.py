@@ -1,6 +1,6 @@
 import pytest
 
-from listing_text.readers import (
+from listing_facts.readers import (
     capacity_in,
     condition_in,
     condition_rules,

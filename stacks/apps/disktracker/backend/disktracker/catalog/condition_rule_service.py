@@ -4,8 +4,8 @@ as one piece of work, and used to read what pasted listing text says of a drive.
 from collections.abc import Sequence
 from typing import Any
 
-from listing_text.listing import read_listing
-from listing_text.readers import condition_rules
+from listing_facts.listing import read_listing
+from listing_facts.readers import condition_rules
 
 from disktracker.catalog.condition_rule_repository import ConditionRuleRepository
 from disktracker.catalog.schemas import ConditionRule

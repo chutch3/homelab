@@ -8,7 +8,7 @@ from typing import Any
 from uuid import UUID
 
 import httpx
-from listing_text.readers import ConditionRules
+from listing_facts.readers import ConditionRules
 
 from collector.errors import DisktrackerUnavailable, SourceUnavailable
 from collector.models import Posted, RunSummary, ScrapedOffer, SourceView

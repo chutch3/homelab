@@ -26,7 +26,7 @@ from functools import cached_property
 from typing import Any
 from urllib.parse import parse_qs, urlsplit
 
-from listing_text.readers import (
+from listing_facts.readers import (
     capacity_in,
     condition_in,
     intended_use_named,

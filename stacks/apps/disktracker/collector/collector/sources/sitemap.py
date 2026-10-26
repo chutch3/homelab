@@ -37,7 +37,7 @@ from pathlib import PurePosixPath
 from typing import Any
 from urllib.parse import urlsplit
 
-from listing_text.readers import (
+from listing_facts.readers import (
     STORE_BRANDS,
     capacity_in,
     condition_in,

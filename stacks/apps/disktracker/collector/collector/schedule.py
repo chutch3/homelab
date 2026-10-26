@@ -9,7 +9,7 @@ import logging
 import threading
 from typing import Protocol
 
-from listing_text.readers import ConditionRules
+from listing_facts.readers import ConditionRules
 
 from collector.errors import DisktrackerUnavailable
 from collector.models import RunSummary, SourceView

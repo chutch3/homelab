@@ -13,7 +13,7 @@ from typing import Any, TypeVar, cast
 from uuid import NAMESPACE_URL, UUID, uuid5
 
 import httpx
-from listing_text.readers import ConditionRules, condition_rules
+from listing_facts.readers import ConditionRules, condition_rules
 
 from collector.clock import Clock
 from collector.errors import DisktrackerUnavailable

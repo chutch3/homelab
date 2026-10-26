@@ -6,7 +6,7 @@ from datetime import datetime
 from typing import Any, Protocol, runtime_checkable
 from uuid import UUID
 
-from listing_text.readers import ConditionRules
+from listing_facts.readers import ConditionRules
 
 from collector.models import Posted, RunSummary, ScrapedOffer, SourceView, Store
 from collector.polite import Pages

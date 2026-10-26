@@ -11,7 +11,7 @@ from collections.abc import Callable, Mapping
 from dataclasses import asdict, replace
 from typing import Any
 
-from listing_text.readers import condition_rules
+from listing_facts.readers import condition_rules
 
 from collector.errors import OutOfTime, SourceUnavailable
 from collector.polite import Pages, origin_of

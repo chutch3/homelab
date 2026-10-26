@@ -8,7 +8,7 @@ dependencies = [
     "sqlalchemy>=2.0,<3",
     "psycopg[binary]>=3.2,<4",
     "alembic>=1.14,<2",
-    "disktracker-listing-text",
+    "disktracker-listing-facts",
     "croniter>=6,<7",
     "dependency-injector>=4.49.1,<5",
 ]
@@ -27,7 +27,7 @@ dev = [
 package = false
 
 [tool.uv.sources]
-disktracker-listing-text = { path = "../listing_text", editable = true }
+disktracker-listing-facts = { path = "../packages/listing_facts", editable = true }
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

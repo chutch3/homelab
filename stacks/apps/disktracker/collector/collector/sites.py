@@ -5,7 +5,7 @@ import re
 from collections.abc import Callable, Mapping
 from typing import Any
 
-from listing_text.readers import ConditionRules
+from listing_facts.readers import ConditionRules
 
 from collector.clock import Clock
 from collector.errors import SourceUnavailable

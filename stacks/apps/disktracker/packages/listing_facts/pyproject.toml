@@ -1,5 +1,5 @@
 [project]
-name = "disktracker-listing-text"
+name = "disktracker-listing-facts"
 version = "0.1.0"
 description = "Reads MPNs, capacities, conditions, makers and specifications from listing text"
 requires-python = ">=3.12"
@@ -19,7 +19,7 @@ dev = [
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-addopts = "--strict-markers --cov=listing_text --cov-report=term-missing --cov-fail-under=90"
+addopts = "--strict-markers --cov=listing_facts --cov-report=term-missing --cov-fail-under=90"
 
 [tool.ruff]
 target-version = "py312"
@@ -30,4 +30,4 @@ strict = true
 files = ["src", "tests"]
 
 [tool.uv.build-backend]
-module-name = "listing_text"
+module-name = "listing_facts"

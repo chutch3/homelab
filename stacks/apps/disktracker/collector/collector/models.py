@@ -5,7 +5,7 @@ from datetime import datetime
 from typing import Any, NamedTuple
 from uuid import UUID
 
-from listing_text.readers import ConditionRules, Specifications
+from listing_facts.readers import ConditionRules, Specifications
 
 from disktracker_api.models import (
     ManualSourceView,

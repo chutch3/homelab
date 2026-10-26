@@ -342,7 +342,7 @@ dependencies = [
     { name = "alembic" },
     { name = "croniter" },
     { name = "dependency-injector" },
-    { name = "disktracker-listing-text" },
+    { name = "disktracker-listing-facts" },
     { name = "fastapi" },
     { name = "psycopg", extra = ["binary"] },
     { name = "sqlalchemy" },
@@ -364,7 +364,7 @@ requires-dist = [
     { name = "alembic", specifier = ">=1.14,<2" },
     { name = "croniter", specifier = ">=6,<7" },
     { name = "dependency-injector", specifier = ">=4.49.1,<5" },
-    { name = "disktracker-listing-text", editable = "../listing_text" },
+    { name = "disktracker-listing-facts", editable = "../packages/listing_facts" },
     { name = "fastapi", specifier = ">=0.115,<1" },
     { name = "psycopg", extras = ["binary"], specifier = ">=3.2,<4" },
     { name = "sqlalchemy", specifier = ">=2.0,<3" },
@@ -382,9 +382,9 @@ dev = [
 ]
 
 [[package]]
-name = "disktracker-listing-text"
+name = "disktracker-listing-facts"
 version = "0.1.0"
-source = { editable = "../listing_text" }
+source = { editable = "../packages/listing_facts" }
 
 [package.metadata]
 

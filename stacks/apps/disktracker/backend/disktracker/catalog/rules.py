@@ -8,7 +8,7 @@ from datetime import datetime
 from decimal import ROUND_HALF_UP, Decimal
 from typing import Any
 
-from listing_text.readers import capacity_in
+from listing_facts.readers import capacity_in
 
 from disktracker.errors import (
     DecisionConflict,

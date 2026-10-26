@@ -3,7 +3,7 @@ import threading
 from collections.abc import Callable
 
 import pytest
-from listing_text.readers import ConditionRules
+from listing_facts.readers import ConditionRules
 
 from collector.errors import DisktrackerUnavailable
 from collector.models import RunSummary, SourceView

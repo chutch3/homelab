@@ -6,7 +6,7 @@ backend's published contract fails here instead of passing silently."""
 from typing import Any
 from uuid import UUID, uuid4
 
-from listing_text.readers import condition_rules
+from listing_facts.readers import condition_rules
 
 from collector.models import SourceView
 from disktracker_api.models import (
