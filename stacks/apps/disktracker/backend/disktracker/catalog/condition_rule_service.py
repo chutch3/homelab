@@ -9,7 +9,7 @@ from listing_text.readers import condition_rules
 
 from disktracker.catalog.condition_rule_repository import ConditionRuleRepository
 from disktracker.catalog.schemas import ConditionRule
-from disktracker.database import Transactions, transactional
+from disktracker.database import Transactions
 
 
 class ConditionRuleService:
@@ -21,9 +21,9 @@ class ConditionRuleService:
         self.transactions = transactions
         self.rules = rules
 
-    @transactional(read_only=True)
     def all(self) -> list[dict[str, Any]]:
-        return self.rules.all()
+        with self.transactions.begin(reads=True):
+            return self.rules.all()
 
     def read_listing(self, text: str) -> dict[str, object]:
         """What pasted listing text says of a drive (MPN, capacity, condition, brand, price),
@@ -31,9 +31,9 @@ class ConditionRuleService:
         conditions = condition_rules((rule["pattern"], rule["condition"]) for rule in self.all())
         return read_listing(text, conditions)._asdict()
 
-    @transactional
     def replace(self, rules: Sequence[ConditionRule]) -> list[dict[str, Any]]:
         """The rules, in the order given, in place of the ones kept before."""
-        kept = [rule.model_dump() for rule in rules]
-        self.rules.replace(kept)
-        return kept
+        with self.transactions.begin():
+            kept = [rule.model_dump() for rule in rules]
+            self.rules.replace(kept)
+            return kept

@@ -9,7 +9,7 @@ from uuid import UUID
 
 from sqlalchemy import and_, extract, func, select, true
 from sqlalchemy.dialects.postgresql import insert as pg_insert
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, scoped_session
 from sqlalchemy.sql import ColumnElement
 
 from disktracker.catalog.drive_repository import DriveRepository
@@ -17,7 +17,6 @@ from disktracker.catalog.models import Drive, MpnAlias, Offer, Price
 from disktracker.catalog.offer_repository import OfferRepository
 from disktracker.catalog.rules import SCALAR_SPECIFICATIONS, UNKNOWN
 from disktracker.catalog.schemas import DriveScope
-from disktracker.database import Repository
 from disktracker.facts import (
     COUNTED,
     escaped,
@@ -68,9 +67,11 @@ class MarketRead:
     page: dict[str, Any]
 
 
-class ReportingRepository(Repository):
-    def __init__(self, offers: OfferRepository, drives: DriveRepository) -> None:
-        self.offers, self.drives = offers, drives
+class ReportingRepository:
+    def __init__(
+        self, session: scoped_session[Session], offers: OfferRepository, drives: DriveRepository
+    ) -> None:
+        self.session, self.offers, self.drives = session, offers, drives
 
     def range_inputs(
         self, drive_id: UUID, since: datetime

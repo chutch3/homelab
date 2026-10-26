@@ -19,7 +19,7 @@ from disktracker.collector.schemas import (
     SourceBase,
 )
 from disktracker.collector.settings import KINDS
-from disktracker.database import Transactions, transactional
+from disktracker.database import Transactions
 
 
 def due_at(source: dict[str, Any], last_started: datetime | None, now: datetime) -> datetime | None:
@@ -78,68 +78,74 @@ class CollectionService:
         ]
         return [source for *_, source in sorted(due, key=lambda entry: entry[:2])]
 
-    @transactional(read_only=True)
     def list_sources(self) -> list[dict[str, Any]]:
-        now = self.clock.now()
-        return [self._view(sourced, now)[0] for sourced in self.repository.sources(by_name=True)]
+        with self.transactions.begin(reads=True):
+            now = self.clock.now()
+            return [
+                self._view(sourced, now)[0] for sourced in self.repository.sources(by_name=True)
+            ]
 
-    @transactional(read_only=True)
     def due_sources(self) -> list[dict[str, Any]]:
-        return self._due(self.repository.sources())
+        with self.transactions.begin(reads=True):
+            return self._due(self.repository.sources())
 
-    @transactional
     def add_source(self, entry: SourceBase) -> dict[str, Any]:
-        values = {"key": source_key(entry.name), **entry.model_dump()}
-        return self._view(self.repository.add_source(values), self.clock.now())[0]
+        with self.transactions.begin():
+            values = {"key": source_key(entry.name), **entry.model_dump()}
+            return self._view(self.repository.add_source(values), self.clock.now())[0]
 
-    @transactional
     def update_source(self, source_id: UUID, entry: SourceBase) -> dict[str, Any]:
-        updated = self.repository.update_source(source_id, entry.model_dump())
-        return self._view(updated, self.clock.now())[0]
+        with self.transactions.begin():
+            updated = self.repository.update_source(source_id, entry.model_dump())
+            return self._view(updated, self.clock.now())[0]
 
-    @transactional
     def request_run(self, source_id: UUID) -> dict[str, Any]:
-        updated = self.repository.update_source(source_id, {"run_requested_at": self.clock.now()})
-        return self._view(updated, self.clock.now())[0]
+        with self.transactions.begin():
+            updated = self.repository.update_source(
+                source_id, {"run_requested_at": self.clock.now()}
+            )
+            return self._view(updated, self.clock.now())[0]
 
-    @transactional
     def request_stop(self, source_id: UUID) -> dict[str, Any]:
         """Ask the source's run in progress to stop; it is told the next time it says how far
         it has got. A run that starts later is not stopped by it."""
-        updated = self.repository.update_source(source_id, {"stop_requested_at": self.clock.now()})
-        return self._view(updated, self.clock.now())[0]
+        with self.transactions.begin():
+            updated = self.repository.update_source(
+                source_id, {"stop_requested_at": self.clock.now()}
+            )
+            return self._view(updated, self.clock.now())[0]
 
-    @transactional
     def delete_source(self, source_id: UUID) -> None:
         """Delete a source nothing is recorded under, with its runs and what it was told about
         scraped offers. One with offers, or queued offers, is kept, and so is Other."""
-        self.repository.delete_source(source_id)
+        with self.transactions.begin():
+            self.repository.delete_source(source_id)
 
-    @transactional
     def start_run(self, start: RunStart) -> tuple[dict[str, Any], bool]:
-        return self.repository.start_run(start.model_dump(), self.clock.now())
+        with self.transactions.begin():
+            return self.repository.start_run(start.model_dump(), self.clock.now())
 
-    @transactional
     def update_run(self, run_id: UUID, update: RunUpdate) -> dict[str, Any]:
-        return self.repository.update_run(run_id, update.model_dump(), self.clock.now())
+        with self.transactions.begin():
+            return self.repository.update_run(run_id, update.model_dump(), self.clock.now())
 
-    @transactional
     def heartbeat(self, beat: Heartbeat) -> dict[str, Any]:
-        now = self.clock.now()
-        self.repository.heartbeat(beat.runs, now)
-        return {"seen_at": now}
+        with self.transactions.begin():
+            now = self.clock.now()
+            self.repository.heartbeat(beat.runs, now)
+            return {"seen_at": now}
 
-    @transactional(read_only=True)
     def runs(self, query: RunQuery) -> list[dict[str, Any]]:
-        return self.repository.runs(
-            query.source, query.status, query.finished_since, query.latest_per_source
-        )
+        with self.transactions.begin(reads=True):
+            return self.repository.runs(
+                query.source, query.status, query.finished_since, query.latest_per_source
+            )
 
-    @transactional(read_only=True)
     def collector_status(self) -> dict[str, Any]:
         """When a collector was last heard from, the runs in progress, and the sources waiting
         to run, in the order they will."""
-        seen, running, sources = self.repository.collector_status()
-        busy = {run["source"] for run in running}
-        waiting = [source["key"] for source in self._due(sources) if source["key"] not in busy]
-        return {"seen_at": seen, "running": running, "waiting": waiting}
+        with self.transactions.begin(reads=True):
+            seen, running, sources = self.repository.collector_status()
+            busy = {run["source"] for run in running}
+            waiting = [source["key"] for source in self._due(sources) if source["key"] not in busy]
+            return {"seen_at": seen, "running": running, "waiting": waiting}

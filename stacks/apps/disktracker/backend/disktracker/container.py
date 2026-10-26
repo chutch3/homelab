@@ -39,33 +39,39 @@ class Container(containers.DeclarativeContainer):
     # database_url; collector_url, where the collector's API is (None: no collector to ask);
     # static_dir, the built frontend to serve (None: the API alone). Read by create_app.
     config = providers.Configuration()
-    clock = providers.Singleton(Clock)
+    # One of each for the application: none keeps anything of a request, the transaction each
+    # thread is in being the session registry's. Thread safe, as synchronous routes run on
+    # several threads.
+    clock = providers.ThreadSafeSingleton(Clock)
 
-    # One for the application: the engine and its pool. Disposed as the application stops;
-    # thread safe, as synchronous routes run on several threads.
+    # The engine and its pool, disposed as the application stops.
     database = providers.ThreadSafeSingleton(Database, url=config.database_url)
-    transactions = providers.Factory(Transactions, database=database)
+    sessions = database.provided.sessions
+    transactions = providers.ThreadSafeSingleton(Transactions, sessions=sessions)
 
-    drive_repository = providers.Factory(DriveRepository)
-    offer_repository = providers.Factory(OfferRepository, clock=clock)
-    review_repository = providers.Factory(ReviewRepository)
-    condition_rule_repository = providers.Factory(ConditionRuleRepository)
-    collection_repository = providers.Factory(CollectionRepository)
-    reporting_repository = providers.Factory(
+    drive_repository = providers.ThreadSafeSingleton(DriveRepository, session=sessions)
+    offer_repository = providers.ThreadSafeSingleton(OfferRepository, session=sessions, clock=clock)
+    review_repository = providers.ThreadSafeSingleton(ReviewRepository, session=sessions)
+    condition_rule_repository = providers.ThreadSafeSingleton(
+        ConditionRuleRepository, session=sessions
+    )
+    collection_repository = providers.ThreadSafeSingleton(CollectionRepository, session=sessions)
+    reporting_repository = providers.ThreadSafeSingleton(
         ReportingRepository,
+        session=sessions,
         offers=offer_repository,
         drives=drive_repository,
     )
 
-    collector_client = providers.Singleton(CollectorClient, url=config.collector_url)
+    collector_client = providers.ThreadSafeSingleton(CollectorClient, url=config.collector_url)
 
-    price_service = providers.Factory(
+    price_service = providers.ThreadSafeSingleton(
         PriceService,
         transactions=transactions,
         drives=drive_repository,
         offers=offer_repository,
     )
-    ingestion_service = providers.Factory(
+    ingestion_service = providers.ThreadSafeSingleton(
         IngestionService,
         transactions=transactions,
         drives=drive_repository,
@@ -73,42 +79,42 @@ class Container(containers.DeclarativeContainer):
         reviews=review_repository,
         clock=clock,
     )
-    review_service = providers.Factory(
+    review_service = providers.ThreadSafeSingleton(
         ReviewService,
         transactions=transactions,
         drives=drive_repository,
         offers=offer_repository,
         reviews=review_repository,
     )
-    drive_service = providers.Factory(
+    drive_service = providers.ThreadSafeSingleton(
         DriveService,
         transactions=transactions,
         drives=drive_repository,
         offers=offer_repository,
         reviews=review_repository,
     )
-    offer_service = providers.Factory(
+    offer_service = providers.ThreadSafeSingleton(
         OfferService,
         transactions=transactions,
         offers=offer_repository,
     )
-    condition_rule_service = providers.Factory(
+    condition_rule_service = providers.ThreadSafeSingleton(
         ConditionRuleService,
         transactions=transactions,
         rules=condition_rule_repository,
     )
-    collection_service = providers.Factory(
+    collection_service = providers.ThreadSafeSingleton(
         CollectionService,
         transactions=transactions,
         repository=collection_repository,
         clock=clock,
     )
-    preview_service = providers.Factory(
+    preview_service = providers.ThreadSafeSingleton(
         PreviewService,
         rules=condition_rule_service,
         ingestion=ingestion_service,
         collector=collector_client,
     )
-    reporting_service = providers.Factory(
+    reporting_service = providers.ThreadSafeSingleton(
         ReportingService, transactions=transactions, repository=reporting_repository, clock=clock
     )

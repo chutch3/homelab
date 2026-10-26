@@ -12,16 +12,21 @@ from disktracker.errors import CapacityConflict, CapacityRequired
 
 
 @pytest.fixture
-def transaction(database_url: str) -> Iterator[None]:
-    database = Database(database_url)
-    with Transactions(database).begin():
-        yield
-    database.dispose()
+def database(database_url: str) -> Iterator[Database]:
+    opened = Database(database_url)
+    yield opened
+    opened.dispose()
 
 
 @pytest.fixture
-def drives() -> DriveRepository:
-    return DriveRepository()
+def transaction(database: Database) -> Iterator[None]:
+    with Transactions(database.sessions).begin():
+        yield
+
+
+@pytest.fixture
+def drives(database: Database) -> DriveRepository:
+    return DriveRepository(database.sessions)
 
 
 def test_a_drive_is_registered_once_under_its_own_capacity(

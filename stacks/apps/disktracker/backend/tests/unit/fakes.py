@@ -25,13 +25,13 @@ class FakeTransactions(Transactions):
         self.ended: list[str] = []
 
     @contextmanager
-    def begin(self, read_only: bool = False) -> Iterator[None]:
+    def begin(self, reads: bool = False) -> Iterator[None]:
         try:
             yield
         except Exception:
             self.ended.append("undone")
             raise
-        self.ended.append("read" if read_only else "kept")
+        self.ended.append("read" if reads else "kept")
 
     @property
     def committed(self) -> bool:

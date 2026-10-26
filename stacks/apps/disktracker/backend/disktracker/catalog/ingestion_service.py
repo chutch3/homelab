@@ -18,7 +18,7 @@ from disktracker.catalog.rules import as_decided, normalize_mpn, queued_fields
 from disktracker.catalog.schemas import IngestionInput
 from disktracker.catalog.verdict import Known, Seen, Verdict, judged
 from disktracker.clock import Clock
-from disktracker.database import Transactions, transactional
+from disktracker.database import Transactions
 
 
 class CollectedPage(BaseModel):
@@ -53,29 +53,29 @@ class IngestionService:
         self.clock = clock
         self.drives, self.offers, self.reviews = drives, offers, reviews
 
-    @transactional
     def ingest(self, entry: IngestionInput, request_id: UUID) -> dict[str, Any]:
         """Record, queue or ignore one observation of a store page as collected. A save key used
         before is answered as it was, and refused for another submission."""
-        replay = self.offers.claim(request_id, fingerprint("ingestion", entry))
-        if replay is not None:
-            return replay
-        result = self._take(entry, observation(entry, collected=True))
-        self.offers.answer(request_id, result)
-        return result
+        with self.transactions.begin():
+            replay = self.offers.claim(request_id, fingerprint("ingestion", entry))
+            if replay is not None:
+                return replay
+            result = self._take(entry, observation(entry, collected=True))
+            self.offers.answer(request_id, result)
+            return result
 
-    @transactional(read_only=True)
     def foresee(self, store: str, page: CollectedPage) -> Verdict:
         """What taking in a page as collected would make of it now, as ingest would; nothing is
         kept."""
-        mpn = normalize_mpn(page.mpn) if page.mpn else None
-        aliases = [normalize_mpn(alias) for alias in page.aliases]
-        listing = Listing.of(store, page.url, page.seller, mpn, page.condition)
-        seen = Seen(page.title, page.capacity_gb, tuple(aliases), page.in_stock)
-        decided = self.reviews.decision_for(listing)
-        identity = as_decided(_said(listing), decided)
-        known = self._known(identity, aliases, hold=False)
-        return judged(seen, identity, decided, known)
+        with self.transactions.begin(reads=True):
+            mpn = normalize_mpn(page.mpn) if page.mpn else None
+            aliases = [normalize_mpn(alias) for alias in page.aliases]
+            listing = Listing.of(store, page.url, page.seller, mpn, page.condition)
+            seen = Seen(page.title, page.capacity_gb, tuple(aliases), page.in_stock)
+            decided = self.reviews.decision_for(listing)
+            identity = as_decided(_said(listing), decided)
+            known = self._known(identity, aliases, hold=False)
+            return judged(seen, identity, decided, known)
 
     def _known(
         self,

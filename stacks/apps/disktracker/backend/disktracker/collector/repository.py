@@ -8,7 +8,7 @@ from uuid import UUID
 from sqlalchemy import delete, func, select, update
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.exc import IntegrityError
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, scoped_session
 from sqlalchemy.sql import Select
 
 from disktracker.collector.lifecycle import RESTARTED, SUPERSEDED, abandoned, applies, same_start
@@ -18,7 +18,7 @@ from disktracker.collector.models import (
     CollectorRun,
     Source,
 )
-from disktracker.database import Repository, columns
+from disktracker.database import columns
 from disktracker.errors import (
     RunNotFound,
     SourceExists,
@@ -42,7 +42,10 @@ def run_view(run: dict[str, Any], stop_requested_at: datetime | None) -> dict[st
     return {**run, "id": str(run["id"]), "stop_requested": asked}
 
 
-class CollectionRepository(Repository):
+class CollectionRepository:
+    def __init__(self, session: scoped_session[Session]) -> None:
+        self.session = session
+
     def sources(self, by_name: bool = False) -> list[Sourced]:
         """Every source, by name when asked, each with when its last run started."""
         chosen = select(Source).order_by(Source.name) if by_name else select(Source)

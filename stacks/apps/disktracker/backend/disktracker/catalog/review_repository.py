@@ -6,10 +6,11 @@ from uuid import UUID
 
 from sqlalchemy import delete, func, literal_column, select, update
 from sqlalchemy.dialects.postgresql import insert as pg_insert
+from sqlalchemy.orm import Session, scoped_session
 
 from disktracker.catalog.models import Drive, ReviewDecision, ReviewItem, ScrapedMatch
 from disktracker.catalog.rules import decided_again
-from disktracker.database import Repository, by_column, columns
+from disktracker.database import by_column, columns
 from disktracker.errors import ReviewItemNotFound
 
 
@@ -39,7 +40,10 @@ def listing_of(item: dict[str, Any]) -> Listing:
     return Listing.of(item["store"], item["url"], item["seller"], item["mpn"], item["condition"])
 
 
-class ReviewRepository(Repository):
+class ReviewRepository:
+    def __init__(self, session: scoped_session[Session]) -> None:
+        self.session = session
+
     def waiting(
         self,
         store: str | None,

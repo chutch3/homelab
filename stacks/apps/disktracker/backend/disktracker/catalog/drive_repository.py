@@ -6,13 +6,13 @@ from uuid import UUID
 
 from sqlalchemy import delete, func, or_, select, union, update
 from sqlalchemy.dialects.postgresql import insert as pg_insert
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, scoped_session
 
 from disktracker.catalog.models import Drive, MpnAlias
 from disktracker.catalog.rules import capacity_label, fill_unknown
 from disktracker.catalog.schemas import Specifications
 from disktracker.catalog.views import drive_view
-from disktracker.database import Repository, columns
+from disktracker.database import columns
 from disktracker.errors import CapacityConflict, CapacityRequired, DriveNotFound, MpnTaken
 from disktracker.facts import escaped, every_offer_facts
 
@@ -23,7 +23,10 @@ def hold_mpn(session: Session, mpn: str) -> None:
     session.execute(select(func.pg_advisory_xact_lock(func.hashtextextended(f"mpn:{mpn}", 0))))
 
 
-class DriveRepository(Repository):
+class DriveRepository:
+    def __init__(self, session: scoped_session[Session]) -> None:
+        self.session = session
+
     def create(
         self,
         *,

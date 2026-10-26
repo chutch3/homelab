@@ -11,7 +11,7 @@ from uuid import UUID
 from disktracker.catalog.drive_repository import DriveRepository
 from disktracker.catalog.offer_repository import OfferRepository
 from disktracker.catalog.schemas import ObservationInput, PriceInput
-from disktracker.database import Transactions, transactional
+from disktracker.database import Transactions
 from disktracker.errors import DriveNotFound
 
 
@@ -44,31 +44,31 @@ class PriceService:
     ) -> None:
         self.transactions, self.drives, self.offers = transactions, drives, offers
 
-    @transactional
     def record(self, entry: PriceInput, request_id: UUID) -> dict[str, Any]:
         """A price for the offer named, or of the drive named at that store, from that seller,
         in that condition. A save key used before is answered as it was, and refused for another
         submission. It touches no MPN: the drive, then its offer, are held (the catalog-wide lock
         order)."""
-        replay = self.offers.claim(request_id, fingerprint("price", entry))
-        if replay is not None:
-            return replay
-        if entry.offer_id is not None:
-            offer_id = entry.offer_id
-            self.offers.lock(offer_id)
-        else:
-            # Validated: an offer not named is placed (catalog.schemas.PriceInput).
-            assert entry.drive_id and entry.store and entry.condition
-            if not self.drives.lock_drives([entry.drive_id]):
-                raise DriveNotFound()
-            offer_id = self.offers.offer_for(
-                drive_id=entry.drive_id, store=entry.store, seller=entry.seller,
-                condition=entry.condition, title=entry.title,
-                url=None if entry.url is None else str(entry.url),
-            )  # fmt: skip
-        collected = entry.provenance == "collected"
-        price = observation(entry, collected)
-        price_id = self.offers.record(offer_id, price, entry.provenance)
-        result = recorded(offer_id, price_id)
-        self.offers.answer(request_id, result)
-        return result
+        with self.transactions.begin():
+            replay = self.offers.claim(request_id, fingerprint("price", entry))
+            if replay is not None:
+                return replay
+            if entry.offer_id is not None:
+                offer_id = entry.offer_id
+                self.offers.lock(offer_id)
+            else:
+                # Validated: an offer not named is placed (catalog.schemas.PriceInput).
+                assert entry.drive_id and entry.store and entry.condition
+                if not self.drives.lock_drives([entry.drive_id]):
+                    raise DriveNotFound()
+                offer_id = self.offers.offer_for(
+                    drive_id=entry.drive_id, store=entry.store, seller=entry.seller,
+                    condition=entry.condition, title=entry.title,
+                    url=None if entry.url is None else str(entry.url),
+                )  # fmt: skip
+            collected = entry.provenance == "collected"
+            price = observation(entry, collected)
+            price_id = self.offers.record(offer_id, price, entry.provenance)
+            result = recorded(offer_id, price_id)
+            self.offers.answer(request_id, result)
+            return result

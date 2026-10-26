@@ -12,6 +12,7 @@ from uuid import UUID
 
 from sqlalchemy import delete, func, select, update
 from sqlalchemy.dialects.postgresql import insert as pg_insert
+from sqlalchemy.orm import Session, scoped_session
 from sqlalchemy.sql import Select
 
 from disktracker.catalog.models import Drive, MpnAlias, Offer, Price, Receipt
@@ -19,16 +20,16 @@ from disktracker.catalog.rules import combined_offer, replayed, unchanged, with_
 from disktracker.catalog.views import price_view, summary_view
 from disktracker.clock import Clock
 from disktracker.collector.models import Source
-from disktracker.database import Repository, columns
+from disktracker.database import columns
 from disktracker.errors import OfferNotFound, UnknownStore
 from disktracker.facts import LATEST_FIRST
 
 OFFER_IDENTITY = (Offer.drive_id, Offer.store, Offer.seller, Offer.condition)
 
 
-class OfferRepository(Repository):
-    def __init__(self, clock: Clock) -> None:
-        self.clock = clock
+class OfferRepository:
+    def __init__(self, session: scoped_session[Session], clock: Clock) -> None:
+        self.session, self.clock = session, clock
 
     def offer_for(
         self,
