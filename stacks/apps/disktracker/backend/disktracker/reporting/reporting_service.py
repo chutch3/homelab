@@ -9,7 +9,7 @@ from disktracker.catalog.schemas import DriveScope
 from disktracker.clock import Clock
 from disktracker.database import Transactions
 from disktracker.reporting.ranges import price_range
-from disktracker.reporting.repository import ReportingRepository
+from disktracker.reporting.reporting_repository import ReportingRepository
 from disktracker.reporting.schemas import InventoryQuery, MarketQuery, PriceRangeQuery
 from disktracker.reporting.today import marks
 from disktracker.reporting.trends import By, trends

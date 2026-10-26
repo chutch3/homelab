@@ -9,8 +9,8 @@ from zoneinfo import ZoneInfo
 import pytest
 
 from disktracker.catalog.schemas import DriveScope
-from disktracker.reporting.repository import Changes, Kept, ReportingRepository
-from disktracker.reporting.service import ReportingService
+from disktracker.reporting.reporting_repository import Changes, Kept, ReportingRepository
+from disktracker.reporting.reporting_service import ReportingService
 from tests.unit.fakes import FakeTransactions, FixedClock
 
 NOW = datetime(2026, 9, 22, 12, tzinfo=UTC)

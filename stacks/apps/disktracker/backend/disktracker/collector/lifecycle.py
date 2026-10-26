@@ -1,5 +1,5 @@
 """How a collection run's life goes, decided apart from how runs are kept
-(collector.repository): whether a start sent again is the run already registered, whether an
+(collector.run_repository): whether a start sent again is the run already registered, whether an
 update applies to a run that may have ended, and how a run its collector no longer has ends."""
 
 from collections.abc import Mapping

@@ -7,6 +7,7 @@ from fastapi import APIRouter, Depends, Query
 
 from disktracker.catalog.schemas import Condition, OfferSummary
 from disktracker.container import Container
+from disktracker.reporting.reporting_service import ReportingService
 from disktracker.reporting.schemas import (
     Inventory,
     InventoryQuery,
@@ -21,7 +22,6 @@ from disktracker.reporting.schemas import (
     TrendQuery,
     Trends,
 )
-from disktracker.reporting.service import ReportingService
 
 router = APIRouter(prefix="/api")
 

@@ -17,11 +17,13 @@ from disktracker.catalog.review_service import ReviewService
 from disktracker.clock import Clock
 from disktracker.collector.client import CollectorClient
 from disktracker.collector.preview_service import PreviewService
-from disktracker.collector.repository import CollectionRepository
-from disktracker.collector.service import CollectionService
+from disktracker.collector.run_repository import RunRepository
+from disktracker.collector.run_service import RunService
+from disktracker.collector.source_repository import SourceRepository
+from disktracker.collector.source_service import SourceService
 from disktracker.database import Database, Transactions
-from disktracker.reporting.repository import ReportingRepository
-from disktracker.reporting.service import ReportingService
+from disktracker.reporting.reporting_repository import ReportingRepository
+from disktracker.reporting.reporting_service import ReportingService
 
 
 class Container(containers.DeclarativeContainer):
@@ -55,7 +57,8 @@ class Container(containers.DeclarativeContainer):
     condition_rule_repository = providers.ThreadSafeSingleton(
         ConditionRuleRepository, session=sessions
     )
-    collection_repository = providers.ThreadSafeSingleton(CollectionRepository, session=sessions)
+    source_repository = providers.ThreadSafeSingleton(SourceRepository, session=sessions)
+    run_repository = providers.ThreadSafeSingleton(RunRepository, session=sessions)
     reporting_repository = providers.ThreadSafeSingleton(
         ReportingRepository,
         session=sessions,
@@ -103,10 +106,17 @@ class Container(containers.DeclarativeContainer):
         transactions=transactions,
         rules=condition_rule_repository,
     )
-    collection_service = providers.ThreadSafeSingleton(
-        CollectionService,
+    source_service = providers.ThreadSafeSingleton(
+        SourceService,
         transactions=transactions,
-        repository=collection_repository,
+        sources=source_repository,
+        clock=clock,
+    )
+    run_service = providers.ThreadSafeSingleton(
+        RunService,
+        transactions=transactions,
+        runs=run_repository,
+        sources=source_repository,
         clock=clock,
     )
     preview_service = providers.ThreadSafeSingleton(

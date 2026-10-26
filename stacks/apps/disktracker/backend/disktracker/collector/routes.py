@@ -8,6 +8,7 @@ from dependency_injector.wiring import Provide, inject
 from fastapi import APIRouter, Depends, Query, Response
 
 from disktracker.collector.preview_service import PreviewService
+from disktracker.collector.run_service import RunService
 from disktracker.collector.schemas import (
     CollectorStatus,
     Heartbeat,
@@ -25,15 +26,16 @@ from disktracker.collector.schemas import (
     SourceQuery,
     SourceView,
 )
-from disktracker.collector.service import CollectionService
 from disktracker.collector.settings import KINDS
+from disktracker.collector.source_service import SourceService
 from disktracker.container import Container
 from disktracker.http_errors import ErrorResponse
 
 router = APIRouter(prefix="/api")
 
 
-Collection = Annotated[CollectionService, Depends(Provide[Container.collection_service])]
+Sources = Annotated[SourceService, Depends(Provide[Container.source_service])]
+Runs = Annotated[RunService, Depends(Provide[Container.run_service])]
 Previews = Annotated[PreviewService, Depends(Provide[Container.preview_service])]
 
 
@@ -44,12 +46,10 @@ Previews = Annotated[PreviewService, Depends(Provide[Container.preview_service])
     summary="List configured or due sources",
 )
 @inject
-def list_sources(
-    collection: Collection, query: Annotated[SourceQuery, Query()]
-) -> list[dict[str, Any]]:
+def list_sources(sources: Sources, query: Annotated[SourceQuery, Query()]) -> list[dict[str, Any]]:
     """Every source by name; with due, only those due to run now, in the order to run them.
     Reading changes nothing."""
-    return collection.due_sources() if query.due else collection.list_sources()
+    return sources.due() if query.due else sources.listed()
 
 
 @router.post(
@@ -61,10 +61,10 @@ def list_sources(
     responses={404: {"model": ErrorResponse, "description": "Source not found"}},
 )
 @inject
-def request_source_stop(collection: Collection, source_id: UUID) -> dict[str, Any]:
+def request_source_stop(sources: Sources, source_id: UUID) -> dict[str, Any]:
     """Request cooperative cancellation. A 202 response acknowledges the request; the collector
     stops when it next reports progress and sees stop_requested."""
-    return collection.request_stop(source_id)
+    return sources.request_stop(source_id)
 
 
 @router.post(
@@ -76,10 +76,10 @@ def request_source_stop(collection: Collection, source_id: UUID) -> dict[str, An
     responses={404: {"model": ErrorResponse, "description": "Source not found"}},
 )
 @inject
-def request_source_run(collection: Collection, source_id: UUID) -> dict[str, Any]:
+def request_source_run(sources: Sources, source_id: UUID) -> dict[str, Any]:
     """Make the source due now until a collector registers its run. A 202 response acknowledges
     scheduling; collection has not necessarily started."""
-    return collection.request_run(source_id)
+    return sources.request_run(source_id)
 
 
 @router.get(
@@ -105,11 +105,11 @@ def list_source_kinds() -> list[dict[str, Any]]:
     },
 )
 @inject
-def add_source(collection: Collection, entry: SourceInput) -> dict[str, Any]:
+def add_source(sources: Sources, entry: SourceInput) -> dict[str, Any]:
     """Create a store configuration. Its stable string key is derived from its name; prices and
     runs use that key, while source-management paths use its UUID. GET /api/source-kinds
     describes accepted kinds and settings."""
-    return collection.add_source(entry)
+    return sources.add(entry)
 
 
 @router.put(
@@ -123,10 +123,10 @@ def add_source(collection: Collection, entry: SourceInput) -> dict[str, Any]:
     },
 )
 @inject
-def update_source(collection: Collection, source_id: UUID, entry: SourceInput) -> dict[str, Any]:
+def update_source(sources: Sources, source_id: UUID, entry: SourceInput) -> dict[str, Any]:
     """Replace the source configuration; omitted optional fields take their defaults. Renaming
     preserves the source key used by prices and runs."""
-    return collection.update_source(source_id, entry)
+    return sources.update(source_id, entry)
 
 
 @router.delete(
@@ -143,10 +143,10 @@ def update_source(collection: Collection, source_id: UUID, entry: SourceInput) -
     },
 )
 @inject
-def delete_source(collection: Collection, source_id: UUID) -> None:
+def delete_source(sources: Sources, source_id: UUID) -> None:
     """Delete a source with no offers or review items, along with its runs and review decisions.
     The reserved Other source cannot be deleted. Disable a source that still has offers."""
-    collection.delete_source(source_id)
+    sources.delete(source_id)
 
 
 @router.post(
@@ -190,11 +190,11 @@ def inspect_link(previews: Previews, entry: SourceInspectionInput) -> dict[str, 
     summary="Register a collection run",
 )
 @inject
-def start_run(collection: Collection, start: RunStart, response: Response) -> dict[str, Any]:
+def start_run(runs: Runs, start: RunStart, response: Response) -> dict[str, Any]:
     """Register a run as it starts, under the id the collector chose: the same start sent again
     is answered with the run (200), and another under its id is refused (409). A run of the
     source still marked running is abandoned."""
-    run, created = collection.start_run(start)
+    run, created = runs.start(start)
     if not created:
         response.status_code = 200
     return run
@@ -214,11 +214,11 @@ def start_run(collection: Collection, start: RunStart, response: Response) -> di
     },
 )
 @inject
-def update_run(collection: Collection, run_id: UUID, update: RunUpdate) -> dict[str, Any]:
+def update_run(runs: Runs, run_id: UUID, update: RunUpdate) -> dict[str, Any]:
     """How far a run has got, or how it ended. The answer's stop_requested says whether it
     should end here. A run that has ended stays as it ended: the same end again is answered as
     before, and anything else is refused (409)."""
-    return collection.update_run(run_id, update)
+    return runs.update(run_id, update)
 
 
 @router.get(
@@ -228,11 +228,11 @@ def update_run(collection: Collection, run_id: UUID, update: RunUpdate) -> dict[
     summary="List collection runs",
 )
 @inject
-def list_runs(collection: Collection, query: Annotated[RunQuery, Query()]) -> list[dict[str, Any]]:
+def list_runs(runs: Runs, query: Annotated[RunQuery, Query()]) -> list[dict[str, Any]]:
     """Return runs oldest first, filtered by source key, status and finished_since. With
     latest_per_source=true, return the latest matching run of each source, ordered by source
     key. This list is not paginated."""
-    return collection.runs(query)
+    return runs.listed(query)
 
 
 @router.put(
@@ -242,10 +242,10 @@ def list_runs(collection: Collection, query: Annotated[RunQuery, Query()]) -> li
     summary="Report the collector heartbeat and owned runs",
 )
 @inject
-def heartbeat(collection: Collection, beat: Heartbeat) -> dict[str, Any]:
+def heartbeat(runs: Runs, beat: Heartbeat) -> dict[str, Any]:
     """The collector is alive, whether it has runs or not: it names the runs it has, and any
     other still marked running is abandoned."""
-    return collection.heartbeat(beat)
+    return runs.heartbeat(beat)
 
 
 @router.get(
@@ -255,7 +255,7 @@ def heartbeat(collection: Collection, beat: Heartbeat) -> dict[str, Any]:
     summary="Get collector activity and waiting sources",
 )
 @inject
-def collector_status(collection: Collection) -> dict[str, Any]:
+def collector_status(runs: Runs) -> dict[str, Any]:
     """Return the last heartbeat, active runs and source keys waiting to run in scheduling order.
     seen_at is null when the collector has never been heard from."""
-    return collection.collector_status()
+    return runs.collector_status()

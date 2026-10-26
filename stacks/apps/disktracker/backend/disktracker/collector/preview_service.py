@@ -9,7 +9,7 @@ from disktracker.catalog.ingestion_service import CollectedPage, IngestionServic
 from disktracker.catalog.verdict import Verdict
 from disktracker.collector.client import CollectorClient
 from disktracker.collector.schemas import PagePreview, SourceInspectionInput
-from disktracker.collector.service import source_key
+from disktracker.collector.source_service import source_key
 
 OUTCOMES = {"recorded": "recorded", "queued": "review", "ignored": "ignored"}
 

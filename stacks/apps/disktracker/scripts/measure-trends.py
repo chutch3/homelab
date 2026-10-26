@@ -19,7 +19,7 @@ from sqlalchemy import create_engine, text
 from sqlalchemy.orm import Session
 
 from disktracker.catalog.schemas import DriveScope
-from disktracker.reporting.repository import _price_changes
+from disktracker.reporting.reporting_repository import _price_changes
 from disktracker.reporting.trends import trends
 
 RUNS = int(os.environ.get("RUNS", "3"))

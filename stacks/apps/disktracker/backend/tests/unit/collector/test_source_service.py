@@ -1,6 +1,7 @@
-"""What the collection service decides: when a source is due and in what order, and how a source
-is shown. Its repository is its own port, stood in for by a fake. Trying a source is the preview
-service's (test_preview_service.py)."""
+"""What the source service decides: when a source is due and in what order, and how a source is
+shown. Its repository is its own port, stood in for by a fake. Trying a source is the preview
+service's (test_preview_service.py); what is waiting to run, the run service's
+(test_run_service.py)."""
 
 from datetime import UTC, datetime, timedelta
 from typing import Any, cast
@@ -8,9 +9,9 @@ from uuid import UUID
 
 import pytest
 
-from disktracker.collector.repository import CollectionRepository, Sourced
 from disktracker.collector.schemas import ShopifySourceInput
-from disktracker.collector.service import CollectionService, due_at, source_key
+from disktracker.collector.source_repository import Sourced, SourceRepository
+from disktracker.collector.source_service import SourceService, due_at, source_key
 from tests.unit.fakes import FakeTransactions, FixedClock
 
 NOW = datetime(2026, 9, 22, 12, tzinfo=UTC)
@@ -71,18 +72,17 @@ class TestDueAt:
         )
 
 
-class FakeRepository:
+class FakeSources:
     """Holds the sources it is given, each with when its last run started."""
 
     def __init__(self, *sources: Sourced) -> None:
         self.kept = list(sources)
-        self.running: list[dict[str, Any]] = []
         self.added: list[dict[str, Any]] = []
 
-    def sources(self, by_name: bool = False) -> list[Sourced]:
+    def all(self, by_name: bool = False) -> list[Sourced]:
         return sorted(self.kept, key=lambda s: s[0]["name"]) if by_name else self.kept
 
-    def add_source(self, values: dict[str, Any]) -> Sourced:
+    def add(self, values: dict[str, Any]) -> Sourced:
         self.added.append(values)
         return {
             "id": UUID(int=7),
@@ -91,14 +91,9 @@ class FakeRepository:
             "stop_requested_at": None,
         }, None
 
-    def collector_status(self) -> tuple[datetime | None, list[dict[str, Any]], list[Sourced]]:
-        return None, self.running, self.kept
 
-
-def service(repository: FakeRepository) -> CollectionService:
-    return CollectionService(
-        FakeTransactions(), cast(CollectionRepository, repository), clock=FixedClock(NOW)
-    )
+def service(sources: FakeSources) -> SourceService:
+    return SourceService(FakeTransactions(), cast(SourceRepository, sources), clock=FixedClock(NOW))
 
 
 class TestDue:
@@ -106,7 +101,7 @@ class TestDue:
         self,
     ) -> None:
         ran = NOW - timedelta(hours=1)
-        repository = FakeRepository(
+        sources = FakeSources(
             (kept("Due Today"), NOW - timedelta(days=1)),
             (kept("Asked Second", run_requested_at=NOW - timedelta(minutes=1)), ran),
             (kept("Overdue"), NOW - timedelta(days=3)),
@@ -114,26 +109,20 @@ class TestDue:
             (kept("Never Run"), None),
         )
 
-        due = service(repository).due_sources()
+        due = service(sources).due()
 
         assert [source["name"] for source in due] == [
             "Asked First", "Asked Second", "Overdue", "Due Today", "Never Run",
         ]  # fmt: skip
 
     def test_a_source_not_yet_due_or_never_due_is_left_out(self) -> None:
-        repository = FakeRepository(
+        sources = FakeSources(
             (kept("Ran Today"), NOW - timedelta(hours=1)),
             (kept("Off", enabled=False), None),
             (kept("By Hand", kind="manual"), None),
         )
 
-        assert service(repository).due_sources() == []
-
-    def test_what_is_waiting_leaves_out_sources_already_running(self) -> None:
-        repository = FakeRepository((kept("Busy"), None), (kept("Idle"), None))
-        repository.running = [{"source": "busy"}]
-
-        assert service(repository).collector_status()["waiting"] == ["idle"]
+        assert service(sources).due() == []
 
 
 class TestSourcesShown:
@@ -141,11 +130,11 @@ class TestSourcesShown:
         self,
     ) -> None:
         asked = NOW - timedelta(minutes=5)
-        repository = FakeRepository(
+        sources = FakeSources(
             (kept("Off", enabled=False, run_requested_at=asked, stop_requested_at=asked), NOW)
         )
 
-        [shown] = service(repository).list_sources()
+        [shown] = service(sources).listed()
 
         assert shown == {
             **{k: v for k, v in kept("Off", enabled=False).items()
@@ -156,22 +145,22 @@ class TestSourcesShown:
 
     def test_a_source_is_shown_without_settings_its_kind_has_since_dropped(self) -> None:
         saved = {"collections": ["all"], "placeholder_price": "100.00"}
-        repository = FakeRepository((kept("Old", settings=saved), None))
+        sources = FakeSources((kept("Old", settings=saved), None))
 
-        [shown] = service(repository).list_sources()
+        [shown] = service(sources).listed()
 
         assert shown["settings"] == {"collections": ["all"]}
 
     def test_a_new_source_is_kept_under_a_key_made_from_its_name(self) -> None:
-        repository = FakeRepository()
+        sources = FakeSources()
         entry = ShopifySourceInput.model_validate(
             {"name": "Server Orbit!", "kind": "shopify", "base_url": "https://orbit.test",
              "settings": {"collections": ["all"]}}
         )  # fmt: skip
 
-        added = service(repository).add_source(entry)
+        added = service(sources).add(entry)
 
-        [values] = repository.added
+        [values] = sources.added
         assert values["key"] == "serverorbit"
         assert added["next_run_at"] == NOW
 
