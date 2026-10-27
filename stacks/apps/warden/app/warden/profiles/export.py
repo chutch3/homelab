@@ -4,7 +4,8 @@ from collections.abc import Sequence
 from typing import Any, Literal
 from urllib.parse import quote
 
-from warden.profiles.catalog import Document, validate_references
+from warden.profiles.models import ProfileDocument
+from warden.profiles.validation import validate_references
 
 
 def _require_boolean(value: Any, field: str) -> None:
@@ -20,7 +21,7 @@ def _require_score(value: Any, field: str) -> None:
 def export_documents(
     source: Literal["radarr", "sonarr"], profiles: Sequence[dict[str, Any]],
     formats: Sequence[dict[str, Any]], selected: Sequence[str],
-) -> tuple[Document, ...]:
+) -> tuple[ProfileDocument, ...]:
     """Translate known API fields into portable values without filesystem or HTTP IO."""
     by_name = {p["name"]: p for p in profiles}
     if len(by_name) != len(profiles):
@@ -32,7 +33,7 @@ def export_documents(
     if len(format_ids) != len(formats):
         raise ValueError("duplicate remote custom format IDs")
     used: set[int] = set()
-    documents: list[Document] = []
+    documents: list[ProfileDocument] = []
     for name in sorted(set(selected) if selected else by_name):
         profile = by_name[name]
         documents.append(export_quality_profile(source, profile, format_ids))
@@ -45,7 +46,7 @@ def export_documents(
 
 def export_quality_profile(
     source: Literal["radarr", "sonarr"], profile: dict[str, Any], format_ids: dict[int, dict[str, Any]],
-) -> Document:
+) -> ProfileDocument:
     name = profile["name"]
     _require_boolean(profile["upgradeAllowed"], f"profile {name!r}.upgradeAllowed")
     for field in ("minFormatScore", "cutoffFormatScore", "minUpgradeFormatScore"):
@@ -100,12 +101,12 @@ def export_quality_profile(
     }
     if source == "radarr":
         portable["language"] = profile["language"]["name"]
-    return Document(source, "profiles", f"{source}/profiles/{quote(name, safe='')}.yml", {
+    return ProfileDocument(source, "profiles", f"{source}/profiles/{quote(name, safe='')}.yml", {
         "schema_version": 1, "quality_profiles": [portable],
     })
 
 
-def export_custom_format(source: Literal["radarr", "sonarr"], raw: dict[str, Any]) -> Document:
+def export_custom_format(source: Literal["radarr", "sonarr"], raw: dict[str, Any]) -> ProfileDocument:
     _require_boolean(raw["includeCustomFormatWhenRenaming"], f"custom format {raw['name']!r}.includeCustomFormatWhenRenaming")
     if raw.keys() - {"id", "name", "includeCustomFormatWhenRenaming", "specifications"}:
         raise ValueError(f"custom format {raw['name']!r}: unsupported fields")
@@ -123,7 +124,7 @@ def export_custom_format(source: Literal["radarr", "sonarr"], raw: dict[str, Any
             "name": specification["name"], "implementation": specification["implementation"],
             "negate": specification["negate"], "required": specification["required"], "fields": values,
         })
-    return Document(source, "custom_formats", f"{source}/custom_formats/{quote(raw['name'], safe='')}.json", {
+    return ProfileDocument(source, "custom_formats", f"{source}/custom_formats/{quote(raw['name'], safe='')}.json", {
         "name": raw["name"], "includeCustomFormatWhenRenaming": raw["includeCustomFormatWhenRenaming"],
         "specifications": specifications,
     })

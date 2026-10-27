@@ -116,7 +116,7 @@ print(snapshots[0])
     assert fetched.stdout.strip() == revision
     validated = docker("exec", image_container, "/app/.venv/bin/warden", "profiles", "validate", "--directory", snapshot)
     assert validated.returncode == 0, validated.stderr
-    assert validated.stdout == "Valid catalog: 1 profiles, 1 custom formats.\n"
+    assert validated.stdout == "Valid configuration: 1 profiles, 1 custom formats.\n"
 
 
 def test_image_exposes_cli_and_bundled_schemas(image_container: str) -> None:
@@ -130,7 +130,7 @@ def test_image_exposes_cli_and_bundled_schemas(image_container: str) -> None:
     result = docker("exec", "--workdir", "/tmp", image_container, "/app/.venv/bin/warden",
                     "profiles", "validate", "--directory", "/tmp/catalog")
     assert result.returncode == 0, result.stderr
-    assert result.stdout == "Valid catalog: 1 profiles, 1 custom formats.\n"
+    assert result.stdout == "Valid configuration: 1 profiles, 1 custom formats.\n"
     config = docker("inspect", image_container, "--format", "{{json .Config}}")
     assert config.returncode == 0, config.stderr
     assert json.loads(config.stdout)["Entrypoint"] == ["/app/.venv/bin/warden"]

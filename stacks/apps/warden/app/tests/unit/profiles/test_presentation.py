@@ -4,7 +4,7 @@ import json
 
 import pytest
 
-from warden.profiles.catalog import Document
+from warden.profiles.models import ProfileDocument
 from warden.profiles.presentation import CommandOutput, render_diff, render_error, render_summary
 
 
@@ -53,9 +53,9 @@ def test_json_preserves_report_and_exit_status(changed: bool, conflicted: bool, 
     assert result.exit_code == status
 
 
-@pytest.mark.parametrize("command,prefix", [("dump", "Exported"), ("validate", "Valid catalog:")])
+@pytest.mark.parametrize("command,prefix", [("dump", "Exported"), ("validate", "Valid configuration:")])
 def test_catalog_summary(command: str, prefix: str) -> None:
-    documents = [Document("radarr", "profiles", "profiles.yml", {"quality_profiles": [{}, {}]})]
+    documents = [ProfileDocument("radarr", "profiles", "profiles.yml", {"quality_profiles": [{}, {}]})]
     separator = " and" if command == "dump" else ","
     assert render_summary(command, documents) == CommandOutput(f"{prefix} 2 profiles{separator} 0 custom formats.\n")
 

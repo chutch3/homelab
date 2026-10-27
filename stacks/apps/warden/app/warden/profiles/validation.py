@@ -1,29 +1,11 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
-from dataclasses import dataclass
-from typing import Any, Literal, Protocol
+
+from warden.profiles.models import ProfileDocument
 
 
-@dataclass(frozen=True)
-class Document:
-    source: Literal["radarr", "sonarr"]
-    kind: Literal["profiles", "custom_formats"]
-    path: str
-    data: dict[str, Any]
-
-
-@dataclass(frozen=True)
-class Snapshot:
-    commit: str
-    documents: tuple[Document, ...]
-
-
-class CatalogSource(Protocol):
-    async def fetch(self) -> Snapshot: ...
-
-
-def validate_references(documents: Sequence[Document]) -> None:
+def validate_references(documents: Sequence[ProfileDocument]) -> None:
     """Check relationships after document structure has been schema-validated."""
     profiles: dict[tuple[str, str], str] = {}
     formats: dict[tuple[str, str], str] = {}
@@ -38,7 +20,7 @@ def validate_references(documents: Sequence[Document]) -> None:
             index[key] = document.path
 
     if not profiles:
-        raise ValueError("catalog contains no profiles")
+        raise ValueError("configuration contains no profiles")
 
     for document in documents:
         if document.kind != "profiles":

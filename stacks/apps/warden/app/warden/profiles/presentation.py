@@ -5,7 +5,7 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import Any
 
-from warden.profiles.catalog import Document
+from warden.profiles.models import ProfileDocument
 
 
 @dataclass(frozen=True)
@@ -39,12 +39,12 @@ def render_diff(report: dict[str, Any], as_json: bool = False) -> CommandOutput:
     return CommandOutput("\n".join(lines) + "\n", exit_code=status)
 
 
-def render_summary(command: str, documents: Sequence[Document]) -> CommandOutput:
+def render_summary(command: str, documents: Sequence[ProfileDocument]) -> CommandOutput:
     profiles = sum(len(document.data["quality_profiles"]) for document in documents if document.kind == "profiles")
     formats = sum(document.kind == "custom_formats" for document in documents)
     if command == "dump":
         return CommandOutput(f"Exported {profiles} profiles and {formats} custom formats.\n")
-    return CommandOutput(f"Valid catalog: {profiles} profiles, {formats} custom formats.\n")
+    return CommandOutput(f"Valid configuration: {profiles} profiles, {formats} custom formats.\n")
 
 
 def render_error(message: str) -> CommandOutput:

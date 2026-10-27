@@ -2,32 +2,25 @@ from __future__ import annotations
 
 from collections.abc import Callable, Sequence
 from pathlib import Path
-from typing import Any, Literal, Protocol
+from typing import Any, Literal
 
-from warden.profiles.catalog import Document
-from warden.profiles.compare import compare_catalog, select_profiles
+from warden.arr_service import ArrService
+from warden.profiles.files import ProfileStore
+from warden.profiles.models import ProfileDocument
+from warden.profiles.compare import compare_profiles, select_profiles
 from warden.profiles.export import export_documents
-
-
-class CatalogStore(Protocol):
-    def load(self, directory: Path) -> tuple[Document, ...]: ...
-    def write(self, directory: Path, documents: Sequence[Document]) -> None: ...
-
-
-class ArrProfileReader(Protocol):
-    async def read(self) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]: ...
 
 
 async def diff_profiles(
     source: Literal["radarr", "sonarr"], directory: Path, selected: Sequence[str] | None,
-    store: CatalogStore, reader: ArrProfileReader,
-    compare: Callable[..., dict[str, Any]] = compare_catalog,
+    store: ProfileStore, arr: ArrService,
+    compare: Callable[..., dict[str, Any]] = compare_profiles,
 ) -> dict[str, Any]:
     documents = store.load(directory)
     names = select_profiles(source, documents, selected)
     if not names:
         return {"source": source, "profiles": [], "changes": [], "conflicts": []}
-    profiles, formats = await reader.read()
+    profiles, formats = await arr.get_profiles(source)
     try:
         return compare(source, documents, profiles, formats, names)
     except (KeyError, TypeError) as exc:
@@ -36,10 +29,10 @@ async def diff_profiles(
 
 async def dump_profiles(
     source: Literal["radarr", "sonarr"], directory: Path, selected: Sequence[str],
-    store: CatalogStore, reader: ArrProfileReader,
-    export: Callable[..., tuple[Document, ...]] = export_documents,
-) -> tuple[Document, ...]:
-    profiles, formats = await reader.read()
+    store: ProfileStore, arr: ArrService,
+    export: Callable[..., tuple[ProfileDocument, ...]] = export_documents,
+) -> tuple[ProfileDocument, ...]:
+    profiles, formats = await arr.get_profiles(source)
     try:
         documents = export(source, profiles, formats, selected)
     except (KeyError, TypeError) as exc:

@@ -1,7 +1,7 @@
 from fastapi.testclient import TestClient
 
 from warden.container import Container
-from warden.main import create_app
+from warden.serve import create_app
 
 
 def make_client(monkeypatch) -> TestClient:

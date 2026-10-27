@@ -98,8 +98,10 @@ uv run warden profiles diff --source radarr --directory /local/profiles
 With no arguments Warden prints help. `serve` starts the HTTP server, hunter, and
 configured profile observer. Profile commands run once and exit without starting
 the server or initializing its SQLite database. Settings still come from the
-environment. The older `python -m warden.main` and
-`python -m warden.profiles.cli` commands remain available for compatibility.
+environment. Both `warden` and `python -m warden` use the single CLI entry point.
+The earlier development entry points `python -m warden.main` and
+`python -m warden.profiles.cli` have been removed; use `warden serve` and
+`warden profiles ...` respectively.
 
 To install the command outside the checkout, run `uv tool install .` from `app/`
 (Python 3.12 or newer). You can then run `warden serve` or `warden profiles ...`
@@ -108,29 +110,38 @@ directly. `python -m warden` provides the same interface. Packaging uses
 
 Docker uses `warden` as its entry point and defaults to `serve`. Override its
 arguments to run a one-time command, for example `docker run --rm <image> --help`.
-Profile commands need the same environment settings and catalog mounts described
+Profile commands need the same environment settings and profile mounts described
 in the [profile guide](PROFILES.md).
 
-## Profile catalogs (in development)
+## Profile configuration (in development)
 
-Profile management provides standalone, read-only Arr export, local catalog
+Profile management provides standalone, read-only Arr export, local configuration
 validation, semantic comparison, and optional Git or read-only directory observation in a separate
-loop. See [profile catalog usage and format](PROFILES.md), including runtime Git
+loop. See [profile configuration usage and format](PROFILES.md), including runtime Git
 requirements. Profile work does not use the hunter's SQLite database.
 Legacy import and synchronization are not yet implemented.
 
-Within `warden/profiles`, `catalog.py` defines documents, snapshots, and reference
-validation without filesystem access. `commands.py` coordinates profile operations
-through supplied catalog-store and Arr-reader contracts. `presentation.py` uses
-pure functions to return output and exit status; the CLI alone writes to stdout
-and stderr.
+`cli.py` owns argument parsing, command dependency lifetimes, terminal output, and
+exit codes. `serve.py` owns server startup. `ArrService` receives configured Arr
+clients and supplies profile reads to both commands and the observer.
 
-`reading.py` coordinates bounded reads, decoding, and catalog validation through
-supplied dependencies. `files.py` implements filesystem access and guarded export
-publication; `codec.py` adapts YAML/JSON and JSON Schema. Unit tests can exercise a
-byte limit with a few bytes and a mock codec, or a failed Arr read with a mock
-reader, without constructing directories or full Arr payloads. The CLI integration
-tests exercise the concrete adapters together.
+Within `warden/profiles`, `models.py` defines documents and snapshots;
+`validation.py` checks their relationships. `commands.py` coordinates operations
+using an injected `ProfileStore` and `ArrService`. `presentation.py` uses pure
+functions to return output and exit status.
+
+`ProfileStore` in `files.py` owns local loading and guarded export publication.
+`reading.py` coordinates bounded reads and decoding as a function with supplied
+dependencies; `codec.py` adapts YAML/JSON and JSON Schema. `sources.py` provides
+local-directory and Git-backed snapshots. The Git source coordinates an injected
+`GitClient`, `SnapshotCache`, and store: Git execution, cache accounting/cleanup,
+and adoption of validated revisions have separate responsibilities. `storage.py`
+separates mount lookup from the allowed-filesystem policy.
+
+Unit tests can verify byte limits with tiny byte strings, Arr reads with mock
+clients, and snapshot replacement with mock Git/cache/store dependencies. Unit
+test paths mirror the modules they exercise. CLI integration tests exercise the
+concrete adapters together, including failure and storage-protection behavior.
 
 ## Configuration
 
@@ -181,7 +192,7 @@ runs in CI as part of each build.
   `warden serve`.
 
 Integration tests assert exit codes, stdout/stderr, files, HTTP requests, and
-scraped metrics. They do not import Warden components or construct catalogs with
+scraped metrics. They do not import Warden components or construct profile configuration with
 production helpers. Git fixtures are bootstrapped through `warden profiles dump`.
 Package, image, and deployment checks live under `tests/e2e`; pure comparison and
 validation rules retain their unit tests.

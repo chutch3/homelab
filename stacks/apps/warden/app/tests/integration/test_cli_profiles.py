@@ -45,7 +45,7 @@ def test_validates_portable_catalog_without_writing_files(catalog: Path) -> None
     before = {str(p.relative_to(catalog)): p.read_bytes() for p in catalog.rglob("*") if p.is_file()}
     result = run_validate(catalog)
     assert result.returncode == 0, result.stderr
-    assert result.stdout == "Valid catalog: 2 profiles, 2 custom formats.\n"
+    assert result.stdout == "Valid configuration: 2 profiles, 2 custom formats.\n"
     assert result.stderr == ""
     after = {str(p.relative_to(catalog)): p.read_bytes() for p in catalog.rglob("*") if p.is_file()}
     assert after == before
@@ -371,14 +371,14 @@ def test_invalid_local_catalog_prevents_reads(httpserver: HTTPServer, dumped_cat
 def test_profiles_validate_without_server_configuration(tmp_path: Path) -> None:
     result = invoke(tmp_path, "profiles", "validate", "--directory", str(EXAMPLES))
     assert result.returncode == 0, result.stderr
-    assert result.stdout == "Valid catalog: 1 profiles, 1 custom formats.\n"
+    assert result.stdout == "Valid configuration: 1 profiles, 1 custom formats.\n"
     assert not (tmp_path / "must-not-create.db").exists()
 
 
 def test_profiles_validation_error_retains_exit_status(tmp_path: Path) -> None:
     result = invoke(tmp_path, "profiles", "validate", "--directory", str(tmp_path / "missing"))
     assert result.returncode == 1
-    assert "catalog directory does not exist" in result.stderr
+    assert "profile directory does not exist" in result.stderr
     assert result.stdout == ""
     assert not (tmp_path / "must-not-create.db").exists()
 

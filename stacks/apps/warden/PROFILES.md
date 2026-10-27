@@ -1,4 +1,4 @@
-# Portable profile catalogs — bootstrap, comparison, and observation
+# Portable profiles — bootstrap, comparison, and observation
 
 Implemented: local YAML/JSON validation, a read-only dump of current Arr quality
 profiles and referenced custom formats, semantic diff, and scheduled observation
@@ -49,12 +49,12 @@ Choose a verified local destination. The homelab development workspace itself is
 on OCFS2, so it is rejected as a dump destination. For a temporary Linux test:
 
 ```bash
-catalog_dir="$(mktemp -d /dev/shm/warden-profiles.XXXXXX)/catalog"
-uv run warden profiles dump --source radarr --output "$catalog_dir"
-uv run warden profiles dump --source sonarr --output "$catalog_dir"
-uv run warden profiles validate --directory "$catalog_dir"
-uv run warden profiles diff --source radarr --directory "$catalog_dir"
-uv run warden profiles diff --source sonarr --directory "$catalog_dir"
+profiles_dir="$(mktemp -d /dev/shm/warden-profiles.XXXXXX)/profiles"
+uv run warden profiles dump --source radarr --output "$profiles_dir"
+uv run warden profiles dump --source sonarr --output "$profiles_dir"
+uv run warden profiles validate --directory "$profiles_dir"
+uv run warden profiles diff --source radarr --directory "$profiles_dir"
+uv run warden profiles diff --source sonarr --directory "$profiles_dir"
 ```
 
 Run these from `app/`. Edit one exported score and repeat diff: it should report
@@ -69,40 +69,40 @@ the daemon's directory mode accept these plain files without a Git repository.
 
 ## Run the observer against a local directory
 
-Set `WARDEN_PROFILES_DIRECTORY` to the absolute catalog directory and leave
+Set `WARDEN_PROFILES_DIRECTORY` to the absolute profile directory and leave
 `WARDEN_PROFILES_REPO` unset. Setting both is an error. For example:
 
 ```dotenv
-WARDEN_PROFILES_DIRECTORY=/profiles/catalog-example
+WARDEN_PROFILES_DIRECTORY=/profiles/example
 WARDEN_PROFILES_MODE=observe
 WARDEN_PROFILES_INTERVAL_SEC=900
 ```
 
-Directory mode re-reads and validates the catalog on each cycle, using the same
+Directory mode re-reads and validates the profile configuration on each cycle, using the same
 filters, comparison, metrics, and error handling as Git mode. It creates no Git
 repository, profile cache, backups, or database. The existing
-`WARDEN_PROFILES_CACHE_MAX_BYTES` limit also bounds catalog bytes read in this mode
+`WARDEN_PROFILES_CACHE_MAX_BYTES` limit also bounds profile bytes read in this mode
 (32 MiB by default). Logs identify directory snapshots as `directory:<SHA-256>` in
 the existing `commit` field. Invalid edits fail the check while retaining the last
-observed drift. Prefer complete, immutable catalog directories for deployment;
-editing multiple files in place can expose an intermediate catalog to a check.
+observed drift. Prefer complete, immutable profile directories for deployment;
+editing multiple files in place can expose an incomplete configuration to a check.
 
-For a standalone container, bind-mount the exported catalog read-only and set
+For a standalone container, bind-mount the exported profile configuration read-only and set
 `WARDEN_PROFILES_DIRECTORY` to that mount. Starting `warden serve` also starts the
 normal hunter; use the standalone `diff` command for a read-only pre-deployment
 check against production Arr.
 
 The Swarm stack mounts the node-local `warden_profiles` volume read-only at
-`/profiles`. Copy the same verified catalog into that volume on every eligible
+`/profiles`. Copy the same verified profile configuration into that volume on every eligible
 node before enabling the directory setting. Use a revision-specific subdirectory,
-then set the environment path to it. Node-local catalogs must be provisioned again
-when adding a new node; an empty catalog fails observation visibly. Git mode does
-not use this volume. Catalog files are static configuration on each node's local
+then set the environment path to it. Node-local profiles must be provisioned again
+when adding a new node; an empty profile directory fails observation visibly. Git mode does
+not use this volume. Profile files are static configuration on each node's local
 Docker storage; Warden never modifies them.
 
 ## Compare local intent with Arr
 
-Diff uses the local catalog as desired state and current Arr API responses as
+Diff uses the local profile configuration as desired state and current Arr API responses as
 actual state. A dump compared with the unchanged HTTP contract fixture is clean.
 Changing one desired score from 100 to 250 gives:
 
@@ -130,7 +130,7 @@ With `--json`, the same comparison produces:
 }
 ```
 
-The default selection is all catalog profiles for the specified application.
+The default selection is all local profiles for the specified application.
 `WARDEN_RADARR_PROFILES` / `WARDEN_SONARR_PROFILES` can provide a JSON array of
 exact names. `[]` disables comparison for that source without contacting Arr.
 Repeatable `--profile` arguments override that environment filter. Empty strings,
@@ -155,9 +155,9 @@ outside this plan.
 Changing a shared custom-format definition reports every unselected remote profile
 whose score list references it, conservatively including zero-score references.
 Such a conflict exits 1 and appears in the `conflicts` array (or human output).
-Include all affected profiles in the catalog/selection, or use a separately named
+Include all affected profiles in the local configuration and selection, or use a separately named
 custom format. A failed read or invalid response exits 1 with a diagnostic on
-stderr and no clean/partial report on stdout. Diff makes no mutations or catalog
+stderr and no clean/partial report on stdout. Diff makes no mutations or local profile
 writes, and has no cache, backup, or SQLite dependency.
 
 ## Observe a Git repository in Warden
@@ -165,7 +165,7 @@ writes, and has no cache, backup, or SQLite dependency.
 The normal Warden service starts an independent observation loop when either
 profile source is set. The observer never applies changes or triggers searches.
 The existing hunt loop keeps running independently, including when profile
-configuration, Git access, catalog validation, or Arr reads fail.
+configuration, Git access, profile validation, or Arr reads fail.
 
 ```dotenv
 WARDEN_PROFILES_REPO=https://github.com/you/media-profiles.git
@@ -198,14 +198,14 @@ uv run pytest tests/e2e/test_image.py --no-cov
 
 This opt-in check starts a temporary container with networking disabled and state
 and profile cache on tmpfs. It verifies health, SSH availability, and a local Git
-catalog fetch, then removes the container. It never contacts live Arr instances.
+profile fetch, then removes the container. It never contacts live Arr instances.
 
 `REF` accepts a branch, tag, qualified ref, or full commit hash. A named ref resolves
 once per cycle; that exact commit supplies all targets in the cycle. Ambiguous
 branch/tag names require `refs/heads/...` or `refs/tags/...`. `PATH` selects a
 subdirectory inside the checkout. The whole shallow checkout, including Git
 metadata and candidate staging, counts against the cache budget. Use a dedicated
-catalog repository rather than a large monorepo.
+profile repository rather than a large monorepo.
 
 Unchanged revisions reuse the parsed snapshot without checkout writes. A changed
 revision must fetch and validate completely before replacing the active snapshot.
@@ -220,8 +220,8 @@ the current snapshot and staging, with an additional 10,000-entry bound. Git out
 and execution time are bounded; cancellation kills Git's process group. Disk usage
 is checked during Git commands, so transient usage can exceed the application
 budget before cancellation; the tmpfs mount supplies the hard storage bound.
-Tmpfs uses container memory, so catalog size and process memory must fit the
-existing 256 MiB service limit. Large-catalog benchmarking is still pending.
+Tmpfs uses container memory, so profile data and process memory must fit the
+existing 256 MiB service limit. Large-repository benchmarking is still pending.
 
 When running from source, set `WARDEN_PROFILES_CACHE_DIR` to a dedicated empty
 absolute directory on verified local storage. Shared paths `/state` and
@@ -232,7 +232,7 @@ No manual backup cleanup, shared SQLite writes, or persistent profile database
 are involved in profile observation. The existing hunter's SQLite state is separate.
 
 Repositories may use HTTPS, SSH (including `git@host:path`), or absolute local/file
-paths. Credentials must stay outside repository URLs and catalog files. For private
+paths. Credentials must stay outside repository URLs and profile files. For private
 HTTPS, provide credentials through an external `GIT_ASKPASS` helper. For SSH,
 provide an agent or normal SSH identity/config and pre-provisioned known hosts.
 Interactive prompts are disabled and SSH host-key checking is strict. Global/system
@@ -273,7 +273,7 @@ repository outages, recovery, continued hunting, timeout cleanup, and alert stat
 Validate rules with the deployed Prometheus version's `promtool test rules
 warden-profiles.test.yml alert-rules.test.yml` from the Prometheus directory.
 
-## Catalog layout
+## Profile layout
 
 ```text
 media-profiles/
@@ -289,7 +289,7 @@ Files can have any name and can be grouped in subdirectories beneath these four
 locations. `.yml`, `.yaml`, and `.json` files are read. Other files, such as READMEs,
 are ignored. Application scope comes from the directory. Names match exactly and
 are unique within each application; Radarr and Sonarr can both have a profile
-called `HD`. Symlinks within the catalog are rejected. No central manifest or
+called `HD`. Symlinks within profile directories are rejected. No central manifest or
 Profilarr metadata is required.
 
 Dump emits one file per profile/format, using percent-encoded resource names as
@@ -302,7 +302,7 @@ exported, including zero-score entries.
 ## Profile YAML
 
 The [profile schema](app/warden/profiles/schemas/profiles-v1.json) defines the
-complete supported structure. The [example catalog](examples/profiles) is valid
+complete supported structure. The [example configuration](examples/profiles) is valid
 input; its values are illustrative.
 
 ```yaml
@@ -336,7 +336,7 @@ their order and cannot also appear elsewhere in the same profile. Mixed enabled
 states within an imported group are rejected instead of flattened.
 
 `custom_format_scores` explicitly lists the profile's desired assignments, and
-every named format must exist in that application's catalog. Scores are signed
+every named format must exist in that application's configuration. Scores are signed
 32-bit integers; booleans, fractions, and numeric strings are rejected. Optional
 `description` is documentation. Optional `language` is a portable Radarr language
 name; Sonarr profiles reject it. Dump includes Radarr's effective language.
@@ -369,7 +369,7 @@ an export for migration.
 
 ## Output and storage behavior
 
-Dump stages and validates the complete merged catalog before publishing files.
+Dump stages and validates the complete merged configuration before publishing files.
 Existing identical files keep their contents and modification times. Differing
 files or duplicate resource names across different filenames fail without
 publishing the candidate. Publication creates files without overwriting existing
@@ -395,7 +395,7 @@ backup-cleanup workload; it does not establish or repair the cause of the incide
 - Private-remote checks and resource benchmarks.
 - Safe synchronization, conflict handling, partial-failure recovery, and read-back.
 
-The homelab deployment was verified with the exported catalog staged on all four
+The homelab deployment was verified with the exported profile configuration staged on all four
 nodes' local ext4 Docker storage and mounted read-only. Both sources reported
 successful checks with zero drift and conflicts. The directory observer left
 `/profile-cache` empty. The new Prometheus rules are tested but still require a

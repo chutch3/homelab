@@ -3,12 +3,13 @@ from __future__ import annotations
 from collections.abc import Sequence
 from typing import Any, Literal
 
-from warden.profiles.catalog import Document, validate_references
+from warden.profiles.models import ProfileDocument
+from warden.profiles.validation import validate_references
 from warden.profiles.export import export_custom_format, export_quality_profile
 
 
 def select_profiles(
-    source: Literal["radarr", "sonarr"], documents: Sequence[Document], selected: Sequence[str] | None,
+    source: Literal["radarr", "sonarr"], documents: Sequence[ProfileDocument], selected: Sequence[str] | None,
 ) -> list[str]:
     available = {
         p["name"] for d in documents if d.source == source and d.kind == "profiles"
@@ -16,7 +17,7 @@ def select_profiles(
     }
     if selected is None:
         if not available:
-            raise ValueError(f"{source}: no compatible profiles in the catalog")
+            raise ValueError(f"{source}: no compatible profiles in the configuration")
         return sorted(available)
     for name in selected:
         if name not in available:
@@ -67,8 +68,8 @@ def _differences(current: Any, desired: Any, field: str = "") -> list[dict[str, 
     return []
 
 
-def compare_catalog(
-    source: Literal["radarr", "sonarr"], documents: Sequence[Document],
+def compare_profiles(
+    source: Literal["radarr", "sonarr"], documents: Sequence[ProfileDocument],
     profiles: Sequence[dict[str, Any]], formats: Sequence[dict[str, Any]],
     selected: Sequence[str] | None = None,
 ) -> dict[str, Any]:

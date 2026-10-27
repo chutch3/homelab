@@ -9,8 +9,8 @@ import yaml
 from jsonschema import Draft202012Validator
 from yaml.nodes import MappingNode
 
-from warden.profiles.catalog import Document
-from warden.profiles.reading import CatalogFile
+from warden.profiles.models import ProfileDocument
+from warden.profiles.reading import ProfileFile
 
 
 class _UniqueSafeLoader(yaml.SafeLoader):
@@ -30,7 +30,7 @@ class YamlJsonCodec:
     def __init__(self, schemas: Mapping[str, dict[str, Any]]) -> None:
         self.validators = {kind: Draft202012Validator(schema) for kind, schema in schemas.items()}
 
-    def decode(self, entry: CatalogFile, content: bytes) -> Document:
+    def decode(self, entry: ProfileFile, content: bytes) -> ProfileDocument:
         try:
             data = yaml.load(content.decode("utf-8"), Loader=_UniqueSafeLoader)
         except yaml.YAMLError as exc:
@@ -44,16 +44,16 @@ class YamlJsonCodec:
                     field += f"[{part}]" if isinstance(part, int) else f".{part}"
                 details.append(f"{field.lstrip('.') or '$'}: {error.message}")
             raise ValueError("; ".join(details))
-        return Document(entry.source, entry.kind, entry.path, data)
+        return ProfileDocument(entry.source, entry.kind, entry.path, data)
 
-    def encode(self, document: Document) -> bytes:
+    def encode(self, document: ProfileDocument) -> bytes:
         content = (json.dumps(document.data, indent=2, ensure_ascii=False) + "\n"
                    if document.kind == "custom_formats"
                    else yaml.safe_dump(document.data, sort_keys=False, allow_unicode=True))
         return content.encode("utf-8")
 
 
-def catalog_codec() -> YamlJsonCodec:
+def profile_codec() -> YamlJsonCodec:
     schema_dir = Path(__file__).with_name("schemas")
     return YamlJsonCodec({
         kind: json.loads((schema_dir / f"{kind}-v1.json").read_text())

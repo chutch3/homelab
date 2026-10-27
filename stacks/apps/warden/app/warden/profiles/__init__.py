@@ -1,1 +1,1 @@
-"""Portable Arr profile catalogs, independent of the hunter and its database."""
+"""Portable Arr profile configuration, independent of the hunter and its database."""

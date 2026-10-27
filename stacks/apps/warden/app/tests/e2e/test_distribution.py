@@ -49,5 +49,5 @@ def test_installed_cli_and_wheel_work_outside_the_checkout(tmp_path: Path) -> No
             cwd=tmp_path, env=env, capture_output=True, text=True, timeout=15,
         )
         assert validated.returncode == 0, validated.stderr
-        assert validated.stdout == "Valid catalog: 1 profiles, 1 custom formats.\n"
+        assert validated.stdout == "Valid configuration: 1 profiles, 1 custom formats.\n"
     assert not (tmp_path / "must-not-create.db").exists()

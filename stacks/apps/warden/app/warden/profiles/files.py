@@ -1,21 +1,18 @@
 from __future__ import annotations
 
-import asyncio
-import hashlib
-import json
 import os
 from collections.abc import Iterator, Sequence
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from typing import Literal
 
-from warden.profiles.catalog import Document, Snapshot, validate_references
+from warden.profiles.models import ProfileDocument
+from warden.profiles.validation import validate_references
 from warden.profiles.storage import require_local_filesystem
-from warden.profiles.codec import catalog_codec
-from warden.profiles.reading import CatalogFile, CatalogReader, encode_catalog
+from warden.profiles.reading import ProfileFile, ProfileFiles, DocumentCodec, read_profiles, encode_profiles
 
 
-def _catalog_paths(directory: Path) -> Iterator[tuple[Literal["radarr", "sonarr"], Literal["profiles", "custom_formats"], Path]]:
+def _profile_paths(directory: Path) -> Iterator[tuple[Literal["radarr", "sonarr"], Literal["profiles", "custom_formats"], Path]]:
     for source in ("radarr", "sonarr"):
         app_dir = directory / source
         if app_dir.is_symlink():
@@ -33,85 +30,69 @@ def _catalog_paths(directory: Path) -> Iterator[tuple[Literal["radarr", "sonarr"
                 yield source, kind, path
 
 
-class LocalCatalogFiles:
-    def entries(self, directory: Path) -> Iterator[CatalogFile]:
+class LocalProfileFiles:
+    def entries(self, directory: Path) -> Iterator[ProfileFile]:
         if directory.is_symlink():
-            raise ValueError(f"{directory}: symlink catalog roots are unsupported")
+            raise ValueError(f"{directory}: symlink profile roots are unsupported")
         if not directory.is_dir():
-            raise ValueError(f"{directory}: catalog directory does not exist")
-        for source, kind, path in _catalog_paths(directory):
-            yield CatalogFile(source, kind, str(path.relative_to(directory)))
+            raise ValueError(f"{directory}: profile directory does not exist")
+        for source, kind, path in _profile_paths(directory):
+            yield ProfileFile(source, kind, str(path.relative_to(directory)))
 
-    def read(self, directory: Path, entry: CatalogFile, limit: int | None) -> bytes:
+    def read(self, directory: Path, entry: ProfileFile, limit: int | None) -> bytes:
         with (directory / entry.path).open("rb") as stream:
             return stream.read() if limit is None else stream.read(limit)
 
 
-def load_catalog(directory: Path, max_bytes: int | None = None) -> tuple[Document, ...]:
-    """Compose local adapters; catalog coordination is independently testable."""
-    return CatalogReader(LocalCatalogFiles(), catalog_codec(), validate_references).load(directory, max_bytes)
+class ProfileStore:
+    """Read profile documents and publish validated exports on approved filesystems."""
 
+    def __init__(self, files: ProfileFiles, codec: DocumentCodec) -> None:
+        self.files = files
+        self.codec = codec
 
-class DirectoryCatalog:
-    """Read and validate a plain catalog without writing to it or creating a cache."""
-
-    def __init__(self, directory: Path, max_bytes: int = 32 * 1024 * 1024) -> None:
-        self.directory = directory
-        self.max_bytes = max_bytes
-
-    async def fetch(self) -> Snapshot:
-        for path in (self.directory, *self.directory.parents):
+    def load(self, directory: Path, max_bytes: int | None = None) -> tuple[ProfileDocument, ...]:
+        for path in (directory, *directory.parents):
             if path.is_symlink():
-                raise ValueError('profile directory must not contain symlink paths')
-        documents = await asyncio.to_thread(load_catalog, self.directory, self.max_bytes)
-        canonical = json.dumps([(doc.path, doc.data) for doc in documents], sort_keys=True, ensure_ascii=False)
-        return Snapshot('directory:' + hashlib.sha256(canonical.encode()).hexdigest(), documents)
+                raise ValueError("profile directory must not contain symlink paths")
+        return read_profiles(directory, self.files, self.codec, validate_references, max_bytes)
 
-
-def write_catalog(directory: Path, documents: Sequence[Document]) -> None:
-    """Validate a complete staged export before publishing; never overwrite a file."""
-    directory = directory.absolute()
-    payloads = encode_catalog(documents, catalog_codec())
-    for ancestor in (directory, *directory.parents):
-        if ancestor.is_symlink():
-            raise ValueError(f"{ancestor}: symlink output paths are unsupported")
-    existing = directory
-    while not existing.exists():
-        existing = existing.parent
-    mountinfo = Path("/proc/self/mountinfo").read_text()
-    require_local_filesystem(str(existing.resolve()), mountinfo)
-    for relative, payload in payloads.items():
-        target = directory / relative
-        for ancestor in (target, *target.parents):
+    def write(self, directory: Path, documents: Sequence[ProfileDocument]) -> None:
+        """Validate a complete staged export before publishing; never overwrite a file."""
+        directory = directory.absolute()
+        payloads = encode_profiles(documents, self.codec)
+        for ancestor in (directory, *directory.parents):
             if ancestor.is_symlink():
                 raise ValueError(f"{ancestor}: symlink output paths are unsupported")
-        require_local_filesystem(str(target.resolve()), mountinfo)
-        if target.exists() and (not target.is_file() or target.read_bytes() != payload):
-            raise ValueError(f"{relative}: output collision; choose another directory or resolve the file in Git")
-    with TemporaryDirectory(prefix=".warden-export-", dir=existing) as staging:
-        stage = Path(staging)
-        for _, _, path in _catalog_paths(directory):
-            target = stage / path.relative_to(directory)
-            target.parent.mkdir(parents=True, exist_ok=True)
-            target.write_bytes(path.read_bytes())
-        for relative, payload in payloads.items():
-            target = stage / relative
-            target.parent.mkdir(parents=True, exist_ok=True)
-            target.write_bytes(payload)
-        load_catalog(stage)
+        existing = directory
+        while not existing.exists():
+            existing = existing.parent
+        mountinfo = Path("/proc/self/mountinfo").read_text()
+        require_local_filesystem(str(existing.resolve()), mountinfo)
         for relative, payload in payloads.items():
             target = directory / relative
-            target.parent.mkdir(parents=True, exist_ok=True)
-            try:
-                os.link(stage / relative, target)
-            except FileExistsError:
-                if target.is_symlink() or target.read_bytes() != payload:
-                    raise ValueError(f"{relative}: output collision during publish; export may be partial") from None
-
-
-class LocalCatalogStore:
-    def load(self, directory: Path) -> tuple[Document, ...]:
-        return load_catalog(directory)
-
-    def write(self, directory: Path, documents: Sequence[Document]) -> None:
-        write_catalog(directory, documents)
+            for ancestor in (target, *target.parents):
+                if ancestor.is_symlink():
+                    raise ValueError(f"{ancestor}: symlink output paths are unsupported")
+            require_local_filesystem(str(target.resolve()), mountinfo)
+            if target.exists() and (not target.is_file() or target.read_bytes() != payload):
+                raise ValueError(f"{relative}: output collision; choose another directory or resolve the file in Git")
+        with TemporaryDirectory(prefix=".warden-export-", dir=existing) as staging:
+            stage = Path(staging)
+            for _, _, path in _profile_paths(directory):
+                target = stage / path.relative_to(directory)
+                target.parent.mkdir(parents=True, exist_ok=True)
+                target.write_bytes(path.read_bytes())
+            for relative, payload in payloads.items():
+                target = stage / relative
+                target.parent.mkdir(parents=True, exist_ok=True)
+                target.write_bytes(payload)
+            self.load(stage)
+            for relative, payload in payloads.items():
+                target = directory / relative
+                target.parent.mkdir(parents=True, exist_ok=True)
+                try:
+                    os.link(stage / relative, target)
+                except FileExistsError:
+                    if target.is_symlink() or target.read_bytes() != payload:
+                        raise ValueError(f"{relative}: output collision during publish; export may be partial") from None

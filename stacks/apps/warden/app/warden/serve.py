@@ -15,7 +15,7 @@ from warden.loop import _hunt_loop
 from warden.profiles.loop import run_profiles
 from warden.routes import health
 
-_logger = get_logger("warden.main")
+_logger = get_logger("warden.serve")
 
 
 def create_app(container: Container) -> FastAPI:
@@ -26,7 +26,7 @@ def create_app(container: Container) -> FastAPI:
     return app
 
 
-async def _amain() -> None:
+async def serve() -> None:
     container = Container()
     cfg = container.config()
     _logger.info("warden starting", extra={
@@ -53,11 +53,3 @@ async def _amain() -> None:
         server.serve(), _hunt_loop(stop),
         run_profiles(stop, container.clients(), container.metrics(), container.clock(), dict(os.environ)),
     )
-
-
-def main() -> None:
-    asyncio.run(_amain())
-
-
-if __name__ == "__main__":
-    main()
