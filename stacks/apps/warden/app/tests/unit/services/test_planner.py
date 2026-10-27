@@ -12,7 +12,7 @@ class TestHuntPlanner:
     def subject(self) -> HuntPlanner:
         return HuntPlanner()
 
-    def test_caps_at_allowance(self, subject: HuntPlanner):
+    def test_plan_caps_at_allowance(self, subject: HuntPlanner):
         wanted = {
             "radarr": InstanceWanted(
                 missing=tuple(wanted_item("radarr", i) for i in range(10)),
@@ -22,7 +22,7 @@ class TestHuntPlanner:
         selected = subject.plan(allowance=3, wanted=wanted)
         assert len(selected) == 3
 
-    def test_missing_selected_before_cutoff(self, subject: HuntPlanner):
+    def test_plan_missing_selected_before_cutoff(self, subject: HuntPlanner):
         wanted = {
             "radarr": InstanceWanted(
                 missing=(wanted_item("radarr", 1),),
@@ -32,7 +32,7 @@ class TestHuntPlanner:
         selected = subject.plan(allowance=1, wanted=wanted)
         assert selected == [wanted_item("radarr", 1)]
 
-    def test_round_robins_across_instances(self, subject: HuntPlanner):
+    def test_plan_round_robins_across_instances(self, subject: HuntPlanner):
         wanted = {
             "radarr": InstanceWanted(missing=(wanted_item("radarr", 1), wanted_item("radarr", 2)),
                                      cutoff_unmet=()),
@@ -41,11 +41,11 @@ class TestHuntPlanner:
         selected = subject.plan(allowance=2, wanted=wanted)
         assert [s.instance for s in selected] == ["radarr", "sonarr"]
 
-    def test_zero_allowance_selects_nothing(self, subject: HuntPlanner):
+    def test_plan_zero_allowance_selects_nothing(self, subject: HuntPlanner):
         wanted = {"radarr": InstanceWanted(missing=(wanted_item("radarr", 1),), cutoff_unmet=())}
         assert subject.plan(allowance=0, wanted=wanted) == []
 
-    def test_orders_missing_least_recently_searched_first(self, subject: HuntPlanner):
+    def test_plan_orders_missing_least_recently_searched_first(self, subject: HuntPlanner):
         t_old = datetime(2026, 6, 1, tzinfo=timezone.utc)
         t_new = datetime(2026, 6, 18, tzinfo=timezone.utc)
         wanted = {
@@ -62,7 +62,7 @@ class TestHuntPlanner:
         # never-searched first, then oldest, then newest
         assert [s.remote_id for s in selected] == [2, 3, 1]
 
-    def test_never_searched_ties_keep_input_order(self, subject: HuntPlanner):
+    def test_plan_never_searched_ties_keep_input_order(self, subject: HuntPlanner):
         wanted = {
             "radarr": InstanceWanted(
                 missing=(wanted_item("radarr", 7), wanted_item("radarr", 8), wanted_item("radarr", 9)),

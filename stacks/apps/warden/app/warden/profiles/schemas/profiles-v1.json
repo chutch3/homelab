@@ -1,0 +1,63 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Warden portable quality profiles v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "quality_profiles"],
+  "properties": {
+    "schema_version": {"type": "integer", "const": 1},
+    "quality_profiles": {
+      "type": "array",
+      "minItems": 1,
+      "items": {"$ref": "#/$defs/profile"}
+    }
+  },
+  "$defs": {
+    "name": {"type": "string", "minLength": 1, "pattern": "\\S"},
+    "score": {"type": "integer", "minimum": -2147483648, "maximum": 2147483647},
+    "profile": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "upgrade", "min_format_score", "min_upgrade_format_score", "qualities", "custom_format_scores"],
+      "properties": {
+        "name": {"$ref": "#/$defs/name"},
+        "description": {"type": "string"},
+        "language": {"$ref": "#/$defs/name"},
+        "upgrade": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["allowed", "until_quality", "until_score"],
+          "properties": {
+            "allowed": {"type": "boolean"},
+            "until_quality": {"$ref": "#/$defs/name"},
+            "until_score": {"$ref": "#/$defs/score"}
+          }
+        },
+        "min_format_score": {"$ref": "#/$defs/score"},
+        "min_upgrade_format_score": {"$ref": "#/$defs/score"},
+        "qualities": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["name"],
+            "properties": {
+              "name": {"$ref": "#/$defs/name"},
+              "enabled": {"type": "boolean"},
+              "qualities": {
+                "type": "array", "minItems": 1, "uniqueItems": true,
+                "items": {"$ref": "#/$defs/name"}
+              }
+            }
+          }
+        },
+        "custom_format_scores": {
+          "type": "object",
+          "propertyNames": {"$ref": "#/$defs/name"},
+          "additionalProperties": {"$ref": "#/$defs/score"}
+        }
+      }
+    }
+  }
+}

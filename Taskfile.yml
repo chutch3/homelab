@@ -114,19 +114,41 @@ tasks:
             - uv run pytest
 
     # Build images locally via buildx bake (reads compose build: sections).
-    # IMAGE_TAG=latest: the compose image: tag is ${IMAGE_TAG:-<pinned version>}, so
-    # builds/pushes target :latest, never the pinned deploy version.
+    # Resolve a development prerelease with semantic-release unless IMAGE_TAG is
+    # supplied. Never implicitly replace :latest or the compose deployment pin.
+    image:tag:
+        desc: "Print the automatic development image tag (or IMAGE_TAG override)"
+        silent: true
+        vars: &image_tag_vars
+            BUILD_IMAGE_TAG:
+                sh: |
+                    if [ -n "${IMAGE_TAG:-}" ]; then
+                        printf '%s\n' "$IMAGE_TAG"
+                    else
+                        uv run --project "{{.ROOT_DIR}}" python "{{.ROOT_DIR}}/tools/dev/image-tag.py"
+                    fi
+        env:
+            HOMELAB_BUILD_IMAGE_TAG: '{{.BUILD_IMAGE_TAG}}'
+        cmds:
+            - printf '%s\n' "$HOMELAB_BUILD_IMAGE_TAG"
+
     build:
         desc: "Build an app's image(s) locally — task build -- warden"
         dir: stacks/apps/{{.CLI_ARGS}}
+        vars: *image_tag_vars
+        env:
+            HOMELAB_BUILD_IMAGE_TAG: '{{.BUILD_IMAGE_TAG}}'
         cmds:
-            - IMAGE_TAG=latest docker buildx bake --allow fs.read=* -f docker-compose.yml
+            - IMAGE_TAG="$HOMELAB_BUILD_IMAGE_TAG" docker buildx bake --allow fs.read=* -f docker-compose.yml
 
     publish:
-        desc: "Build & push an app's image(s) — task publish -- warden (requires registry login)"
+        desc: "Build & push an app's image(s) — task publish -- warden (optional IMAGE_TAG override; requires registry login)"
         dir: stacks/apps/{{.CLI_ARGS}}
+        vars: *image_tag_vars
+        env:
+            HOMELAB_BUILD_IMAGE_TAG: '{{.BUILD_IMAGE_TAG}}'
         cmds:
-            - IMAGE_TAG=latest GITHUB_USERNAME=${GITHUB_USERNAME} docker buildx bake --allow fs.read=* -f docker-compose.yml --push
+            - IMAGE_TAG="$HOMELAB_BUILD_IMAGE_TAG" docker buildx bake --allow fs.read=* -f docker-compose.yml --push
 
     test-fast:
         desc: Run core tests with faster execution

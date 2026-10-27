@@ -1,29 +1,15 @@
 from __future__ import annotations
 
 import os
-from collections.abc import Iterator
-from dataclasses import dataclass
+from collections.abc import Iterator, Mapping
+
+from pydantic import Field, field_validator
 
 from warden.models import ArrType, InstanceConfig
+from warden.settings import EnvironmentSettings
 
 
-def _env_bool(name: str, default: bool) -> bool:
-    raw = os.getenv(name)
-    if raw is None:
-        return default
-    return raw.strip().lower() in ("1", "true", "yes", "on")
-
-
-def _min_free_bytes_from_env() -> int:
-    """Space-guard floor from WARDEN_MIN_FREE_GB (GB -> bytes, decimal). Unset or empty
-    means the guard is disabled (0 bytes); there is no baked-in default."""
-    raw = os.getenv("WARDEN_MIN_FREE_GB", "").strip()
-    if not raw:
-        return 0
-    return int(float(raw) * 1_000_000_000)
-
-
-def _instances_from_env() -> Iterator[InstanceConfig]:
+def _instances_from_env(env: Mapping[str, str]) -> Iterator[InstanceConfig]:
     """Discover configured *arr instances from env vars.
 
     For each supported type, an instance is included only when BOTH
@@ -34,71 +20,70 @@ def _instances_from_env() -> Iterator[InstanceConfig]:
     """
     for arr in ArrType:
         prefix = arr.value.upper()
-        url = os.getenv(f"WARDEN_{prefix}_URL", "").rstrip("/")
-        api_key = os.getenv(f"WARDEN_{prefix}_API_KEY", "")
+        url = env.get(f"WARDEN_{prefix}_URL", "").rstrip("/")
+        api_key = env.get(f"WARDEN_{prefix}_API_KEY", "")
         if url and api_key:
             yield InstanceConfig(name=arr.value, type=arr, url=url, api_key=api_key)
 
 
-@dataclass(frozen=True)
-class Config:
-    instances: tuple[InstanceConfig, ...]
-    reserve_pct: float
-    fallback_searches_per_day: int
-    reset_at_local: str
-    include_cutoff_unmet: bool
-    poll_interval_sec: float
-    db_url: str
-    metrics_port: int
-    prowlarr_url: str
-    prowlarr_api_key: str
-    default_query_limit: int
-    tz: str
-    prowlarr_fallback_on_error: bool
-    stale_sweep_enabled: bool
-    stale_grace_hours: float
-    stale_max_removals_per_tick: int
-    stale_mass_fraction: float
-    stale_min_queue_for_guard: int
-    stale_no_progress_enabled: bool
-    stale_no_progress_hours: float
-    stale_jitter_tolerance_mb: int
-    efficacy_enabled: bool
-    efficacy_resolve_minutes: float
-    backoff_enabled: bool
-    backoff_miss_threshold: int
-    backoff_cooldown_days: float
-    min_free_bytes: int
+class Config(EnvironmentSettings):
+    instances: tuple[InstanceConfig, ...] = ()
+    reserve_pct: float = 20
+    fallback_searches_per_day: int = 200
+    reset_at_local: str = "00:00"
+    include_cutoff_unmet: bool = True
+    poll_interval_sec: float = 300
+    db_url: str = Field(default="sqlite:////state/warden.db", repr=False)
+    metrics_port: int = 9090
+    prowlarr_url: str = ""
+    prowlarr_api_key: str = Field(default="", repr=False)
+    default_query_limit: int = 100
+    tz: str = "UTC"
+    prowlarr_fallback_on_error: bool = True
+    stale_sweep_enabled: bool = True
+    stale_grace_hours: float = 48
+    stale_max_removals_per_tick: int = 5
+    stale_mass_fraction: float = 0.5
+    stale_min_queue_for_guard: int = 3
+    stale_no_progress_enabled: bool = True
+    stale_no_progress_hours: float = 12
+    stale_jitter_tolerance_mb: int = 0
+    efficacy_enabled: bool = True
+    efficacy_resolve_minutes: float = 30
+    backoff_enabled: bool = True
+    backoff_miss_threshold: int = 3
+    backoff_cooldown_days: float = 30
+    min_free_gb: float = Field(default=0, allow_inf_nan=False)
 
-    @staticmethod
-    def from_env() -> "Config":
-        db_path = os.getenv("WARDEN_DB_PATH", "/state/warden.db")
-        return Config(
-            instances=tuple(_instances_from_env()),
-            reserve_pct=float(os.getenv("WARDEN_RESERVE_PCT", "20")),
-            fallback_searches_per_day=int(os.getenv("WARDEN_FALLBACK_SEARCHES_PER_DAY", "200")),
-            reset_at_local=os.getenv("WARDEN_RESET_AT_LOCAL", "00:00"),
-            include_cutoff_unmet=_env_bool("WARDEN_INCLUDE_CUTOFF_UNMET", True),
-            poll_interval_sec=float(os.getenv("WARDEN_POLL_INTERVAL_SEC", "300")),
-            db_url=os.getenv("WARDEN_DB_URL", f"sqlite:///{db_path}"),
-            metrics_port=int(os.getenv("WARDEN_METRICS_PORT", "9090")),
-            prowlarr_url=os.getenv("WARDEN_PROWLARR_URL", "").rstrip("/"),
-            prowlarr_api_key=os.getenv("WARDEN_PROWLARR_API_KEY", ""),
-            default_query_limit=int(os.getenv("WARDEN_DEFAULT_QUERY_LIMIT", "100")),
-            tz=os.getenv("WARDEN_TZ") or os.getenv("TZ") or "UTC",
-            prowlarr_fallback_on_error=_env_bool("WARDEN_PROWLARR_FALLBACK_ON_ERROR", True),
-            stale_sweep_enabled=_env_bool("WARDEN_STALE_SWEEP_ENABLED", True),
-            stale_grace_hours=float(os.getenv("WARDEN_STALE_GRACE_HOURS", "48")),
-            stale_max_removals_per_tick=int(os.getenv("WARDEN_STALE_MAX_REMOVALS_PER_TICK", "5")),
-            stale_mass_fraction=float(os.getenv("WARDEN_STALE_MASS_FRACTION", "0.5")),
-            stale_min_queue_for_guard=int(os.getenv("WARDEN_STALE_MIN_QUEUE_FOR_GUARD", "3")),
-            stale_no_progress_enabled=_env_bool("WARDEN_STALE_NO_PROGRESS_ENABLED", True),
-            stale_no_progress_hours=float(os.getenv("WARDEN_STALE_NO_PROGRESS_HOURS", "12")),
-            stale_jitter_tolerance_mb=int(os.getenv("WARDEN_STALE_JITTER_TOLERANCE_MB", "0")),
-            efficacy_enabled=_env_bool("WARDEN_EFFICACY_ENABLED", True),
-            efficacy_resolve_minutes=float(os.getenv("WARDEN_EFFICACY_RESOLVE_MINUTES", "30")),
-            backoff_enabled=_env_bool("WARDEN_BACKOFF_ENABLED", True),
-            backoff_miss_threshold=int(os.getenv("WARDEN_BACKOFF_MISS_THRESHOLD", "3")),
-            backoff_cooldown_days=float(os.getenv("WARDEN_BACKOFF_COOLDOWN_DAYS", "30")),
-            min_free_bytes=_min_free_bytes_from_env(),
+    @field_validator("min_free_gb", mode="before")
+    @classmethod
+    def blank_disables_space_guard(cls, value: object) -> object:
+        return 0 if isinstance(value, str) and not value.strip() else value
+
+    @property
+    def min_free_bytes(self) -> int:
+        return int(self.min_free_gb * 1_000_000_000)
+
+    @field_validator(
+        "include_cutoff_unmet", "prowlarr_fallback_on_error", "stale_sweep_enabled",
+        "stale_no_progress_enabled", "efficacy_enabled", "backoff_enabled", mode="before",
+    )
+    @classmethod
+    def strip_boolean(cls, value: object) -> object:
+        return value.strip() if isinstance(value, str) else value
+
+    @field_validator("prowlarr_url")
+    @classmethod
+    def trim_url(cls, value: str) -> str:
+        return value.rstrip("/")
+
+    @classmethod
+    def from_env(cls, env: Mapping[str, str] | None = None) -> Config:
+        env = os.environ if env is None else env
+        db_path = env.get("WARDEN_DB_PATH", "/state/warden.db")
+        return cls(
+            _environment=env,
+            instances=tuple(_instances_from_env(env)),
+            db_url=env.get("WARDEN_DB_URL", f"sqlite:///{db_path}"),
+            tz=env.get("WARDEN_TZ") or env.get("TZ") or "UTC",
         )

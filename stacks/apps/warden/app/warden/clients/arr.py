@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from datetime import datetime, timezone
+from typing import Any
 
 import httpx
 
@@ -48,6 +49,16 @@ class ArrClient(ABC):
     def _queue_id_field(self) -> str: ...
 
     _PAGE_SIZE = 1000
+
+    async def list_quality_profiles(self) -> list[dict[str, Any]]:
+        response = await self._http.get(f"{self._base}/api/v3/qualityprofile", headers=self._headers)
+        response.raise_for_status()
+        return response.json()
+
+    async def list_custom_formats(self) -> list[dict[str, Any]]:
+        response = await self._http.get(f"{self._base}/api/v3/customformat", headers=self._headers)
+        response.raise_for_status()
+        return response.json()
 
     async def _paged_records(self, endpoint: str) -> list[dict]:
         """Fetch every record from a paginated Servarr v3 list endpoint, walking

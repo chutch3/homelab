@@ -1,0 +1,14 @@
+schema_version: 1
+quality_profiles:
+  - name: HD
+    upgrade:
+      allowed: true
+      until_quality: WEB 1080p
+      until_score: 1000
+    min_format_score: 0
+    min_upgrade_format_score: 1
+    qualities:
+      - name: WEB 1080p
+        qualities: [WEBDL-1080p, WEBRip-1080p]
+    custom_format_scores:
+      Preferred: 100

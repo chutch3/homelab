@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 import sys
 import time
+from typing import Any
 
 from pythonjsonlogger import jsonlogger
 
@@ -26,3 +27,7 @@ def _configure() -> None:
 def get_logger(name: str) -> logging.Logger:
     _configure()
     return logging.getLogger(name)
+
+
+def emit_profile_event(event: str, fields: dict[str, Any]) -> None:
+    get_logger("warden.profiles").info(event, extra={"event": event, **fields})

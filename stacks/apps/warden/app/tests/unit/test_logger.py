@@ -23,14 +23,14 @@ def _format(record_extra: dict) -> dict:
 
 
 class TestJsonLogging:
-    def test_emits_json_with_renamed_fields_and_extra(self) -> None:
+    def test_format_emits_json_with_renamed_fields_and_extra(self) -> None:
         d = _format({"event": "issued", "source": "radarr", "issued": 3})
         assert d["level"] == "INFO"
         assert d["logger"] == "warden.test"
         assert d["message"] == "hunt tick"
         assert d["event"] == "issued" and d["source"] == "radarr" and d["issued"] == 3
 
-    def test_timestamp_is_utc_iso(self) -> None:
+    def test_format_uses_utc_iso_timestamp(self) -> None:
         d = _format({})
         assert d["ts"].endswith("Z")
 

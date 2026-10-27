@@ -1,9 +1,11 @@
+import pytest
+
 from warden.config import Config
 from warden.models import ArrType
 
 
 class TestConfig:
-    def test_discovers_instances_from_env(self, monkeypatch):
+    def test_from_env_discovers_instances_from_env(self, monkeypatch):
         monkeypatch.setenv("WARDEN_RADARR_URL", "http://radarr:7878/")
         monkeypatch.setenv("WARDEN_RADARR_API_KEY", "rk")
         monkeypatch.setenv("WARDEN_SONARR_URL", "http://sonarr:8989")
@@ -14,7 +16,7 @@ class TestConfig:
             ("sonarr", ArrType.SONARR, "http://sonarr:8989", "sk"),
         ]
 
-    def test_instance_skipped_when_key_missing(self, monkeypatch):
+    def test_from_env_instance_skipped_when_key_missing(self, monkeypatch):
         monkeypatch.delenv("WARDEN_SONARR_URL", raising=False)
         monkeypatch.delenv("WARDEN_SONARR_API_KEY", raising=False)
         monkeypatch.setenv("WARDEN_RADARR_URL", "http://radarr:7878")
@@ -22,7 +24,7 @@ class TestConfig:
         cfg = Config.from_env()
         assert cfg.instances == ()
 
-    def test_tuning_defaults_when_env_absent(self, monkeypatch):
+    def test_from_env_tuning_defaults_when_env_absent(self, monkeypatch):
         for var in ("WARDEN_RADARR_URL", "WARDEN_RADARR_API_KEY", "WARDEN_SONARR_URL",
                     "WARDEN_SONARR_API_KEY",
                     "WARDEN_RESERVE_PCT", "WARDEN_FALLBACK_SEARCHES_PER_DAY",
@@ -39,7 +41,7 @@ class TestConfig:
         assert cfg.db_url == "sqlite:////state/warden.db"
         assert cfg.metrics_port == 9090
 
-    def test_tuning_overridden_from_env(self, monkeypatch):
+    def test_from_env_tuning_overridden_from_env(self, monkeypatch):
         monkeypatch.setenv("WARDEN_RESERVE_PCT", "10")
         monkeypatch.setenv("WARDEN_FALLBACK_SEARCHES_PER_DAY", "50")
         monkeypatch.setenv("WARDEN_RESET_AT_LOCAL", "03:30")
@@ -52,7 +54,7 @@ class TestConfig:
         assert cfg.include_cutoff_unmet is False
         assert cfg.poll_interval_sec == 120
 
-    def test_prowlarr_and_default_cap_from_env(self, monkeypatch):
+    def test_from_env_prowlarr_and_default_cap_from_env(self, monkeypatch):
         monkeypatch.setenv("WARDEN_PROWLARR_URL", "http://prowlarr:9696/")
         monkeypatch.setenv("WARDEN_PROWLARR_API_KEY", "pk")
         monkeypatch.setenv("WARDEN_DEFAULT_QUERY_LIMIT", "100")
@@ -61,7 +63,7 @@ class TestConfig:
         assert cfg.prowlarr_api_key == "pk"
         assert cfg.default_query_limit == 100
 
-    def test_prowlarr_defaults_empty(self, monkeypatch):
+    def test_from_env_prowlarr_defaults_empty(self, monkeypatch):
         for v in ("WARDEN_PROWLARR_URL", "WARDEN_PROWLARR_API_KEY", "WARDEN_DEFAULT_QUERY_LIMIT"):
             monkeypatch.delenv(v, raising=False)
         cfg = Config.from_env()
@@ -69,7 +71,7 @@ class TestConfig:
         assert cfg.prowlarr_api_key == ""
         assert cfg.default_query_limit == 100
 
-    def test_tz_prefers_warden_tz_then_tz_then_utc(self, monkeypatch):
+    def test_from_env_tz_prefers_warden_tz_then_tz_then_utc(self, monkeypatch):
         monkeypatch.delenv("WARDEN_TZ", raising=False)
         monkeypatch.delenv("TZ", raising=False)
         assert Config.from_env().tz == "UTC"
@@ -78,7 +80,7 @@ class TestConfig:
         monkeypatch.setenv("WARDEN_TZ", "Europe/London")
         assert Config.from_env().tz == "Europe/London"
 
-    def test_prowlarr_fallback_default_true_and_overridable(self, monkeypatch):
+    def test_from_env_prowlarr_fallback_default_true_and_overridable(self, monkeypatch):
         monkeypatch.delenv("WARDEN_PROWLARR_FALLBACK_ON_ERROR", raising=False)
         assert Config.from_env().prowlarr_fallback_on_error is True
         monkeypatch.setenv("WARDEN_PROWLARR_FALLBACK_ON_ERROR", "false")
@@ -86,25 +88,25 @@ class TestConfig:
 
 
 class TestSpaceGuardConfig:
-    def test_disabled_by_default_when_env_absent(self, monkeypatch):
+    def test_from_env_disabled_by_default_when_env_absent(self, monkeypatch):
         monkeypatch.delenv("WARDEN_MIN_FREE_GB", raising=False)
         assert Config.from_env().min_free_bytes == 0
 
-    def test_empty_env_disables_the_guard(self, monkeypatch):
+    def test_from_env_empty_env_disables_the_guard(self, monkeypatch):
         monkeypatch.setenv("WARDEN_MIN_FREE_GB", "")
         assert Config.from_env().min_free_bytes == 0
 
-    def test_gb_value_converts_to_bytes(self, monkeypatch):
+    def test_from_env_gb_value_converts_to_bytes(self, monkeypatch):
         monkeypatch.setenv("WARDEN_MIN_FREE_GB", "50")
         assert Config.from_env().min_free_bytes == 50_000_000_000
 
-    def test_fractional_gb_supported(self, monkeypatch):
+    def test_from_env_fractional_gb_supported(self, monkeypatch):
         monkeypatch.setenv("WARDEN_MIN_FREE_GB", "0.5")
         assert Config.from_env().min_free_bytes == 500_000_000
 
 
 class TestStaleConfig:
-    def test_stale_defaults(self, monkeypatch):
+    def test_from_env_stale_defaults(self, monkeypatch):
         for v in ("WARDEN_STALE_SWEEP_ENABLED", "WARDEN_STALE_GRACE_HOURS",
                   "WARDEN_STALE_MAX_REMOVALS_PER_TICK", "WARDEN_STALE_MASS_FRACTION",
                   "WARDEN_STALE_MIN_QUEUE_FOR_GUARD", "WARDEN_STALE_NO_PROGRESS_ENABLED",
@@ -120,7 +122,7 @@ class TestStaleConfig:
         assert cfg.stale_no_progress_hours == 12.0
         assert cfg.stale_jitter_tolerance_mb == 0
 
-    def test_stale_overrides(self, monkeypatch):
+    def test_from_env_stale_overrides(self, monkeypatch):
         monkeypatch.setenv("WARDEN_STALE_SWEEP_ENABLED", "false")
         monkeypatch.setenv("WARDEN_STALE_GRACE_HOURS", "12")
         monkeypatch.setenv("WARDEN_STALE_MAX_REMOVALS_PER_TICK", "2")
@@ -128,3 +130,36 @@ class TestStaleConfig:
         assert cfg.stale_sweep_enabled is False
         assert cfg.stale_grace_hours == 12.0
         assert cfg.stale_max_removals_per_tick == 2
+
+
+def test_from_env_explicit_environment_is_used_instead_of_process_settings(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("WARDEN_METRICS_PORT", "invalid")
+    cfg = Config.from_env({"WARDEN_METRICS_PORT": "9191", "WARDEN_RADARR_URL": "http://radarr/", "WARDEN_RADARR_API_KEY": "test-key"})
+    assert cfg.metrics_port == 9191
+    assert len(cfg.instances) == 1
+    assert cfg.instances[0].url == "http://radarr"
+    assert cfg.instances[0].name == "radarr"
+    assert cfg.fallback_searches_per_day == 200
+
+
+def test_from_env_explicit_empty_environment_does_not_inherit_process_values(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("WARDEN_METRICS_PORT", "invalid")
+    monkeypatch.setenv("WARDEN_RADARR_URL", "http://radarr")
+    monkeypatch.setenv("WARDEN_RADARR_API_KEY", "process-key")
+    monkeypatch.setenv("TZ", "Europe/London")
+    cfg = Config.from_env({})
+    assert cfg.instances == ()
+    assert cfg.metrics_port == 9090
+    assert cfg.tz == "UTC"
+
+
+def test_from_env_empty_timezone_uses_fallback_and_database_url_overrides_path() -> None:
+    cfg = Config.from_env({"WARDEN_TZ": "", "TZ": "Europe/London", "WARDEN_DB_PATH": "/ignored.db", "WARDEN_DB_URL": "sqlite:///chosen.db"})
+    assert cfg.tz == "Europe/London"
+    assert cfg.db_url == "sqlite:///chosen.db"
+    assert Config.from_env({"WARDEN_DB_PATH": "/local/warden.db"}).db_url == "sqlite:////local/warden.db"
+
+
+@pytest.mark.parametrize("raw,expected", [(" YES ", True), (" OFF ", False)])
+def test_from_env_boolean_settings_allow_surrounding_whitespace(raw: str, expected: bool) -> None:
+    assert Config.from_env({"WARDEN_INCLUDE_CUTOFF_UNMET": raw}).include_cutoff_unmet is expected

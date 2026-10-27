@@ -5,7 +5,7 @@ version: "3.9"
 
 services:
     warden:
-        image: ${REGISTRY:-ghcr.io}/${REGISTRY_NAMESPACE:-chutch3}/warden:${IMAGE_TAG:-3.22.2}
+        image: ${REGISTRY:-ghcr.io}/${REGISTRY_NAMESPACE:-chutch3}/warden:${IMAGE_TAG:-3.35.0-dev.1.t1793047998766105827.gb4648aae62a0.dirty}
         build:
             context: .
             dockerfile: app/Dockerfile
@@ -18,6 +18,19 @@ services:
             - WARDEN_RADARR_API_KEY=${WARDEN_RADARR_API_KEY:-}
             - WARDEN_SONARR_URL=${WARDEN_SONARR_URL:-}
             - WARDEN_SONARR_API_KEY=${WARDEN_SONARR_API_KEY:-}
+            # Read-only profile observation; both sources unset keeps it disabled.
+            - WARDEN_PROFILES_REPO=${WARDEN_PROFILES_REPO:-}
+            - WARDEN_PROFILES_DIRECTORY=${WARDEN_PROFILES_DIRECTORY:-}
+            - WARDEN_PROFILES_REF=${WARDEN_PROFILES_REF:-main}
+            - WARDEN_PROFILES_PATH=${WARDEN_PROFILES_PATH:-.}
+            - WARDEN_PROFILES_MODE=${WARDEN_PROFILES_MODE:-observe}
+            - WARDEN_PROFILES_INTERVAL_SEC=${WARDEN_PROFILES_INTERVAL_SEC:-900}
+            - WARDEN_PROFILES_TIMEOUT_SEC=${WARDEN_PROFILES_TIMEOUT_SEC:-60}
+            - WARDEN_PROFILES_CACHE_DIR=/profile-cache
+            - WARDEN_PROFILES_CACHE_MAX_BYTES=${WARDEN_PROFILES_CACHE_MAX_BYTES:-33554432}
+            # Pass through only when set; unset means all, [] disables a source.
+            - WARDEN_RADARR_PROFILES
+            - WARDEN_SONARR_PROFILES
             # Optional tuning (code defaults shown):
             - WARDEN_RESERVE_PCT=${WARDEN_RESERVE_PCT:-20}
             - WARDEN_FALLBACK_SEARCHES_PER_DAY=${WARDEN_FALLBACK_SEARCHES_PER_DAY:-200}
@@ -35,6 +48,11 @@ services:
             - WARDEN_PROWLARR_FALLBACK_ON_ERROR=${WARDEN_PROWLARR_FALLBACK_ON_ERROR:-true}
         volumes:
             - warden_state:/state
+            - profiles:/profiles:ro
+            - type: tmpfs
+              target: /profile-cache
+              tmpfs:
+                  size: 67108864
         restart: unless-stopped
         networks:
             - traefik-public
@@ -82,6 +100,8 @@ networks:
         external: true
 
 volumes:
+    profiles:
+        driver: local
     warden_state:
         driver: local
         driver_opts:

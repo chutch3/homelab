@@ -85,3 +85,40 @@ class Metrics:
         self.build_info = Gauge(
             "warden_build_info", "Warden build info (constant 1)", ["version"], registry=registry)
         self.build_info.labels(version=__version__).set(1)
+        self._profile_drift_since: dict[str, float] = {}
+        self.profiles_enabled = Gauge("warden_profiles_enabled", "Profile observation enabled", ["source"], registry=registry)
+        self.profiles_success = Gauge("warden_profiles_check_success", "Latest profile comparison succeeded", ["source"], registry=registry)
+        self.profiles_last_success = Gauge("warden_profiles_last_successful_check_timestamp_seconds", "Last complete comparison", ["source"], registry=registry)
+        self.profiles_started = Gauge("warden_profiles_started_timestamp_seconds", "Observation startup time", ["source"], registry=registry)
+        self.profiles_interval = Gauge("warden_profiles_interval_seconds", "Configured observation interval", ["source"], registry=registry)
+        self.profiles_drift = Gauge("warden_profiles_drift_resources", "Last known changed or missing resources", ["source", "kind"], registry=registry)
+        self.profiles_conflicts = Gauge("warden_profiles_conflicts", "Last known shared format conflicts", ["source"], registry=registry)
+        self.profiles_drift_since = Gauge("warden_profiles_drift_since_timestamp_seconds", "First observed unresolved drift", ["source"], registry=registry)
+        self.profiles_duration = Histogram("warden_profiles_cycle_duration_seconds", "Observation cycle duration", registry=registry)
+
+    def profile_enabled(self, source: str, enabled: bool, interval: float, now: float) -> None:
+        self.profiles_enabled.labels(source).set(int(enabled))
+        self.profiles_interval.labels(source).set(interval)
+        self.profiles_started.labels(source).set(now)
+        self.profiles_success.labels(source).set(0)
+        self.profiles_last_success.labels(source).set(0)
+        self.profiles_conflicts.labels(source).set(0)
+        self._profile_drift_since[source] = 0
+        self.profiles_drift_since.labels(source).set(0)
+        for kind in ("profile", "custom_format"):
+            self.profiles_drift.labels(source, kind).set(0)
+
+    def profile_checked(self, source: str, counts: dict[str, int], conflicts: int, now: float) -> None:
+        self.profiles_success.labels(source).set(1)
+        self.profiles_last_success.labels(source).set(now)
+        for kind in ("profile", "custom_format"):
+            self.profiles_drift.labels(source, kind).set(counts[kind])
+        self.profiles_conflicts.labels(source).set(conflicts)
+        if any(counts.values()):
+            self._profile_drift_since[source] = self._profile_drift_since.get(source, 0) or now
+        else:
+            self._profile_drift_since[source] = 0
+        self.profiles_drift_since.labels(source).set(self._profile_drift_since[source])
+
+    def profile_failed(self, source: str) -> None:
+        self.profiles_success.labels(source).set(0)

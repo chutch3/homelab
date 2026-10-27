@@ -1,0 +1,13 @@
+{
+  "name": "Preferred",
+  "includeCustomFormatWhenRenaming": false,
+  "specifications": [
+    {
+      "name": "Preferred release",
+      "implementation": "ReleaseTitleSpecification",
+      "negate": false,
+      "required": true,
+      "fields": {"value": "\\bExampleGroup\\b"}
+    }
+  ]
+}
