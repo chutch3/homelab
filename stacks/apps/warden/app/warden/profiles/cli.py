@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import argparse
 import asyncio
-import json
 import os
 import sys
 from collections.abc import Sequence
@@ -12,51 +11,28 @@ from typing import Any, Literal
 import httpx
 
 from warden.clients.arr import RadarrClient, SonarrClient
-from warden.profiles.catalog import Document
-from warden.profiles.files import load_catalog, write_catalog
-from warden.profiles.export import export_documents
-from warden.profiles.compare import compare_catalog, select_profiles
+from warden.profiles.files import LocalCatalogStore
+from warden.profiles.commands import diff_profiles, dump_profiles
 from warden.profiles.settings import parse_selection
+from warden.profiles.presentation import CommandOutput, render_diff, render_error, render_summary
 
 
-async def read_arr(source: Literal["radarr", "sonarr"], url: str, api_key: str) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
-    async with httpx.AsyncClient(timeout=30.0) as http:
-        cls = RadarrClient if source == "radarr" else SonarrClient
-        client = cls(name=source, base_url=url, http=http, api_key=api_key)
-        profiles = await client.list_quality_profiles()
-        formats = await client.list_custom_formats()
-    return profiles, formats
+class HttpArrProfileReader:
+    """HTTP adapter; configuration is supplied by the CLI composition boundary."""
 
+    def __init__(self, source: Literal["radarr", "sonarr"], url: str, api_key: str) -> None:
+        self.source = source
+        self.url = url
+        self.api_key = api_key
 
-async def dump(source: Literal["radarr", "sonarr"], url: str, api_key: str, selected: Sequence[str]) -> tuple[Document, ...]:
-    profiles, formats = await read_arr(source, url, api_key)
-    try:
-        return export_documents(source, profiles, formats, selected)
-    except (KeyError, TypeError) as exc:
-        raise ValueError("Arr response has an unsupported or incomplete profile structure") from exc
-
-
-def _print_diff(report: dict[str, Any], as_json: bool) -> int:
-    changes, conflicts = report["changes"], report["conflicts"]
-    if as_json:
-        print(json.dumps(report, ensure_ascii=False, indent=2))
-    elif not report["profiles"]:
-        print(f"{report['source']}: profile comparison disabled.")
-    elif not changes:
-        count = len(report["profiles"])
-        print(f"{report['source']}: no differences ({count} profile{'s' if count != 1 else ''}).")
-    else:
-        resources = len({(change["kind"], change["name"]) for change in changes})
-        print(f"{report['source']}: {len(changes)} change{'s' if len(changes) != 1 else ''} "
-              f"across {resources} resource{'s' if resources != 1 else ''}.")
-        for change in changes:
-            current = json.dumps(change["current"], ensure_ascii=False, sort_keys=True)
-            desired = json.dumps(change["desired"], ensure_ascii=False, sort_keys=True)
-            print(f"  {change['kind']} {json.dumps(change['name'])}: {change['field']}: {current} -> {desired}")
-        for conflict in conflicts:
-            print(f"  conflict: custom_format {json.dumps(conflict['name'])} also used by unselected profiles: "
-                  + ", ".join(json.dumps(name) for name in conflict["profiles"]))
-    return 1 if conflicts else (2 if changes else 0)
+    async def read(self) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+        if not self.url or not self.api_key:
+            prefix = f"WARDEN_{self.source.upper()}"
+            raise ValueError(f"{prefix}_URL and {prefix}_API_KEY are required")
+        async with httpx.AsyncClient(timeout=30.0) as http:
+            cls = RadarrClient if self.source == "radarr" else SonarrClient
+            client = cls(name=self.source, base_url=self.url, http=http, api_key=self.api_key)
+            return await client.list_quality_profiles(), await client.list_custom_formats()
 
 
 def configure_parser(parser: argparse.ArgumentParser) -> None:
@@ -74,49 +50,32 @@ def configure_parser(parser: argparse.ArgumentParser) -> None:
     diff.add_argument("--json", action="store_true")
 
 
-def run(args: argparse.Namespace) -> int:
+def execute(args: argparse.Namespace) -> CommandOutput:
+    store = LocalCatalogStore()
     try:
+        if args.command == "validate":
+            return render_summary(args.command, store.load(args.directory))
+        prefix = f"WARDEN_{args.source.upper()}"
+        reader = HttpArrProfileReader(args.source, os.getenv(f"{prefix}_URL", ""), os.getenv(f"{prefix}_API_KEY", ""))
         if args.command == "diff":
-            documents = load_catalog(args.directory)
-            requested = args.profile
-            if requested is None:
-                requested = parse_selection(os.getenv(f"WARDEN_{args.source.upper()}_PROFILES"))
-            selected = select_profiles(args.source, documents, requested)
-            if not selected:
-                return _print_diff(compare_catalog(args.source, documents, [], [], selected), args.json)
-        if args.command in {"dump", "diff"}:
-            prefix = f"WARDEN_{args.source.upper()}"
-            url, api_key = os.getenv(f"{prefix}_URL", ""), os.getenv(f"{prefix}_API_KEY", "")
-            if not url or not api_key:
-                raise ValueError(f"{prefix}_URL and {prefix}_API_KEY are required")
-            if args.command == "diff":
-                profiles, formats = asyncio.run(read_arr(args.source, url, api_key))
-                try:
-                    report = compare_catalog(args.source, documents, profiles, formats, selected)
-                except (KeyError, TypeError) as exc:
-                    raise ValueError("Arr response has an unsupported or incomplete profile structure") from exc
-                return _print_diff(report, args.json)
-            else:
-                documents = asyncio.run(dump(args.source, url, api_key, args.profile))
-                write_catalog(args.output, documents)
-        else:
-            documents = load_catalog(args.directory)
+            selected = args.profile if args.profile is not None else parse_selection(os.getenv(f"{prefix}_PROFILES"))
+            report = asyncio.run(diff_profiles(args.source, args.directory, selected, store, reader))
+            return render_diff(report, args.json)
+        documents = asyncio.run(dump_profiles(args.source, args.output, args.profile, store, reader))
+        return render_summary(args.command, documents)
     except httpx.HTTPStatusError as exc:
-        print(f"error: Arr returned HTTP {exc.response.status_code}; {args.command} did not complete", file=sys.stderr)
-        return 1
+        return render_error(f"Arr returned HTTP {exc.response.status_code}; {args.command} did not complete")
     except httpx.RequestError:
-        print(f"error: Arr request failed; {args.command} did not complete", file=sys.stderr)
-        return 1
+        return render_error(f"Arr request failed; {args.command} did not complete")
     except (ValueError, OSError) as exc:
-        print(f"error: {exc}", file=sys.stderr)
-        return 1
-    profiles = sum(len(d.data["quality_profiles"]) for d in documents if d.kind == "profiles")
-    formats = sum(d.kind == "custom_formats" for d in documents)
-    if args.command == "dump":
-        print(f"Exported {profiles} profiles and {formats} custom formats.")
-    else:
-        print(f"Valid catalog: {profiles} profiles, {formats} custom formats.")
-    return 0
+        return render_error(str(exc))
+
+
+def run(args: argparse.Namespace) -> int:
+    result = execute(args)
+    sys.stdout.write(result.stdout)
+    sys.stderr.write(result.stderr)
+    return result.exit_code
 
 
 def main(argv: Sequence[str] | None = None) -> int:

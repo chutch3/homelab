@@ -120,9 +120,17 @@ requirements. Profile work does not use the hunter's SQLite database.
 Legacy import and synchronization are not yet implemented.
 
 Within `warden/profiles`, `catalog.py` defines documents, snapshots, and reference
-validation without filesystem access. `files.py` handles YAML/JSON files, export
-publication, and directory loading. Comparison and export logic use the in-memory
-catalog independently of its storage.
+validation without filesystem access. `commands.py` coordinates profile operations
+through supplied catalog-store and Arr-reader contracts. `presentation.py` uses
+pure functions to return output and exit status; the CLI alone writes to stdout
+and stderr.
+
+`reading.py` coordinates bounded reads, decoding, and catalog validation through
+supplied dependencies. `files.py` implements filesystem access and guarded export
+publication; `codec.py` adapts YAML/JSON and JSON Schema. Unit tests can exercise a
+byte limit with a few bytes and a mock codec, or a failed Arr read with a mock
+reader, without constructing directories or full Arr payloads. The CLI integration
+tests exercise the concrete adapters together.
 
 ## Configuration
 
