@@ -5,7 +5,7 @@ import json
 import pytest
 
 from warden.profiles.models import ProfileDocument
-from warden.profiles.presentation import CommandOutput, render_diff, render_error, render_summary
+from warden.cli_output import CommandOutput, render_diff, render_error, render_summary
 
 
 def report(profiles: list[str], changes: list[dict] | None = None, conflicts: list[dict] | None = None) -> dict:

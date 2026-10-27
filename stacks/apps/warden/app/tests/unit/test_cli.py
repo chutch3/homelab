@@ -14,14 +14,13 @@ from warden.cli import build_parser, dispatch, diff_command, dump_command, serve
 from warden.container import Container
 from warden.profiles.files import ProfileStore
 from warden.profiles.models import ProfileDocument
-from warden.profiles.presentation import CommandOutput
+from warden.cli_output import CommandOutput
 
 
 @pytest.fixture()
 def container() -> Iterator[Container]:
     container = Container()
     container.environment.override({})
-    container.wire(modules=["warden.cli"])
     try:
         yield container
     finally:

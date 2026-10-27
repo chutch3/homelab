@@ -11,10 +11,10 @@ import httpx
 from dependency_injector.wiring import Provide, inject
 
 from warden.arr_service import ArrService
+from warden.cli_output import CommandOutput, render_diff, render_error, render_summary
 from warden.container import Container
-from warden.profiles.commands import diff_profiles, dump_profiles
 from warden.profiles.files import ProfileStore
-from warden.profiles.presentation import CommandOutput, render_diff, render_error, render_summary
+from warden.profiles.operations import diff_profiles, dump_profiles
 from warden.profiles.settings import parse_selection
 
 
@@ -104,7 +104,6 @@ def main(argv: Sequence[str] | None = None) -> int:
         parser.print_help()
         return 0
     container = Container()
-    container.wire(modules=[__name__, "warden.routes.health"])
     try:
         result = asyncio.run(dispatch(args, container))
     finally:

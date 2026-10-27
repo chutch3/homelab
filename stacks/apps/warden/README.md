@@ -129,20 +129,25 @@ implementation, and profile commands do not resolve server configuration or SQLi
 
 `cli.py` uses `build_parser()` to associate each subcommand with a small async
 handler through `set_defaults(func=...)`. Each handler declares its dependencies
-with `@inject` and `Provide`; operations stay in the profile command and server
+with `@inject` and `Provide`; operations stay in shared profile operations and runtime
 modules. A common runner reports errors and shuts down initialized resources on
-success, failure, or cancellation. `main()` wires the container, invokes the
-selected handler, and writes output and exit status. The HTTP client uses a
-Resource provider to own its async context.
-`serve.py` receives the server, stop signal, and loop callbacks. The profile loop
+success, failure, or cancellation. `main()` creates the container, invokes the
+selected handler, and writes output and exit status. The container declares wiring
+for CLI handlers and HTTP routes; the CLI does not register API dependencies.
+The HTTP client uses a Resource provider to own its async context.
+`api/app.py` registers the health and metrics routes from `api/routes/`.
+`serve.py` receives the server, stop signal, and loop callbacks and coordinates
+the HTTP server, hunter, and profile observer. The profile loop
 receives settings and observer providers so invalid or disabled observation never
 forces source/cache construction or stops hunting. Provider overrides reach these
 same dependencies in unit tests.
 
 Within `warden/profiles`, `models.py` defines documents and snapshots;
-`validation.py` checks their relationships. `commands.py` coordinates operations
-using an injected `ProfileStore` and `ArrService`. `presentation.py` uses pure
-functions to return output and exit status.
+`validation.py` checks their relationships. `operations.py` coordinates dump and
+diff using an injected `ProfileStore` and `ArrService`, independently of CLI or
+HTTP concerns. `cli_output.py` owns terminal text, JSON output, and exit status.
+Profile operations are currently exposed through the CLI; there are no profile
+HTTP endpoints.
 
 `ProfileStore` in `files.py` owns local loading and guarded export publication.
 `reading.py` coordinates bounded reads and decoding as a function with supplied
@@ -190,16 +195,22 @@ warden/
   clients/       Radarr/Sonarr/Prowlarr HTTP
   repositories/  SQLite persistence
   services/      tick logic (pure, testable)
-  routes/        health + metrics
+  api/           HTTP app setup and health + metrics routes
+  cli.py         argument parsing and injected command handlers
+  cli_output.py  terminal output and exit status
+  serve.py       HTTP server and background-task lifecycle
+  profiles/      shared profile operations and observation
+  container.py   dependency construction and wiring
   models.py      shared dataclasses
 ```
 
-Imports flow `routes → services → repositories → clients` (enforced by import-linter).
+Imports flow `api → services → repositories → clients` (enforced by import-linter).
 Unit tests cover the logic; the integration suite (`tests/integration`, marked
 `@pytest.mark.integration`) invokes the installed `warden` executable against
 local *arr HTTP fixtures. Run it with `task test:integration -- warden`; it also
 runs in CI as part of each build.
 
+- `test_api.py`: health and metrics over HTTP from a running `warden serve`.
 - `test_cli.py`: help and command-line errors.
 - `test_cli_profiles.py`: validation, dump, and diff through `warden profiles`.
 - `test_cli_serve.py`: hunting, observation, recovery, metrics, and shutdown through

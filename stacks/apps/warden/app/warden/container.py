@@ -10,6 +10,7 @@ from dependency_injector import containers, providers
 from fastapi import FastAPI
 from prometheus_client import CollectorRegistry
 
+from warden.api.app import configure_app
 from warden.arr_service import ArrService
 from warden.clients.arr import RadarrClient, SonarrClient
 from warden.clients.git import GitClient
@@ -32,7 +33,7 @@ from warden.repositories.efficacy import SearchAttemptRepository
 from warden.repositories.ledger import SearchLedgerRepository
 from warden.repositories.progress import QueueProgressRepository
 from warden.schedule import ResetSchedule
-from warden.serve import create_app, serve
+from warden.serve import serve
 from warden.services.backoff import BackoffTracker
 from warden.services.efficacy import EfficacyTracker
 from warden.services.orchestrator import TickOrchestrator
@@ -47,6 +48,8 @@ from warden.services.sweeper import QueueSweeper
 
 
 class Container(containers.DeclarativeContainer):
+    wiring_config = containers.WiringConfiguration(modules=["warden.cli", "warden.api.routes.metrics"])
+
     environment = providers.Singleton(dict, os.environ)
     config = providers.Singleton(Config.from_env, env=environment)
     registry = providers.Singleton(CollectorRegistry)
@@ -183,7 +186,7 @@ class Container(containers.DeclarativeContainer):
 
     stop = providers.Singleton(asyncio.Event)
     app = providers.Singleton(FastAPI, title="Warden")
-    web_app = providers.Singleton(create_app, app=app)
+    web_app = providers.Singleton(configure_app, app=app)
     server_config = providers.Singleton(
         uvicorn.Config, app=web_app, host="0.0.0.0", port=config.provided.metrics_port, log_level="info",
     )

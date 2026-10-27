@@ -5,21 +5,12 @@ import signal
 from collections.abc import Awaitable, Callable
 
 import uvicorn
-from fastapi import FastAPI
 
-import warden.routes as routes
 from warden import __version__
 from warden.config import Config
 from warden.logger import get_logger
-from warden.routes import health
 
 _logger = get_logger("warden.serve")
-
-
-def create_app(app: FastAPI) -> FastAPI:
-    app.include_router(routes.router)
-    app.include_router(health.router)
-    return app
 
 
 async def serve(

@@ -59,4 +59,4 @@ root_package = "warden"
 [[tool.importlinter.contracts]]
 name = "Circle Architecture rings"
 type = "layers"
-layers = ["warden.routes", "warden.services", "warden.repositories", "warden.clients"]
+layers = ["warden.api", "warden.services", "warden.repositories", "warden.clients"]

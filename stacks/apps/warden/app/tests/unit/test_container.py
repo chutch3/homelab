@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Iterator
 from pathlib import Path
 from unittest.mock import Mock
 
@@ -20,7 +21,7 @@ from warden.profiles.sources import DirectoryProfileSource, GitProfileSource, Pr
 
 class TestContainer:
     @pytest.fixture()
-    def subject(self) -> Container:
+    def subject(self) -> Iterator[Container]:
         container = Container()
         container.environment.override({
             "WARDEN_RADARR_URL": "http://radarr.invalid", "WARDEN_RADARR_API_KEY": "test-key",
@@ -33,7 +34,10 @@ class TestContainer:
         container.profile_codec.override(Mock(spec=DocumentCodec))
         container.metrics.override(Mock(spec=Metrics))
         container.clock.override(Mock(spec=SystemClock))
-        return container
+        try:
+            yield container
+        finally:
+            container.unwire()
 
     def test_store_receives_registered_dependencies_without_http(self, subject: Container) -> None:
         store = subject.profile_store()

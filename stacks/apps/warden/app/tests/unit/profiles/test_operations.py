@@ -8,7 +8,7 @@ import pytest
 from warden.profiles.models import ProfileDocument
 from warden.arr_service import ArrService
 from warden.profiles.files import ProfileStore
-from warden.profiles.commands import diff_profiles, dump_profiles
+from warden.profiles.operations import diff_profiles, dump_profiles
 from warden.profiles.compare import compare_profiles
 from warden.profiles.export import export_documents
 
