@@ -1,3 +1,5 @@
+import pytest
+
 from warden.config import Config
 from warden.models import ArrType
 
@@ -128,3 +130,13 @@ class TestStaleConfig:
         assert cfg.stale_sweep_enabled is False
         assert cfg.stale_grace_hours == 12.0
         assert cfg.stale_max_removals_per_tick == 2
+
+
+def test_explicit_environment_is_used_instead_of_process_settings(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("WARDEN_METRICS_PORT", "invalid")
+    cfg = Config.from_env({"WARDEN_METRICS_PORT": "9191", "WARDEN_RADARR_URL": "http://radarr/", "WARDEN_RADARR_API_KEY": "test-key"})
+    assert cfg.metrics_port == 9191
+    assert len(cfg.instances) == 1
+    assert cfg.instances[0].url == "http://radarr"
+    assert cfg.instances[0].name == "radarr"
+    assert cfg.fallback_searches_per_day == 200

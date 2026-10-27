@@ -2,21 +2,17 @@ from __future__ import annotations
 
 import argparse
 import asyncio
-import os
+import inspect
 import sys
 from collections.abc import Sequence
 from pathlib import Path
 
 import httpx
 
-from warden.arr_service import ArrService
-from warden.clients.arr import RadarrClient, SonarrClient
-from warden.profiles.codec import profile_codec
+from warden.container import Container
 from warden.profiles.commands import diff_profiles, dump_profiles
-from warden.profiles.files import LocalProfileFiles, ProfileStore
 from warden.profiles.presentation import CommandOutput, render_diff, render_error, render_summary
 from warden.profiles.settings import parse_selection
-from warden.serve import serve
 
 
 def main(argv: Sequence[str] | None = None) -> int:
@@ -40,34 +36,42 @@ def main(argv: Sequence[str] | None = None) -> int:
     if args.group is None:
         parser.print_help()
         return 0
-    result = asyncio.run(dispatch(args))
+    container = Container()
+    container.wire(modules=["warden.routes.health"])
+    try:
+        result = asyncio.run(dispatch(args, container))
+    finally:
+        container.unwire()
     sys.stdout.write(result.stdout)
     sys.stderr.write(result.stderr)
     return result.exit_code
 
 
-async def dispatch(args: argparse.Namespace) -> CommandOutput:
-    """Own command dependencies and their lifetime; domain operations receive them."""
-    if args.group == "serve":
-        await serve()
-        return CommandOutput()
-    store = ProfileStore(LocalProfileFiles(), profile_codec())
+async def dispatch(args: argparse.Namespace, container: Container) -> CommandOutput:
+    """Resolve command dependencies lazily and shut down resources on every exit."""
     try:
-        if args.command == "validate":
-            return render_summary(args.command, store.load(args.directory))
-        prefix = f"WARDEN_{args.source.upper()}"
-        url, api_key = os.getenv(f"{prefix}_URL", ""), os.getenv(f"{prefix}_API_KEY", "")
-        async with httpx.AsyncClient(timeout=30.0) as http:
-            client_type = RadarrClient if args.source == "radarr" else SonarrClient
-            clients = {args.source: client_type(name=args.source, base_url=url, http=http, api_key=api_key)} if url and api_key else {}
-            arr = ArrService(clients)
+        if args.group == "serve":
+            await container.serve_command()
+            return CommandOutput()
+        try:
+            store = container.profile_store()
+            if args.command == "validate":
+                return render_summary(args.command, store.load(args.directory))
+            arr = container.arr_service()
+            if inspect.isawaitable(arr):
+                arr = await arr
             if args.command == "diff":
-                selected = args.profile if args.profile is not None else parse_selection(os.getenv(f"{prefix}_PROFILES"))
+                raw = container.environment().get(f"WARDEN_{args.source.upper()}_PROFILES")
+                selected = args.profile if args.profile is not None else parse_selection(raw)
                 return render_diff(await diff_profiles(args.source, args.directory, selected, store, arr), args.json)
             return render_summary(args.command, await dump_profiles(args.source, args.output, args.profile, store, arr))
-    except httpx.HTTPStatusError as exc:
-        return render_error(f"Arr returned HTTP {exc.response.status_code}; {args.command} did not complete")
-    except httpx.RequestError:
-        return render_error(f"Arr request failed; {args.command} did not complete")
-    except (ValueError, OSError) as exc:
-        return render_error(str(exc))
+        except httpx.HTTPStatusError as exc:
+            return render_error(f"Arr returned HTTP {exc.response.status_code}; {args.command} did not complete")
+        except httpx.RequestError:
+            return render_error(f"Arr request failed; {args.command} did not complete")
+        except (ValueError, OSError) as exc:
+            return render_error(str(exc))
+    finally:
+        shutdown = container.shutdown_resources()
+        if inspect.isawaitable(shutdown):
+            await shutdown

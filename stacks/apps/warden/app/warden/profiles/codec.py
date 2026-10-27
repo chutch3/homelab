@@ -53,9 +53,9 @@ class YamlJsonCodec:
         return content.encode("utf-8")
 
 
-def profile_codec() -> YamlJsonCodec:
+def profile_schemas() -> dict[str, dict[str, Any]]:
     schema_dir = Path(__file__).with_name("schemas")
-    return YamlJsonCodec({
+    return {
         kind: json.loads((schema_dir / f"{kind}-v1.json").read_text())
         for kind in ("profiles", "custom_formats")
-    })
+    }

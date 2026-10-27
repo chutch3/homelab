@@ -121,9 +121,19 @@ loop. See [profile configuration usage and format](PROFILES.md), including runti
 requirements. Profile work does not use the hunter's SQLite database.
 Legacy import and synchronization are not yet implemented.
 
-`cli.py` owns argument parsing, command dependency lifetimes, terminal output, and
-exit codes. `serve.py` owns server startup. `ArrService` receives configured Arr
-clients and supplies profile reads to both commands and the observer.
+`container.py` is the composition root. Dependency Injector providers construct
+Arr clients, services, repositories, profile storage/codecs/sources, Git/cache,
+the observer, and server dependencies. The hunter and profile service share the
+same configured Arr clients. Source selectors instantiate only the selected
+implementation, and profile commands do not resolve server configuration or SQLite.
+
+`cli.py` parses arguments, resolves the command's providers, and writes output and
+exit status. It shuts down initialized resources on success, failure, or
+cancellation; the HTTP client uses a Resource provider to own its async context.
+`serve.py` receives the server, stop signal, and loop callbacks. The profile loop
+receives settings and observer providers so invalid or disabled observation never
+forces source/cache construction or stops hunting. Provider overrides reach these
+same dependencies in unit tests.
 
 Within `warden/profiles`, `models.py` defines documents and snapshots;
 `validation.py` checks their relationships. `commands.py` coordinates operations

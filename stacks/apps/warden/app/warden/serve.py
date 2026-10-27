@@ -1,34 +1,31 @@
 from __future__ import annotations
 
 import asyncio
-import os
 import signal
+from collections.abc import Awaitable, Callable
 
 import uvicorn
 from fastapi import FastAPI
 
 import warden.routes as routes
 from warden import __version__
-from warden.container import Container
+from warden.config import Config
 from warden.logger import get_logger
-from warden.loop import _hunt_loop
-from warden.profiles.loop import run_profiles
 from warden.routes import health
 
 _logger = get_logger("warden.serve")
 
 
-def create_app(container: Container) -> FastAPI:
-    container.wire(modules=["warden.loop", "warden.routes.health"])
-    app = FastAPI(title="Warden")
+def create_app(app: FastAPI) -> FastAPI:
     app.include_router(routes.router)
     app.include_router(health.router)
     return app
 
 
-async def serve() -> None:
-    container = Container()
-    cfg = container.config()
+async def serve(
+    cfg: Config, server: uvicorn.Server, stop: asyncio.Event,
+    hunt: Callable[[], Awaitable[None]], profiles: Callable[[], Awaitable[None]],
+) -> None:
     _logger.info("warden starting", extra={
         "event": "startup",
         "version": __version__,
@@ -42,14 +39,8 @@ async def serve() -> None:
         "poll_interval_sec": cfg.poll_interval_sec,
         "prowlarr_fallback_on_error": cfg.prowlarr_fallback_on_error,
     })
-    stop = asyncio.Event()
     loop = asyncio.get_running_loop()
     for sig in (signal.SIGTERM, signal.SIGINT):
         loop.add_signal_handler(sig, stop.set)
 
-    app = create_app(container)
-    server = uvicorn.Server(uvicorn.Config(app, host="0.0.0.0", port=cfg.metrics_port, log_level="info"))
-    await asyncio.gather(
-        server.serve(), _hunt_loop(stop),
-        run_profiles(stop, container.clients(), container.metrics(), container.clock(), dict(os.environ)),
-    )
+    await asyncio.gather(server.serve(), hunt(), profiles())

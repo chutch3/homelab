@@ -409,3 +409,22 @@ def test_profiles_dump_and_diff_remain_read_only(httpserver: HTTPServer, output_
         ("GET", "/api/v3/qualityprofile"), ("GET", "/api/v3/customformat"),
     ] * 3
     assert not (work / "must-not-create.db").exists()
+
+
+def test_dump_without_configured_arr_reports_configuration_error(tmp_path: Path) -> None:
+    result = invoke(tmp_path, "profiles", "dump", "--source", "radarr", "--output", str(tmp_path / "output"))
+    assert result.returncode == 1
+    assert result.stdout == ""
+    assert result.stderr == "error: WARDEN_RADARR_URL and WARDEN_RADARR_API_KEY are required\n"
+    assert not (tmp_path / "output").exists()
+    assert not (tmp_path / "must-not-create.db").exists()
+
+
+def test_disabled_diff_without_arr_credentials_does_not_initialize_server(catalog: Path) -> None:
+    env = cli_env(catalog.parent)
+    env["WARDEN_RADARR_PROFILES"] = "[]"
+    result = invoke(catalog.parent, "profiles", "diff", "--source", "radarr", "--directory", str(catalog), env=env)
+    assert result.returncode == 0, result.stderr
+    assert result.stdout == "radarr: profile comparison disabled.\n"
+    assert result.stderr == ""
+    assert not (catalog.parent / "must-not-create.db").exists()

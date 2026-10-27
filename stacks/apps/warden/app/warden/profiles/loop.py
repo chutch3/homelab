@@ -2,66 +2,49 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import inspect
 import time
-from collections.abc import Mapping, Sequence
+from collections.abc import Awaitable, Callable, Mapping
 from typing import Any
 
-from warden.clients.arr import ArrClient
-from warden.clock import SystemClock
-from warden.logger import get_logger
-from warden.metrics import Metrics
 from warden.arr_service import ArrService
-from warden.clients.git import GitClient
-from warden.profiles.cache import SnapshotCache
-from warden.profiles.codec import profile_codec
-from warden.profiles.files import ProfileStore, LocalProfileFiles
-from warden.profiles.sources import DirectoryProfileSource, GitProfileSource, ProfileSource
+from warden.clock import SystemClock
+from warden.metrics import Metrics
 from warden.profiles.observer import Observer
 from warden.profiles.settings import ProfileSettings, parse_selection
 
 
-def _emit(event: str, fields: dict[str, Any]) -> None:
-    get_logger("warden.profiles").info(event, extra={"event": event, **fields})
-
-
 async def run_profiles(
-    stop: asyncio.Event, clients: Sequence[ArrClient], metrics: Metrics,
+    stop: asyncio.Event, arr: ArrService, metrics: Metrics,
     clock: SystemClock, env: Mapping[str, str],
+    settings_factory: Callable[[], ProfileSettings | None],
+    observer_factory: Callable[[], Observer | Awaitable[Observer]],
+    emit: Callable[[str, dict[str, Any]], None],
 ) -> None:
     active = []
-    selections = {}
     settings = None
     config_error = None
     try:
-        settings = ProfileSettings.from_env(env)
+        settings = settings_factory()
     except ValueError as exc:
         config_error = str(exc)
-    for client in clients:
-        raw = env.get(f"WARDEN_{client.name.upper()}_PROFILES")
-        if raw is not None:
-            selections[client.name] = raw
+    for name in arr.sources:
+        raw = env.get(f"WARDEN_{name.upper()}_PROFILES")
         enabled = bool(env.get("WARDEN_PROFILES_REPO") or env.get("WARDEN_PROFILES_DIRECTORY"))
         try:
             enabled = enabled and parse_selection(raw) != []
         except ValueError:
             pass
-        metrics.profile_enabled(client.name, enabled, settings.interval if settings else 900, clock.now().timestamp())
+        metrics.profile_enabled(name, enabled, settings.interval if settings else 900, clock.now().timestamp())
         if enabled:
-            active.append(client.name)
+            active.append(name)
     if config_error:
-        _emit("profile_config_error", {"reason": config_error})
+        emit("profile_config_error", {"reason": config_error})
     if settings is None or not active:
         return
-    store = ProfileStore(LocalProfileFiles(), profile_codec())
-    source: ProfileSource
-    if settings.directory:
-        source = DirectoryProfileSource(settings.directory, store, settings.max_bytes)
-    else:
-        cache = SnapshotCache(settings.cache, settings.max_bytes)
-        git = GitClient(settings.cache, settings.timeout, cache.check)
-        source = GitProfileSource(settings.repo, settings.ref, settings.path, git, cache, store)
-    arr = ArrService({client.name: client for client in clients})
-    observer = Observer(source, arr, selections, metrics, clock, _emit)
+    observer = observer_factory()
+    if inspect.isawaitable(observer):
+        observer = await observer
     stopping = asyncio.create_task(stop.wait())
     try:
         while not stop.is_set():
@@ -74,13 +57,13 @@ async def run_profiles(
                 if cycle not in done:
                     for source in active:
                         metrics.profile_failed(source)
-                    _emit("profile_cycle_timeout", {})
+                    emit("profile_cycle_timeout", {})
                 else:
                     await cycle
             except Exception as exc:
                 for source in active:
                     metrics.profile_failed(source)
-                _emit("profile_cycle_error", {"error_type": type(exc).__name__})
+                emit("profile_cycle_error", {"error_type": type(exc).__name__})
             finally:
                 cycle.cancel()
                 await asyncio.gather(cycle, return_exceptions=True)

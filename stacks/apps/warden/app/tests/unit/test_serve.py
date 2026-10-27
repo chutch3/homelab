@@ -10,7 +10,8 @@ def make_client(monkeypatch) -> TestClient:
         monkeypatch.delenv(var, raising=False)
     monkeypatch.setenv("WARDEN_DB_URL", "sqlite://")
     container = Container()
-    return TestClient(create_app(container))
+    container.wire(modules=["warden.routes.health"])
+    return TestClient(create_app(container.app()))
 
 
 class TestWeb:
