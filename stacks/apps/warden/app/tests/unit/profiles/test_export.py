@@ -8,7 +8,7 @@ from tests.profile_data import REMOTE_FORMAT, REMOTE_PROFILE
 from warden.profiles.export import export_documents
 
 
-def test_export_resolves_names_and_preserves_quality_precedence() -> None:
+def test_export_documents_resolves_names_and_preserves_quality_precedence() -> None:
     documents = export_documents("radarr", [REMOTE_PROFILE], [REMOTE_FORMAT], ())
     assert documents[0].data == {
         "schema_version": 1,
@@ -31,7 +31,7 @@ def test_export_resolves_names_and_preserves_quality_precedence() -> None:
     }
 
 
-def test_export_sonarr_without_radarr_language() -> None:
+def test_export_documents_sonarr_without_radarr_language() -> None:
     profile = deepcopy(REMOTE_PROFILE)
     del profile["language"]
     documents = export_documents("sonarr", [profile], [REMOTE_FORMAT], ("HD",))
@@ -39,22 +39,22 @@ def test_export_sonarr_without_radarr_language() -> None:
     assert "language" not in documents[0].data["quality_profiles"][0]
 
 
-def test_export_rejects_unknown_behavioral_fields() -> None:
+def test_export_documents_rejects_unknown_behavioral_fields() -> None:
     profile = {**REMOTE_PROFILE, "futureBehavior": True}
     with pytest.raises(ValueError, match="unsupported.*futureBehavior"):
         export_documents("radarr", [profile], [REMOTE_FORMAT], ())
 
 
-def test_export_rejects_missing_dependency() -> None:
+def test_export_documents_rejects_missing_dependency() -> None:
     with pytest.raises(ValueError, match="missing custom format ID 17"):
         export_documents("radarr", [REMOTE_PROFILE], [], ())
 
 
-def test_export_rejects_empty_instance() -> None:
+def test_export_documents_rejects_empty_instance() -> None:
     with pytest.raises(ValueError, match="no profiles"):
         export_documents("radarr", [], [], ())
 
 
-def test_export_excludes_unused_formats() -> None:
+def test_export_documents_excludes_unused_formats() -> None:
     documents = export_documents("radarr", [REMOTE_PROFILE], [REMOTE_FORMAT, {**REMOTE_FORMAT, "id": 99, "name": "Unused"}], ())
     assert [d.data["name"] for d in documents if d.kind == "custom_formats"] == ["Preferred"]

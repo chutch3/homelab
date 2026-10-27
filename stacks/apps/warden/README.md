@@ -159,7 +159,10 @@ separates mount lookup from the allowed-filesystem policy.
 
 Unit tests can verify byte limits with tiny byte strings, Arr reads with mock
 clients, and snapshot replacement with mock Git/cache/store dependencies. Unit
-test paths mirror the modules they exercise. CLI integration tests exercise the
+test paths mirror the modules they exercise. Unit test functions use
+`test_<method_name>_<use_case>`; properties and container providers use their
+property/provider name, and constructors use `test_init_<use_case>`. Integration
+tests use `test_<use_case>`. CLI integration tests exercise the
 concrete adapters together, including failure and storage-protection behavior.
 
 ## Configuration

@@ -27,7 +27,7 @@ def container() -> Iterator[Container]:
         container.unwire()
 
 
-async def test_validate_uses_injected_store_without_initializing_other_resources(container: Container) -> None:
+async def test_dispatch_validate_uses_injected_store_without_initializing_other_resources(container: Container) -> None:
     container.environment.override({"WARDEN_METRICS_PORT": "invalid", "WARDEN_PROFILES_REPO": "--invalid"})
     store = Mock(spec=ProfileStore)
     store.load.return_value = (ProfileDocument("radarr", "profiles", "hd.yml", {"quality_profiles": [{"name": "HD"}]}),)
@@ -39,7 +39,7 @@ async def test_validate_uses_injected_store_without_initializing_other_resources
 
 
 @pytest.mark.parametrize("failure", [False, True])
-async def test_command_shuts_down_initialized_resources(container: Container, failure: bool) -> None:
+async def test_dispatch_command_shuts_down_initialized_resources(container: Container, failure: bool) -> None:
     events: list[str] = []
 
     async def http_resource() -> AsyncIterator[object]:
@@ -62,7 +62,7 @@ async def test_command_shuts_down_initialized_resources(container: Container, fa
     assert events == ["opened", "closed"]
 
 
-async def test_cancelled_server_shuts_down_initialized_resources(container: Container) -> None:
+async def test_dispatch_cancelled_server_shuts_down_initialized_resources(container: Container) -> None:
     events: list[str] = []
 
     async def http_resource() -> AsyncIterator[object]:
@@ -88,7 +88,7 @@ async def test_cancelled_server_shuts_down_initialized_resources(container: Cont
     (["profiles", "dump", "--source", "radarr", "--output", "/profiles"], dump_command),
     (["profiles", "diff", "--source", "sonarr", "--directory", "/profiles"], diff_command),
 ])
-def test_parser_selects_command_handler(arguments: list[str], handler: Callable[[Namespace], Awaitable[CommandOutput]]) -> None:
+def test_build_parser_selects_command_handler(arguments: list[str], handler: Callable[[Namespace], Awaitable[CommandOutput]]) -> None:
     assert build_parser().parse_args(arguments).func is handler
 
 
@@ -104,7 +104,7 @@ async def test_dispatch_executes_selected_handler(container: Container) -> None:
     assert calls == [args]
 
 
-async def test_serve_uses_injected_command(container: Container) -> None:
+async def test_dispatch_serve_uses_injected_command(container: Container) -> None:
     calls = []
 
     async def run() -> None:
@@ -118,7 +118,7 @@ async def test_serve_uses_injected_command(container: Container) -> None:
 
 
 @pytest.mark.parametrize("asynchronous", [False, True])
-async def test_diff_handler_receives_store_arr_and_environment(container: Container, asynchronous: bool) -> None:
+async def test_dispatch_diff_handler_receives_store_arr_and_environment(container: Container, asynchronous: bool) -> None:
     store, arr = Mock(spec=ProfileStore), Mock(spec=ArrService)
     store.load.return_value = ()
     resolved = []

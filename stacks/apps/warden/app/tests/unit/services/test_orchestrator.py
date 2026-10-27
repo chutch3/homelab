@@ -64,7 +64,7 @@ def _events(caplog, event: str):
 
 
 class TestHuntLogging:
-    async def test_logs_search_triggered_per_item(self, repo, caplog):
+    async def test_hunt_one_logs_search_triggered_per_item(self, repo, caplog):
         item = WantedItem(instance="sonarr", remote_id=123, title="The Bear S03E01", kind=WantKind.MISSING)
         client = FakeArrClient("sonarr", [item], arr_type=ArrType.SONARR)
         orch = _make_orch([client], repo)
@@ -81,7 +81,7 @@ class TestHuntLogging:
         assert r.title == "The Bear S03E01"
         assert r.kind == "missing"
 
-    async def test_logs_nothing_to_hunt_when_empty(self, repo, caplog):
+    async def test_hunt_one_logs_nothing_to_hunt_when_empty(self, repo, caplog):
         client = FakeArrClient("radarr", [], arr_type=ArrType.RADARR)
         orch = _make_orch([client], repo)
         with caplog.at_level(logging.INFO, logger="warden.orchestrator"):
@@ -176,7 +176,7 @@ class TestTickOrchestrator:
             return orch, metrics
         return _make
 
-    async def test_fallback_mode_paces_each_source(self, make):
+    async def test_tick_fallback_mode_paces_each_source(self, make):
         radarr = FakeArrClient("radarr", [missing_item("radarr", i) for i in range(50)], arr_type=ArrType.RADARR)
         orch, _ = make([radarr])
         decision = await orch.tick()
@@ -184,7 +184,7 @@ class TestTickOrchestrator:
         assert sum(len(s) for s in radarr.searched) == 1
         assert decision.reason == "paced"
 
-    async def test_prowlarr_limits_drive_per_source_budget_independently(self, make, repo):
+    async def test_tick_prowlarr_limits_drive_per_source_budget_independently(self, make, repo):
         radarr = FakeArrClient("radarr", [missing_item("radarr", 1)], arr_type=ArrType.RADARR)
         sonarr = FakeArrClient("sonarr", [missing_item("sonarr", 9)], arr_type=ArrType.SONARR)
         qs = StubQuotaSource({ArrType.RADARR: 100, ArrType.SONARR: 100})
@@ -196,7 +196,7 @@ class TestTickOrchestrator:
         assert sonarr.searched == [[9]]        # sonarr still hunts
         assert decision.reason == "paced"
 
-    async def test_all_sources_blocked_keeps_poll_cadence_so_janitor_runs(self, make, repo):
+    async def test_tick_all_sources_blocked_keeps_poll_cadence_so_janitor_runs(self, make, repo):
         # when quota-blocked, warden must still wake every poll interval to run the (free)
         # queue janitor — NOT sleep until the daily reset (which would starve the sweep).
         radarr = FakeArrClient("radarr", [missing_item("radarr", 1)], arr_type=ArrType.RADARR)
@@ -208,7 +208,7 @@ class TestTickOrchestrator:
         assert decision.reason == "blocked"
         assert decision.seconds == 300          # poll interval, not seconds_to_reset
 
-    async def test_source_with_zero_indexers_is_blocked(self, make):
+    async def test_tick_source_with_zero_indexers_is_blocked(self, make):
         radarr = FakeArrClient("radarr", [missing_item("radarr", 1)], arr_type=ArrType.RADARR)
         qs = StubQuotaSource({ArrType.RADARR: 0})
         orch, _ = make([radarr], quota_source=qs)
@@ -216,7 +216,7 @@ class TestTickOrchestrator:
         assert radarr.searched == []
         assert decision.reason == "blocked"
 
-    async def test_unreachable_source_does_not_block_the_other(self, make):
+    async def test_tick_unreachable_source_does_not_block_the_other(self, make):
         bad = FakeArrClient("radarr", [missing_item("radarr", 1)], raises=True, arr_type=ArrType.RADARR)
         good = FakeArrClient("sonarr", [missing_item("sonarr", 9)], arr_type=ArrType.SONARR)
         orch, _ = make([bad, good], when=datetime(2026, 6, 16, 23, 59, tzinfo=timezone.utc))
@@ -225,20 +225,20 @@ class TestTickOrchestrator:
         assert good.searched == [[9]]      # the other source still hunts
         assert decision.reason == "paced"
 
-    async def test_quota_source_error_falls_back_when_enabled(self, make):
+    async def test_tick_quota_source_error_falls_back_when_enabled(self, make):
         radarr = FakeArrClient("radarr", [missing_item("radarr", 1)], arr_type=ArrType.RADARR)
         orch, _ = make([radarr], quota_source=_BoomQuotaSource(), fallback=200)
         decision = await orch.tick()
         assert radarr.searched == [[1]]      # fell back to flat budget, still hunts
         assert decision.reason == "paced"
 
-    async def test_quota_source_error_raises_when_fallback_disabled(self, make):
+    async def test_tick_quota_source_error_raises_when_fallback_disabled(self, make):
         radarr = FakeArrClient("radarr", [missing_item("radarr", 1)], arr_type=ArrType.RADARR)
         orch, _ = make([radarr], quota_source=_BoomQuotaSource(), prowlarr_fallback_on_error=False)
         with pytest.raises(RuntimeError):
             await orch.tick()
 
-    async def test_prowlarr_tick_sets_provenance_metrics(self, make):
+    async def test_tick_prowlarr_tick_sets_provenance_metrics(self, make):
         radarr = FakeArrClient("radarr", [missing_item("radarr", 1)], arr_type=ArrType.RADARR)
         qs = StubQuotaSource({ArrType.RADARR: 500})
         orch, metrics = make([radarr], quota_source=qs)
@@ -249,14 +249,14 @@ class TestTickOrchestrator:
         assert reg.get_sample_value("warden_indexers_total", {"source": "radarr"}) == 3
         assert reg.get_sample_value("warden_indexers_defaulted", {"source": "radarr"}) == 1
 
-    async def test_fallback_tick_sets_quota_prowlarr_zero(self, make):
+    async def test_tick_fallback_tick_sets_quota_prowlarr_zero(self, make):
         radarr = FakeArrClient("radarr", [missing_item("radarr", 1)], arr_type=ArrType.RADARR)
         # FallbackQuotaSource returns empty dict -> no SourceQuota -> prowlarr=0
         orch, metrics = make([radarr], quota_source=FallbackQuotaSource())
         await orch.tick()
         assert metrics.registry.get_sample_value("warden_quota_prowlarr", {"source": "radarr"}) == 0
 
-    async def test_blocked_tick_increments_paused_ticks_and_sets_last_tick(self, make, repo):
+    async def test_tick_blocked_tick_increments_paused_ticks_and_sets_last_tick(self, make, repo):
         radarr = FakeArrClient("radarr", [missing_item("radarr", 1)], arr_type=ArrType.RADARR)
         qs = StubQuotaSource({ArrType.RADARR: 100})
         orch, metrics = make([radarr], quota_source=qs)
@@ -267,7 +267,7 @@ class TestTickOrchestrator:
         assert reg.get_sample_value("warden_paused_ticks_total", {"source": "radarr"}) == 1
         assert reg.get_sample_value("warden_last_tick_timestamp_seconds", {}) == NOON.timestamp()
 
-    async def test_removes_stale_and_excludes_queued_from_hunt(self, make):
+    async def test_tick_removes_stale_and_excludes_queued_from_hunt(self, make):
         # movie 1 is stale-in-queue; movie 2 is healthy-downloading (in queue, not stale)
         radarr = FakeArrClient(
             "radarr",
@@ -290,7 +290,7 @@ class TestTickOrchestrator:
         assert metrics.registry.get_sample_value(
             "warden_stale_removed_total", {"source": "radarr", "reason": "stalled"}) == 1
 
-    async def test_mass_unavailable_queue_bails_and_still_excludes(self, make):
+    async def test_tick_mass_unavailable_queue_bails_and_still_excludes(self, make):
         # >50% downloadClientUnavailable (the outage signal) -> guard bails (no removals),
         # but the queued ids are still excluded from hunting
         unavail = [QueueItem(id=10 + i, remote_id=i, title="u", status="downloadClientUnavailable",
@@ -310,7 +310,7 @@ class TestTickOrchestrator:
         assert all(i not in searched for i in range(3))   # queued ids still excluded
         assert 99 in searched                              # the non-queued item is huntable
 
-    async def test_removal_failure_is_swallowed_and_item_stays_excluded(self, make):
+    async def test_tick_removal_failure_is_swallowed_and_item_stays_excluded(self, make):
         radarr = FakeArrClient(
             "radarr", [missing_item("radarr", 1)], arr_type=ArrType.RADARR, remove_raises=True,
             queue=[QueueItem(id=11, remote_id=1, title="s", status="warning",
@@ -320,7 +320,7 @@ class TestTickOrchestrator:
         searched = [i for batch in radarr.searched for i in batch]
         assert 1 not in searched   # removal failed -> still queued -> stays excluded
 
-    async def test_no_progress_download_is_removed(self, make):
+    async def test_tick_no_progress_download_is_removed(self, make):
         from warden.models import Anchor
         # pre-seed an anchor 7h ago (> 6h window); item still has the same sizeleft -> no progress
         repo = make_progress_repo()
@@ -336,7 +336,7 @@ class TestTickOrchestrator:
         assert metrics.registry.get_sample_value(
             "warden_stale_removed_total", {"source": "radarr", "reason": "no_progress"}) == 1
 
-    async def test_sets_never_searched_metric(self, make):
+    async def test_tick_sets_never_searched_metric(self, make):
         radarr = FakeArrClient("radarr", [
             missing_item("radarr", 1),                          # last_search_time None
             missing_item("radarr", 2),                          # None
@@ -347,7 +347,7 @@ class TestTickOrchestrator:
         assert metrics.registry.get_sample_value(
             "warden_never_searched", {"source": "radarr"}) == 2
 
-    async def test_sweep_runs_even_when_source_is_quota_blocked(self, make, repo):
+    async def test_tick_sweep_runs_even_when_source_is_quota_blocked(self, make, repo):
         radarr = FakeArrClient(
             "radarr", [missing_item("radarr", 1)], arr_type=ArrType.RADARR,
             queue=[QueueItem(id=11, remote_id=1, title="s", status="warning",
@@ -360,7 +360,7 @@ class TestTickOrchestrator:
         assert radarr.removed == [11]   # sweep still removed the stale item
         assert radarr.searched == []    # but no hunt (blocked)
 
-    async def test_records_search_attempts_for_each_hunted_item(self, make):
+    async def test_tick_records_search_attempts_for_each_hunted_item(self, make):
         eff = make_efficacy_repo()
         radarr = FakeArrClient("radarr", [missing_item("radarr", 7)], arr_type=ArrType.RADARR)
         orch, metrics = make([radarr], efficacy_repo=eff)
@@ -369,7 +369,7 @@ class TestTickOrchestrator:
         assert metrics.registry.get_sample_value(
             "warden_search_pending", {"source": "radarr"}) == 1
 
-    async def test_grab_for_a_searched_item_counts_as_a_hit(self, make):
+    async def test_tick_grab_for_a_searched_item_counts_as_a_hit(self, make):
         eff = make_efficacy_repo()
         eff.record("radarr", [(7, "missing")], NOON - timedelta(minutes=10))
         radarr = FakeArrClient(
@@ -383,7 +383,7 @@ class TestTickOrchestrator:
         assert eff.pending("radarr") == []           # resolved -> dropped
         assert radarr.grabbed_since == [NOON - timedelta(minutes=10)]   # polled since oldest pending
 
-    async def test_unresolved_attempt_past_window_counts_as_a_miss(self, make):
+    async def test_tick_unresolved_attempt_past_window_counts_as_a_miss(self, make):
         eff = make_efficacy_repo()
         eff.record("radarr", [(7, "missing")], NOON - timedelta(minutes=45))   # older than 30m window
         radarr = FakeArrClient("radarr", [], arr_type=ArrType.RADARR, grabs=[])
@@ -393,7 +393,7 @@ class TestTickOrchestrator:
             "warden_search_miss_total", {"source": "radarr"}) == 1
         assert eff.pending("radarr") == []
 
-    async def test_efficacy_reconciles_even_when_blocked(self, make, repo):
+    async def test_tick_efficacy_reconciles_even_when_blocked(self, make, repo):
         eff = make_efficacy_repo()
         eff.record("radarr", [(7, "missing")], NOON - timedelta(minutes=10))
         radarr = FakeArrClient(
@@ -408,7 +408,7 @@ class TestTickOrchestrator:
         assert metrics.registry.get_sample_value(
             "warden_search_hit_total", {"source": "radarr", "indexer": "Knaben"}) == 1
 
-    async def test_history_error_does_not_abort_the_tick(self, make):
+    async def test_tick_history_error_does_not_abort_the_tick(self, make):
         eff = make_efficacy_repo()
         eff.record("radarr", [(7, "missing")], NOON - timedelta(minutes=10))
         radarr = FakeArrClient("radarr", [missing_item("radarr", 1)], arr_type=ArrType.RADARR,
@@ -418,7 +418,7 @@ class TestTickOrchestrator:
         assert radarr.searched == [[1]]              # hunt still happened
         assert [a.remote_id for a in eff.pending("radarr")] == [1, 7]   # 7 stays pending, 1 newly recorded
 
-    async def test_efficacy_disabled_skips_history_and_recording(self, make):
+    async def test_tick_efficacy_disabled_skips_history_and_recording(self, make):
         eff = make_efficacy_repo()
         radarr = FakeArrClient("radarr", [missing_item("radarr", 1)], arr_type=ArrType.RADARR)
         orch, _ = make([radarr], efficacy_repo=eff, efficacy=_efficacy(enabled=False))
@@ -426,7 +426,7 @@ class TestTickOrchestrator:
         assert radarr.grabbed_since == []            # never polled history
         assert eff.pending("radarr") == []           # nothing recorded
 
-    async def test_miss_backs_off_item_and_excludes_it_from_hunt(self, make):
+    async def test_tick_miss_backs_off_item_and_excludes_it_from_hunt(self, make):
         eff = make_efficacy_repo()
         boff = make_backoff_repo()
         eff.record("radarr", [(7, "missing")], NOON - timedelta(minutes=45))   # will miss this tick
@@ -441,7 +441,7 @@ class TestTickOrchestrator:
         searched = [i for batch in radarr.searched for i in batch]
         assert 7 not in searched                      # excluded from hunting same tick
 
-    async def test_hit_clears_backoff(self, make):
+    async def test_tick_hit_clears_backoff(self, make):
         boff = make_backoff_repo()
         boff.write("radarr", clear=frozenset(),
                    upsert={7: (5, (NOON + timedelta(days=1)).timestamp())})   # already backed off
@@ -456,7 +456,7 @@ class TestTickOrchestrator:
         assert boff.streaks("radarr", [7]) == {}      # the grab reset it
         assert metrics.registry.get_sample_value("warden_backoff_active", {"source": "radarr"}) == 0
 
-    async def test_backoff_disabled_does_not_exclude_or_record(self, make):
+    async def test_tick_backoff_disabled_does_not_exclude_or_record(self, make):
         boff = make_backoff_repo()
         boff.write("radarr", clear=frozenset(),
                    upsert={7: (9, (NOON + timedelta(days=1)).timestamp())})
@@ -469,7 +469,7 @@ class TestTickOrchestrator:
         assert 7 in searched                          # disabled -> active() not consulted
         assert boff.streaks("radarr", [8]) == {}      # disabled -> no streak recorded for the miss
 
-    async def test_space_blocked_skips_hunt_but_janitor_still_sweeps(self, make):
+    async def test_tick_space_blocked_skips_hunt_but_janitor_still_sweeps(self, make):
         # low disk pauses hunting, but the sweep (which costs no space) still runs.
         radarr = FakeArrClient(
             "radarr", [missing_item("radarr", 1)], arr_type=ArrType.RADARR,
@@ -485,7 +485,7 @@ class TestTickOrchestrator:
         assert reg.get_sample_value("warden_space_blocked", {"source": "radarr"}) == 1
         assert reg.get_sample_value("warden_space_paused_ticks_total", {"source": "radarr"}) == 1
 
-    async def test_ample_space_hunts_and_publishes_headroom(self, make):
+    async def test_tick_ample_space_hunts_and_publishes_headroom(self, make):
         radarr = FakeArrClient("radarr", [missing_item("radarr", 1)], arr_type=ArrType.RADARR,
                                root_folders=[RootFolder("/data", 500 * GB)])
         orch, metrics = make([radarr], space_guard=SpaceGuard(50 * GB))
@@ -496,7 +496,7 @@ class TestTickOrchestrator:
         assert reg.get_sample_value("warden_free_bytes", {"source": "radarr"}) == 500 * GB
         assert reg.get_sample_value("warden_projected_free_bytes", {"source": "radarr"}) == 500 * GB
 
-    async def test_in_flight_queue_pushes_headroom_below_floor_and_blocks(self, make):
+    async def test_tick_in_flight_queue_pushes_headroom_below_floor_and_blocks(self, make):
         # 100 GB free clears the 50 GB floor, but 80 GB in flight -> 20 GB projected -> blocked.
         radarr = FakeArrClient(
             "radarr", [missing_item("radarr", 1)], arr_type=ArrType.RADARR,
@@ -511,7 +511,7 @@ class TestTickOrchestrator:
         assert reg.get_sample_value("warden_space_blocked", {"source": "radarr"}) == 1
         assert reg.get_sample_value("warden_projected_free_bytes", {"source": "radarr"}) == 20 * GB
 
-    async def test_space_read_error_fails_open(self, make):
+    async def test_tick_space_read_error_fails_open(self, make):
         radarr = FakeArrClient("radarr", [missing_item("radarr", 1)], arr_type=ArrType.RADARR,
                                root_folders_raises=True)
         orch, metrics = make([radarr], space_guard=SpaceGuard(50 * GB))
@@ -519,14 +519,14 @@ class TestTickOrchestrator:
         assert radarr.searched == [[1]]       # unreadable space -> hunt anyway
         assert metrics.registry.get_sample_value("warden_space_blocked", {"source": "radarr"}) == 0
 
-    async def test_no_root_folder_readings_fails_open(self, make):
+    async def test_tick_no_root_folder_readings_fails_open(self, make):
         radarr = FakeArrClient("radarr", [missing_item("radarr", 1)], arr_type=ArrType.RADARR,
                                root_folders=[])
         orch, _ = make([radarr], space_guard=SpaceGuard(50 * GB))
         await orch.tick()
         assert radarr.searched == [[1]]
 
-    async def test_space_block_is_per_source(self, make):
+    async def test_tick_space_block_is_per_source(self, make):
         # radarr's disk is low, sonarr's is fine -> only radarr pauses; sonarr keeps hunting.
         radarr = FakeArrClient("radarr", [missing_item("radarr", 1)], arr_type=ArrType.RADARR,
                                root_folders=[RootFolder("/movies", 5 * GB)])
@@ -540,7 +540,7 @@ class TestTickOrchestrator:
         assert reg.get_sample_value("warden_space_blocked", {"source": "radarr"}) == 1
         assert reg.get_sample_value("warden_space_blocked", {"source": "sonarr"}) == 0
 
-    async def test_guard_disabled_never_reads_root_folders(self, make):
+    async def test_tick_guard_disabled_never_reads_root_folders(self, make):
         # a floor of 0 disables the guard; the root folder endpoint is never consulted.
         radarr = FakeArrClient("radarr", [missing_item("radarr", 1)], arr_type=ArrType.RADARR,
                                root_folders=[RootFolder("/data", 1)])   # would block if read

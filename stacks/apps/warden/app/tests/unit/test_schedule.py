@@ -44,7 +44,7 @@ class TestResetSchedule:
         # next local midnight = 2026-06-16 00:00 EDT = 04:00 UTC
         assert sched.next_reset(now).astimezone(timezone.utc) == datetime(2026, 6, 16, 4, 0, tzinfo=timezone.utc)
 
-    def test_invalid_tz_falls_back_to_utc(self):
+    def test_window_key_falls_back_to_utc_for_invalid_timezone(self):
         sched = ResetSchedule("00:00", tz="Not/AZone")
         now = datetime(2026, 6, 16, 3, 0, tzinfo=timezone.utc)
         assert sched.window_key(now) == "2026-06-16"

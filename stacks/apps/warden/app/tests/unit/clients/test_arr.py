@@ -80,7 +80,7 @@ class TestRadarrClient:
         await client.trigger_search([])
         assert calls == []
 
-    def test_radarr_arr_type(self):
+    def test_arr_type_returns_radarr(self):
         from warden.models import ArrType
         client = RadarrClient(name="radarr", base_url="http://radarr",
                               http=httpx.AsyncClient(transport=transport(lambda r: httpx.Response(200, json={}))),
@@ -250,7 +250,7 @@ class TestSonarrHistory:
         assert events[0].remote_id == 8328 and events[0].indexer == "EZTVL (Prowlarr)"
 
 
-    def test_sonarr_arr_type(self):
+    def test_arr_type_returns_sonarr(self):
         from warden.models import ArrType
         client = SonarrClient(name="sonarr", base_url="http://sonarr",
                               http=httpx.AsyncClient(transport=transport(lambda r: httpx.Response(200, json={}))),
@@ -271,7 +271,7 @@ class TestSonarrQueue:
 
 
 class TestWantedLastSearchTime:
-    async def test_parses_last_search_time(self):
+    async def test_list_missing_parses_last_search_time(self):
         def handler(request: httpx.Request) -> httpx.Response:
             return httpx.Response(200, json={"records": [
                 {"id": 11, "title": "A", "lastSearchTime": "2026-06-18T03:00:00Z"},

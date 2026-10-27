@@ -32,7 +32,7 @@ def test_write_upserts_existing_rows():
     assert repo.streaks("radarr", [1]) == {1: 2}
 
 
-def test_clear_removes_rows():
+def test_write_clears_requested_rows():
     repo = _repo()
     repo.write("radarr", clear=frozenset(), upsert={1: (5, FUTURE)})
     repo.write("radarr", clear=frozenset({1}), upsert={})

@@ -27,13 +27,13 @@ class _BoomOrch:
 
 
 class TestHuntLoop:
-    async def test_runs_tick_then_stops(self):
+    async def test_hunt_loop_runs_tick_then_stops(self):
         stop = asyncio.Event()
         orch = _OneShotOrch(stop)
         await _hunt_loop(stop, orchestrator=orch)
         assert orch.ticks == 1
 
-    async def test_survives_tick_exception(self):
+    async def test_hunt_loop_survives_tick_exception(self):
         stop = asyncio.Event()
         orch = _BoomOrch(stop)
         await _hunt_loop(stop, orchestrator=orch)  # must not raise

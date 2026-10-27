@@ -31,7 +31,7 @@ def validate() -> Callable[[Sequence[ProfileDocument]], None]:
     return Mock(spec=validate_references)
 
 
-def test_reads_decodes_and_validates_without_a_byte_limit(files: ProfileFiles, codec: DocumentCodec, validate: Callable[[Sequence[ProfileDocument]], None]) -> None:
+def test_read_profiles_reads_decodes_and_validates_without_a_byte_limit(files: ProfileFiles, codec: DocumentCodec, validate: Callable[[Sequence[ProfileDocument]], None]) -> None:
     result = read_profiles(Path("/catalog"), files, codec, validate)
     entry = ProfileFile("radarr", "profiles", "radarr/profiles/one.yml")
     assert result == (ProfileDocument("radarr", "profiles", entry.path, {}),)
@@ -41,7 +41,7 @@ def test_reads_decodes_and_validates_without_a_byte_limit(files: ProfileFiles, c
     validate.assert_called_once_with(result)
 
 
-def test_budget_is_shared_between_files_and_accepts_exact_boundary(files: ProfileFiles, codec: DocumentCodec, validate: Callable[[Sequence[ProfileDocument]], None]) -> None:
+def test_read_profiles_budget_is_shared_between_files_and_accepts_exact_boundary(files: ProfileFiles, codec: DocumentCodec, validate: Callable[[Sequence[ProfileDocument]], None]) -> None:
     first = ProfileFile("radarr", "profiles", "radarr/profiles/one.yml")
     second = ProfileFile("radarr", "custom_formats", "radarr/custom_formats/two.json")
     files.entries.return_value = [first, second]
@@ -55,7 +55,7 @@ def test_budget_is_shared_between_files_and_accepts_exact_boundary(files: Profil
     validate.assert_called_once_with(documents)
 
 
-def test_oversized_file_stops_before_decoding_or_further_reads(files: ProfileFiles, codec: DocumentCodec, validate: Callable[[Sequence[ProfileDocument]], None]) -> None:
+def test_read_profiles_oversized_file_stops_before_decoding_or_further_reads(files: ProfileFiles, codec: DocumentCodec, validate: Callable[[Sequence[ProfileDocument]], None]) -> None:
     files.read.return_value = b"four"
     with pytest.raises(ValueError, match="radarr/profiles/one.yml: profile byte budget exceeded"):
         read_profiles(Path("/catalog"), files, codec, validate, max_bytes=3)
@@ -65,14 +65,14 @@ def test_oversized_file_stops_before_decoding_or_further_reads(files: ProfileFil
 
 
 @pytest.mark.parametrize("error", [ValueError("bad field"), UnicodeDecodeError("utf-8", b"\xff", 0, 1, "invalid")])
-def test_decode_errors_name_the_file(files: ProfileFiles, codec: DocumentCodec, validate: Callable[[Sequence[ProfileDocument]], None], error: Exception) -> None:
+def test_read_profiles_decode_errors_name_the_file(files: ProfileFiles, codec: DocumentCodec, validate: Callable[[Sequence[ProfileDocument]], None], error: Exception) -> None:
     codec.decode.side_effect = error
     with pytest.raises(ValueError, match="radarr/profiles/one.yml:"):
         read_profiles(Path("/catalog"), files, codec, validate)
     validate.assert_not_called()
 
 
-def test_read_error_stops_before_decoding(files: ProfileFiles, codec: DocumentCodec, validate: Callable[[Sequence[ProfileDocument]], None]) -> None:
+def test_read_profiles_read_error_stops_before_decoding(files: ProfileFiles, codec: DocumentCodec, validate: Callable[[Sequence[ProfileDocument]], None]) -> None:
     files.read.side_effect = OSError("read failed")
     with pytest.raises(ValueError, match="radarr/profiles/one.yml: read failed"):
         read_profiles(Path("/catalog"), files, codec, validate)
@@ -80,7 +80,7 @@ def test_read_error_stops_before_decoding(files: ProfileFiles, codec: DocumentCo
     validate.assert_not_called()
 
 
-def test_empty_input_still_runs_catalog_validation(files: ProfileFiles, codec: DocumentCodec, validate: Callable[[Sequence[ProfileDocument]], None]) -> None:
+def test_read_profiles_empty_input_still_runs_catalog_validation(files: ProfileFiles, codec: DocumentCodec, validate: Callable[[Sequence[ProfileDocument]], None]) -> None:
     files.entries.return_value = []
     validate.side_effect = ValueError("configuration contains no profiles")
     with pytest.raises(ValueError, match="configuration contains no profiles"):
@@ -90,14 +90,14 @@ def test_empty_input_still_runs_catalog_validation(files: ProfileFiles, codec: D
 
 
 @pytest.mark.parametrize("path", ["/absolute.yml", "../escape.yml", "radarr/profiles/../../escape.yml", "sonarr/profiles/hd.yml"])
-def test_encoding_rejects_unsafe_paths_before_using_codec(path: str) -> None:
+def test_encode_profiles_rejects_unsafe_paths_before_using_codec(path: str) -> None:
     codec = Mock(spec=DocumentCodec)
     with pytest.raises(ValueError, match="invalid profile path"):
         encode_profiles([ProfileDocument("radarr", "profiles", path, {})], codec)
     codec.encode.assert_not_called()
 
 
-def test_encoding_uses_codec_for_the_given_documents() -> None:
+def test_encode_profiles_uses_codec_for_the_given_documents() -> None:
     document = ProfileDocument("radarr", "profiles", "radarr/profiles/hd.yml", {})
     codec = Mock(spec=DocumentCodec)
     codec.encode.return_value = b"encoded"

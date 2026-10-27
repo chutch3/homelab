@@ -39,7 +39,7 @@ class TestContainer:
         finally:
             container.unwire()
 
-    def test_store_receives_registered_dependencies_without_http(self, subject: Container) -> None:
+    def test_profile_store_receives_registered_dependencies_without_http(self, subject: Container) -> None:
         store = subject.profile_store()
         assert isinstance(store, ProfileStore)
         assert store.files is subject.profile_files()
@@ -47,7 +47,7 @@ class TestContainer:
         assert subject.profile_store() is store
         assert not subject.http.initialized
 
-    def test_service_and_hunter_share_registered_arr_clients(self, subject: Container) -> None:
+    def test_arr_service_shares_registered_clients_with_hunter(self, subject: Container) -> None:
         arr = subject.arr_service()
         assert isinstance(arr, ArrService)
         assert arr.clients == {"radarr": subject.radarr_client(), "sonarr": subject.sonarr_client()}
@@ -55,13 +55,13 @@ class TestContainer:
         assert subject.arr_service() is arr
         assert not subject.http.initialized
 
-    def test_unconfigured_instance_is_not_added(self, subject: Container) -> None:
+    def test_arr_service_excludes_unconfigured_instance(self, subject: Container) -> None:
         subject.environment.override({"WARDEN_RADARR_URL": "http://radarr.invalid", "WARDEN_RADARR_API_KEY": "test-key"})
         arr = subject.arr_service()
         assert arr.sources == ("radarr",)
         assert subject.clients() == [subject.radarr_client()]
 
-    def test_directory_source_receives_store_and_limit(self, subject: Container) -> None:
+    def test_profile_source_directory_receives_store_and_limit(self, subject: Container) -> None:
         subject.environment.override({"WARDEN_PROFILES_DIRECTORY": "/profiles", "WARDEN_PROFILES_CACHE_MAX_BYTES": "17"})
         store = Mock(spec=ProfileStore)
         subject.profile_store.override(store)
@@ -73,7 +73,7 @@ class TestContainer:
         assert subject.profile_source() is source
         assert not subject.http.initialized
 
-    def test_git_source_receives_registered_git_cache_and_store(self, subject: Container) -> None:
+    def test_profile_source_git_receives_registered_git_cache_and_store(self, subject: Container) -> None:
         subject.environment.override({"WARDEN_PROFILES_REPO": "https://example.invalid/profiles", "WARDEN_PROFILES_PATH": "shared"})
         git, cache, store = Mock(spec=GitClient), Mock(spec=SnapshotCache), Mock(spec=ProfileStore)
         subject.git_client.override(git)
@@ -87,7 +87,7 @@ class TestContainer:
         cache.prepare.assert_not_called()
         git.checkout.assert_not_called()
 
-    def test_observer_receives_overridden_dependencies(self, subject: Container) -> None:
+    def test_profile_observer_receives_overridden_dependencies(self, subject: Container) -> None:
         source, arr = Mock(spec=ProfileSource), Mock(spec=ArrService)
         subject.profile_source.override(source)
         subject.arr_service.override(arr)
@@ -102,7 +102,7 @@ class TestContainer:
         assert observer.emit is subject.profile_emit()
         assert subject.profile_observer() is observer
 
-    def test_cli_dependencies_ignore_invalid_observer_and_server_settings(self, subject: Container) -> None:
+    def test_profile_store_and_arr_service_ignore_invalid_observer_and_server_settings(self, subject: Container) -> None:
         subject.environment.override({"WARDEN_METRICS_PORT": "invalid", "WARDEN_PROFILES_REPO": "--invalid"})
         assert isinstance(subject.profile_store(), ProfileStore)
         assert (subject.arr_service()).sources == ()

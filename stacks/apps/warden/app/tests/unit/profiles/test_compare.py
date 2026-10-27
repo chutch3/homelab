@@ -15,13 +15,13 @@ def documents() -> list[ProfileDocument]:
     return list(export_documents("radarr", [deepcopy(REMOTE_PROFILE)], [deepcopy(REMOTE_FORMAT)], ()))
 
 
-def test_identical_configuration_has_no_differences(documents: list[ProfileDocument]) -> None:
+def test_compare_profiles_identical_configuration_has_no_differences(documents: list[ProfileDocument]) -> None:
     assert compare_profiles("radarr", documents, [REMOTE_PROFILE], [REMOTE_FORMAT]) == {
         "source": "radarr", "profiles": ["HD"], "changes": [], "conflicts": [],
     }
 
 
-def test_remote_ids_do_not_affect_comparison(documents: list[ProfileDocument]) -> None:
+def test_compare_profiles_remote_ids_do_not_affect_comparison(documents: list[ProfileDocument]) -> None:
     profile, custom_format = deepcopy(REMOTE_PROFILE), deepcopy(REMOTE_FORMAT)
     profile["id"] = 99
     profile["formatItems"][0]["format"] = custom_format["id"] = 88
@@ -29,7 +29,7 @@ def test_remote_ids_do_not_affect_comparison(documents: list[ProfileDocument]) -
     assert compare_profiles("radarr", documents, [profile], [custom_format])["changes"] == []
 
 
-def test_ignores_documentation_and_normalizes_field_representation(documents: list[ProfileDocument]) -> None:
+def test_compare_profiles_ignores_documentation_and_normalizes_field_representation(documents: list[ProfileDocument]) -> None:
     documents[0].data["quality_profiles"][0]["description"] = "For sharing"
     documents[1].data["trash_id"] = "community-origin"
     documents[1].data["trash_scores"] = {"default": 123}
@@ -37,7 +37,7 @@ def test_ignores_documentation_and_normalizes_field_representation(documents: li
     assert compare_profiles("radarr", documents, [REMOTE_PROFILE], [REMOTE_FORMAT])["changes"] == []
 
 
-def test_specification_order_is_not_behavior(documents: list[ProfileDocument]) -> None:
+def test_compare_profiles_specification_order_is_not_behavior(documents: list[ProfileDocument]) -> None:
     other = {"name": "Resolution", "implementation": "ResolutionSpecification", "negate": False,
              "required": True, "fields": {"value": 1080}}
     documents[1].data["specifications"].append(other)
@@ -46,7 +46,7 @@ def test_specification_order_is_not_behavior(documents: list[ProfileDocument]) -
     assert compare_profiles("radarr", documents, [REMOTE_PROFILE], [remote])["changes"] == []
 
 
-def test_quality_precedence_and_group_order_are_preserved(documents: list[ProfileDocument]) -> None:
+def test_compare_profiles_quality_precedence_and_group_order_are_preserved(documents: list[ProfileDocument]) -> None:
     desired = documents[0].data["quality_profiles"][0]
     desired["qualities"].reverse()
     desired["qualities"][1]["qualities"].reverse()
@@ -56,21 +56,21 @@ def test_quality_precedence_and_group_order_are_preserved(documents: list[Profil
     assert changes[0]["desired"] == desired["qualities"]
 
 
-def test_enabled_default_and_omitted_language_are_unmanaged(documents: list[ProfileDocument]) -> None:
+def test_compare_profiles_enabled_default_and_omitted_language_are_unmanaged(documents: list[ProfileDocument]) -> None:
     profile = documents[0].data["quality_profiles"][0]
     del profile["qualities"][0]["enabled"]
     del profile["language"]
     assert compare_profiles("radarr", documents, [REMOTE_PROFILE], [REMOTE_FORMAT])["changes"] == []
 
 
-def test_omitted_scores_mean_zero_without_removing_formats(documents: list[ProfileDocument]) -> None:
+def test_compare_profiles_omitted_scores_mean_zero_without_removing_formats(documents: list[ProfileDocument]) -> None:
     documents[0].data["quality_profiles"][0]["custom_format_scores"] = {}
     assert compare_profiles("radarr", documents, [REMOTE_PROFILE], [REMOTE_FORMAT])["changes"] == [{
         "kind": "profile", "name": "HD", "field": "custom_format_scores.Preferred", "current": 100, "desired": 0,
     }]
 
 
-def test_unrelated_zero_scores_and_profiles_do_not_drift(documents: list[ProfileDocument]) -> None:
+def test_compare_profiles_unrelated_zero_scores_and_profiles_do_not_drift(documents: list[ProfileDocument]) -> None:
     remote = deepcopy(REMOTE_PROFILE)
     remote["formatItems"].append({"format": 18, "name": "Unused", "score": 0})
     unused = {**REMOTE_FORMAT, "id": 18, "name": "Unused", "futureBehavior": True}
@@ -78,21 +78,21 @@ def test_unrelated_zero_scores_and_profiles_do_not_drift(documents: list[Profile
     assert compare_profiles("radarr", documents, [remote, other], [REMOTE_FORMAT, unused])["changes"] == []
 
 
-def test_changed_upgrade_threshold_reports_field(documents: list[ProfileDocument]) -> None:
+def test_compare_profiles_changed_upgrade_threshold_reports_field(documents: list[ProfileDocument]) -> None:
     documents[0].data["quality_profiles"][0]["upgrade"]["until_score"] = 2000
     assert compare_profiles("radarr", documents, [REMOTE_PROFILE], [REMOTE_FORMAT])["changes"] == [{
         "kind": "profile", "name": "HD", "field": "upgrade.until_score", "current": 1000, "desired": 2000,
     }]
 
 
-def test_existing_unassigned_format_is_compared(documents: list[ProfileDocument]) -> None:
+def test_compare_profiles_existing_unassigned_format_is_compared(documents: list[ProfileDocument]) -> None:
     remote = deepcopy(REMOTE_PROFILE)
     remote["formatItems"] = []
     changes = compare_profiles("radarr", documents, [remote], [REMOTE_FORMAT])["changes"]
     assert changes == [{"kind": "profile", "name": "HD", "field": "custom_format_scores.Preferred", "current": 0, "desired": 100}]
 
 
-def test_selecting_all_affected_profiles_resolves_shared_conflict(documents: list[ProfileDocument]) -> None:
+def test_compare_profiles_selecting_all_affected_profiles_resolves_shared_conflict(documents: list[ProfileDocument]) -> None:
     other = deepcopy(REMOTE_PROFILE)
     other.update(id=46, name="Other")
     other_documents = export_documents("radarr", [other], [REMOTE_FORMAT], ())
@@ -104,18 +104,18 @@ def test_selecting_all_affected_profiles_resolves_shared_conflict(documents: lis
     assert len(result["changes"]) == 1
 
 
-def test_duplicate_remote_names_are_errors(documents: list[ProfileDocument]) -> None:
+def test_compare_profiles_duplicate_remote_names_are_errors(documents: list[ProfileDocument]) -> None:
     with pytest.raises(ValueError, match="duplicate remote profile"):
         compare_profiles("radarr", documents, [REMOTE_PROFILE, REMOTE_PROFILE], [REMOTE_FORMAT])
 
 
-def test_duplicate_condition_names_are_errors(documents: list[ProfileDocument]) -> None:
+def test_compare_profiles_duplicate_condition_names_are_errors(documents: list[ProfileDocument]) -> None:
     documents[1].data["specifications"].append(deepcopy(documents[1].data["specifications"][0]))
     with pytest.raises(ValueError, match="duplicate condition"):
         compare_profiles("radarr", documents, [REMOTE_PROFILE], [REMOTE_FORMAT])
 
 
-def test_profile_selection_is_exact_and_scoped(documents: list[ProfileDocument]) -> None:
+def test_select_profiles_matches_exact_names_within_source(documents: list[ProfileDocument]) -> None:
     assert select_profiles("radarr", documents, None) == ["HD"]
     assert select_profiles("radarr", documents, ["HD", "HD"]) == ["HD"]
     assert select_profiles("radarr", documents, []) == []
@@ -125,7 +125,7 @@ def test_profile_selection_is_exact_and_scoped(documents: list[ProfileDocument])
         select_profiles("sonarr", documents, None)
 
 
-def test_sonarr_profile_comparison() -> None:
+def test_compare_profiles_compares_sonarr_profiles() -> None:
     profile = deepcopy(REMOTE_PROFILE)
     del profile["language"]
     documents = export_documents("sonarr", [profile], [REMOTE_FORMAT], ())
