@@ -127,9 +127,13 @@ the observer, and server dependencies. The hunter and profile service share the
 same configured Arr clients. Source selectors instantiate only the selected
 implementation, and profile commands do not resolve server configuration or SQLite.
 
-`cli.py` parses arguments, resolves the command's providers, and writes output and
-exit status. It shuts down initialized resources on success, failure, or
-cancellation; the HTTP client uses a Resource provider to own its async context.
+`cli.py` uses `build_parser()` to associate each subcommand with a small async
+handler through `set_defaults(func=...)`. Each handler declares its dependencies
+with `@inject` and `Provide`; operations stay in the profile command and server
+modules. A common runner reports errors and shuts down initialized resources on
+success, failure, or cancellation. `main()` wires the container, invokes the
+selected handler, and writes output and exit status. The HTTP client uses a
+Resource provider to own its async context.
 `serve.py` receives the server, stop signal, and loop callbacks. The profile loop
 receives settings and observer providers so invalid or disabled observation never
 forces source/cache construction or stops hunting. Provider overrides reach these
