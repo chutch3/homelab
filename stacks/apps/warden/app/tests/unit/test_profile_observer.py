@@ -5,7 +5,7 @@ from unittest.mock import Mock
 
 import pytest
 
-from tests.integration.test_profile_dump import REMOTE_FORMAT, REMOTE_PROFILE
+from tests.profile_data import REMOTE_FORMAT, REMOTE_PROFILE
 from warden.clients.arr import RadarrClient, SonarrClient
 from warden.clock import SystemClock
 from warden.metrics import Metrics

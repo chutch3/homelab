@@ -4,7 +4,7 @@ from copy import deepcopy
 
 import pytest
 
-from tests.integration.test_profile_dump import REMOTE_FORMAT, REMOTE_PROFILE
+from tests.profile_data import REMOTE_FORMAT, REMOTE_PROFILE
 from warden.profiles.catalog import Document
 from warden.profiles.compare import compare_catalog, select_profiles
 from warden.profiles.export import export_documents

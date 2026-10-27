@@ -163,5 +163,21 @@ warden/
 
 Imports flow `routes → services → repositories → clients` (enforced by import-linter).
 Unit tests cover the logic; the integration suite (`tests/integration`, marked
-`@pytest.mark.integration`) runs the real process against fake *arr HTTP servers —
-`task test:integration -- warden`, and in CI as part of each build.
+`@pytest.mark.integration`) invokes the installed `warden` executable against
+local *arr HTTP fixtures. Run it with `task test:integration -- warden`; it also
+runs in CI as part of each build.
+
+- `test_cli.py`: help and command-line errors.
+- `test_cli_profiles.py`: validation, dump, and diff through `warden profiles`.
+- `test_cli_serve.py`: hunting, observation, recovery, metrics, and shutdown through
+  `warden serve`.
+
+Integration tests assert exit codes, stdout/stderr, files, HTTP requests, and
+scraped metrics. They do not import Warden components or construct catalogs with
+production helpers. Git fixtures are bootstrapped through `warden profiles dump`.
+Package, image, and deployment checks live under `tests/e2e`; pure comparison and
+validation rules retain their unit tests.
+
+Coverage includes the CLI child processes and server startup code. The combined
+unit/integration run retains the 90% coverage requirement; selecting a single
+tier does not enforce the whole-application gate.

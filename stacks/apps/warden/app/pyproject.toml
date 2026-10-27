@@ -50,7 +50,8 @@ markers = [
 addopts = "--strict-markers --cov=warden --cov-report=term-missing --cov-fail-under=90"
 
 [tool.coverage.run]
-omit = ["*/warden/main.py", "*/warden/container.py"]
+patch = ["subprocess"]
+sigterm = true
 
 [tool.importlinter]
 root_package = "warden"

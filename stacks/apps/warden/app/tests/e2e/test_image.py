@@ -66,25 +66,57 @@ else:
     assert created.returncode == 0, created.stderr
     copied = docker("cp", str(STACK / "examples/profiles") + "/.", f"{image_container}:/tmp/catalog")
     assert copied.returncode == 0, copied.stderr
-    fetched = docker("exec", "-i", image_container, "/app/.venv/bin/python", "-", stdin="""
-import asyncio
+    prepared = docker("exec", "-i", image_container, "/app/.venv/bin/python", "-", stdin="""
 import subprocess
-from warden.profiles.git import GitCatalog
-from warden.profiles.settings import ProfileSettings
 subprocess.run(['ssh', '-V'], check=True)
 def git(*args):
     return subprocess.check_output(['git', '-C', '/tmp/catalog', *args], text=True).strip()
 git('init', '-b', 'main')
 git('add', '.')
 git('-c', 'user.name=Image test', '-c', 'user.email=test@example.invalid', 'commit', '-m', 'fixture')
-settings = ProfileSettings.from_env({'WARDEN_PROFILES_REPO': '/tmp/catalog'})
-snapshot = asyncio.run(GitCatalog(settings).fetch())
-assert snapshot.commit == git('rev-parse', 'HEAD')
-assert len(snapshot.documents) == 2
-print('image catalog loaded from Git on tmpfs')
+print(git('rev-parse', 'HEAD'))
 """)
+    assert prepared.returncode == 0, prepared.stderr
+    revision = prepared.stdout.strip()
+    started = docker(
+        "exec", "--detach", "--env", "WARDEN_PROFILES_REPO=/tmp/catalog",
+        "--env", "WARDEN_RADARR_URL=http://127.0.0.1:1", "--env", "WARDEN_RADARR_API_KEY=test-key",
+        "--env", "WARDEN_METRICS_PORT=9091", "--env", "WARDEN_DB_PATH=/state/observer.db",
+        image_container, "/app/.venv/bin/warden", "serve",
+    )
+    assert started.returncode == 0, started.stderr
+    observed = docker("exec", "-i", image_container, "/app/.venv/bin/python", "-", stdin="""
+import time
+from pathlib import Path
+from urllib.error import URLError
+from urllib.request import urlopen
+for attempt in range(60):
+    try:
+        with urlopen('http://127.0.0.1:9091/metrics', timeout=1) as response:
+            metrics = response.read().decode()
+        count = next(float(line.split()[1]) for line in metrics.splitlines()
+                     if line.startswith('warden_profiles_cycle_duration_seconds_count '))
+        if count >= 1:
+            assert 'warden_profiles_enabled{source="radarr"} 1.0' in metrics
+            assert 'warden_profiles_check_success{source="radarr"} 0.0' in metrics
+            break
+    except (URLError, StopIteration):
+        pass
+    time.sleep(0.25)
+else:
+    raise AssertionError('CLI observer did not complete a cycle')
+snapshots = list(Path('/profile-cache').glob('snapshot-*'))
+assert len(snapshots) == 1
+print(snapshots[0])
+""")
+    assert observed.returncode == 0, observed.stderr
+    snapshot = observed.stdout.strip()
+    fetched = docker("exec", image_container, "git", "-C", snapshot, "rev-parse", "HEAD")
     assert fetched.returncode == 0, fetched.stderr
-    assert fetched.stdout.strip() == "image catalog loaded from Git on tmpfs"
+    assert fetched.stdout.strip() == revision
+    validated = docker("exec", image_container, "/app/.venv/bin/warden", "profiles", "validate", "--directory", snapshot)
+    assert validated.returncode == 0, validated.stderr
+    assert validated.stdout == "Valid catalog: 1 profiles, 1 custom formats.\n"
 
 
 def test_image_exposes_cli_and_bundled_schemas(image_container: str) -> None:
