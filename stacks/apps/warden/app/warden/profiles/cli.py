@@ -13,7 +13,7 @@ import httpx
 
 from warden.clients.arr import RadarrClient, SonarrClient
 from warden.profiles.catalog import Document
-from warden.profiles.catalog_io import load_catalog, write_catalog
+from warden.profiles.files import load_catalog, write_catalog
 from warden.profiles.export import export_documents
 from warden.profiles.compare import compare_catalog, select_profiles
 from warden.profiles.settings import parse_selection
@@ -59,8 +59,7 @@ def _print_diff(report: dict[str, Any], as_json: bool) -> int:
     return 1 if conflicts else (2 if changes else 0)
 
 
-def main(argv: Sequence[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(prog="warden-profiles")
+def configure_parser(parser: argparse.ArgumentParser) -> None:
     commands = parser.add_subparsers(dest="command", required=True)
     validate = commands.add_parser("validate", help="Validate a local portable profile catalog")
     validate.add_argument("--directory", type=Path, required=True)
@@ -73,7 +72,9 @@ def main(argv: Sequence[str] | None = None) -> int:
     diff.add_argument("--directory", type=Path, required=True)
     diff.add_argument("--profile", action="append")
     diff.add_argument("--json", action="store_true")
-    args = parser.parse_args(argv)
+
+
+def run(args: argparse.Namespace) -> int:
     try:
         if args.command == "diff":
             documents = load_catalog(args.directory)
@@ -116,6 +117,13 @@ def main(argv: Sequence[str] | None = None) -> int:
     else:
         print(f"Valid catalog: {profiles} profiles, {formats} custom formats.")
     return 0
+
+
+def main(argv: Sequence[str] | None = None) -> int:
+    """Compatibility entry point for the original profile-only module command."""
+    parser = argparse.ArgumentParser(prog="warden-profiles")
+    configure_parser(parser)
+    return run(parser.parse_args(argv))
 
 
 if __name__ == "__main__":

@@ -13,7 +13,7 @@ import pytest
 from pytest_httpserver import HTTPServer
 
 from warden.profiles.catalog import Document
-from warden.profiles.catalog_io import write_catalog
+from warden.profiles.files import write_catalog
 
 
 pytestmark = pytest.mark.integration

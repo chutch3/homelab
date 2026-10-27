@@ -15,25 +15,25 @@ fixtures and local files.
 
 ```bash
 cd stacks/apps/warden/app
-uv run python -m warden.profiles.cli validate --directory ../examples/profiles
+uv run warden profiles validate --directory ../examples/profiles
 
 # Supply these through your existing secret/environment setup:
 export WARDEN_RADARR_URL=http://radarr:7878
 export WARDEN_RADARR_API_KEY='<your-api-key>'
 
 # Choose a directory on a verified local filesystem.
-uv run python -m warden.profiles.cli dump --source radarr --output /local/media-profiles
-uv run python -m warden.profiles.cli dump --source sonarr --output /local/media-profiles
-uv run python -m warden.profiles.cli dump --source radarr --profile HD --output /local/selected-profiles
-uv run python -m warden.profiles.cli validate --directory /local/media-profiles
-uv run python -m warden.profiles.cli diff --source radarr --directory /local/media-profiles
-uv run python -m warden.profiles.cli diff --source radarr --directory /local/media-profiles --json
+uv run warden profiles dump --source radarr --output /local/media-profiles
+uv run warden profiles dump --source sonarr --output /local/media-profiles
+uv run warden profiles dump --source radarr --profile HD --output /local/selected-profiles
+uv run warden profiles validate --directory /local/media-profiles
+uv run warden profiles diff --source radarr --directory /local/media-profiles
+uv run warden profiles diff --source radarr --directory /local/media-profiles --json
 ```
 
 Sonarr uses `WARDEN_SONARR_URL` and `WARDEN_SONARR_API_KEY`. Dump defaults to all
 profiles on that source; repeat `--profile` to select exact names. It reads only
-the quality-profile and custom-format endpoints. The proposed installed
-`warden-profiles` console command is not packaged yet; use the module command above.
+the quality-profile and custom-format endpoints. The unified command is
+`warden profiles`; it does not start the server or initialize its database.
 Dump/validation success exits 0; failures exit 1. Diff exits 0 for clean/disabled,
 2 for drift, and 1 for errors or shared-format conflicts. Invalid command syntax
 exits 2, so automation should invoke a known command and check stderr as well.
@@ -50,11 +50,11 @@ on OCFS2, so it is rejected as a dump destination. For a temporary Linux test:
 
 ```bash
 catalog_dir="$(mktemp -d /dev/shm/warden-profiles.XXXXXX)/catalog"
-uv run python -m warden.profiles.cli dump --source radarr --output "$catalog_dir"
-uv run python -m warden.profiles.cli dump --source sonarr --output "$catalog_dir"
-uv run python -m warden.profiles.cli validate --directory "$catalog_dir"
-uv run python -m warden.profiles.cli diff --source radarr --directory "$catalog_dir"
-uv run python -m warden.profiles.cli diff --source sonarr --directory "$catalog_dir"
+uv run warden profiles dump --source radarr --output "$catalog_dir"
+uv run warden profiles dump --source sonarr --output "$catalog_dir"
+uv run warden profiles validate --directory "$catalog_dir"
+uv run warden profiles diff --source radarr --directory "$catalog_dir"
+uv run warden profiles diff --source sonarr --directory "$catalog_dir"
 ```
 
 Run these from `app/`. Edit one exported score and repeat diff: it should report
@@ -88,7 +88,7 @@ observed drift. Prefer complete, immutable catalog directories for deployment;
 editing multiple files in place can expose an intermediate catalog to a check.
 
 For a standalone container, bind-mount the exported catalog read-only and set
-`WARDEN_PROFILES_DIRECTORY` to that mount. Starting `warden.main` also starts the
+`WARDEN_PROFILES_DIRECTORY` to that mount. Starting `warden serve` also starts the
 normal hunter; use the standalone `diff` command for a read-only pre-deployment
 check against production Arr.
 
@@ -392,7 +392,6 @@ backup-cleanup workload; it does not establish or repair the cause of the incide
 
 - Legacy Profilarr import and a documented community-template conversion matrix.
 - Broader API-version certification beyond the verified Radarr/Sonarr versions above.
-- Installable CLI packaging.
 - Private-remote checks and resource benchmarks.
 - Safe synchronization, conflict handling, partial-failure recovery, and read-back.
 

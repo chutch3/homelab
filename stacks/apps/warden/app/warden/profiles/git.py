@@ -10,7 +10,7 @@ from pathlib import Path
 from tempfile import mkdtemp
 
 from warden.profiles.catalog import Snapshot
-from warden.profiles.catalog_io import load_catalog
+from warden.profiles.files import load_catalog
 from warden.profiles.settings import ProfileSettings
 from warden.profiles.storage import require_local_filesystem
 

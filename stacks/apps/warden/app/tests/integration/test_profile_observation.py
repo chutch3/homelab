@@ -12,7 +12,7 @@ from pytest_httpserver import HTTPServer
 from tests.integration.conftest import WardenHandle, poll_until, prime_radarr, sample, scrape
 from tests.integration.test_profile_dump import REMOTE_FORMAT, REMOTE_PROFILE
 from tests.integration.test_profile_dump import output_directory
-from warden.profiles.catalog_io import write_catalog
+from warden.profiles.files import write_catalog
 from warden.profiles.export import export_documents
 
 

@@ -10,8 +10,10 @@ COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
 
 WORKDIR /app
 COPY app/pyproject.toml app/uv.lock ./
-RUN uv sync --no-dev --no-install-project
+RUN uv sync --locked --no-dev --no-install-project
 COPY app/warden /app/warden
-RUN mkdir -p /state
+RUN uv sync --locked --no-dev --no-editable \
+    && mkdir -p /state
 EXPOSE 9090
-CMD ["/app/.venv/bin/python", "-m", "warden.main"]
+ENTRYPOINT ["/app/.venv/bin/warden"]
+CMD ["serve"]

@@ -85,3 +85,21 @@ print('image catalog loaded from Git on tmpfs')
 """)
     assert fetched.returncode == 0, fetched.stderr
     assert fetched.stdout.strip() == "image catalog loaded from Git on tmpfs"
+
+
+def test_image_exposes_cli_and_bundled_schemas(image_container: str) -> None:
+    help_result = docker("exec", image_container, "/app/.venv/bin/warden", "--help")
+    assert help_result.returncode == 0, help_result.stderr
+    assert "serve" in help_result.stdout and "profiles" in help_result.stdout
+    created = docker("exec", image_container, "mkdir", "/tmp/catalog")
+    assert created.returncode == 0, created.stderr
+    copied = docker("cp", str(STACK / "examples/profiles") + "/.", f"{image_container}:/tmp/catalog")
+    assert copied.returncode == 0, copied.stderr
+    result = docker("exec", "--workdir", "/tmp", image_container, "/app/.venv/bin/warden",
+                    "profiles", "validate", "--directory", "/tmp/catalog")
+    assert result.returncode == 0, result.stderr
+    assert result.stdout == "Valid catalog: 1 profiles, 1 custom formats.\n"
+    config = docker("inspect", image_container, "--format", "{{json .Config}}")
+    assert config.returncode == 0, config.stderr
+    assert json.loads(config.stdout)["Entrypoint"] == ["/app/.venv/bin/warden"]
+    assert json.loads(config.stdout)["Cmd"] == ["serve"]

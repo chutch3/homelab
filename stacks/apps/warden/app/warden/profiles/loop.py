@@ -11,7 +11,7 @@ from warden.clock import SystemClock
 from warden.logger import get_logger
 from warden.metrics import Metrics
 from warden.profiles.git import GitCatalog
-from warden.profiles.catalog_io import DirectoryCatalog
+from warden.profiles.files import DirectoryCatalog
 from warden.profiles.observer import Observer
 from warden.profiles.settings import ProfileSettings, parse_selection
 

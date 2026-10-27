@@ -16,6 +16,16 @@ dependencies = [
     "jsonschema>=4.26.0",
 ]
 
+[project.scripts]
+warden = "warden.cli:main"
+
+[build-system]
+requires = ["uv_build>=0.13.0,<0.14"]
+build-backend = "uv_build"
+
+[tool.uv.build-backend]
+module-root = ""
+
 [dependency-groups]
 dev = [
     "pytest>=8.0.0",
@@ -26,9 +36,6 @@ dev = [
     "polyfactory>=3.3.0",
     "pytest-httpserver>=1.1.0",
 ]
-
-[tool.uv]
-package = false
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"

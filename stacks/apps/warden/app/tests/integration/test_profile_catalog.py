@@ -8,7 +8,7 @@ from pathlib import Path
 
 import pytest
 
-from warden.profiles.catalog_io import DirectoryCatalog, load_catalog
+from warden.profiles.files import DirectoryCatalog, load_catalog
 
 
 pytestmark = pytest.mark.integration

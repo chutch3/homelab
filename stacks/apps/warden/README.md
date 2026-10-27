@@ -83,13 +83,46 @@ SQLite at `/state/warden.db` (survives restarts):
 | `search_attempt`     | searches awaiting hit/miss reconciliation |
 | `search_backoff`     | miss streaks + cooldown expiries          |
 
-## Profile bootstrap utility (in development)
+## Commands
+
+From `app/`, use the unified CLI:
+
+```bash
+uv run warden
+uv run warden serve
+uv run warden profiles dump --source radarr --output /local/profiles
+uv run warden profiles validate --directory /local/profiles
+uv run warden profiles diff --source radarr --directory /local/profiles
+```
+
+With no arguments Warden prints help. `serve` starts the HTTP server, hunter, and
+configured profile observer. Profile commands run once and exit without starting
+the server or initializing its SQLite database. Settings still come from the
+environment. The older `python -m warden.main` and
+`python -m warden.profiles.cli` commands remain available for compatibility.
+
+To install the command outside the checkout, run `uv tool install .` from `app/`
+(Python 3.12 or newer). You can then run `warden serve` or `warden profiles ...`
+directly. `python -m warden` provides the same interface. Packaging uses
+`uv_build`, including the profile JSON schemas; no setuptools dependency is added.
+
+Docker uses `warden` as its entry point and defaults to `serve`. Override its
+arguments to run a one-time command, for example `docker run --rm <image> --help`.
+Profile commands need the same environment settings and catalog mounts described
+in the [profile guide](PROFILES.md).
+
+## Profile catalogs (in development)
 
 Profile management provides standalone, read-only Arr export, local catalog
 validation, semantic comparison, and optional Git or read-only directory observation in a separate
 loop. See [profile catalog usage and format](PROFILES.md), including runtime Git
 requirements. Profile work does not use the hunter's SQLite database.
 Legacy import and synchronization are not yet implemented.
+
+Within `warden/profiles`, `catalog.py` defines documents, snapshots, and reference
+validation without filesystem access. `files.py` handles YAML/JSON files, export
+publication, and directory loading. Comparison and export logic use the in-memory
+catalog independently of its storage.
 
 ## Configuration
 
