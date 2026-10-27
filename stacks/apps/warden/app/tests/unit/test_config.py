@@ -140,3 +140,26 @@ def test_explicit_environment_is_used_instead_of_process_settings(monkeypatch: p
     assert cfg.instances[0].url == "http://radarr"
     assert cfg.instances[0].name == "radarr"
     assert cfg.fallback_searches_per_day == 200
+
+
+def test_explicit_empty_environment_does_not_inherit_process_values(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("WARDEN_METRICS_PORT", "invalid")
+    monkeypatch.setenv("WARDEN_RADARR_URL", "http://radarr")
+    monkeypatch.setenv("WARDEN_RADARR_API_KEY", "process-key")
+    monkeypatch.setenv("TZ", "Europe/London")
+    cfg = Config.from_env({})
+    assert cfg.instances == ()
+    assert cfg.metrics_port == 9090
+    assert cfg.tz == "UTC"
+
+
+def test_empty_timezone_uses_fallback_and_database_url_overrides_path() -> None:
+    cfg = Config.from_env({"WARDEN_TZ": "", "TZ": "Europe/London", "WARDEN_DB_PATH": "/ignored.db", "WARDEN_DB_URL": "sqlite:///chosen.db"})
+    assert cfg.tz == "Europe/London"
+    assert cfg.db_url == "sqlite:///chosen.db"
+    assert Config.from_env({"WARDEN_DB_PATH": "/local/warden.db"}).db_url == "sqlite:////local/warden.db"
+
+
+@pytest.mark.parametrize("raw,expected", [(" YES ", True), (" OFF ", False)])
+def test_boolean_settings_allow_surrounding_whitespace(raw: str, expected: bool) -> None:
+    assert Config.from_env({"WARDEN_INCLUDE_CUTOFF_UNMET": raw}).include_cutoff_unmet is expected

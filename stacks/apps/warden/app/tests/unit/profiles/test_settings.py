@@ -66,3 +66,16 @@ def test_directory_must_be_an_absolute_unambiguous_path(directory: str) -> None:
 def test_repository_and_directory_are_mutually_exclusive() -> None:
     with pytest.raises(ValueError, match="mutually exclusive"):
         ProfileSettings.from_env({"WARDEN_PROFILES_REPO": "https://example.invalid/profiles.git", "WARDEN_PROFILES_DIRECTORY": "/profiles"})
+
+
+def test_explicit_profile_environment_does_not_inherit_process_values(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("WARDEN_PROFILES_DIRECTORY", "/unwanted")
+    monkeypatch.setenv("WARDEN_PROFILES_TIMEOUT_SEC", "invalid")
+    config = ProfileSettings.from_env({"WARDEN_PROFILES_REPO": "https://example.invalid/profiles.git"})
+    assert config.directory is None
+    assert config.timeout == 60
+
+
+def test_empty_profile_directory_is_unset() -> None:
+    config = ProfileSettings.from_env({"WARDEN_PROFILES_REPO": "https://example.invalid/profiles.git", "WARDEN_PROFILES_DIRECTORY": ""})
+    assert config.directory is None

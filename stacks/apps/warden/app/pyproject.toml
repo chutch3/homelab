@@ -14,6 +14,7 @@ dependencies = [
     "python-json-logger>=2.0.7,<3",
     "pyyaml>=6.0.3",
     "jsonschema>=4.26.0",
+    "pydantic-settings>=2.12,<3",
 ]
 
 [project.scripts]

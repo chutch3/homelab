@@ -167,6 +167,20 @@ concrete adapters together, including failure and storage-protection behavior.
 All via `WARDEN_*` env vars. Instances are discovered from `WARDEN_RADARR_URL` /
 `WARDEN_RADARR_API_KEY` (and the `SONARR` equivalents).
 
+`pydantic-settings` handles typed defaults, environment conversion, and field
+validation. Server and profile settings are loaded separately from the container's
+environment snapshot; an injected mapping does not inherit missing values from the
+process environment. `EnvironmentSettings` shares that source policy and suppresses
+input values in validation errors. Warden does not load `.env` or secrets files
+through the settings models.
+
+Boolean settings accept `true`/`false`, `yes`/`no`, `on`/`off`, and `1`/`0`, ignoring
+case and surrounding whitespace. Unrecognized values now fail validation instead
+of silently becoming false. Invalid server settings report the field before
+startup; invalid profile settings continue to leave hunting running. Timezone and
+database fallbacks, blank free-space settings, and disabled observation retain
+their existing behavior.
+
 | Var | Default | What |
 |-----|---------|------|
 | `WARDEN_POLL_INTERVAL_SEC` | `300` | seconds between ticks |
