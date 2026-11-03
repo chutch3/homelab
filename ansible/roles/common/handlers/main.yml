@@ -4,8 +4,3 @@
   service:
     name: cron
     state: restarted
-
-- name: reload o2cb
-  systemd:
-    name: o2cb
-    state: restarted

@@ -15,7 +15,6 @@
     src: cluster.conf.j2
     dest: /etc/ocfs2/cluster.conf
     mode: "0644"
-  notify: reload o2cb
 
 - name: Configure O2CB defaults
   ansible.builtin.lineinfile:

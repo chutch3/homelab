@@ -1,11 +1,6 @@
 ---
 # ansible/roles/storage/handlers/main.yml
 
-- name: reload o2cb
-  ansible.builtin.systemd:
-    name: o2cb
-    state: reloaded
-
 - name: reload systemd
   ansible.builtin.systemd:
     daemon_reload: yes
