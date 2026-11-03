@@ -88,49 +88,36 @@
 # PHASE 1: Create Monitors
 # =========================================================================
 
-# Workaround for lucasheld.uptime_kuma bug: object_changed() compares lists
-# element-by-element without a bounds check, crashing when accepted_statuscodes
-# lengths differ. We fetch existing monitors first and only pre-delete ones
-# where the stored statuscodes actually differ from desired, so history is
-# preserved on idempotent runs.
-- name: "[PRE] Fetch existing monitors to detect accepted_statuscodes mismatch"
+# Workaround for lucasheld.uptime_kuma bug (upstream issue #52): object_changed()
+# compares lists element-by-element without a bounds check, so a longer
+# accepted_statuscodes list crashes and a shorter one is silently ignored.
+# Monitors whose stored codes differ are deleted and recreated; the rest keep
+# their history.
+- name: "[PRE] Fetch existing monitors that declare accepted_statuscodes"
   lucasheld.uptime_kuma.monitor_info:
     api_url: "{{ uptime_kuma_api_url }}"
     api_token: "{{ uptime_kuma_api_token }}"
     api_timeout: 30
+    name: "{{ item.domain }}"
+  loop: "{{ uptime_kuma_discovered_services | selectattr('accepted_statuscodes') | list }}"
   register: uptime_kuma_pre_monitors
   delegate_to: localhost
   failed_when: false
 
-- name: "[PRE] Identify monitors with stale accepted_statuscodes"
-  ansible.builtin.shell: |
-    python3 << 'EOF'
-    import json, os
-
-    existing = json.loads(os.environ['EXISTING_MONITORS'])
-    desired = json.loads(os.environ['DESIRED_SERVICES'])
-
-    existing_codes = {m['name']: m.get('accepted_statuscodes', []) for m in existing}
-
-    to_recreate = [
-        svc for svc in desired
-        if svc['accepted_statuscodes']
-        and svc['domain'] in existing_codes
-        and existing_codes[svc['domain']] != svc['accepted_statuscodes']
-    ]
-
-    print(json.dumps(to_recreate))
-    EOF
-  environment:
-    EXISTING_MONITORS: "{{ uptime_kuma_pre_monitors.monitors | default([]) | to_json }}"
-    DESIRED_SERVICES: "{{ uptime_kuma_discovered_services | to_json }}"
-  register: uptime_kuma_monitors_to_recreate_raw
-  changed_when: false
-  delegate_to: localhost
-
-- name: "[PRE] Set monitors to recreate"
+# Reset first: set_fact persists across stacks deployed in the same play.
+- name: "[PRE] Reset monitors to recreate"
   ansible.builtin.set_fact:
-    uptime_kuma_monitors_to_recreate: "{{ uptime_kuma_monitors_to_recreate_raw.stdout | from_json }}"
+    uptime_kuma_monitors_to_recreate: []
+
+- name: "[PRE] Collect monitors with stale accepted_statuscodes"
+  ansible.builtin.set_fact:
+    uptime_kuma_monitors_to_recreate: "{{ uptime_kuma_monitors_to_recreate + [item.item] }}"
+  loop: "{{ uptime_kuma_pre_monitors.results | default([]) }}"
+  loop_control:
+    label: "{{ item.item.domain }}"
+  when:
+    - item.monitors | default([]) | select | list | length > 0
+    - item.monitors[0].accepted_statuscodes | default([]) != item.item.accepted_statuscodes
 
 - name: "[PRE] Remove monitors with stale accepted_statuscodes"
   lucasheld.uptime_kuma.monitor:
