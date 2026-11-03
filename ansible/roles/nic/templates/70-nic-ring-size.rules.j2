@@ -1,0 +1,2 @@
+# Managed by Ansible (roles/nic)
+ACTION=="add", SUBSYSTEM=="net", KERNEL=="{{ nic_interface }}", RUN+="/usr/sbin/ethtool -G $name rx {{ nic_ring_size }} tx {{ nic_ring_size }}"

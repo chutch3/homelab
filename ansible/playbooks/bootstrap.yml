@@ -46,6 +46,9 @@
     - role: ../roles/snmp
       tags: ['snmp', 'monitoring']
 
+    - role: ../roles/nic
+      tags: ['nic', 'network']
+
     - role: ../roles/tailscale
       tags: ['tailscale', 'vpn', 'network']
       when: tailscale_enabled | default(false)

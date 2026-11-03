@@ -1,0 +1,38 @@
+# ansible/roles/nic/tasks/main.yml
+---
+# Sets the RX/TX ring size on the port carrying the node's default route.
+# Opt in per host with nic_ring_size in the inventory.
+- name: Configure NIC ring size
+  when: nic_ring_size is defined
+  vars:
+    nic_interface: "{{ ansible_facts['default_ipv4']['interface'] }}"
+  block:
+    - name: Install ethtool
+      apt:
+        name: ethtool
+        state: present
+        update_cache: false
+
+    - name: Persist ring size across reboots
+      template:
+        src: 70-nic-ring-size.rules.j2
+        dest: /etc/udev/rules.d/70-nic-ring-size.rules
+        owner: root
+        group: root
+        mode: "0644"
+
+    - name: Read current ring size
+      command: ethtool -g {{ nic_interface }}
+      register: nic_ring
+      changed_when: false
+      check_mode: false
+
+    # ethtool -G resets the link, so only run it when the size is actually off.
+    - name: Apply ring size now
+      command: ethtool -G {{ nic_interface }} rx {{ nic_ring_size }} tx {{ nic_ring_size }}
+      when: >-
+        (nic_ring.stdout | regex_search('Current hardware settings:[\\s\\S]*?RX:\\s+(\\d+)', '\\1') | first)
+        != (nic_ring_size | string)
+        or
+        (nic_ring.stdout | regex_search('Current hardware settings:[\\s\\S]*?TX:\\s+(\\d+)', '\\1') | first)
+        != (nic_ring_size | string)
