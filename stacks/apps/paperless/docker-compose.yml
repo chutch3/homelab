@@ -56,7 +56,7 @@ services:
                 - "fiber.schedule=0 3 * * *"
 
     paperless-webserver:
-        image: ghcr.io/paperless-ngx/paperless-ngx:latest
+        image: ghcr.io/paperless-ngx/paperless-ngx:3.4.1
         environment:
             - PAPERLESS_REDIS=redis://paperless-broker:6379
             - PAPERLESS_DBHOST=paperless-db
@@ -84,6 +84,14 @@ services:
             - paperless_data:/usr/src/paperless/data
             - paperless_media:/usr/src/paperless/media
             - paperless_consume:/usr/src/paperless/consume
+        # First boot runs migrations and Django checks; on a loaded node the port
+        # isn't up for ~150s, which the image's default healthcheck counts as failed.
+        healthcheck:
+            test: ["CMD", "curl", "-fs", "-S", "-L", "--max-time", "2", "http://localhost:8000"]
+            interval: 30s
+            timeout: 10s
+            retries: 5
+            start_period: 300s
         restart: unless-stopped
         depends_on:
             - paperless-db
