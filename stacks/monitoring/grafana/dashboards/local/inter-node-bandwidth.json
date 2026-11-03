@@ -52,6 +52,62 @@
         "type": "prometheus",
         "uid": "prometheus"
       },
+      "description": "Negotiated speed of each node's fastest wired port, with the link_speed the inventory expects. LinkSpeedDegraded fires when it drops below that.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "blue"
+          },
+          "mappings": [],
+          "unit": "bps"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      },
+      "id": 7,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "values": false,
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": ""
+        },
+        "textMode": "auto"
+      },
+      "pluginVersion": "11.1.4",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "editorMode": "code",
+          "expr": "max by (instance, link_speed) (node_network_speed_bytes{device=~\"en.*|eth.*\"}) * 8",
+          "legendFormat": "{{instance}} (expects {{link_speed}} Mbit/s)",
+          "range": false,
+          "refId": "A",
+          "instant": true
+        }
+      ],
+      "title": "Link Speed",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -83,7 +139,7 @@
         "h": 4,
         "w": 24,
         "x": 0,
-        "y": 0
+        "y": 4
       },
       "id": 1,
       "options": {
@@ -114,8 +170,9 @@
           "refId": "A"
         }
       ],
-      "title": "Current Bandwidth to Each Node",
-      "type": "stat"
+      "title": "Bandwidth to iperf3 Server",
+      "type": "stat",
+      "description": "Each node runs a 5 s iperf3 test every 30 min against the node labelled iperf_server in the inventory, over the overlay network."
     },
     {
       "datasource": {
@@ -175,7 +232,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 4
+        "y": 8
       },
       "id": 2,
       "options": {
@@ -281,7 +338,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 4
+        "y": 8
       },
       "id": 3,
       "options": {
@@ -381,7 +438,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 12
+        "y": 16
       },
       "id": 4,
       "options": {
@@ -519,7 +576,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 12
+        "y": 16
       },
       "id": 5,
       "options": {
@@ -705,7 +762,7 @@
         "h": 8,
         "w": 24,
         "x": 0,
-        "y": 20
+        "y": 24
       },
       "id": 6,
       "options": {

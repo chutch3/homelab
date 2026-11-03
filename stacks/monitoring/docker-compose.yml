@@ -29,9 +29,9 @@ services:
             - prometheus_data:/prometheus
             - /var/run/docker.sock:/var/run/docker.sock:ro
         configs:
-            - source: prometheus_config_v11
+            - source: prometheus_config_v13
               target: /etc/prometheus/prometheus.yml
-            - source: prometheus_alert_rules_v5
+            - source: prometheus_alert_rules_v6
               target: /etc/prometheus/alert-rules.yml
         secrets:
             - status_pipeline_minio_token
@@ -125,7 +125,7 @@ services:
               target: /etc/grafana/provisioning/dashboards-local/homelab-health.json
             - source: dashboard_cluster_diagnostics_v4
               target: /etc/grafana/provisioning/dashboards-local/cluster-health.json
-            - source: dashboard_inter_node_bandwidth_v3
+            - source: dashboard_inter_node_bandwidth_v5
               target: /etc/grafana/provisioning/dashboards-local/inter-node-bandwidth.json
             - source: dashboard_node_resources_v3
               target: /etc/grafana/provisioning/dashboards-local/node-resources.json
@@ -305,14 +305,13 @@ services:
         x-homelab:
             watch:
                 - stacks/monitoring/iperf3-server/**
-        ports:
-            - target: 5201
-              published: 5201
-              mode: host
         networks:
             - traefik-public
         deploy:
-            mode: global
+            replicas: 1
+            placement:
+                constraints:
+                    - node.labels.iperf_server == true
             labels:
                 - "traefik.enable=false"
 
@@ -329,6 +328,8 @@ services:
               published: 9579
               protocol: tcp
               mode: host
+        networks:
+            - traefik-public
         deploy:
             mode: global
             labels:
@@ -357,9 +358,9 @@ volumes:
             device: "/mnt/iscsi/app-data/grafana/dashboards"
 
 configs:
-    prometheus_config_v11:
+    prometheus_config_v13:
         file: ./prometheus/prometheus.yml
-    prometheus_alert_rules_v5:
+    prometheus_alert_rules_v6:
         file: ./prometheus/alert-rules.yml
     alertmanager_config_v6:
         file: ./alertmanager/alertmanager.yml
@@ -369,7 +370,7 @@ configs:
         file: ./grafana/dashboards/local/homelab-health.json
     dashboard_cluster_diagnostics_v4:
         file: ./grafana/dashboards/local/cluster-health.json
-    dashboard_inter_node_bandwidth_v3:
+    dashboard_inter_node_bandwidth_v5:
         file: ./grafana/dashboards/local/inter-node-bandwidth.json
     dashboard_node_resources_v3:
         file: ./grafana/dashboards/local/node-resources.json

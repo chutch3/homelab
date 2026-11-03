@@ -122,6 +122,22 @@ groups:
           summary: "{{ $labels.mountpoint }} on {{ $labels.instance }} is not answering statfs"
           description: "node-exporter could not stat {{ $labels.mountpoint }} for 5m — the mount is hung or erroring."
 
+  - name: network
+    interval: 30s
+    rules:
+      # link_speed is the node_labels value from the inventory; add a line here for a new speed tier.
+      - alert: LinkSpeedDegraded
+        expr: |
+          max by (instance, link_speed) (node_network_speed_bytes{device=~"en.*|eth.*", link_speed="10000"}) * 8 / 1e6 < 10000
+          or max by (instance, link_speed) (node_network_speed_bytes{device=~"en.*|eth.*", link_speed="1000"}) * 8 / 1e6 < 1000
+        for: 5m
+        labels:
+          severity: warning
+          component: network
+        annotations:
+          summary: "{{ $labels.instance }} link is at {{ $value }} Mbit/s, expected {{ $labels.link_speed }}"
+          description: "The fastest wired port on {{ $labels.instance }} negotiated below its inventory link_speed for 5m. Check the cable and the switch port's auto-negotiation."
+
   - name: monitoring-health
     interval: 30s
     rules:
