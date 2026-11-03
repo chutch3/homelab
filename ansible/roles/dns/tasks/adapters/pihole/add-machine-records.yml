@@ -1,5 +1,32 @@
 # ansible/roles/dns/tasks/adapters/pihole/add-machine-records.yml
 ---
+- name: "[PIHOLE] Get existing host records"
+  ansible.builtin.uri:
+    url: "{{ dns_secondary_api_url }}/config/dns/hosts"
+    headers:
+      sid: "{{ dns_pihole_session_id }}"
+  register: dns_pihole_hosts
+  delegate_to: localhost
+
+# Entries are "IP name"; drop any for a machine whose IP has changed.
+- name: "[PIHOLE] Remove stale A records for each machine"
+  ansible.builtin.uri:
+    url: "{{ dns_secondary_api_url }}/config/dns/hosts/{{ item | urlencode }}?restart=false"
+    method: DELETE
+    headers:
+      sid: "{{ dns_pihole_session_id }}"
+    status_code: [200, 204, 404]
+  loop: "{{ dns_pihole_hosts.json.config.dns.hosts }}"
+  when:
+    - item.split()[1:] | map('lower') | intersect(machine_names) | length > 0
+    - item not in current_entries
+  vars:
+    machine_names: "{{ groups['all'] | map('lower') | map('regex_replace', '$', '.' ~ base_domain) | list }}"
+    current_entries: >-
+      {{ groups['all'] | map('extract', hostvars, 'ansible_host')
+         | zip(groups['all'] | map('regex_replace', '$', '.' ~ base_domain))
+         | map('join', ' ') | list }}
+  delegate_to: localhost
 - name: "[PIHOLE] Add A record for each machine"
   ansible.builtin.uri:
     url: "{{ dns_secondary_api_url }}/config/dns/hosts/{{ hostvars[item].ansible_host }}%20{{ item }}.{{ base_domain }}"

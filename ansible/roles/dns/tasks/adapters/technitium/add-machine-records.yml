@@ -12,6 +12,7 @@
       type: "A"
       ipAddress: "{{ hostvars[item].ansible_host }}"
       ttl: "3600"
+      overwrite: "true"
     status_code: 200
   loop: "{{ groups['all'] }}"
   register: dns_add_a_record_result
