@@ -36,3 +36,6 @@
 
         - name: Run Add Service CNAME Records
           ansible.builtin.include_tasks: add-service-cnames.yml
+
+- name: Apply stored Pi-hole records
+  ansible.builtin.include_tasks: reload-pihole.yml

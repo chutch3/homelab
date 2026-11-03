@@ -122,6 +122,12 @@
       loop_control:
         label: "{{ item.stack }}"
 
+    - name: Apply stored Pi-hole records
+      ansible.builtin.include_role:
+        name: dns
+        tasks_from: reload-pihole
+      when: dns_registrations | length > 0
+
     - name: Get Uptime Kuma API token
       ansible.builtin.include_role:
         name: uptime_kuma

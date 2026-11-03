@@ -1,0 +1,5 @@
+# ansible/roles/dns/tasks/reload-pihole.yml
+---
+- name: Apply stored records on secondary DNS
+  ansible.builtin.include_tasks: "adapters/{{ secondary_dns_type }}/reload.yml"
+  when: secondary_dns_enabled | bool and dns_pihole_session_id is defined
