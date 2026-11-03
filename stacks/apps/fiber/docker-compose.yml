@@ -1,5 +1,5 @@
 x-homelab:
-    requires: [authentik, reverse-proxy]
+    requires: [authentik, reverse-proxy, excalidraw, downloads, prefect, forgejo, immich, librenms, postal, romm, nextcloud, paperless, disktracker]
 
 services:
     fiber:
