@@ -46,6 +46,8 @@ scrape_configs:
         target_label: instance
       - source_labels: [__meta_dockerswarm_node_id]
         target_label: node_id
+      - source_labels: [__meta_dockerswarm_node_label_link_speed]
+        target_label: link_speed
 
   - job_name: "cadvisor"
     dockerswarm_sd_configs:
@@ -149,8 +151,12 @@ scrape_configs:
       - host: unix:///var/run/docker.sock
         role: nodes
     relabel_configs:
+      # The server runs on the node labelled iperf_server; testing it against itself measures nothing.
+      - source_labels: [__meta_dockerswarm_node_label_iperf_server]
+        regex: "(?i)true"
+        action: drop
       - target_label: __param_target
-        replacement: 172.17.0.1:5201
+        replacement: iperf3-server:5201
       - source_labels: [__meta_dockerswarm_node_hostname]
         target_label: instance
       - source_labels: [__meta_dockerswarm_node_id]
