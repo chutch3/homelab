@@ -2,6 +2,38 @@
 
 <!-- version list -->
 
+## v3.36.0 (2026-11-09)
+
+### Bug Fixes
+
+- Drop o2cb reload handlers the sysv unit cannot honor
+  ([`af97e02`](https://github.com/chutch3/homelab/commit/af97e026912faa888d7cd3353be16b8c97d38319))
+
+- Look up only the deploying stack's monitors so the statuscode check stops hitting the env size
+  limit ([#136](https://github.com/chutch3/homelab/pull/136),
+  [`3785729`](https://github.com/chutch3/homelab/commit/378572962297e3a3e15c73c99a0b95238d62c7d4))
+
+- Pin paperless and give its webserver a startup grace period
+  ([`361c84a`](https://github.com/chutch3/homelab/commit/361c84abbd5676bd4f3f54bdfee9885bc8436719))
+
+- Reload pi-hole once per run instead of after every stack
+  ([`b8b085a`](https://github.com/chutch3/homelab/commit/b8b085aff182b77c984d6b8fe24342d82bd46460))
+
+- Replace stale machine dns records instead of appending
+  ([`a535650`](https://github.com/chutch3/homelab/commit/a53565020c5e01b8ed0aac6051a934c03f4d18f6))
+
+- Require secret-owning stacks before deploying fiber
+  ([`979d317`](https://github.com/chutch3/homelab/commit/979d317de98f215657486fd2b864b0aaebad04d6))
+
+### Features
+
+- Alert on link speed drops and test bandwidth to an inventory-labelled iperf3 node
+  ([`7511b34`](https://github.com/chutch3/homelab/commit/7511b34df3af1144f95fc1ca4c3f75634112aee4))
+
+- Persist nic ring size from the inventory via a nic role
+  ([`54af91c`](https://github.com/chutch3/homelab/commit/54af91c7fcad2285a0de26b9740ccda850696c06))
+
+
 ## v3.35.0 (2026-10-26)
 
 ### Bug Fixes
