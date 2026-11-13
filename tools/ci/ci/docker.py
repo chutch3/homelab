@@ -58,14 +58,16 @@ class Docker:
         listed = self.ls()
         if not listed:
             return []  # `docker service inspect` with no names is an error, not an empty answer
-        inspect_data = self.inspect([service["Name"] for service in listed])
+        # Joined by name, never by position: `ci plan` is polled during a deploy
+        # that prunes, so a service can vanish between the two reads. One missing
+        # from the inspect keeps no stack rather than inheriting its neighbour's.
+        inspected = {row["Name"]: row for row in self.inspect([row["Name"] for row in listed])}
         return [
             Service.from_row(
-                name=list["Name"],
-                stack=inspect["Stack"],
-                update=inspect["Update"],
-                replicas=list["Replicas"],
+                name=row["Name"],
+                stack=inspected.get(row["Name"], {}).get("Stack") or "",
+                update=inspected.get(row["Name"], {}).get("Update", "none"),
+                replicas=row["Replicas"],
             )
-            for list, inspect in zip(listed, inspect_data)
-            if list and inspect
+            for row in listed
         ]
