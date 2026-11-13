@@ -39,17 +39,19 @@ class Docker:
 
     def inspect(self, names: list[str]) -> list[dict[str, str]]:
         """Inspects the given services, returning their details."""
-        inspect_outcome = self._commands.run(SERVICE_INSPECT + names, capture=True)
-        if not inspect_outcome.ok:
-            return []
-        return [json.loads(line) for line in inspect_outcome.stdout.splitlines() if line.strip()]
+        return self._objects(SERVICE_INSPECT + names)
 
     def ls(self) -> list[dict[str, str]]:
         """Lists all services, returning their details."""
-        ls_outcome = self._commands.run(SERVICE_LS, capture=True)
-        if not ls_outcome.ok:
-            return []
-        return [json.loads(line) for line in ls_outcome.stdout.splitlines() if line.strip()]
+        return self._objects(SERVICE_LS)
+
+    def _objects(self, argv: list[str]) -> list[dict[str, str]]:
+        """One JSON object per output line. A failed read raises: a dead daemon
+        is not an empty cluster, and treating it as one would plan every stack."""
+        outcome = self._commands.run(argv, capture=True)
+        if not outcome.ok:
+            raise ClusterUnreachable(f"{' '.join(argv[:3])} failed: {outcome.stderr.strip()}")
+        return [json.loads(line) for line in outcome.stdout.splitlines() if line.strip()]
 
     def services(self) -> list[Service]:
         """Every service the cluster holds, with the stack it belongs to."""

@@ -15,7 +15,7 @@ import pytest
 from ci.adapters import CommandResult
 from ci.ports import CommandRunner
 from ci.containers import Container
-from ci.docker import Docker
+from ci.docker import ClusterUnreachable, Docker
 from ci.stackstate import Service
 
 
@@ -64,12 +64,13 @@ class TestDocker:
         assert actual[0] == {"Name": "authentik_server", "Replicas": "1/1"}
         assert actual[1] == {"Name": "authentik_worker", "Replicas": "1/1"}
 
-    def test_ls_returns_empty_list_on_failure(self, subject: Docker, mock_command_runner: Mock):
+    def test_ls_raises_when_docker_cannot_be_read(self, subject: Docker, mock_command_runner: Mock):
+        """A dead daemon is not an empty cluster: `[]` would plan all 54 stacks as absent."""
         mock_command_runner.run.side_effect = [
-            CommandResult(1, "failed"),
+            CommandResult(1, "", "Cannot connect to the Docker daemon"),
         ]
-        actual = subject.ls()
-        assert len(actual) == 0
+        with pytest.raises(ClusterUnreachable, match="Cannot connect to the Docker daemon"):
+            subject.ls()
 
     def test_inspect_returns_output_for_a_single_service(
         self, subject: Docker, mock_command_runner: Mock
@@ -144,12 +145,12 @@ class TestDocker:
             "dns_dns-server": "dns",
         }
 
-    def test_services_when_error_returns_empty_list(
+    def test_services_raises_when_the_inspect_fails(
         self, subject: Docker, mock_command_runner: Mock
     ):
         mock_command_runner.run.side_effect = [
-            CommandResult(1, "failed"),
-            CommandResult(1, "failed"),
+            listed(("dns_dns-server", "1/1")),
+            CommandResult(1, "", "error during connect"),
         ]
-        actual = subject.services()
-        assert len(actual) == 0
+        with pytest.raises(ClusterUnreachable, match="error during connect"):
+            subject.services()
