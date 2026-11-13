@@ -22,7 +22,6 @@ without_healthcheck:
   - kolibri
   - komga
   - kopia
-  - librechat
   - llama-cpp
   - mealie
   - mlflow
