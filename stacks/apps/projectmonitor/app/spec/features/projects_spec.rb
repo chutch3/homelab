@@ -98,6 +98,7 @@ feature "projects" do
       within "#project-#{jenkins_project.id}" do
         click_link "Edit"
       end
+      expect(page).to have_current_path(edit_project_path(jenkins_project))
 
       click_on "Change password"
       fill_in "Password", with: "new password"
@@ -116,6 +117,10 @@ feature "projects" do
       within "#project-#{jenkins_project.id}" do
         click_link "Edit"
       end
+      # Wait for the edit page before touching its form: clicking straight
+      # through the navigation raced Chrome ("Node with given id does not
+      # belong to the document") on the Ubuntu 26.04 runner.
+      expect(page).to have_current_path(edit_project_path(jenkins_project))
 
       click_on "Update"
       expect(page).to have_content("Project was successfully updated")
