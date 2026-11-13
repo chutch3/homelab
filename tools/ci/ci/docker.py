@@ -56,6 +56,8 @@ class Docker:
     def services(self) -> list[Service]:
         """Every service the cluster holds, with the stack it belongs to."""
         listed = self.ls()
+        if not listed:
+            return []  # `docker service inspect` with no names is an error, not an empty answer
         inspect_data = self.inspect([service["Name"] for service in listed])
         return [
             Service.from_row(
