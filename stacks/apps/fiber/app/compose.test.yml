@@ -1,0 +1,17 @@
+# `ci test` runs fiber's unit and integration suites in this `tests` service, so
+# they exercise the image's own mariadb-dump / mydumper / pg_dump 14-16 rather than
+# whatever the CI runner has installed (see tools/ci/ci/apptests.py).
+services:
+    tests:
+        build:
+            context: ..
+            dockerfile: app/Dockerfile
+            target: test
+        # The integration tests start MariaDB/Postgres with testcontainers through the
+        # host's daemon. Host networking keeps their published ports on localhost, as
+        # they were when the suite ran on the runner itself.
+        network_mode: host
+        volumes:
+            - /var/run/docker.sock:/var/run/docker.sock
+        environment:
+            TESTCONTAINERS_HOST_OVERRIDE: localhost
