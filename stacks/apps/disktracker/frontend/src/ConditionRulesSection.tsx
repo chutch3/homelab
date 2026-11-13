@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useState } from 'react';
 import { ActionIcon, Alert, Button, Group, NativeSelect, Table, Text, TextInput } from '@mantine/core';
-import { ApiValidationError, type Condition, type ConditionRule, type ListingsApi } from './api';
+import { ApiValidationError, type Condition, type ConditionRule, type DisktrackerApi } from './api';
 import { conditions } from './listing-display';
 
-type Props = { api: ListingsApi };
+type Props = { api: DisktrackerApi };
 
 /** Which text names which condition. The collector and pasted listings read them in order, against
  * an offer's title and the store's own condition field; the first rule that matches wins. */

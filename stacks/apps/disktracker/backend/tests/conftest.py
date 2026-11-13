@@ -26,8 +26,10 @@ def database_admin_url() -> Iterator[str]:
 
 
 @pytest.fixture
-def database_url(database_admin_url: str) -> Iterator[str]:
-    """Give each test its own database; never migrate or clear an existing database."""
+def database_url(database_admin_url: str, monkeypatch: pytest.MonkeyPatch) -> Iterator[str]:
+    """Give each test its own database; never migrate or clear an existing database. An
+    application the test makes reads it from the environment, as a served one does, and nothing
+    else of the developer's: no collector, no built frontend."""
     admin_url = database_admin_url
     database_name = "disktracker_test_" + uuid4().hex
     with psycopg.connect(admin_url, autocommit=True) as conn:
@@ -45,6 +47,9 @@ def database_url(database_admin_url: str) -> Iterator[str]:
         config = Config(str(Path(__file__).parents[1] / "alembic.ini"))
         config.attributes["database_url"] = url
         command.upgrade(config, "head")
+        monkeypatch.setenv("DISKTRACKER_DATABASE_URL", url)
+        monkeypatch.delenv("DISKTRACKER_COLLECTOR_URL", raising=False)
+        monkeypatch.delenv("DISKTRACKER_STATIC_DIR", raising=False)
         yield url
     finally:
         with psycopg.connect(admin_url, autocommit=True) as conn:

@@ -1,11 +1,11 @@
 import { Button, Table } from '@mantine/core';
-import type { Listing, Observation } from './api';
+import type { Offer, Observation } from './api';
 import { combinedObservations } from './drive-observations';
 import { dollars, sellerLabel } from './listing-display';
 
 const dateLabel = (value: string) => new Date(value).toLocaleString();
 /** Without onDelete, prices are shown but cannot be deleted. */
-type Props = { listings: Listing[]; onDelete?: (listing: Listing, observation: Observation) => void };
+type Props = { listings: Offer[]; onDelete?: (listing: Offer, observation: Observation) => void };
 
 export function DriveObservationTable({ listings, onDelete }: Props) {
   const rows = combinedObservations(listings);

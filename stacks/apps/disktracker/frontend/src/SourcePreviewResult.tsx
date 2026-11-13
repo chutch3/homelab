@@ -7,11 +7,18 @@ const reviewReasons: Record<string, string> = {
   missing_condition: 'no condition was read',
   missing_capacity: 'no capacity was read, and the drive is not known yet',
   capacity_conflict: 'its capacity differs from the one recorded for this drive',
+  not_a_single_drive: 'its title reads as several drives, tape or other equipment',
+  implausible_capacity: 'the capacity it gives is more than any drive holds, or not what its title says',
+  alias_conflict: 'it names an MPN another drive already goes by',
 };
-/** What disktracker would do with the offer, in a sentence. */
+const ignoredReasons: Record<string, string> = {
+  sold_out: 'It is sold out and has never had a price, so nothing would be recorded until it is in stock.',
+  decided: 'A reviewer said this listing is nothing to track, so it would be ignored.',
+};
+/** What disktracker would do with the offer, in a sentence: as taking it in would, now. */
 function verdictLabel({ outcome, reason }: NonNullable<SourcePreview['verdict']>): string {
   if (outcome === 'recorded') return 'It would be recorded.';
-  if (outcome === 'ignored') return 'It is sold out, so nothing would be recorded until it is in stock.';
+  if (outcome === 'ignored') return ignoredReasons[reason ?? ''] ?? 'It would be ignored.';
   return `It would wait under Needs matching: ${reviewReasons[reason ?? ''] ?? reason}.`;
 }
 const unread = '—';

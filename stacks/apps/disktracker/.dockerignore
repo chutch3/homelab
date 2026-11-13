@@ -14,5 +14,5 @@ backend/tests/
 # The frontend's tests read the backend's source kinds, which the frontend's build stage lacks.
 frontend/tests/
 collector/tests/
-listing_text/tests/
+packages/listing_facts/tests/
 tests/

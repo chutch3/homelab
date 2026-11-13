@@ -3,6 +3,7 @@ import re
 import signal
 import subprocess
 import time
+from collections.abc import Callable
 from datetime import UTC, datetime
 from typing import Any
 from uuid import UUID
@@ -11,15 +12,20 @@ import pytest
 from pytest_httpserver import HTTPServer
 from werkzeug import Request, Response
 
-from tests.builders import listing_json
+from tests.builders import offer_json, sitemap_settings
 from tests.integration.harness import (
+    A_RUN,
     ALLOW_ALL,
+    DUE,
+    DUE_QUERY,
     RECORDED,
     ROOT,
+    RUNS,
     base_of,
     environment,
     events,
-    know_listings,
+    heartbeats,
+    know_offers,
     log_lines,
     posts,
     progress_reports,
@@ -27,10 +33,12 @@ from tests.integration.harness import (
     record_everything,
     reply_in_turn,
     run,
+    run_answer,
     run_reports,
     scraped,
     serve_condition_rules,
     serve_robots,
+    serve_runs,
     source_json,
     start_loop,
 )
@@ -92,12 +100,12 @@ def test_one_run_posts_every_serverpartdeals_offer_to_disktracker(
     reply_in_turn(
         disktracker,
         [
-            (scraped("recorded", listing_id=UUID(int=1)), 201),
-            (scraped("recorded", listing_id=UUID(int=2)), 201),
-            (scraped("queued", unmatched_id=UUID(int=3)), 202),
+            (scraped("recorded", offer_id=UUID(int=1)), 201),
+            (scraped("recorded", offer_id=UUID(int=2)), 201),
+            (scraped("queued", review_item_id=UUID(int=3)), 202),
         ],
     )
-    know_listings(disktracker, [])
+    know_offers(disktracker, [])
 
     result = run_collector(serverpartdeals, disktracker)
 
@@ -110,7 +118,7 @@ def test_one_run_posts_every_serverpartdeals_offer_to_disktracker(
 
     def offer(**fields: Any) -> dict[str, Any]:
         return {
-            "source": "serverpartdeals",
+            "store": "serverpartdeals",
             "seller": "",
             "shipping_cents": 0,
             "aliases": [],
@@ -188,14 +196,14 @@ def test_failing_or_rejected_posts_are_counted_and_the_run_carries_on(
         disktracker,
         [
             (json.dumps({"detail": "busy"}), 503),
-            (scraped("recorded", listing_id=UUID(int=1)), 201),
+            (scraped("recorded", offer_id=UUID(int=1)), 201),
             (json.dumps({"detail": [{"loc": ["body", "url"], "msg": "bad", "type": "x"}]}), 422),
             (gateway_error, 502),
             (gateway_error, 502),
             (gateway_error, 502),
         ],
     )
-    know_listings(disktracker, [])
+    know_offers(disktracker, [])
 
     result = run_collector(serverpartdeals, disktracker)
 
@@ -245,7 +253,7 @@ def test_each_run_reports_what_it_did_and_when_to_disktracker(
             ('{"detail": "rejected"}', 409),
         ],
     )
-    know_listings(disktracker, [])
+    know_offers(disktracker, [])
     before = datetime.now(UTC)
 
     result = run_collector(serverpartdeals, disktracker)
@@ -258,7 +266,7 @@ def test_each_run_reports_what_it_did_and_when_to_disktracker(
     assert before <= started <= finished <= datetime.now(UTC)
     assert report == {
         "source": "serverpartdeals",
-        "completed": True,
+        "status": "completed",
         "seen": 3,
         "recorded": 1,
         "queued": 1,
@@ -266,7 +274,6 @@ def test_each_run_reports_what_it_did_and_when_to_disktracker(
         "failed": 1,
         "rechecked": 0,
         "recheck_failed": 0,
-        "stopped": False,
     }
 
 
@@ -275,7 +282,7 @@ def test_a_switched_off_source_asked_to_run_now_is_collected(
 ) -> None:
     serve_feed(serverpartdeals, PAGE["products"])
     record_everything(disktracker)
-    know_listings(disktracker, [])
+    know_offers(disktracker, [])
 
     result = run(environment(disktracker, spd_source(serverpartdeals, enabled=False)))
 
@@ -288,9 +295,11 @@ def test_a_source_whose_settings_cannot_be_read_fails_its_run_and_the_others_sti
 ) -> None:
     serve_feed(serverpartdeals, PAGE["products"])
     record_everything(disktracker)
-    know_listings(disktracker, [])
-    # Saved without the collections a Shopify source reads.
-    broken = source_json("oldmap", "shopify", "https://ghd.test", {})
+    know_offers(disktracker, [])
+    # Saved before its pattern was checked: it is no regular expression.
+    broken = source_json(
+        "oldmap", "sitemap", "https://ghd.test", sitemap_settings(product_path_pattern="(unclosed")
+    )
 
     result = run(environment(disktracker, broken, spd_source(serverpartdeals)))
 
@@ -299,11 +308,11 @@ def test_a_source_whose_settings_cannot_be_read_fails_its_run_and_the_others_sti
     [failed] = [event for event in events(result.stdout) if event["event"] == "run_failed"]
     assert (failed["source"], failed["error"]) == (
         "oldmap",
-        "settings: missing collections",
+        "settings: missing ), unterminated subpattern at position 0",
     )
-    assert [(report["source"], report["completed"]) for report in run_reports(disktracker)] == [
-        ("oldmap", False),
-        ("serverpartdeals", True),
+    assert [(report["source"], report["status"]) for report in run_reports(disktracker)] == [
+        ("oldmap", "failed"),
+        ("serverpartdeals", "completed"),
     ]
 
 
@@ -312,25 +321,28 @@ def test_a_run_says_it_has_started_before_it_reads_the_store(
 ) -> None:
     serve_feed(serverpartdeals, PAGE["products"])
     record_everything(disktracker)
-    know_listings(disktracker, [])
+    know_offers(disktracker, [])
 
     result = run_collector(serverpartdeals, disktracker)
 
     assert result.returncode == 0, result.stderr
+    [registered] = [json.loads(r.data) for r, _ in disktracker.log if r.path == RUNS]
     [started] = progress_reports(disktracker)
     [report] = run_reports(disktracker)
-    assert started == {
-        "source": "serverpartdeals",
-        "started_at": report["started_at"],
-        "seen": 0,
-        "recorded": 0,
-        "queued": 0,
-        "ignored": 0,
-        "failed": 0,
-    }
+    assert registered == {
+        "id": registered["id"], "source": "serverpartdeals", "started_at": report["started_at"],
+    }  # fmt: skip
+    assert started == {"seen": 0, "recorded": 0, "queued": 0, "ignored": 0, "failed": 0}
     paths = [request.path for request, _ in disktracker.log]
-    assert paths.index("/api/collector-activity") < paths.index("/api/scraped")
-    assert report["stopped"] is False
+    # Registered, then asked whether to stop, before the store is read.
+    assert (
+        paths.index(RUNS)
+        < paths.index(f"{RUNS}/{registered['id']}")
+        < paths.index("/api/ingestions")
+    )
+    # The heartbeat between runs names no run; the one during the run names it.
+    assert heartbeats(disktracker) == [[], [registered["id"]]]
+    assert report["status"] == "completed"
 
 
 def test_a_run_disktracker_asks_to_stop_ends_there_and_is_reported_as_stopped(
@@ -338,8 +350,8 @@ def test_a_run_disktracker_asks_to_stop_ends_there_and_is_reported_as_stopped(
 ) -> None:
     serve_feed(serverpartdeals, PAGE["products"])
     record_everything(disktracker)
-    disktracker.expect_oneshot_request("/api/collector-activity", method="PUT").respond_with_json(
-        {"stop": True}
+    disktracker.expect_oneshot_request(A_RUN, method="PATCH").respond_with_handler(
+        lambda request: run_answer(request, stop_requested=True)
     )
 
     result = run_collector(serverpartdeals, disktracker)
@@ -349,7 +361,7 @@ def test_a_run_disktracker_asks_to_stop_ends_there_and_is_reported_as_stopped(
     assert posts(disktracker) == []
     assert serverpartdeals.log == []
     [report] = run_reports(disktracker)
-    assert (report["completed"], report["stopped"], report["seen"]) == (False, True, 0)
+    assert (report["status"], report["seen"]) == ("stopped", 0)
     assert {"event": "run_stopped", "source": "serverpartdeals", "seen": 0, "recorded": 0,
             "queued": 0, "ignored": 0, "failed": 0} in events(result.stdout)  # fmt: skip
 
@@ -362,8 +374,8 @@ def test_a_run_goes_on_when_disktracker_cannot_be_told_how_far_it_has_got(
 ) -> None:
     serve_feed(serverpartdeals, PAGE["products"])
     record_everything(disktracker)
-    know_listings(disktracker, [])
-    disktracker.expect_oneshot_request("/api/collector-activity", method="PUT").respond_with_data(
+    know_offers(disktracker, [])
+    disktracker.expect_oneshot_request(A_RUN, method="PATCH").respond_with_data(
         body, status=status, content_type="application/json"
     )
 
@@ -371,20 +383,20 @@ def test_a_run_goes_on_when_disktracker_cannot_be_told_how_far_it_has_got(
 
     assert result.returncode == 0, result.stderr
     [report] = run_reports(disktracker)
-    assert (report["completed"], report["stopped"], report["seen"]) == (True, False, 3)
+    assert (report["status"], report["seen"]) == ("completed", 3)
 
 
 def test_what_is_due_is_asked_again_after_each_run_so_a_store_asked_for_meanwhile_goes_next(
     serverpartdeals: HTTPServer, disktracker: HTTPServer
 ) -> None:
     serve_feed(serverpartdeals, [])
-    know_listings(disktracker, [])
-    know_listings(disktracker, [], store="asked")
+    know_offers(disktracker, [])
+    know_offers(disktracker, [], store="asked")
     first = spd_source(serverpartdeals)
     asked = {**spd_source(serverpartdeals), "key": "asked", "name": "Asked"}
     # Asked is not due when the round starts; it is asked to run while the first store runs.
     answers = iter([[first], [asked], []])
-    disktracker.expect_request("/api/sources/due", method="GET").respond_with_handler(
+    disktracker.expect_request(*DUE, **DUE_QUERY).respond_with_handler(
         lambda _request: Response(json.dumps(next(answers)), content_type="application/json")
     )
     serve_condition_rules(disktracker, [])
@@ -410,9 +422,7 @@ def test_a_run_with_nothing_due_collects_nothing_and_succeeds(
 def test_a_run_fails_when_disktracker_cannot_say_which_sources_to_collect(
     serverpartdeals: HTTPServer, disktracker: HTTPServer
 ) -> None:
-    disktracker.expect_oneshot_request("/api/sources/due", method="GET").respond_with_data(
-        "busy", status=503
-    )
+    disktracker.expect_oneshot_request(*DUE, **DUE_QUERY).respond_with_data("busy", status=503)
 
     result = run(collector_env(serverpartdeals, disktracker))
 
@@ -430,7 +440,7 @@ def test_a_run_fails_when_disktracker_answers_in_a_shape_the_collector_cannot_re
     # An older disktracker, from before sources had a transport.
     older = {**spd_source(serverpartdeals)}
     del older["transport"]
-    disktracker.expect_oneshot_request("/api/sources/due", method="GET").respond_with_json([older])
+    disktracker.expect_oneshot_request(*DUE, **DUE_QUERY).respond_with_json([older])
 
     result = run(collector_env(serverpartdeals, disktracker))
 
@@ -440,6 +450,26 @@ def test_a_run_fails_when_disktracker_answers_in_a_shape_the_collector_cannot_re
     assert events(result.stdout)[-1] == {
         "event": "sources_unavailable",
         "error": "sources: the answer has no transport",
+    }
+
+
+def test_a_source_of_a_kind_this_collector_does_not_read_leaves_the_sources_unreadable(
+    serverpartdeals: HTTPServer, disktracker: HTTPServer
+) -> None:
+    # A newer disktracker, with a kind of store this collector has no reader for.
+    newer = source_json("newstore", "magento", "https://new.test", {})
+    disktracker.expect_oneshot_request(*DUE, **DUE_QUERY).respond_with_json(
+        [newer, spd_source(serverpartdeals)]
+    )
+
+    result = run(collector_env(serverpartdeals, disktracker))
+
+    assert result.returncode == 1
+    assert result.stderr == ""
+    assert serverpartdeals.log == []
+    assert events(result.stdout)[-1] == {
+        "event": "sources_unavailable",
+        "error": "sources: a magento source is of no kind this collector reads",
     }
 
 
@@ -472,7 +502,7 @@ def test_conditions_are_read_with_disktrackers_rules_the_first_match_winning(
     )
     serve_feed(serverpartdeals, [renewed, pre_owned])
     record_everything(disktracker)
-    know_listings(disktracker, [])
+    know_offers(disktracker, [])
 
     result = run_collector(serverpartdeals, disktracker)
 
@@ -484,14 +514,14 @@ def test_conditions_are_read_with_disktrackers_rules_the_first_match_winning(
     ]
 
 
-def test_an_offer_now_read_under_another_condition_leaves_its_old_listing_out_of_stock(
+def test_an_offer_now_read_under_another_condition_leaves_its_old_offer_out_of_stock(
     serverpartdeals: HTTPServer, disktracker: HTTPServer
 ) -> None:
     serve_feed(serverpartdeals, PAGE["products"][:1])
     url = f"{base_of(serverpartdeals)}/products/seagate-exos-x20-st18000nm003d-18tb"
     # Recorded as new before a condition rule read it right.
-    old = listing_json(url, listing_id=UUID(int=9), mpn="ST18000NM003D", condition="new")
-    know_listings(disktracker, [old])
+    old = offer_json(url, offer_id=UUID(int=9), mpn="ST18000NM003D", condition="new")
+    know_offers(disktracker, [old])
     record_everything(disktracker)
 
     result = run_collector(serverpartdeals, disktracker)
@@ -499,11 +529,9 @@ def test_an_offer_now_read_under_another_condition_leaves_its_old_listing_out_of
     assert result.returncode == 0, result.stderr
     assert not [request for request, _ in serverpartdeals.log if request.path.endswith(".js")]
     [superseded] = rechecks(disktracker)
-    assert (superseded["url"], superseded["condition"], superseded["in_stock"]) == (
-        url,
-        "new",
-        False,
-    )
+    # Named as the offer it was: what it is is not said again.
+    assert (superseded["offer_id"], superseded["in_stock"]) == (str(UUID(int=9)), False)
+    assert "condition" not in superseded
     assert superseded["item_price_cents"] is None
     assert events(result.stdout)[-1]["rechecked"] == 1
 
@@ -551,10 +579,11 @@ def test_an_unreachable_source_is_reported_and_nothing_is_posted(
 
     assert result.returncode == 1
     assert posts(disktracker) == []
+    url = serverpartdeals.url_for(PRODUCTS) + "?limit=250&page=1"
     [report] = run_reports(disktracker)
     assert {key: value for key, value in report.items() if not key.endswith("_at")} == {
         "source": "serverpartdeals",
-        "completed": False,
+        "status": "failed",
         "seen": 0,
         "recorded": 0,
         "queued": 0,
@@ -562,9 +591,9 @@ def test_an_unreachable_source_is_reported_and_nothing_is_posted(
         "failed": 0,
         "rechecked": 0,
         "recheck_failed": 0,
-        "stopped": False,
+        # Why, for whoever looks at the store: the error's first line, without its advice.
+        "reason": f"Server error '503 SERVICE UNAVAILABLE' for url '{url}'",
     }
-    url = serverpartdeals.url_for(PRODUCTS) + "?limit=250&page=1"
     assert events(result.stdout) == [
         {"event": "run_started", "source": "serverpartdeals"},
         {
@@ -604,7 +633,7 @@ def test_tray_and_part_number_listings_of_one_drive_post_as_a_single_offer(
 ) -> None:
     serve_feed(serverpartdeals, TRAYS["products"])
     record_everything(disktracker)
-    know_listings(disktracker, [])
+    know_offers(disktracker, [])
 
     result = run_collector(serverpartdeals, disktracker)
 
@@ -640,7 +669,7 @@ def test_a_wd_model_code_with_letters_is_still_read_as_the_maker_mpn(
     # its SKUs are part numbers: this one joins the drive as an alias.
     serve_feed(serverpartdeals, [*PAGE["products"], hc320])
     record_everything(disktracker)
-    know_listings(disktracker, [])
+    know_offers(disktracker, [])
 
     result = run_collector(serverpartdeals, disktracker)
 
@@ -658,7 +687,7 @@ def test_without_run_once_it_asks_what_is_due_on_every_poll_until_stopped(
 ) -> None:
     serve_feed(serverpartdeals, PAGE["products"])
     record_everything(disktracker)
-    know_listings(disktracker, [])
+    know_offers(disktracker, [])
     polls: list[float] = []
 
     def due(_: Request) -> Response:
@@ -668,7 +697,7 @@ def test_without_run_once_it_asks_what_is_due_on_every_poll_until_stopped(
         return Response(json.dumps(sources), content_type="application/json")
 
     # Registered before environment's own answer, so it is the one given.
-    disktracker.expect_request("/api/sources/due", method="GET").respond_with_handler(due)
+    disktracker.expect_request(*DUE, **DUE_QUERY).respond_with_handler(due)
     collector = start_loop(environment(disktracker))
     deadline = time.monotonic() + 30
     while (len(posts(disktracker)) < 3 or len(polls) < 4) and time.monotonic() < deadline:
@@ -689,7 +718,7 @@ def test_each_run_reads_robots_txt_afresh_so_a_refusal_lasts_only_that_run(
     serverpartdeals.expect_oneshot_request("/robots.txt").respond_with_data("no", status=403)
     serve_feed(serverpartdeals, PAGE["products"])
     record_everything(disktracker)
-    know_listings(disktracker, [])
+    know_offers(disktracker, [])
     polls: list[float] = []
 
     def due(_: Request) -> Response:
@@ -698,7 +727,7 @@ def test_each_run_reads_robots_txt_afresh_so_a_refusal_lasts_only_that_run(
         sources = [spd_source(serverpartdeals)] if len(run_reports(disktracker)) < 2 else []
         return Response(json.dumps(sources), content_type="application/json")
 
-    disktracker.expect_request("/api/sources/due", method="GET").respond_with_handler(due)
+    disktracker.expect_request(*DUE, **DUE_QUERY).respond_with_handler(due)
     collector = start_loop(environment(disktracker))
     deadline = time.monotonic() + 30
     while len(run_reports(disktracker)) < 2 and time.monotonic() < deadline:
@@ -765,15 +794,50 @@ def test_disktracker_going_away_mid_run_fails_each_offer_after_retrying(
     }
 
 
-def test_a_run_report_disktracker_rejects_is_a_warning_and_the_run_still_succeeds(
+def ending(failures: int) -> Callable[[Request], Response]:
+    """Answers a run's updates, failing its end the first so many times (503)."""
+    failed: list[str] = []
+
+    def answer(request: Request) -> Response:
+        if json.loads(request.data).get("status") is None or len(failed) >= failures:
+            return run_answer(request)
+        failed.append(request.path)
+        return Response("busy", status=503)
+
+    return answer
+
+
+def test_a_run_end_lost_to_a_passing_failure_is_sent_again_and_taken_once(
     serverpartdeals: HTTPServer, disktracker: HTTPServer
 ) -> None:
+    disktracker.clear_all_handlers()
+    serve_runs(disktracker, update=ending(failures=1))
     serve_feed(serverpartdeals, PAGE["products"][:1])
     record_everything(disktracker)
-    know_listings(disktracker, [])
-    disktracker.expect_oneshot_request("/api/collector-runs", method="POST").respond_with_data(
-        "busy", status=503
-    )
+    know_offers(disktracker, [])
+
+    result = run_collector(serverpartdeals, disktracker)
+
+    assert result.returncode == 0, result.stderr
+    ends = [
+        request.path for request, _ in disktracker.log
+        if request.method == "PATCH" and "status" in json.loads(request.data)
+    ]  # fmt: skip
+    # The same end, under the same run, twice; disktracker took the second.
+    assert len(ends) == 2 and ends[0] == ends[1]
+    assert [report["status"] for report in run_reports(disktracker)] == ["completed"]
+    assert "run_report_failed" not in [event["event"] for event in events(result.stdout)]
+    assert len(posts(disktracker)) == 1
+
+
+def test_a_run_end_disktracker_never_takes_is_a_warning_and_the_run_still_succeeds(
+    serverpartdeals: HTTPServer, disktracker: HTTPServer
+) -> None:
+    disktracker.clear_all_handlers()
+    serve_runs(disktracker, update=ending(failures=99))
+    serve_feed(serverpartdeals, PAGE["products"][:1])
+    record_everything(disktracker)
+    know_offers(disktracker, [])
 
     result = run_collector(serverpartdeals, disktracker)
 
@@ -783,6 +847,22 @@ def test_a_run_report_disktracker_rejects_is_a_warning_and_the_run_still_succeed
         "source": "serverpartdeals",
         "error": "runs: HTTP 503",
     }
+
+
+def test_a_run_start_lost_to_a_passing_failure_is_sent_again_under_the_same_id(
+    serverpartdeals: HTTPServer, disktracker: HTTPServer
+) -> None:
+    serve_feed(serverpartdeals, PAGE["products"][:1])
+    record_everything(disktracker)
+    know_offers(disktracker, [])
+    disktracker.expect_oneshot_request(RUNS, method="POST").respond_with_data("busy", status=503)
+
+    result = run_collector(serverpartdeals, disktracker)
+
+    assert result.returncode == 0, result.stderr
+    starts = [json.loads(r.data) for r, _ in disktracker.log if r.path == RUNS]
+    assert len(starts) == 2 and starts[0] == starts[1]
+    assert [report["status"] for report in run_reports(disktracker)] == ["completed"]
 
 
 def test_offers_that_left_the_feed_are_rechecked_on_their_own_page(
@@ -805,25 +885,24 @@ def test_offers_that_left_the_feed_are_rechecked_on_their_own_page(
     )
 
     def known(handle: str, **fields: Any) -> dict[str, Any]:
-        return listing_json(f"{base}/products/{handle}", title=f"Title of {handle}", **fields)
+        return offer_json(f"{base}/products/{handle}", title=f"Title of {handle}", **fields)
 
-    know_listings(
-        disktracker,
-        [
-            known("sold-out"),
-            known("gone"),
-            known("unlisted"),
-            known("broken"),
-            known("challenged"),
-            known("already-sold-out", in_stock=False),
-            known("marketplace", seller="Some shop"),
-            listing_json(None, title="Entered by hand without a URL"),
-            listing_json(
-                f"{base}/collections/hard-drives/products/sold-out-at-a-price",
-                title="Title of sold-out-at-a-price",
-            ),
-        ],
-    )
+    offers = [
+        known("sold-out"),
+        known("gone"),
+        known("unlisted"),
+        known("broken"),
+        known("challenged"),
+        known("already-sold-out", in_stock=False),
+        known("marketplace", seller="Some shop"),
+        offer_json(None, title="Entered by hand without a URL"),
+        offer_json(
+            f"{base}/collections/hard-drives/products/sold-out-at-a-price",
+            title="Title of sold-out-at-a-price",
+        ),
+    ]
+    know_offers(disktracker, offers)
+    named = {offer["url"]: offer["id"] for offer in offers}
     record_everything(disktracker)
 
     result = run_collector(serverpartdeals, disktracker)
@@ -850,20 +929,15 @@ def test_offers_that_left_the_feed_are_rechecked_on_their_own_page(
         offer.pop("observed_at")
 
     def repost(url: str, title: str, price: int | None, in_stock: bool) -> dict[str, Any]:
+        # A recheck reads only the price: it names the offer it is of, and says nothing new of
+        # what that offer is (title is the page's, for whoever reads this test).
+        del title
         return {
-            "source": "serverpartdeals",
-            "seller": "",
-            "url": url,
-            "title": title,
-            "mpn": "ST18000NM000J",
-            "condition": "manufacturer_recertified",
-            "capacity_gb": 18000,
+            "offer_id": named[url],
+            "provenance": "collected",
             "item_price_cents": price,
             "shipping_cents": 0,
             "in_stock": in_stock,
-            "aliases": [],
-            "brand": None,
-            "specifications": None,
         }
 
     assert reposted == [
@@ -909,7 +983,7 @@ def test_a_product_page_that_redirects_is_followed(
     serverpartdeals.expect_request("/canonical/moved.js").respond_with_json(
         {"variants": [{"id": 1, "price": 46800, "available": False}]}
     )
-    know_listings(disktracker, [listing_json(f"{base}/products/moved")])
+    know_offers(disktracker, [offer_json(f"{base}/products/moved")])
     record_everything(disktracker)
 
     result = run_collector(serverpartdeals, disktracker)
@@ -920,12 +994,12 @@ def test_a_product_page_that_redirects_is_followed(
     assert events(result.stdout)[-1]["failed"] == 0
 
 
-def test_listings_disktracker_will_not_give_are_reported_and_the_run_completes(
+def test_offers_disktracker_will_not_give_are_reported_and_the_run_completes(
     serverpartdeals: HTTPServer, disktracker: HTTPServer
 ) -> None:
     serve_feed(serverpartdeals, PAGE["products"][:1])
     record_everything(disktracker)
-    disktracker.expect_request("/api/listings", method="GET").respond_with_data(
+    disktracker.expect_request("/api/offers", method="GET").respond_with_data(
         "unavailable", status=503
     )
 
@@ -936,20 +1010,20 @@ def test_listings_disktracker_will_not_give_are_reported_and_the_run_completes(
     assert output[1] == {
         "event": "recheck_failed",
         "source": "serverpartdeals",
-        "error": "listings: HTTP 503",
+        "error": "offers: HTTP 503",
     }
     assert (output[-1]["recorded"], output[-1]["rechecked"]) == (1, 0)
 
 
-def test_listings_in_a_shape_the_collector_cannot_read_are_reported_and_the_run_completes(
+def test_offers_in_a_shape_the_collector_cannot_read_are_reported_and_the_run_completes(
     serverpartdeals: HTTPServer, disktracker: HTTPServer
 ) -> None:
     serve_feed(serverpartdeals, PAGE["products"][:1])
     record_everything(disktracker)
-    # An older disktracker, from before a listing named its store.
-    older = listing_json(f"{base_of(serverpartdeals)}/products/known")
+    # An older disktracker, from before an offer named its store.
+    older = offer_json(f"{base_of(serverpartdeals)}/products/known")
     del older["store"]
-    know_listings(disktracker, [older])
+    know_offers(disktracker, [older])
 
     result = run_collector(serverpartdeals, disktracker)
 
@@ -958,7 +1032,7 @@ def test_listings_in_a_shape_the_collector_cannot_read_are_reported_and_the_run_
     assert output[1] == {
         "event": "recheck_failed",
         "source": "serverpartdeals",
-        "error": "listings: the answer has no store",
+        "error": "offers: the answer has no store",
     }
     assert (output[-1]["recorded"], output[-1]["rechecked"]) == (1, 0)
 
@@ -985,7 +1059,7 @@ def test_solid_state_drives_are_collected_too_and_a_product_in_both_collections_
     }
     serve_feed(serverpartdeals, PAGE["products"], ssds=[PAGE["products"][2], nvme])
     record_everything(disktracker)
-    know_listings(disktracker, [])
+    know_offers(disktracker, [])
 
     result = run_collector(serverpartdeals, disktracker)
 
@@ -1011,7 +1085,7 @@ def test_paths_robots_txt_disallows_are_never_fetched(
         serverpartdeals, PAGE["products"][:1], robots="User-agent: *\nDisallow: /products/\n"
     )
     base = base_of(serverpartdeals)
-    know_listings(disktracker, [listing_json(f"{base}/products/sold-out")])
+    know_offers(disktracker, [offer_json(f"{base}/products/sold-out")])
     record_everything(disktracker)
 
     result = run_collector(serverpartdeals, disktracker)
@@ -1034,6 +1108,40 @@ def test_paths_robots_txt_disallows_are_never_fetched(
         1,
         1,
     )
+
+
+def test_a_source_with_permission_told_not_to_obey_robots_txt_reads_what_it_disallows(
+    serverpartdeals: HTTPServer, disktracker: HTTPServer
+) -> None:
+    serve_feed(
+        serverpartdeals, PAGE["products"][:1], robots="User-agent: *\nDisallow: /\nCrawl-delay: 1\n"
+    )
+    record_everything(disktracker)
+    know_offers(disktracker, [])
+    permitted = spd_source(serverpartdeals, basis="permission", obey_robots=False)
+
+    started = time.monotonic()
+    result = run(environment(disktracker, permitted))
+    took = time.monotonic() - started
+
+    assert result.returncode == 0, result.stderr
+    base = base_of(serverpartdeals)
+    assert [json.loads(request.data)["mpn"] for request in posts(disktracker)] == ["ST18000NM003D"]
+    pages = [
+        f"{base}{request.full_path}"
+        for request, _ in serverpartdeals.log
+        if request.path != "/robots.txt"
+    ]
+    # It still says who it is, and still waits the crawl delay between pages.
+    agents = {request.headers["User-Agent"] for request, _ in serverpartdeals.log}
+    assert agents == {"disktracker-collector/0.1 (personal drive price tracker)"}
+    assert len(pages) >= 2 and took >= len(pages) - 1
+    # Every page robots.txt would have refused is on record as read anyway.
+    overridden = [
+        event for event in events(result.stdout) if event["event"] == "robots_txt_overridden"
+    ]
+    assert [event["url"] for event in overridden] == pages
+    assert {event["source"] for event in overridden} == {"serverpartdeals"}
 
 
 @pytest.mark.parametrize(
@@ -1062,7 +1170,7 @@ def test_a_site_without_readable_robots_rules_is_only_collected_when_it_has_none
                 collection, query_string="limit=250&page=2"
             ).respond_with_json({"products": []})
     record_everything(disktracker)
-    know_listings(disktracker, [])
+    know_offers(disktracker, [])
 
     result = run_collector(serverpartdeals, disktracker)
 
@@ -1096,11 +1204,11 @@ def test_every_log_line_says_when_how_severe_and_which_part_wrote_it(
         disktracker,
         [
             (rejected, 422),
-            (scraped("recorded", listing_id=UUID(int=2)), 201),
-            (scraped("recorded", listing_id=UUID(int=3)), 201),
+            (scraped("recorded", offer_id=UUID(int=2)), 201),
+            (scraped("recorded", offer_id=UUID(int=3)), 201),
         ],
     )
-    know_listings(disktracker, [])
+    know_offers(disktracker, [])
 
     result = run_collector(serverpartdeals, disktracker)
 
@@ -1139,7 +1247,7 @@ def test_debug_logging_shows_every_request_the_collector_makes(
 ) -> None:
     serve_feed(serverpartdeals, PAGE["products"][:1])
     record_everything(disktracker)
-    know_listings(disktracker, [])
+    know_offers(disktracker, [])
 
     result = run({**collector_env(serverpartdeals, disktracker), "LOG_LEVEL": "DEBUG"})
 
@@ -1152,10 +1260,55 @@ def test_debug_logging_shows_every_request_the_collector_makes(
     base = base_of(serverpartdeals)
     assert any(request.startswith(f"HTTP Request: GET {base}/robots.txt") for request in requests)
     assert any(
-        request.startswith(f"HTTP Request: POST {base_of(disktracker)}/api/scraped")
+        request.startswith(f"HTTP Request: POST {base_of(disktracker)}/api/ingestions")
         for request in requests
     )
     assert any(
         line["event"] == "offer_posted" and line["level"] == "DEBUG"
         for line in log_lines(result.stdout)
     )
+
+
+def test_a_run_end_disktracker_refuses_is_not_sent_again(
+    serverpartdeals: HTTPServer, disktracker: HTTPServer
+) -> None:
+    """A refusal (a run that has already ended another way, say) will not pass on its own."""
+
+    def refuse_ends(request: Request) -> Response:
+        if json.loads(request.data).get("status") is None:
+            return run_answer(request)
+        return Response('{"detail": "This run has already ended: abandoned."}', status=409)
+
+    disktracker.clear_all_handlers()
+    serve_runs(disktracker, update=refuse_ends)
+    serve_feed(serverpartdeals, PAGE["products"][:1])
+    record_everything(disktracker)
+    know_offers(disktracker, [])
+
+    result = run_collector(serverpartdeals, disktracker)
+
+    assert result.returncode == 0, result.stderr
+    ends = [r for r, _ in disktracker.log if r.method == "PATCH" and "status" in json.loads(r.data)]
+    assert len(ends) == 1
+    assert events(result.stdout)[-1] == {
+        "event": "run_report_failed",
+        "source": "serverpartdeals",
+        "error": "runs: HTTP 409",
+    }
+
+
+def test_a_heartbeat_disktracker_cannot_take_is_a_warning_and_the_run_still_goes(
+    serverpartdeals: HTTPServer, disktracker: HTTPServer
+) -> None:
+    disktracker.expect_oneshot_request("/api/collector-heartbeat", method="PUT").respond_with_data(
+        "busy", status=503
+    )
+    serve_feed(serverpartdeals, PAGE["products"][:1])
+    record_everything(disktracker)
+    know_offers(disktracker, [])
+
+    result = run_collector(serverpartdeals, disktracker)
+
+    assert result.returncode == 0, result.stderr
+    assert {"event": "heartbeat_failed", "error": "heartbeat: HTTP 503"} in events(result.stdout)
+    assert [report["status"] for report in run_reports(disktracker)] == ["completed"]

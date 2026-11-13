@@ -3,20 +3,20 @@ It is how a source's settings are tried before the collector ever runs it."""
 
 import logging
 import re
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from dataclasses import replace
 from typing import Any
 
-from listing_text.readers import condition_rules
+from listing_facts.readers import condition_rules
 
-from collector.clock import Clock
 from collector.errors import OutOfTime, SourceUnavailable
-from collector.polite import TimedPages, same_site
+from collector.polite import Pages, same_site
 from collector.ports import ReadsOnePage
 from collector.sites import Sites
 
 log = logging.getLogger(__name__)
-# What a source to preview must say; its key, transport and condition rules have defaults.
+# What a source to preview must say; its key, transport, condition rules and whether it obeys
+# robots.txt have defaults.
 REQUIRED = ("kind", "base_url", "settings")
 
 
@@ -25,9 +25,9 @@ class NotASource(Exception):
 
 
 class Previewer:
-    def __init__(self, sites: Sites, clock: Clock, time_limit: float) -> None:
-        """time_limit: the seconds a preview may read a store for before it gives up."""
-        self.sites, self.clock, self.time_limit = sites, clock, time_limit
+    def __init__(self, sites: Sites, timed: Callable[[Pages], Pages]) -> None:
+        """timed: a store's pages, fetched only while a preview has time to read them."""
+        self.sites, self.timed = sites, timed
 
     def preview(self, source: Mapping[str, Any]) -> dict[str, Any]:
         """The first offer the source reads ("found"), that it read none ("nothing"), or why
@@ -52,8 +52,9 @@ class Previewer:
                 transport=source.get("transport", "direct"),
                 settings=source["settings"],
                 conditions=conditions,
+                obey_robots=source.get("obey_robots", True),
             )
-            timed = replace(site, http=TimedPages(site.http, self.clock, self.time_limit))
+            timed = replace(site, http=self.timed(site.http))
             if page is None:
                 found = reader.sample(timed, notes.append)
             elif isinstance(reader, ReadsOnePage):

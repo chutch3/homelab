@@ -8,19 +8,20 @@ from typing import Any
 
 from pytest_httpserver import HTTPServer
 
-from tests.builders import listing_json, sitemap_settings
+from tests.builders import offer_json, sitemap_settings
 from tests.integration.harness import (
     ROOT,
     base_of,
     environment,
     events,
-    know_listings,
+    know_offers,
     posts,
     rechecks,
     record_everything,
     run,
     serve_robots,
     source_json,
+    submissions,
 )
 
 IRONWOLF_PRO = "/products/nas-drives/ironwolf-pro-hard-drive/"
@@ -66,12 +67,17 @@ def told(offers: list[dict[str, Any]]) -> list[tuple[Any, ...]]:
     ]
 
 
+def prices_of(rechecks: list[dict[str, Any]]) -> list[tuple[Any, ...]]:
+    """What each recheck says: the offer it names, and the price and stock its page shows."""
+    return [(offer["offer_id"], offer["item_price_cents"], offer["in_stock"]) for offer in rechecks]
+
+
 def test_one_page_gives_an_offer_for_each_model_it_prices(
     seagate: HTTPServer, disktracker: HTTPServer
 ) -> None:
     serve_store(seagate, [IRONWOLF_PRO])
     record_everything(disktracker)
-    know_listings(disktracker, [], store="seagate")
+    know_offers(disktracker, [], store="seagate")
 
     result = run_collector(seagate, disktracker)
 
@@ -89,7 +95,7 @@ def test_one_page_gives_an_offer_for_each_model_it_prices(
     ]
     first = json.loads(posts(disktracker)[0].data)
     # The name does not say who made it; the data does.
-    assert (first["source"], first["url"], first["condition"], first["brand"]) == (
+    assert (first["store"], first["url"], first["condition"], first["brand"]) == (
         "seagate",
         f"{base_of(seagate)}{IRONWOLF_PRO}",
         "new",
@@ -101,6 +107,8 @@ def test_one_page_gives_an_offer_for_each_model_it_prices(
         IRONWOLF_PRO,
     ]
     assert events(result.stdout)[-1]["seen"] == 8
+    # Eight listings of one page seen at one moment: eight submissions, each under its own key.
+    assert len({request.headers["Idempotency-Key"] for request in posts(disktracker)}) == 8
 
 
 def test_a_model_its_page_no_longer_prices_is_out_of_stock_without_another_fetch(
@@ -110,18 +118,19 @@ def test_a_model_its_page_no_longer_prices_is_out_of_stock_without_another_fetch
     record_everything(disktracker)
     url = f"{base_of(seagate)}{IRONWOLF_PRO}"
     # Known in stock from an earlier run; the page lists it now without a price.
-    known = listing_json(
+    known = offer_json(
         url, store="seagate", title="IronWolf Pro 30TB", mpn="ST30000NT011", condition="new"
     )
-    know_listings(disktracker, [known], store="seagate")
+    know_offers(disktracker, [known], store="seagate")
 
     result = run_collector(seagate, disktracker)
 
     assert result.returncode == 0, result.stderr
-    assert told(rechecks(disktracker)) == [
-        ("ST30000NT011", "IronWolf Pro 30TB", 18000, None, False)
-    ]
+    assert prices_of(rechecks(disktracker)) == [(known["id"], None, False)]
     assert [request.path for request, _ in seagate.log].count(IRONWOLF_PRO) == 1
+    # The recheck and the page's fresh listings are seen at one moment: each its own key.
+    keys = [request.headers["Idempotency-Key"] for request in submissions(disktracker)]
+    assert len(keys) == 9 and len(set(keys)) == 9
 
 
 def test_an_offer_whose_page_left_the_sitemap_is_rechecked_as_its_own_model(
@@ -131,20 +140,20 @@ def test_an_offer_whose_page_left_the_sitemap_is_rechecked_as_its_own_model(
     record_everything(disktracker)
     url = f"{base_of(seagate)}{IRONWOLF_PRO}"
     known = [
-        listing_json(url, store="seagate", title="IronWolf Pro 28TB", mpn="ST28000NT000"),
+        offer_json(url, store="seagate", title="IronWolf Pro 28TB", mpn="ST28000NT000"),
         # Recorded under an address that is no product page of the store: left alone.
-        listing_json("https://elsewhere.test/a-drive", store="seagate", mpn="ST1000NT000"),
-        listing_json(url, store="seagate", title="IronWolf Pro 26TB", mpn="ST26000NT000"),
+        offer_json("https://elsewhere.test/a-drive", store="seagate", mpn="ST1000NT000"),
+        offer_json(url, store="seagate", title="IronWolf Pro 26TB", mpn="ST26000NT000"),
     ]
-    know_listings(disktracker, known, store="seagate")
+    know_offers(disktracker, known, store="seagate")
 
     result = run_collector(seagate, disktracker)
 
     assert result.returncode == 0, result.stderr
     # Each is read from its own entry on the page; one the page no longer has is gone.
-    assert told(rechecks(disktracker)) == [
-        ("ST28000NT000", "IronWolf Pro 28TB", 18000, 122999, True),
-        ("ST26000NT000", "IronWolf Pro 26TB", 18000, None, False),
+    assert prices_of(rechecks(disktracker)) == [
+        (known[0]["id"], 122999, True),
+        (known[2]["id"], None, False),
     ]
     # The page they share is fetched once for them all.
     assert [request.path for request, _ in seagate.log].count(IRONWOLF_PRO) == 1

@@ -23,34 +23,24 @@ T = TypeVar("T", bound="SettingView")
 
 @_attrs_define
 class SettingView:
-    """ One thing a kind of store needs to know: how the form asks for it, and how it is
-    checked (disktracker.kinds).
+    """ One thing a kind of store needs to know, as the form asks for it. Its rules are checked
+    when a source is entered (disktracker.collector.settings).
 
         Attributes:
-            capturing (bool):
             description (str):
             group (str):
             label (str):
             name (str):
-            needs (str):
-            pattern (str):
-            pattern_message (str):
             placeholder (str):
-            regex (bool):
             required (bool):
             type_ (SettingViewType):
      """
 
-    capturing: bool
     description: str
     group: str
     label: str
     name: str
-    needs: str
-    pattern: str
-    pattern_message: str
     placeholder: str
-    regex: bool
     required: bool
     type_: SettingViewType
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
@@ -60,8 +50,6 @@ class SettingView:
 
 
     def to_dict(self) -> dict[str, Any]:
-        capturing = self.capturing
-
         description = self.description
 
         group = self.group
@@ -70,15 +58,7 @@ class SettingView:
 
         name = self.name
 
-        needs = self.needs
-
-        pattern = self.pattern
-
-        pattern_message = self.pattern_message
-
         placeholder = self.placeholder
-
-        regex = self.regex
 
         required = self.required
 
@@ -88,16 +68,11 @@ class SettingView:
         field_dict: dict[str, Any] = {}
         field_dict.update(self.additional_properties)
         field_dict.update({
-            "capturing": capturing,
             "description": description,
             "group": group,
             "label": label,
             "name": name,
-            "needs": needs,
-            "pattern": pattern,
-            "pattern_message": pattern_message,
             "placeholder": placeholder,
-            "regex": regex,
             "required": required,
             "type": type_,
         })
@@ -109,8 +84,6 @@ class SettingView:
     @classmethod
     def from_dict(cls: type[T], src_dict: Mapping[str, Any]) -> T:
         d = dict(src_dict)
-        capturing = d.pop("capturing")
-
         description = d.pop("description")
 
         group = d.pop("group")
@@ -119,15 +92,7 @@ class SettingView:
 
         name = d.pop("name")
 
-        needs = d.pop("needs")
-
-        pattern = d.pop("pattern")
-
-        pattern_message = d.pop("pattern_message")
-
         placeholder = d.pop("placeholder")
-
-        regex = d.pop("regex")
 
         required = d.pop("required")
 
@@ -137,16 +102,11 @@ class SettingView:
 
 
         setting_view = cls(
-            capturing=capturing,
             description=description,
             group=group,
             label=label,
             name=name,
-            needs=needs,
-            pattern=pattern,
-            pattern_message=pattern_message,
             placeholder=placeholder,
-            regex=regex,
             required=required,
             type_=type_,
         )

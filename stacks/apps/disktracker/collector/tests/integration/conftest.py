@@ -2,7 +2,8 @@ from collections.abc import Iterator
 
 import pytest
 from pytest_httpserver import HTTPServer
-from werkzeug import Request, Response
+
+from tests.integration.harness import serve_runs
 
 
 def fake_server() -> Iterator[HTTPServer]:
@@ -14,19 +15,12 @@ def fake_server() -> Iterator[HTTPServer]:
         server.stop()
 
 
-def echo(request: Request) -> Response:
-    return Response(request.data, status=201, content_type="application/json")
-
-
 @pytest.fixture
 def disktracker() -> Iterator[HTTPServer]:
-    """A fake disktracker that takes every run report the collector sends, and hears how far
-    each run has got without asking it to stop."""
+    """A fake disktracker that registers every run the collector starts, hears how far each has
+    got without asking it to stop, takes its end, and hears every heartbeat."""
     for server in fake_server():
-        server.expect_request("/api/collector-runs", method="POST").respond_with_handler(echo)
-        server.expect_request("/api/collector-activity", method="PUT").respond_with_json(
-            {"stop": False}
-        )
+        serve_runs(server)
         yield server
 
 

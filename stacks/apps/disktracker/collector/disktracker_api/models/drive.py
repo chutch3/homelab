@@ -12,7 +12,7 @@ from typing import cast
 from uuid import UUID
 
 if TYPE_CHECKING:
-  from ..models.specifications import Specifications
+  from ..models.specifications_output import SpecificationsOutput
 
 
 
@@ -31,7 +31,7 @@ class Drive:
             capacity_gb (int):
             id (UUID):
             mpn (str):
-            specifications (Specifications):
+            specifications (SpecificationsOutput):
      """
 
     aliases: list[str]
@@ -39,7 +39,7 @@ class Drive:
     capacity_gb: int
     id: UUID
     mpn: str
-    specifications: Specifications
+    specifications: SpecificationsOutput
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
 
@@ -47,7 +47,7 @@ class Drive:
 
 
     def to_dict(self) -> dict[str, Any]:
-        from ..models.specifications import Specifications # noqa: PLC0415
+        from ..models.specifications_output import SpecificationsOutput # noqa: PLC0415
         aliases = self.aliases
 
 
@@ -81,7 +81,7 @@ class Drive:
 
     @classmethod
     def from_dict(cls: type[T], src_dict: Mapping[str, Any]) -> T:
-        from ..models.specifications import Specifications # noqa: PLC0415
+        from ..models.specifications_output import SpecificationsOutput # noqa: PLC0415
         d = dict(src_dict)
         aliases = cast(list[str], d.pop("aliases"))
 
@@ -103,7 +103,7 @@ class Drive:
 
         mpn = d.pop("mpn")
 
-        specifications = Specifications.from_dict(d.pop("specifications"))
+        specifications = SpecificationsOutput.from_dict(d.pop("specifications"))
 
 
 

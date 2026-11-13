@@ -10,13 +10,13 @@ import httpx
 from pytest_httpserver import HTTPServer
 from werkzeug import Request, Response
 
-from tests.builders import listing_json
+from tests.builders import offer_json
 from tests.integration.harness import (
     ROOT,
     base_of,
     environment,
     events,
-    know_listings,
+    know_offers,
     posts,
     rechecks,
     record_everything,
@@ -87,7 +87,8 @@ def test_a_browser_source_is_read_and_rechecked_through_flaresolverr_only(
     serve_store(serverpartdeals)
     gone = f"{base_of(serverpartdeals)}/products/gone"
     serverpartdeals.expect_request("/products/gone.js").respond_with_data("", status=404)
-    know_listings(disktracker, [listing_json(gone, store="orbit")], store="orbit")
+    known = offer_json(gone, store="orbit")
+    know_offers(disktracker, [known], store="orbit")
     record_everything(disktracker)
     browser = serve_browser(flaresolverr)
 
@@ -98,15 +99,15 @@ def test_a_browser_source_is_read_and_rechecked_through_flaresolverr_only(
     assert [request.path for request, _ in serverpartdeals.log][:2] == ["/robots.txt", PRODUCTS]
     posted = [json.loads(request.data) for request in posts(disktracker)][:3]
     # The source is the store: its offers name it once, by its key.
-    assert [(offer["source"], offer["mpn"]) for offer in posted] == [
+    assert [(offer["store"], offer["mpn"]) for offer in posted] == [
         ("orbit", "ST18000NM003D"),
         ("orbit", "WUH721818ALE6L4"),
         ("orbit", None),
     ]
-    assert all("store" not in offer and "retailer" not in offer for offer in posted)
+    assert all("source" not in offer and "retailer" not in offer for offer in posted)
     [recheck] = rechecks(disktracker)
-    assert (recheck["url"], recheck["item_price_cents"], recheck["in_stock"]) == (
-        gone,
+    assert (recheck["offer_id"], recheck["item_price_cents"], recheck["in_stock"]) == (
+        known["id"],
         None,
         False,
     )

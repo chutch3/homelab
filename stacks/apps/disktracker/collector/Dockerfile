@@ -1,13 +1,13 @@
 # The collector: the collection loop and, beside it, the API that previews sources.
-# Build context: stacks/apps/disktracker (the collector needs listing_text/).
+# Build context: stacks/apps/disktracker (the collector needs packages/listing_facts/).
 
 FROM python:3.12-slim-bookworm
 
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
 
 WORKDIR /app/collector
-# listing_text is a path dependency of the collector (../listing_text), installed editable.
-COPY listing_text /app/listing_text
+# listing_facts is a path dependency of the collector (../packages/listing_facts), installed editable.
+COPY packages/listing_facts /app/packages/listing_facts
 COPY collector/pyproject.toml collector/uv.lock ./
 RUN uv sync --frozen --no-dev
 ENV PATH="/app/collector/.venv/bin:$PATH"

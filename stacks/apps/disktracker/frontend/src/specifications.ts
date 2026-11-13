@@ -1,9 +1,13 @@
+import type { components } from './api-schema';
+
 export const specLabels = { media_type: 'Media type', form_factor: 'Form factor', interface: 'Interface', recording_type: 'Recording type', intended_use: 'Intended use' };
 export type SpecKey = keyof typeof specLabels;
-export type Specifications = { media_type: string; form_factor: string; interface: string; recording_type: string; intended_use: string[] };
+export type Specifications = components['schemas']['Specifications-Output'];
+/** One value a specification can have, as the API names it. */
+export type SpecValue<K extends SpecKey> = Specifications[K] extends (infer U)[] ? U : Specifications[K];
 
-const option = (value: string, label: string) => ({ value, label });
-export const specOptions: Record<SpecKey, { value: string; label: string }[]> = {
+const option = <V extends string>(value: V, label: string) => ({ value, label });
+export const specOptions: { [K in SpecKey]: { value: SpecValue<K>; label: string }[] } = {
   media_type: [option('unknown', 'Unknown'), option('hdd', 'Hard drive'), option('ssd', 'SSD'), option('flash_card', 'Flash card')],
   form_factor: [option('unknown', 'Unknown'), option('3_5', '3.5"'), option('2_5', '2.5"'), option('m_2', 'M.2'),
     option('microsd', 'microSD'), option('sd', 'SD')],

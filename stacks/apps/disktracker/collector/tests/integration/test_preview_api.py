@@ -148,6 +148,32 @@ def test_a_shopify_preview_reads_one_page_and_shows_its_first_offer_without_savi
     assert [request.path for request, _ in disktracker.log if request.method == "POST"] == []
 
 
+def test_a_preview_of_a_source_told_not_to_obey_robots_txt_reads_what_it_disallows(
+    api: CollectorApi, serverpartdeals: HTTPServer
+) -> None:
+    serve_robots(serverpartdeals, "User-agent: *\nDisallow: /\n")
+    serverpartdeals.expect_request("/collections/hard-drives/products.json").respond_with_json(
+        {"products": PAGE["products"]}
+    )
+    base = base_of(serverpartdeals)
+
+    obeying = api.preview(kind="shopify", base_url=base, settings=SHOPIFY)
+    ignoring = api.preview(kind="shopify", base_url=base, settings=SHOPIFY, obey_robots=False)
+    logged = api.stop()
+
+    assert (obeying.json()["status"], obeying.json()["reason"]) == (
+        "failed",
+        f"robots.txt disallows {base}/collections/hard-drives/products.json?limit=250&page=1",
+    )
+    assert (ignoring.json()["status"], ignoring.json()["offer"]["mpn"]) == (
+        "found",
+        "ST18000NM003D",
+    )
+    assert [event["url"] for event in logged if event["event"] == "robots_txt_overridden"] == [
+        f"{base}/collections/hard-drives/products.json?limit=250&page=1"
+    ]
+
+
 def test_a_sitemap_preview_stops_at_the_first_drive(
     api: CollectorApi, goharddrive: HTTPServer
 ) -> None:

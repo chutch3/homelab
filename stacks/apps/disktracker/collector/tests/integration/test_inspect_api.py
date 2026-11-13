@@ -14,16 +14,16 @@ import pytest
 from pytest_httpserver import HTTPServer
 
 from tests.builders import sitemap_settings
-from tests.integration.conftest import echo
 from tests.integration.harness import (
     ROOT,
     SEEDED_CONDITION_RULES,
     base_of,
     environment,
-    know_listings,
+    know_offers,
     record_everything,
     run,
     serve_robots,
+    serve_runs,
     source_json,
 )
 from tests.integration.test_browser_transport_run import VIA, serve_browser
@@ -260,9 +260,9 @@ def test_a_run_with_the_suggested_settings_fetches_the_pages_the_summary_counted
     inspected = len(goharddrive.log)
     # The fake disktracker told the inspecting collector nothing was due; it starts again.
     disktracker.clear()
-    disktracker.expect_request("/api/collector-runs", method="POST").respond_with_handler(echo)
+    serve_runs(disktracker)
     record_everything(disktracker)
-    know_listings(disktracker, [], store="goharddrive")
+    know_offers(disktracker, [], store="goharddrive")
 
     result = run(
         environment(disktracker, source_json("goharddrive", "sitemap", base, candidate["settings"]))

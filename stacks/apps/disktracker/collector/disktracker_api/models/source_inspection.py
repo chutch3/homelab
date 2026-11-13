@@ -13,7 +13,9 @@ from ..models.source_inspection_status import SourceInspectionStatus
 from typing import cast
 
 if TYPE_CHECKING:
-  from ..models.inspection_candidate import InspectionCandidate
+  from ..models.sap_commerce_candidate import SapCommerceCandidate
+  from ..models.shopify_candidate import ShopifyCandidate
+  from ..models.sitemap_candidate import SitemapCandidate
 
 
 
@@ -28,14 +30,14 @@ class SourceInspection:
     """
         Attributes:
             base_url (str):
-            candidates (list[InspectionCandidate]):
+            candidates (list[SapCommerceCandidate | ShopifyCandidate | SitemapCandidate]):
             notes (list[str]):
             reason (None | str):
             status (SourceInspectionStatus):
      """
 
     base_url: str
-    candidates: list[InspectionCandidate]
+    candidates: list[SapCommerceCandidate | ShopifyCandidate | SitemapCandidate]
     notes: list[str]
     reason: None | str
     status: SourceInspectionStatus
@@ -46,12 +48,21 @@ class SourceInspection:
 
 
     def to_dict(self) -> dict[str, Any]:
-        from ..models.inspection_candidate import InspectionCandidate # noqa: PLC0415
+        from ..models.sap_commerce_candidate import SapCommerceCandidate # noqa: PLC0415
+        from ..models.shopify_candidate import ShopifyCandidate # noqa: PLC0415
+        from ..models.sitemap_candidate import SitemapCandidate # noqa: PLC0415
         base_url = self.base_url
 
         candidates = []
         for candidates_item_data in self.candidates:
-            candidates_item = candidates_item_data.to_dict()
+            candidates_item: dict[str, Any]
+            if isinstance(candidates_item_data, ShopifyCandidate):
+                candidates_item = candidates_item_data.to_dict()
+            elif isinstance(candidates_item_data, SitemapCandidate):
+                candidates_item = candidates_item_data.to_dict()
+            else:
+                candidates_item = candidates_item_data.to_dict()
+
             candidates.append(candidates_item)
 
 
@@ -82,16 +93,45 @@ class SourceInspection:
 
     @classmethod
     def from_dict(cls: type[T], src_dict: Mapping[str, Any]) -> T:
-        from ..models.inspection_candidate import InspectionCandidate # noqa: PLC0415
+        from ..models.sap_commerce_candidate import SapCommerceCandidate # noqa: PLC0415
+        from ..models.shopify_candidate import ShopifyCandidate # noqa: PLC0415
+        from ..models.sitemap_candidate import SitemapCandidate # noqa: PLC0415
         d = dict(src_dict)
         base_url = d.pop("base_url")
 
         candidates = []
         _candidates = d.pop("candidates")
         for candidates_item_data in (_candidates):
-            candidates_item = InspectionCandidate.from_dict(candidates_item_data)
+            def _parse_candidates_item(data: object) -> SapCommerceCandidate | ShopifyCandidate | SitemapCandidate:
+                try:
+                    if not isinstance(data, dict):
+                        raise TypeError()
+                    candidates_item_type_0 = ShopifyCandidate.from_dict(data)
 
 
+
+                    return candidates_item_type_0
+                except (TypeError, ValueError, AttributeError, KeyError):
+                    pass
+                try:
+                    if not isinstance(data, dict):
+                        raise TypeError()
+                    candidates_item_type_1 = SitemapCandidate.from_dict(data)
+
+
+
+                    return candidates_item_type_1
+                except (TypeError, ValueError, AttributeError, KeyError):
+                    pass
+                if not isinstance(data, dict):
+                    raise TypeError()
+                candidates_item_type_2 = SapCommerceCandidate.from_dict(data)
+
+
+
+                return candidates_item_type_2
+
+            candidates_item = _parse_candidates_item(candidates_item_data)
 
             candidates.append(candidates_item)
 

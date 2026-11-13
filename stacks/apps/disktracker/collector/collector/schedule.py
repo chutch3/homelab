@@ -9,12 +9,11 @@ import logging
 import threading
 from typing import Protocol
 
-from listing_text.readers import ConditionRules
+from listing_facts.readers import ConditionRules
 
 from collector.errors import DisktrackerUnavailable
-from collector.models import RunSummary
+from collector.models import RunSummary, SourceView
 from collector.ports import Disktracker
-from disktracker_api.models import SourceView
 
 log = logging.getLogger(__name__)
 
@@ -47,6 +46,11 @@ class Schedule:
         Conditions are read by the rules as they are when each run starts."""
         ran: set[str] = set()
         completed: list[bool] = []
+        # Between runs the collector has none: alive, and idle.
+        try:
+            self.disktracker.heartbeat([])
+        except DisktrackerUnavailable as error:
+            log.warning("heartbeat_failed", extra={"error": str(error)})
         while True:
             try:
                 due = [source for source in self.disktracker.due_sources() if source.key not in ran]

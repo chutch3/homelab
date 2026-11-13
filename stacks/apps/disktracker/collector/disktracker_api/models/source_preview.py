@@ -10,7 +10,6 @@ from ..types import UNSET, Unset
 
 from ..models.source_preview_status import check_source_preview_status
 from ..models.source_preview_status import SourcePreviewStatus
-from ..types import UNSET, Unset
 from typing import cast
 
 if TYPE_CHECKING:
@@ -29,18 +28,18 @@ T = TypeVar("T", bound="SourcePreview")
 class SourcePreview:
     """
         Attributes:
+            notes (list[str]):
             offer (None | PreviewOffer):
             reason (None | str):
             status (SourcePreviewStatus):
             verdict (None | PreviewVerdict):
-            notes (list[str] | Unset):
      """
 
+    notes: list[str]
     offer: None | PreviewOffer
     reason: None | str
     status: SourcePreviewStatus
     verdict: None | PreviewVerdict
-    notes: list[str] | Unset = UNSET
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
 
@@ -50,6 +49,10 @@ class SourcePreview:
     def to_dict(self) -> dict[str, Any]:
         from ..models.preview_offer import PreviewOffer # noqa: PLC0415
         from ..models.preview_verdict import PreviewVerdict # noqa: PLC0415
+        notes = self.notes
+
+
+
         offer: dict[str, Any] | None
         if isinstance(self.offer, PreviewOffer):
             offer = self.offer.to_dict()
@@ -67,23 +70,16 @@ class SourcePreview:
         else:
             verdict = self.verdict
 
-        notes: list[str] | Unset = UNSET
-        if not isinstance(self.notes, Unset):
-            notes = self.notes
-
-
-
 
         field_dict: dict[str, Any] = {}
         field_dict.update(self.additional_properties)
         field_dict.update({
+            "notes": notes,
             "offer": offer,
             "reason": reason,
             "status": status,
             "verdict": verdict,
         })
-        if notes is not UNSET:
-            field_dict["notes"] = notes
 
         return field_dict
 
@@ -94,6 +90,9 @@ class SourcePreview:
         from ..models.preview_offer import PreviewOffer # noqa: PLC0415
         from ..models.preview_verdict import PreviewVerdict # noqa: PLC0415
         d = dict(src_dict)
+        notes = cast(list[str], d.pop("notes"))
+
+
         def _parse_offer(data: object) -> None | PreviewOffer:
             if data is None:
                 return data
@@ -143,15 +142,12 @@ class SourcePreview:
         verdict = _parse_verdict(d.pop("verdict"))
 
 
-        notes = cast(list[str], d.pop("notes", UNSET))
-
-
         source_preview = cls(
+            notes=notes,
             offer=offer,
             reason=reason,
             status=status,
             verdict=verdict,
-            notes=notes,
         )
 
 

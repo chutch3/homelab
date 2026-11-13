@@ -1,4 +1,4 @@
-import type { Condition, ListingSummary } from './api';
+import type { Condition, ConditionPrices, OfferSummary } from './api';
 import { conditions, dollars } from './listing-display';
 
 /** One condition a drive is offered in: how many offers it has, how many of them are in stock,
@@ -7,13 +7,20 @@ export type ConditionChoice = { condition: Condition; label: string; offers: num
 
 /** The conditions a drive is offered in, in the usual order. A new drive and a refurbished one
  * are different things to buy, so each condition is shown, compared and charted on its own. */
-export function conditionChoices(listings: ListingSummary[]): ConditionChoice[] {
+export function conditionChoices(listings: OfferSummary[]): ConditionChoice[] {
   return conditions.flatMap(({ value, label }) => {
     const offers = listings.filter(listing => listing.condition === value);
     if (!offers.length) return [];
     const stocked = offers.filter(listing => listing.latest.in_stock).map(listing => listing.latest.total_cents);
     return [{ condition: value as Condition, label, offers: offers.length, inStock: stocked.length, lowest: stocked.length ? Math.min(...stocked) : null }];
   });
+}
+
+/** The conditions a drive is offered in as the market says of the offers that match, labelled. */
+export function marketChoices(prices: ConditionPrices[]): ConditionChoice[] {
+  return prices.map(({ condition, offers, in_stock: inStock, lowest_total_cents: lowest }) => ({
+    condition, label: conditions.find(option => option.value === condition)?.label ?? condition, offers, inStock, lowest,
+  }));
 }
 
 /** What a condition costs now, so conditions can be compared without switching between them. */
