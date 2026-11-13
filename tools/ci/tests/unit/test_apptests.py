@@ -239,3 +239,36 @@ class TestSuiteRunner:
         filesystem.files[f"{self.PY}/tests/unit/test_x.py"] = ""
         responds(commands, CommandResult(1))
         assert container.suite_runner().run(selector="warden") == 1
+
+    def test_a_python_project_with_a_test_compose_runs_its_suite_inside_it(
+        self, container, filesystem, commands
+    ):
+        """The suite runs in the project's own image, against the binaries it ships.
+
+        fiber shells out to mariadb-dump, mydumper and pg_dump. Installed on the
+        runner they drift from the image's (and break when the runner's OS moves);
+        run inside the `tests` service of its compose.test.yml they are the image's.
+        """
+        fiber = "stacks/apps/fiber/app"
+        filesystem.files[f"{fiber}/pyproject.toml"] = "[project]\n"
+        filesystem.files[f"{fiber}/compose.test.yml"] = "services: {}\n"
+        filesystem.files[f"{fiber}/tests/unit/test_x.py"] = ""
+        filesystem.files[f"{fiber}/tests/integration/test_y.py"] = ""
+        assert container.suite_runner().run(selector=fiber) == 0
+        assert argvs(commands) == [[
+            "docker", "compose", "-f", "compose.test.yml", "run", "--rm", "--build", "tests",
+            "uv", "run", "pytest", "tests/unit", "tests/integration",
+        ]]
+
+    def test_e2e_stays_on_the_host_even_with_a_test_compose(
+        self, container, filesystem, commands
+    ):
+        """e2e already drives the real image through docker compose, bind-mounting
+        files beside the test; from inside a container those paths would resolve
+        on the host daemon, not here."""
+        fiber = "stacks/apps/fiber/app"
+        filesystem.files[f"{fiber}/pyproject.toml"] = "[project]\n"
+        filesystem.files[f"{fiber}/compose.test.yml"] = "services: {}\n"
+        filesystem.files[f"{fiber}/tests/e2e/test_z.py"] = ""
+        assert container.suite_runner().run(selector=fiber, tier="e2e") == 0
+        assert argvs(commands) == [["uv", "run", "pytest", "tests/e2e", "-o", "addopts="]]

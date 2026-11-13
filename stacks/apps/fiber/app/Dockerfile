@@ -1,4 +1,4 @@
-FROM python:3.12-slim-bookworm
+FROM python:3.12-slim-bookworm AS base
 
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
 
@@ -16,6 +16,16 @@ RUN apt-get update && apt-get install -y --no-install-recommends curl ca-certifi
 
 WORKDIR /app
 COPY app/pyproject.toml app/uv.lock ./
+
+# The unit and integration suites run here (compose.test.yml), on the same
+# dump binaries as production rather than whatever the CI runner has installed.
+FROM base AS test
+RUN uv sync --no-install-project
+COPY app/fiber /app/fiber
+COPY app/tests /app/tests
+
+# Last, so a plain `docker build` (and the image pipeline) still produces this.
+FROM base AS production
 RUN uv sync --no-dev --no-install-project
 COPY app/fiber /app/fiber
 RUN mkdir -p /backups /state

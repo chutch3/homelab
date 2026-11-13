@@ -7,7 +7,10 @@ subdirs, run if they exist. That includes ``tools/ci`` — this package tests it
 the same rule as everything else, with no special case. A dir with a ``package.json``
 declaring a ``test`` script is a JS project, run with npm (``npm ci`` then
 ``npm run test`` / ``test:<tier>``). An app can be both (e.g. a Python backend with a
-browser-JS frontend), in which case ``ci test`` runs both.
+browser-JS frontend), in which case ``ci test`` runs both. A Python project that
+also carries a ``compose.test.yml`` runs its unit and integration tiers inside that
+file's ``tests`` service, against the binaries its image ships (e2e stays on the
+host: it drives the real image itself).
 
 The default (gated) run executes unit + integration **together in one pytest**, so
 the project's ``--cov-fail-under`` applies to the *combined* coverage of both tiers.
@@ -36,6 +39,8 @@ TIERS = ("unit", "integration", "e2e")
 VENDORED = frozenset({".venv", "venv", "node_modules", ".git", "site-packages"})
 # The gated default suite: unit + integration, coverage measured across both.
 DEFAULT_TIERS = ("unit", "integration")
+# A project carrying this runs its pytest suites inside the file's `tests` service.
+TEST_COMPOSE = "compose.test.yml"
 
 
 def select_projects(projects: list[str], selector: str | None) -> list[str]:
@@ -130,9 +135,24 @@ class AppSuites:
             log.info("==> %s : %s", rel, " ".join(present))
             paths = [f"tests/{t}" for t in present]
             extra = [] if gated else ["-o", "addopts="]
-            if not self._commands.run(["uv", "run", "pytest", *paths, *extra], cwd=proj).ok:
+            # e2e drives the real image itself (compose with host bind mounts), so
+            # only unit/integration move into the project's test image.
+            inside = [] if "e2e" in present else self._inside(proj)
+            argv = [*inside, "uv", "run", "pytest", *paths, *extra]
+            if not self._commands.run(argv, cwd=proj).ok:
                 rc = 1
         return rc, ran_any
+
+    def _inside(self, proj: Path) -> list[str]:
+        """The prefix that runs a suite in the project's own test image, if it has one.
+
+        A project with a ``compose.test.yml`` runs its suite in that file's ``tests``
+        service, so anything it shells out to is the image's binary rather than
+        whatever the runner happens to have installed.
+        """
+        if not self._fs.exists(proj / TEST_COMPOSE):
+            return []
+        return ["docker", "compose", "-f", TEST_COMPOSE, "run", "--rm", "--build", "tests"]
 
     def run_js(self, projects: list[str], tier: str | None) -> tuple[int, bool]:
         """Run each JS project's npm test script for the tier. Returns (exit_code, ran_any).

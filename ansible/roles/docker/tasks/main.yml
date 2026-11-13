@@ -11,11 +11,36 @@
   set_fact:
     docker_installed_version: "{{ docker_version_check.stdout | regex_search('\\d+\\.\\d+\\.\\d+') }}"
 
-- name: Add Docker GPG key
-  apt_key:
+# apt-key is gone from apt 3 (Ubuntu 25.04+), so the key is fetched directly.
+# The keyring path and repo line stay exactly as apt_key left them: changing
+# signed-by would add a second docker.list entry and apt refuses conflicting
+# Signed-By values on the nodes that already have the first.
+- name: Ensure the apt keyrings directory exists
+  file:
+    path: /etc/apt/keyrings
+    state: directory
+    mode: "0755"
+
+- name: Download Docker's armored GPG key
+  get_url:
     url: https://download.docker.com/linux/{{ ansible_facts['distribution'] | lower }}/gpg
-    state: present
-    keyring: /etc/apt/keyrings/docker.gpg
+    dest: /etc/apt/keyrings/docker.asc
+    mode: "0644"
+  register: docker_gpg_key
+
+- name: Check for the dearmored Docker keyring
+  stat:
+    path: /etc/apt/keyrings/docker.gpg
+  register: docker_keyring
+
+# Only when the key changed or the keyring is missing, so a second run is a no-op.
+- name: Dearmor Docker's GPG key into the keyring apt uses
+  command: gpg --batch --yes --dearmor -o /etc/apt/keyrings/docker.gpg /etc/apt/keyrings/docker.asc
+  vars:
+    docker_keyring_stale: "{{ docker_gpg_key.changed or not docker_keyring.stat.exists }}"
+  when: docker_keyring_stale | bool
+  # It rewrites the keyring exactly when the key changed or the keyring was missing.
+  changed_when: docker_keyring_stale | bool
 
 - name: Add Docker repository
   apt_repository:
