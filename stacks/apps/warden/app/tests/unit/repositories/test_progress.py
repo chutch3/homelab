@@ -7,7 +7,7 @@ NOW = datetime(2026, 6, 19, 12, 0, tzinfo=timezone.utc)
 
 
 
-def test_empty_snapshot():
+def test_snapshot_returns_empty_snapshot():
     assert make_progress_repo().snapshot() == {}
 
 

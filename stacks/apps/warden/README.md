@@ -83,10 +83,106 @@ SQLite at `/state/warden.db` (survives restarts):
 | `search_attempt`     | searches awaiting hit/miss reconciliation |
 | `search_backoff`     | miss streaks + cooldown expiries          |
 
+## Commands
+
+From `app/`, use the unified CLI:
+
+```bash
+uv run warden
+uv run warden serve
+uv run warden profiles dump --source radarr --output /local/profiles
+uv run warden profiles validate --directory /local/profiles
+uv run warden profiles diff --source radarr --directory /local/profiles
+```
+
+With no arguments Warden prints help. `serve` starts the HTTP server, hunter, and
+configured profile observer. Profile commands run once and exit without starting
+the server or initializing its SQLite database. Settings still come from the
+environment. Both `warden` and `python -m warden` use the single CLI entry point.
+The earlier development entry points `python -m warden.main` and
+`python -m warden.profiles.cli` have been removed; use `warden serve` and
+`warden profiles ...` respectively.
+
+To install the command outside the checkout, run `uv tool install .` from `app/`
+(Python 3.12 or newer). You can then run `warden serve` or `warden profiles ...`
+directly. `python -m warden` provides the same interface. Packaging uses
+`uv_build`, including the profile JSON schemas; no setuptools dependency is added.
+
+Docker uses `warden` as its entry point and defaults to `serve`. Override its
+arguments to run a one-time command, for example `docker run --rm <image> --help`.
+Profile commands need the same environment settings and profile mounts described
+in the [profile guide](PROFILES.md).
+
+## Profile configuration (in development)
+
+Profile management provides standalone, read-only Arr export, local configuration
+validation, semantic comparison, and optional Git or read-only directory observation in a separate
+loop. See [profile configuration usage and format](PROFILES.md), including runtime Git
+requirements. Profile work does not use the hunter's SQLite database.
+Legacy import and synchronization are not yet implemented.
+
+`container.py` is the composition root. Dependency Injector providers construct
+Arr clients, services, repositories, profile storage/codecs/sources, Git/cache,
+the observer, and server dependencies. The hunter and profile service share the
+same configured Arr clients. Source selectors instantiate only the selected
+implementation, and profile commands do not resolve server configuration or SQLite.
+
+`cli.py` uses `build_parser()` to associate each subcommand with a small async
+handler through `set_defaults(func=...)`. Each handler declares its dependencies
+with `@inject` and `Provide`; operations stay in shared profile operations and runtime
+modules. A common runner reports errors and shuts down initialized resources on
+success, failure, or cancellation. `main()` creates the container, invokes the
+selected handler, and writes output and exit status. The container declares wiring
+for CLI handlers and HTTP routes; the CLI does not register API dependencies.
+The HTTP client uses a Resource provider to own its async context.
+`api/app.py` registers the health and metrics routes from `api/routes/`.
+`serve.py` receives the server, stop signal, and loop callbacks and coordinates
+the HTTP server, hunter, and profile observer. The profile loop
+receives settings and observer providers so invalid or disabled observation never
+forces source/cache construction or stops hunting. Provider overrides reach these
+same dependencies in unit tests.
+
+Within `warden/profiles`, `models.py` defines documents and snapshots;
+`validation.py` checks their relationships. `operations.py` coordinates dump and
+diff using an injected `ProfileStore` and `ArrService`, independently of CLI or
+HTTP concerns. `cli_output.py` owns terminal text, JSON output, and exit status.
+Profile operations are currently exposed through the CLI; there are no profile
+HTTP endpoints.
+
+`ProfileStore` in `files.py` owns local loading and guarded export publication.
+`reading.py` coordinates bounded reads and decoding as a function with supplied
+dependencies; `codec.py` adapts YAML/JSON and JSON Schema. `sources.py` provides
+local-directory and Git-backed snapshots. The Git source coordinates an injected
+`GitClient`, `SnapshotCache`, and store: Git execution, cache accounting/cleanup,
+and adoption of validated revisions have separate responsibilities. `storage.py`
+separates mount lookup from the allowed-filesystem policy.
+
+Unit tests can verify byte limits with tiny byte strings, Arr reads with mock
+clients, and snapshot replacement with mock Git/cache/store dependencies. Unit
+test paths mirror the modules they exercise. Unit test functions use
+`test_<method_name>_<use_case>`; properties and container providers use their
+property/provider name, and constructors use `test_init_<use_case>`. Integration
+tests use `test_<use_case>`. CLI integration tests exercise the
+concrete adapters together, including failure and storage-protection behavior.
+
 ## Configuration
 
 All via `WARDEN_*` env vars. Instances are discovered from `WARDEN_RADARR_URL` /
 `WARDEN_RADARR_API_KEY` (and the `SONARR` equivalents).
+
+`pydantic-settings` handles typed defaults, environment conversion, and field
+validation. Server and profile settings are loaded separately from the container's
+environment snapshot; an injected mapping does not inherit missing values from the
+process environment. `EnvironmentSettings` shares that source policy and suppresses
+input values in validation errors. Warden does not load `.env` or secrets files
+through the settings models.
+
+Boolean settings accept `true`/`false`, `yes`/`no`, `on`/`off`, and `1`/`0`, ignoring
+case and surrounding whitespace. Unrecognized values now fail validation instead
+of silently becoming false. Invalid server settings report the field before
+startup; invalid profile settings continue to leave hunting running. Timezone and
+database fallbacks, blank free-space settings, and disabled observation retain
+their existing behavior.
 
 | Var | Default | What |
 |-----|---------|------|
@@ -116,11 +212,33 @@ warden/
   clients/       Radarr/Sonarr/Prowlarr HTTP
   repositories/  SQLite persistence
   services/      tick logic (pure, testable)
-  routes/        health + metrics
+  api/           HTTP app setup and health + metrics routes
+  cli.py         argument parsing and injected command handlers
+  cli_output.py  terminal output and exit status
+  serve.py       HTTP server and background-task lifecycle
+  profiles/      shared profile operations and observation
+  container.py   dependency construction and wiring
   models.py      shared dataclasses
 ```
 
-Imports flow `routes → services → repositories → clients` (enforced by import-linter).
+Imports flow `api → services → repositories → clients` (enforced by import-linter).
 Unit tests cover the logic; the integration suite (`tests/integration`, marked
-`@pytest.mark.integration`) runs the real process against fake *arr HTTP servers —
-`task test:integration -- warden`, and in CI as part of each build.
+`@pytest.mark.integration`) invokes the installed `warden` executable against
+local *arr HTTP fixtures. Run it with `task test:integration -- warden`; it also
+runs in CI as part of each build.
+
+- `test_api.py`: health and metrics over HTTP from a running `warden serve`.
+- `test_cli.py`: help and command-line errors.
+- `test_cli_profiles.py`: validation, dump, and diff through `warden profiles`.
+- `test_cli_serve.py`: hunting, observation, recovery, metrics, and shutdown through
+  `warden serve`.
+
+Integration tests assert exit codes, stdout/stderr, files, HTTP requests, and
+scraped metrics. They do not import Warden components or construct profile configuration with
+production helpers. Git fixtures are bootstrapped through `warden profiles dump`.
+Package, image, and deployment checks live under `tests/e2e`; pure comparison and
+validation rules retain their unit tests.
+
+Coverage includes the CLI child processes and server startup code. The combined
+unit/integration run retains the 90% coverage requirement; selecting a single
+tier does not enforce the whole-application gate.

@@ -1,4 +1,43 @@
 groups:
+  - name: warden-profiles
+    interval: 30s
+    rules:
+      - alert: WardenProfilesDrift
+        expr: >-
+          (sum without (kind) (warden_profiles_drift_resources) > 0)
+          and (warden_profiles_enabled == 1)
+          and (warden_profiles_check_success == 1)
+          and (time() - warden_profiles_last_successful_check_timestamp_seconds < 2 * warden_profiles_interval_seconds)
+          and (time() - warden_profiles_drift_since_timestamp_seconds >= warden_profiles_interval_seconds)
+        labels:
+          severity: warning
+          component: warden
+        annotations:
+          summary: 'Warden: {{ $labels.source }} profiles differ from Git'
+          description: 'Configuration drift has persisted for a check interval. Review the profile diff and resolved Git revision.'
+
+      - alert: WardenProfilesCheckFailed
+        expr: (warden_profiles_enabled == 1) and (warden_profiles_check_success == 0)
+        for: 5m
+        labels:
+          severity: warning
+          component: warden
+        annotations:
+          summary: 'Warden: {{ $labels.source }} profile checks are failing'
+          description: 'Current drift is unknown. Check repository access, catalog validation, and Arr connectivity.'
+
+      - alert: WardenProfilesStale
+        expr: >-
+          (warden_profiles_enabled == 1)
+          and (time() - warden_profiles_last_successful_check_timestamp_seconds > 2 * warden_profiles_interval_seconds)
+          and (time() - warden_profiles_started_timestamp_seconds > 2 * warden_profiles_interval_seconds)
+        labels:
+          severity: warning
+          component: warden
+        annotations:
+          summary: 'Warden: {{ $labels.source }} profile observation is stale'
+          description: 'No successful comparison within two configured intervals, including the startup grace period.'
+
   - name: status-pipeline
     interval: 30s
     rules:

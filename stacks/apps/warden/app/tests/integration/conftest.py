@@ -1,30 +1,151 @@
 from __future__ import annotations
 
 import dataclasses
+import json
 import os
 import re
 import signal
 import socket
 import subprocess
+import sys
 import time
 import urllib.error
 import urllib.request
-from collections.abc import Callable, Iterable
+from collections.abc import Callable, Iterable, Iterator
 from pathlib import Path
+from tempfile import TemporaryDirectory
 
 import pytest
 from prometheus_client.parser import text_string_to_metric_families
 from pytest_httpserver import HTTPServer
 
-APP_DIR = Path(__file__).resolve().parents[2]  # .../warden/app
+from tests.profile_data import CUSTOM_FORMAT, PROFILE, REMOTE_FORMAT, REMOTE_PROFILE
+
+APP_DIR = Path(__file__).resolve().parents[2]
+EXAMPLES = APP_DIR.parent / "examples/profiles"
+CLI = str(Path(sys.executable).with_name("warden"))
+
+
+def cli_env(directory: Path) -> dict[str, str]:
+    env = {key: value for key, value in os.environ.items() if not key.startswith("WARDEN_")}
+    env.update(PYTHONDONTWRITEBYTECODE="1", WARDEN_DB_URL=f"sqlite:///{directory}/must-not-create.db",
+               WARDEN_METRICS_PORT="invalid-server-setting")
+    return env
+
+
+def invoke(directory: Path, *args: str, env: dict[str, str] | None = None) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(
+        [CLI, *args], cwd=directory, env=env if env is not None else cli_env(directory),
+        capture_output=True, text=True, timeout=15,
+    )
+
+
+def run_validate(directory: Path) -> subprocess.CompletedProcess[str]:
+    return invoke(directory.parent, "profiles", "validate", "--directory", str(directory))
+
+
+def run_dump(server: HTTPServer, output: Path, *args: str) -> subprocess.CompletedProcess[str]:
+    env = cli_env(output.parent)
+    env.update(WARDEN_RADARR_URL=server.url_for(""), WARDEN_RADARR_API_KEY="secret-test-key")
+    return invoke(output.parent, "profiles", "dump", "--source", "radarr", "--output", str(output), *args, env=env)
+
+
+def run_diff(
+    server: HTTPServer, directory: Path, *args: str, env: dict[str, str] | None = None,
+) -> subprocess.CompletedProcess[str]:
+    settings = cli_env(directory.parent)
+    settings.update(WARDEN_RADARR_URL=server.url_for(""), WARDEN_RADARR_API_KEY="test-key")
+    settings.update(env or {})
+    return invoke(directory.parent, "profiles", "diff", "--source", "radarr", "--directory", str(directory), *args, env=settings)
+
+
+@pytest.fixture()
+def output_directory() -> Iterator[Path]:
+    with TemporaryDirectory(prefix="warden-cli-test-", dir="/dev/shm") as directory:
+        yield Path(directory) / "catalog"
+
+
+@pytest.fixture()
+def catalog(tmp_path: Path) -> Path:
+    root = tmp_path / "catalog"
+    for source in ("radarr", "sonarr"):
+        profiles = root / source / "profiles"
+        formats = root / source / "custom_formats"
+        profiles.mkdir(parents=True)
+        formats.mkdir()
+        (profiles / "hd.yml").write_text(PROFILE)
+        (formats / "preferred.json").write_text(json.dumps(CUSTOM_FORMAT))
+    return root
+
+
+def dump_catalog(server: HTTPServer, directory: Path) -> None:
+    server.expect_request("/api/v3/qualityprofile", method="GET").respond_with_json([REMOTE_PROFILE])
+    server.expect_request("/api/v3/customformat", method="GET").respond_with_json([REMOTE_FORMAT])
+    result = run_dump(server, directory)
+    assert result.returncode == 0, result.stderr
+    assert result.stdout == "Exported 1 profiles and 1 custom formats.\n"
+
+
+@pytest.fixture()
+def dumped_catalog(httpserver: HTTPServer, output_directory: Path) -> Path:
+    dump_catalog(httpserver, output_directory)
+    httpserver.clear_log()
+    return output_directory
+
+
+def git(directory: Path, *args: str) -> str:
+    return subprocess.run(
+        ["git", "-C", str(directory), *args], capture_output=True, text=True, check=True, timeout=15,
+    ).stdout.strip()
+
+
+def commit(directory: Path, message: str) -> str:
+    git(directory, "add", ".")
+    git(directory, "-c", "user.name=Test", "-c", "user.email=test@example.invalid", "commit", "-m", message)
+    return git(directory, "rev-parse", "HEAD")
+
+
+@pytest.fixture()
+def repository(httpserver: HTTPServer, output_directory: Path) -> Path:
+    dump_catalog(httpserver, output_directory)
+    git(output_directory, "init", "-b", "main")
+    commit(output_directory, "initial catalog")
+    return output_directory
+
+
+def stop_server(handle: WardenHandle) -> None:
+    if handle.proc.poll() is None:
+        handle.proc.send_signal(signal.SIGTERM)
+        try:
+            handle.proc.wait(timeout=15)
+        finally:
+            if handle.proc.poll() is None:
+                handle.proc.kill()
+                handle.proc.wait(timeout=5)
+
+
+def profile_events(handle: WardenHandle) -> list[dict]:
+    records = [json.loads(line) for line in handle.logfile.read_text().splitlines() if line.startswith("{")]
+    return [record for record in records if record.get("event") == "profile_checked"]
+
+
+def start_observer(
+    directory: Path, server: HTTPServer, launch: Callable[..., WardenHandle], **overrides: str,
+) -> WardenHandle:
+    prime_radarr(server)
+    server.expect_request("/api/v3/qualityprofile", method="GET").respond_with_json([REMOTE_PROFILE])
+    server.expect_request("/api/v3/customformat", method="GET").respond_with_json([REMOTE_FORMAT])
+    return launch(**{
+        "WARDEN_RADARR_URL": server.url_for(""), "WARDEN_RADARR_API_KEY": "test-key",
+        "WARDEN_PROFILES_REPO": str(directory), "WARDEN_PROFILES_REF": "main",
+        "WARDEN_PROFILES_CACHE_DIR": str(directory.parent / "cache"),
+        "WARDEN_PROFILES_INTERVAL_SEC": "0.2", "WARDEN_PROFILES_TIMEOUT_SEC": "2",
+        **overrides,
+    })
 
 
 def pytest_collection_finish(session: pytest.Session) -> None:
-    """Disable coverage fail-under when only integration tests are collected (no unit tests).
-
-    Mirrors fiber: the gated subprocess suite is coverage-exempt; the ≥90% gate is
-    carried by the unit tier and enforced on the full run.
-    """
+    """Apply the coverage gate to the combined suite, not an isolated test tier."""
     has_unit = any("tests/unit" in str(item.fspath) for item in session.items)
     if not has_unit:
         for _name, plugin in session.config.pluginmanager.list_name_plugin():
@@ -78,18 +199,18 @@ def launch(tmp_path) -> Callable[..., WardenHandle]:
         port = _free_port()
         logfile = tmp_path / f"warden-{port}.log"
         env = {
-            **os.environ,
+            **cli_env(tmp_path),
             "WARDEN_METRICS_PORT": str(port),
             "WARDEN_DB_URL": f"sqlite:///{tmp_path}/warden-{port}.db",
             "WARDEN_POLL_INTERVAL_SEC": "0.5",
             "WARDEN_FALLBACK_SEARCHES_PER_DAY": "500",
             **env_overrides,
         }
-        fh = open(logfile, "w")
-        proc = subprocess.Popen(
-            ["uv", "run", "python", "-m", "warden.main"],
-            cwd=str(APP_DIR), env=env, stdout=fh, stderr=subprocess.STDOUT, text=True,
-        )
+        with logfile.open("w") as stream:
+            proc = subprocess.Popen(
+                [CLI, "serve"], cwd=tmp_path, env=env,
+                stdout=stream, stderr=subprocess.STDOUT, text=True,
+            )
         handle = WardenHandle(base_url=f"http://127.0.0.1:{port}", proc=proc, logfile=logfile)
         handles.append(handle)
         _wait_healthz(handle, timeout=40.0)
@@ -97,14 +218,8 @@ def launch(tmp_path) -> Callable[..., WardenHandle]:
 
     yield _launch
 
-    for h in handles:
-        if h.proc.poll() is None:
-            h.proc.send_signal(signal.SIGTERM)
-            try:
-                h.proc.wait(timeout=15)
-            except subprocess.TimeoutExpired:
-                h.proc.kill()
-                h.proc.wait()
+    for handle in handles:
+        stop_server(handle)
 
 
 def _wait_healthz(handle: WardenHandle, *, timeout: float) -> None:

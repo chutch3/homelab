@@ -5,7 +5,6 @@ import contextlib
 
 from dependency_injector.wiring import Provide, inject
 
-from warden.container import Container
 from warden.logger import get_logger
 from warden.services.orchestrator import TickOrchestrator
 
@@ -15,7 +14,7 @@ _logger = get_logger("warden.loop")
 @inject
 async def _hunt_loop(
     stop: asyncio.Event,
-    orchestrator: TickOrchestrator = Provide[Container.orchestrator],
+    orchestrator: TickOrchestrator = Provide["orchestrator"],
 ) -> None:
     while not stop.is_set():
         try:

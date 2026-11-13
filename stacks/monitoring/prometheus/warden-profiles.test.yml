@@ -1,0 +1,108 @@
+rule_files:
+  - alert-rules.yml
+evaluation_interval: 1m
+tests:
+  - name: drift respects configured interval and clears on recovery
+    interval: 1m
+    input_series:
+      - series: 'warden_profiles_enabled{source="radarr"}'
+        values: '1x10'
+      - series: 'warden_profiles_check_success{source="radarr"}'
+        values: '1x10'
+      - series: 'warden_profiles_interval_seconds{source="radarr"}'
+        values: '120x10'
+      - series: 'warden_profiles_started_timestamp_seconds{source="radarr"}'
+        values: '1x10'
+      - series: 'warden_profiles_last_successful_check_timestamp_seconds{source="radarr"}'
+        values: '1+60x10'
+      - series: 'warden_profiles_drift_since_timestamp_seconds{source="radarr"}'
+        values: '60x4 0x6'
+      - series: 'warden_profiles_drift_resources{source="radarr",kind="profile"}'
+        values: '1x4 0x6'
+      - series: 'warden_profiles_drift_resources{source="radarr",kind="custom_format"}'
+        values: '0x10'
+    alert_rule_test:
+      - alertname: WardenProfilesDrift
+        eval_time: 2m
+      - alertname: WardenProfilesDrift
+        eval_time: 3m
+        exp_alerts:
+          - exp_labels: {source: radarr, severity: warning, component: warden}
+            exp_annotations:
+              summary: 'Warden: radarr profiles differ from Git'
+              description: 'Configuration drift has persisted for a check interval. Review the profile diff and resolved Git revision.'
+      - alertname: WardenProfilesDrift
+        eval_time: 6m
+      - alertname: WardenProfilesStale
+        eval_time: 6m
+
+  - name: failed checks preserve counts but suppress drift and disabled alerts
+    interval: 1m
+    input_series:
+      - series: 'warden_profiles_enabled{source="radarr"}'
+        values: '1x10'
+      - series: 'warden_profiles_check_success{source="radarr"}'
+        values: '0x10'
+      - series: 'warden_profiles_interval_seconds{source="radarr"}'
+        values: '120x10'
+      - series: 'warden_profiles_started_timestamp_seconds{source="radarr"}'
+        values: '1x10'
+      - series: 'warden_profiles_last_successful_check_timestamp_seconds{source="radarr"}'
+        values: '60x10'
+      - series: 'warden_profiles_drift_since_timestamp_seconds{source="radarr"}'
+        values: '60x10'
+      - series: 'warden_profiles_drift_resources{source="radarr",kind="profile"}'
+        values: '1x10'
+      - series: 'warden_profiles_enabled{source="sonarr"}'
+        values: '0x10'
+      - series: 'warden_profiles_check_success{source="sonarr"}'
+        values: '0x10'
+      - series: 'warden_profiles_interval_seconds{source="sonarr"}'
+        values: '120x10'
+      - series: 'warden_profiles_started_timestamp_seconds{source="sonarr"}'
+        values: '1x10'
+      - series: 'warden_profiles_last_successful_check_timestamp_seconds{source="sonarr"}'
+        values: '0x10'
+    alert_rule_test:
+      - alertname: WardenProfilesDrift
+        eval_time: 6m
+      - alertname: WardenProfilesCheckFailed
+        eval_time: 4m
+      - alertname: WardenProfilesCheckFailed
+        eval_time: 6m
+        exp_alerts:
+          - exp_labels: {source: radarr, severity: warning, component: warden}
+            exp_annotations:
+              summary: 'Warden: radarr profile checks are failing'
+              description: 'Current drift is unknown. Check repository access, catalog validation, and Arr connectivity.'
+      - alertname: WardenProfilesStale
+        eval_time: 6m
+        exp_alerts:
+          - exp_labels: {source: radarr, severity: warning, component: warden}
+            exp_annotations:
+              summary: 'Warden: radarr profile observation is stale'
+              description: 'No successful comparison within two configured intervals, including the startup grace period.'
+
+  - name: never successful source gets startup grace then alerts
+    interval: 1m
+    input_series:
+      - series: 'warden_profiles_enabled{source="sonarr"}'
+        values: '1x10'
+      - series: 'warden_profiles_check_success{source="sonarr"}'
+        values: '0x10'
+      - series: 'warden_profiles_interval_seconds{source="sonarr"}'
+        values: '120x10'
+      - series: 'warden_profiles_started_timestamp_seconds{source="sonarr"}'
+        values: '60x10'
+      - series: 'warden_profiles_last_successful_check_timestamp_seconds{source="sonarr"}'
+        values: '0x10'
+    alert_rule_test:
+      - alertname: WardenProfilesStale
+        eval_time: 3m
+      - alertname: WardenProfilesStale
+        eval_time: 6m
+        exp_alerts:
+          - exp_labels: {source: sonarr, severity: warning, component: warden}
+            exp_annotations:
+              summary: 'Warden: sonarr profile observation is stale'
+              description: 'No successful comparison within two configured intervals, including the startup grace period.'

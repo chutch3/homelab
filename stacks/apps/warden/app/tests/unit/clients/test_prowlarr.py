@@ -61,11 +61,11 @@ class TestProwlarrClient:
         assert idx["YTS"].categories == (2000, 2040)
         assert idx["YTS"].query_limit == 20
 
-    async def test_none_query_limit_preserved_as_none(self, subject):
+    async def test_get_indexers_none_query_limit_preserved_as_none(self, subject):
         idx = {i.name: i for i in await subject.get_indexers()}
         assert idx["Unlimited"].query_limit is None
 
-    async def test_hourly_unit_normalized_to_per_day(self, subject):
+    async def test_get_indexers_hourly_unit_normalized_to_per_day(self, subject):
         idx = {i.name: i for i in await subject.get_indexers()}
         # 5/hour * 24 = 120/day
         assert idx["Hourly"].query_limit == 120

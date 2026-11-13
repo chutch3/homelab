@@ -5,19 +5,19 @@ from tests.factories import indexer, prowlarr_app
 RADARR = prowlarr_app(implementation="Radarr", tags=(2, 1), sync_categories=(2000, 2040))
 
 
-def test_serves_when_tag_and_category_match():
+def test_serves_app_matches_tags_and_categories():
     assert serves_app(indexer(tags=(1,), categories=(2000,)), RADARR) is True
 
 
-def test_not_served_when_disabled():
+def test_serves_app_rejects_disabled_indexer():
     assert serves_app(indexer(enabled=False), RADARR) is False
 
 
-def test_not_served_when_no_tag_overlap():
+def test_serves_app_rejects_nonoverlapping_tags():
     assert serves_app(indexer(tags=(9,), categories=(2000,)), RADARR) is False
 
 
-def test_not_served_when_no_category_overlap():
+def test_serves_app_rejects_nonoverlapping_categories():
     assert serves_app(indexer(tags=(1,), categories=(5000,)), RADARR) is False
 
 

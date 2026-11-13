@@ -43,6 +43,45 @@ graph LR
 
 Images are pinned to a released version for deployment, not `:latest`. Promoting `:latest` to a version tag happens in the separate release workflow (`release.yml`).
 
+## Local builds and development publishing
+
+Both build and publish calculate a development image tag automatically using the
+installed Python Semantic Release package and this repository's release settings:
+
+```bash
+task build -- warden
+task publish -- warden
+task image:tag                  # preview a newly calculated tag without building
+
+# An explicit nonempty override bypasses version calculation:
+IMAGE_TAG=3.36.0-dev.1 task publish -- warden
+```
+
+Automatic tags look like `3.36.0-dev.1.t1793046000000000000.gabcdef012345.dirty`.
+Semantic Release determines the version from committed changes and release tags
+reachable from the current branch, honoring the configured commit parser and tag
+format. When it finds no releasable change, the helper uses a development prerelease
+of the next patch version. Uncommitted changes cannot determine a semantic bump;
+they add the `dirty` marker instead. Every calculation appends a nanosecond timestamp
+and base commit ID so repeated builds get distinct tags. A preview and a later build
+will therefore have different timestamps; to reuse the preview, capture it:
+
+```bash
+IMAGE_TAG="$(task --silent image:tag)" task publish -- warden
+```
+
+Calculation is read-only: it creates no Git tags, commits, changelog, or release,
+and does not fetch history. Feature branches are supported without changing the
+release workflow's branch policy. A detached HEAD, shallow history, or invalid
+release configuration stops the task before Docker runs; an explicit `IMAGE_TAG`
+bypasses those requirements. Empty overrides are treated as unset.
+
+The calculated version is provisional; the normal release process assigns the
+final version after merge. Keep `latest` for the main-branch build pipeline because
+the release workflow promotes it to stable versions. Publishing does not change
+a stack's deployment pin or deploy it. Record the registry digest when testing or
+deploying an exact build.
+
 ## Tooling Changes Rebuild Everything
 
 Because `.github/workflows/build.yml` and `tools/ci/**` are tooling globs, a PR that only changes the pipeline re-runs **every** unit's test and build. This is intentional: a broken change to the build logic should be caught against all apps before it merges, not discovered later when it silently breaks the next unrelated PR. Everyday app PRs stay narrow — only the touched app runs.
