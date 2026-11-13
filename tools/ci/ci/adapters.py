@@ -40,7 +40,7 @@ class LocalFileSystem:
         return path.is_dir()
 
 
-class CommandRunner:
+class Subprocess:
     def run(
         self,
         argv: list[str],

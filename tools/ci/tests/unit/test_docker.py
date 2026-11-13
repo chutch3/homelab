@@ -12,7 +12,8 @@ import json
 from unittest.mock import Mock
 
 import pytest
-from ci.adapters import CommandResult, CommandRunner
+from ci.adapters import CommandResult
+from ci.ports import CommandRunner
 from ci.containers import Container
 from ci.docker import Docker
 from ci.stackstate import Service

@@ -18,7 +18,7 @@ from __future__ import annotations
 
 from dependency_injector import containers, providers
 
-from ci.adapters import CommandRunner, LocalFileSystem, SystemClock
+from ci.adapters import LocalFileSystem, Subprocess, SystemClock
 from ci.affected import UnitCatalog
 from ci.apptests import AppSuites, SuiteRunner
 from ci.deploy import DeployPlanner
@@ -34,7 +34,7 @@ class Container(containers.DeclarativeContainer):
     env = providers.Dependency(instance_of=dict)
 
     filesystem = providers.Singleton(LocalFileSystem)
-    commands = providers.Singleton(CommandRunner)
+    commands = providers.Singleton(Subprocess)
     clock = providers.Singleton(SystemClock)
 
     catalog = providers.Factory(UnitCatalog, filesystem=filesystem, repo_root=repo_root)
