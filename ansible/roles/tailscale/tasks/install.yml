@@ -6,11 +6,13 @@
       state: directory
       mode: "0755"
 
+# apt-key is gone from apt 3 (Ubuntu 25.04+). Tailscale publishes a binary
+# (noarmor) keyring, so it lands directly at the path the repo line already uses.
 - name: Add Tailscale GPG key
-  apt_key:
-      url: "https://pkgs.tailscale.com/stable/ubuntu/{{ ansible_facts['distribution_release'] }}.gpg"
-      state: present
-      keyring: /etc/apt/keyrings/tailscale.gpg
+  get_url:
+      url: "https://pkgs.tailscale.com/stable/ubuntu/{{ ansible_facts['distribution_release'] }}.noarmor.gpg"
+      dest: /etc/apt/keyrings/tailscale.gpg
+      mode: "0644"
 
 - name: Add Tailscale apt repository
   apt_repository:
