@@ -21,6 +21,15 @@ services:
               target: /dev/shm
               tmpfs:
                   size: 1073741824
+        # Ready once the Selkies web server answers on its internal port (no auth
+        # there; SSO is at Traefik). Verified against the live image: exit 0 when
+        # up, exit 7 when nothing is listening.
+        healthcheck:
+            test: ["CMD", "curl", "-fsS", "-o", "/dev/null", "--max-time", "5", "http://localhost:3000/"]
+            interval: 30s
+            timeout: 10s
+            retries: 3
+            start_period: 60s
         networks:
             - traefik-public
         deploy:

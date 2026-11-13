@@ -1,0 +1,8 @@
+# Must not deploy until probe-slow reports healthy.
+x-homelab:
+    requires: [probe-slow]
+
+services:
+    after:
+        image: alpine:3
+        command: ["sleep", "600"]

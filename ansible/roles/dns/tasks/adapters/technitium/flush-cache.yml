@@ -1,0 +1,18 @@
+# ansible/roles/dns/tasks/adapters/technitium/flush-cache.yml
+---
+# The base-domain zone is a Conditional Forwarder, so a name that did not exist
+# yet was answered NXDOMAIN upstream and cached here for cacheNegativeRecordTtl.
+- name: "[TECHNITIUM] Flush the resolver cache"
+  ansible.builtin.uri:
+    url: "{{ dns_primary_api_url }}/cache/flush?token={{ dns_api_token }}"
+    method: GET
+    status_code: 200
+  register: dns_cache_flush_result
+  delegate_to: localhost
+  changed_when: false
+
+- name: "[TECHNITIUM] Display cache flush status"
+  ansible.builtin.debug:
+    msg: >-
+      Negative cache flushed on {{ primary_dns_host }}:
+      {{ dns_cache_flush_result.json.status | default('unknown') }}

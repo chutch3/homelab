@@ -10,7 +10,7 @@ load "${BATS_TEST_DIRNAME}/../../../tests/helpers/bats-assert/load"
 REPO_ROOT="${BATS_TEST_DIRNAME}/../../.."
 FIXTURES="${BATS_TEST_DIRNAME}/fixtures"
 PLAYBOOK="ansible/playbooks/deploy/stacks.yml"
-PROBES=(probe-app probe-base probe-stuck)
+PROBES=(probe-app probe-base probe-stuck probe-unhealthy probe-slow probe-after)
 
 setup_file() {
     if [[ "${HOMELAB_ANSIBLE_E2E:-}" != "1" ]]; then
@@ -50,6 +50,10 @@ line_of() {
     printf '%s\n' "$output" | grep -n -- "$1" | head -1 | cut -d: -f1
 }
 
+task_seconds() {
+    printf '%s\n' "$output" | grep -F -- "$1" | grep -oE '[0-9]+\.[0-9]+s$' | tail -1 | tr -d 's'
+}
+
 spec_of() {
     docker service inspect "$1" --format '{{json .Spec}}'
 }
@@ -74,7 +78,7 @@ spec_of() {
     deploy converging probe-app
     assert_success
     assert_output --partial "already converged (probe-base)"
-    refute_output --partial "TASK [swarm : Deploy probe-base]"
+    refute_output --partial "TASK [Deploy probe-base]"
 
     after="$(spec_of probe-base_ready)"
     [[ "$before" == "$after" ]]
@@ -83,7 +87,7 @@ spec_of() {
 @test "an explicit target deploys even when it has already converged" {
     deploy converging probe-base
     assert_success
-    assert_output --partial "TASK [swarm : Deploy probe-base]"
+    assert_output --partial "TASK [Deploy probe-base]"
     assert_output --partial "1 to deploy"
 }
 
@@ -95,6 +99,52 @@ spec_of() {
     assert_success
     assert_output --partial "0 to deploy, 2 already converged"
     assert_output --partial "changed=0"
+}
+
+# See docs/architecture/overview.md — "What converged means".
+@test "a running task whose healthcheck fails is never converged" {
+    deploy unhealthy probe-unhealthy -e converge_retries=4 -e converge_delay=2
+    assert_failure
+    assert_output --partial "probe-unhealthy did not converge"
+
+    run docker service ls --filter name=probe-unhealthy --format '{{.Replicas}}'
+    assert_output --partial "0/1"
+}
+
+@test "a dependent waits for its dependency's healthcheck, not just its start" {
+    deploy health-gated probe-after
+    assert_success
+    assert_output --partial "converged — probe-slow"
+
+    local slow_converged dependent_deployed
+    slow_converged="$(line_of "converged — probe-slow")"
+    dependent_deployed="$(line_of "Deploy probe-after")"
+    [[ -n "$slow_converged" && -n "$dependent_deployed" ]]
+    (( slow_converged < dependent_deployed ))
+
+    # Time the probe, not the run: Ansible's own setup exceeds 15s, so
+    # wall-clock would pass even with the healthcheck removed.
+    local waited
+    waited="$(task_seconds "Ask ci whether the stack has converged — probe-slow")"
+    [[ -n "$waited" ]]
+    (( ${waited%.*} >= 15 ))
+}
+
+# The replica column counts the outgoing task too — see
+# docs/architecture/overview.md, "What converged means".
+@test "a redeploy is not converged until the new task is healthy, not the old one" {
+    deploy health-gated probe-slow
+    assert_success
+
+    # Same stack, changed spec: this is an update, not a first deploy.
+    deploy health-gated-v2 probe-slow
+    assert_success
+    assert_output --partial "TASK [Deploy probe-slow]"
+
+    local waited
+    waited="$(task_seconds "Ask ci whether the stack has converged — probe-slow")"
+    [[ -n "$waited" ]]
+    (( ${waited%.*} >= 15 ))
 }
 
 @test "a stack that never converges fails naming it" {
